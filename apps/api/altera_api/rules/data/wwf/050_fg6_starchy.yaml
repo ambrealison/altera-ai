@@ -1,0 +1,24 @@
+# WWF — FG6 starchy vegetables and tubers.
+#
+# FG6 covers starchy root vegetables and tubers (potato, sweet potato,
+# cassava, yam, parsnip). These are energy-dense carbohydrate foods distinct
+# from FG4 non-starchy vegetables and FG5 grains.
+# French-language keywords included for EN/FR bilingual retailers.
+
+- id: wwf.fg6.starchy_veg
+  methodology: wwf
+  category:
+    wwf_food_group: FG6
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains:
+          ["potato", "potatoes", "sweet potato", "cassava", "yam",
+           "parsnip", "plantain",
+           "pomme de terre", "patate douce", "manioc", "igname", "panais",
+           "plantain"]
+  exclude:
+    any_of:
+      - product_name_contains:
+          ["sweet potato fries with", "potato salad with chicken",
+           "potato soup", "potato wedges with"]

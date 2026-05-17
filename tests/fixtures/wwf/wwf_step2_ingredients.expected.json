@@ -1,0 +1,129 @@
+{
+  "methodology": "wwf",
+  "reporting_period_label": "FY 2024",
+  "versions": {
+    "methodology_version": "1.0.0",
+    "methodology_source_edition": "WWF Food Practice 2024",
+    "taxonomy_version": "1.0.0",
+    "rules_version": "1.0.0"
+  },
+  "rows": [
+    {
+      "external_product_id": "P-VL-001",
+      "wwf_food_group": "FG1",
+      "wwf_subgroup_label": "alternative_protein_sources",
+      "wwf_is_composite": true,
+      "wwf_composite_step1_bucket": "vegan",
+      "weight_kg": "800.00000000",
+      "weight_kg_dairy_equiv": null
+    },
+    {
+      "external_product_id": "P-VL-002",
+      "wwf_food_group": "FG1",
+      "wwf_subgroup_label": "poultry",
+      "wwf_is_composite": true,
+      "wwf_composite_step1_bucket": "meat_based",
+      "weight_kg": "1225.00000000",
+      "weight_kg_dairy_equiv": null
+    },
+    {
+      "external_product_id": "P-VL-003",
+      "wwf_food_group": "FG1",
+      "wwf_subgroup_label": "legumes",
+      "wwf_is_composite": true,
+      "wwf_composite_step1_bucket": "vegetarian",
+      "weight_kg": "600.00000000",
+      "weight_kg_dairy_equiv": null
+    },
+    {
+      "external_product_id": "P-VL-004",
+      "wwf_food_group": "FG1",
+      "wwf_subgroup_label": "seafood",
+      "wwf_is_composite": true,
+      "wwf_composite_step1_bucket": "seafood_based",
+      "weight_kg": "360.00000000",
+      "weight_kg_dairy_equiv": null
+    },
+    {
+      "external_product_id": "P-VL-005",
+      "wwf_food_group": "FG1",
+      "wwf_subgroup_label": "red_meat",
+      "wwf_is_composite": true,
+      "wwf_composite_step1_bucket": "meat_based",
+      "weight_kg": "1596.00000000",
+      "weight_kg_dairy_equiv": null
+    },
+    {
+      "external_product_id": "P-VL-006",
+      "wwf_food_group": "FG1",
+      "wwf_subgroup_label": "legumes",
+      "wwf_is_composite": true,
+      "wwf_composite_step1_bucket": "vegan",
+      "weight_kg": "630.00000000",
+      "weight_kg_dairy_equiv": null
+    }
+  ],
+  "per_food_group": [
+    {
+      "food_group": "FG1",
+      "weight_kg": "673.00000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "12.91498753",
+      "phd_reference_share_pct": "16.00000000"
+    },
+    {
+      "food_group": "FG2",
+      "weight_kg": "40.00000000",
+      "weight_kg_dairy_equiv": "40.00000000",
+      "share_pct": "0.76760699",
+      "phd_reference_share_pct": "19.00000000"
+    },
+    {
+      "food_group": "FG3",
+      "weight_kg": "0.00000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "0.00000000",
+      "phd_reference_share_pct": "4.00000000"
+    },
+    {
+      "food_group": "FG4",
+      "weight_kg": "1023.40000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "19.63922472",
+      "phd_reference_share_pct": "39.00000000"
+    },
+    {
+      "food_group": "FG5",
+      "weight_kg": "809.50000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "15.53444636",
+      "phd_reference_share_pct": "18.00000000"
+    },
+    {
+      "food_group": "FG6",
+      "weight_kg": "0.00000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "0.00000000",
+      "phd_reference_share_pct": "4.00000000"
+    },
+    {
+      "food_group": "FG7",
+      "weight_kg": "0.00000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "0.00000000",
+      "phd_reference_share_pct": null
+    }
+  ],
+  "summary": {
+    "total_sales_weight_in_scope_kg": "5211.00000000",
+    "composites_total_weight_kg": "5211.00000000",
+    "composites_meat_based_kg": "2821.00000000",
+    "composites_seafood_based_kg": "360.00000000",
+    "composites_vegetarian_kg": "600.00000000",
+    "composites_vegan_kg": "1430.00000000",
+    "whole_diet_plant_weight_kg": "2192.90000000",
+    "whole_diet_animal_weight_kg": "353.00000000",
+    "out_of_scope_count": 0,
+    "unknown_count": 0
+  }
+}

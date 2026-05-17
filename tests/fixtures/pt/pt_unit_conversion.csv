@@ -1,0 +1,21 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,language,country,is_own_brand,weight_per_item_kg,weight_per_item_g,weight_per_item_lb,items_purchased,protein_pct,protein_source
+U-PT-001,Chicken Breast 300g,FarmFirst,Poultry,Fresh Chicken,en,GB,false,,300,,1000,22.0,label
+U-PT-002,Salmon Fillet 180g,SeaCatch,Fish,Fresh Fish,en,GB,false,,180,,800,20.0,label
+U-PT-003,Tofu Block 396g,TofuCo,Meat Alternatives,Tofu,en,GB,false,,396,,600,8.0,label
+U-PT-004,Lentils Tin 400g,GreenLeaf,Tinned Vegetables,Pulses,en,GB,true,,400,,1500,9.0,reference_db
+U-PT-005,Beef Burger 227g,ButcherBest,Red Meat,Burgers,en,GB,false,,227,,2000,18.0,label
+U-PT-006,Pea Soup 300g,GreenLeaf,Soups,Vegetable Soups,en,GB,true,,300,,1100,4.0,label
+U-PT-007,Greek Yoghurt 170g,DairyFarm,Dairy,Yoghurt,en,GB,false,,170,,3200,10.0,label
+U-PT-008,Hummus 200g,MedFoods,Dips,Hummus,en,GB,false,,200,,2500,6.5,label
+U-PT-009,Cheese Slice 25g,DairyFarm,Dairy,Cheese,en,GB,false,,25,,8000,25.0,label
+U-PT-010,Almond Milk 1000g,NutriDrink,Dairy Alternatives,Plant Milks,en,GB,false,,1000,,900,0.5,label
+U-PT-011,Chicken Thighs 2lb,FarmFirst,Poultry,Fresh Chicken,en,US,false,,,2.0,500,18.0,label
+U-PT-012,Beef Steak 1.5lb,ButcherBest,Red Meat,Beef Steaks,en,US,false,,,1.5,300,21.0,label
+U-PT-013,Pork Shoulder 3lb,FarmFirst,Pork,Fresh Pork,en,US,false,,,3.0,200,16.0,label
+U-PT-014,Salmon 1lb,SeaCatch,Fish,Fresh Fish,en,US,false,,,1.0,400,20.0,label
+U-PT-015,Tofu 14oz equivalent,TofuCo,Meat Alternatives,Tofu,en,US,false,,,0.875,700,8.0,label
+U-PT-016,Lentil Soup 500ml approx,GreenLeaf,Soups,Pulse Soups,en,NL,true,0.480,,,1800,4.5,reference_db
+U-PT-017,Smoked Salmon 100g,SeaCatch,Fish,Smoked Fish,en,GB,false,,100,,1200,22.0,label
+U-PT-018,Peanut Butter 340g,NutButters,Spreads,Nut Butters,en,GB,false,,340,,2200,25.0,label
+U-PT-019,Skyr 450g,DairyFarm,Dairy,Yoghurt,en,GB,false,,450,,1600,11.0,label
+U-PT-020,Tempeh 200g,TofuCo,Meat Alternatives,Fermented Soy,en,GB,false,,200,,450,19.0,label

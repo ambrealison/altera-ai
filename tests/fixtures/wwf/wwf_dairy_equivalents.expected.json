@@ -1,0 +1,147 @@
+{
+  "methodology": "wwf",
+  "reporting_period_label": "FY 2024",
+  "versions": {
+    "methodology_version": "1.0.0",
+    "methodology_source_edition": "WWF Food Practice 2024",
+    "taxonomy_version": "1.0.0",
+    "rules_version": "1.0.0"
+  },
+  "rows": [
+    {
+      "external_product_id": "D-WWF-001",
+      "wwf_food_group": "FG2",
+      "wwf_subgroup_label": "cheese",
+      "wwf_is_composite": false,
+      "wwf_composite_step1_bucket": null,
+      "weight_kg": "2000.00000000",
+      "weight_kg_dairy_equiv": "20000.00000000"
+    },
+    {
+      "external_product_id": "D-WWF-002",
+      "wwf_food_group": "FG2",
+      "wwf_subgroup_label": "cheese",
+      "wwf_is_composite": false,
+      "wwf_composite_step1_bucket": null,
+      "weight_kg": "600.00000000",
+      "weight_kg_dairy_equiv": "6000.00000000"
+    },
+    {
+      "external_product_id": "D-WWF-003",
+      "wwf_food_group": "FG2",
+      "wwf_subgroup_label": "other_dairy_animal",
+      "wwf_is_composite": false,
+      "wwf_composite_step1_bucket": null,
+      "weight_kg": "12000.00000000",
+      "weight_kg_dairy_equiv": "12000.00000000"
+    },
+    {
+      "external_product_id": "D-WWF-004",
+      "wwf_food_group": "FG2",
+      "wwf_subgroup_label": "other_dairy_animal",
+      "wwf_is_composite": false,
+      "wwf_composite_step1_bucket": null,
+      "weight_kg": "750.00000000",
+      "weight_kg_dairy_equiv": "750.00000000"
+    },
+    {
+      "external_product_id": "D-WWF-005",
+      "wwf_food_group": "FG2",
+      "wwf_subgroup_label": "other_dairy_animal",
+      "wwf_is_composite": false,
+      "wwf_composite_step1_bucket": null,
+      "weight_kg": "2000.00000000",
+      "weight_kg_dairy_equiv": "2000.00000000"
+    },
+    {
+      "external_product_id": "D-WWF-006",
+      "wwf_food_group": "FG2",
+      "wwf_subgroup_label": "dairy_alternative_plant",
+      "wwf_is_composite": false,
+      "wwf_composite_step1_bucket": null,
+      "weight_kg": "7500.00000000",
+      "weight_kg_dairy_equiv": "7500.00000000"
+    },
+    {
+      "external_product_id": "D-WWF-007",
+      "wwf_food_group": "FG2",
+      "wwf_subgroup_label": "dairy_alternative_plant",
+      "wwf_is_composite": false,
+      "wwf_composite_step1_bucket": null,
+      "weight_kg": "880.00000000",
+      "weight_kg_dairy_equiv": "880.00000000"
+    },
+    {
+      "external_product_id": "D-WWF-008",
+      "wwf_food_group": "FG2",
+      "wwf_subgroup_label": "cheese",
+      "wwf_is_composite": false,
+      "wwf_composite_step1_bucket": null,
+      "weight_kg": "400.00000000",
+      "weight_kg_dairy_equiv": "4000.00000000"
+    }
+  ],
+  "per_food_group": [
+    {
+      "food_group": "FG1",
+      "weight_kg": "0.00000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "0.00000000",
+      "phd_reference_share_pct": "16.00000000"
+    },
+    {
+      "food_group": "FG2",
+      "weight_kg": "26130.00000000",
+      "weight_kg_dairy_equiv": "53130.00000000",
+      "share_pct": "100.00000000",
+      "phd_reference_share_pct": "19.00000000"
+    },
+    {
+      "food_group": "FG3",
+      "weight_kg": "0.00000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "0.00000000",
+      "phd_reference_share_pct": "4.00000000"
+    },
+    {
+      "food_group": "FG4",
+      "weight_kg": "0.00000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "0.00000000",
+      "phd_reference_share_pct": "39.00000000"
+    },
+    {
+      "food_group": "FG5",
+      "weight_kg": "0.00000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "0.00000000",
+      "phd_reference_share_pct": "18.00000000"
+    },
+    {
+      "food_group": "FG6",
+      "weight_kg": "0.00000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "0.00000000",
+      "phd_reference_share_pct": "4.00000000"
+    },
+    {
+      "food_group": "FG7",
+      "weight_kg": "0.00000000",
+      "weight_kg_dairy_equiv": null,
+      "share_pct": "0.00000000",
+      "phd_reference_share_pct": null
+    }
+  ],
+  "summary": {
+    "total_sales_weight_in_scope_kg": "26130.00000000",
+    "composites_total_weight_kg": "0.00000000",
+    "composites_meat_based_kg": "0.00000000",
+    "composites_seafood_based_kg": "0.00000000",
+    "composites_vegetarian_kg": "0.00000000",
+    "composites_vegan_kg": "0.00000000",
+    "whole_diet_plant_weight_kg": "8380.00000000",
+    "whole_diet_animal_weight_kg": "44750.00000000",
+    "out_of_scope_count": 0,
+    "unknown_count": 0
+  }
+}

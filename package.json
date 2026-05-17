@@ -1,0 +1,16 @@
+{
+  "name": "altera-ai",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Altera AI monorepo root.",
+  "scripts": {
+    "dev:web": "pnpm --filter @altera-ai/web dev",
+    "build:web": "pnpm --filter @altera-ai/web build",
+    "lint:web": "pnpm --filter @altera-ai/web lint",
+    "typecheck:web": "pnpm --filter @altera-ai/web typecheck"
+  },
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "note": "All products remain unknown after classification (neither deterministic rules nor AI classifier resolved them). Both methodology runs report zero in-scope protein / weight and flag unknown_count.",
+  "protein_tracker": {
+    "summary": {
+      "total_in_scope_protein_kg": "0.00000000",
+      "plant_share_pct": null,
+      "animal_share_pct": null,
+      "plant_share_null_reason": "no in-scope protein found",
+      "unknown_count": 5,
+      "out_of_scope_count": 0
+    }
+  },
+  "wwf": {
+    "summary": {
+      "total_sales_weight_in_scope_kg": "0.00000000",
+      "unknown_count": 5,
+      "out_of_scope_count": 0
+    }
+  }
+}

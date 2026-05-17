@@ -1,0 +1,13 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,retail_channel,weight_per_item_kg,items_sold,wwf_is_composite
+W-WWF-001,Beef Mince 500g,ButcherBest,Red Meat,Fresh Beef,beef,,en,GB,false,fresh,0.500,4200,false
+W-WWF-002,Whole Milk 2L,DairyFarm,Dairy,Fresh Milk,whole milk,vegetarian,en,GB,false,fresh,2.000,8500,false
+W-WWF-003,Baked Salmon Fillet,SeaCatch,Fish,Fresh Fish,salmon,,en,GB,false,fresh,0.180,2100,false
+W-WWF-004,Free Range Eggs 6pk,FarmFirst,Eggs,Free Range,free range eggs,vegetarian,en,GB,false,grocery_ambient,0.330,12000,false
+W-WWF-005,Sliced Wholegrain Bread,BreadCo,Bakery,Sliced Bread,"wholegrain wheat flour, water, yeast, salt",vegan,en,GB,true,grocery_ambient,0.800,15000,false
+W-WWF-006,Cheddar Cheese 400g,DairyFarm,Dairy,Cheese,"whole milk, salt, rennet",vegetarian,en,GB,false,fresh,0.400,9200,false
+W-WWF-007,Olive Oil 500ml,MedFoods,Oils,Olive Oil,extra virgin olive oil,vegan,en,GB,false,grocery_ambient,0.460,3800,false
+W-WWF-008,Red Kidney Beans Tin,GreenLeaf,Tinned Pulses,Kidney Beans,"red kidney beans, water",vegan,en,GB,true,grocery_ambient,0.400,6700,false
+W-WWF-009,Frozen Peas 1kg,GardenFresh,Frozen Vegetables,Peas,garden peas,vegan,en,GB,true,frozen,1.000,11000,false
+W-WWF-010,Dark Chocolate 100g,ChocoLux,Confectionery,Dark Chocolate,"cocoa (70%), sugar, cocoa butter",vegan,en,GB,false,grocery_ambient,0.100,22000,false
+W-WWF-011,Beef and Potato Stew,HomeChef,Ready Meals,Stews,"beef (30%), potato (35%), vegetables",,en,GB,true,fresh,0.400,3200,true
+W-WWF-012,Chicken Thighs 1kg,FarmFirst,Poultry,Fresh Chicken,chicken,free_range,en,GB,false,fresh,1.000,6800,false

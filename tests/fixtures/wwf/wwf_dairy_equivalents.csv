@@ -1,0 +1,9 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,retail_channel,weight_per_item_kg,items_sold,wwf_is_composite
+D-WWF-001,Mature Cheddar 400g,DairyFarm,Dairy,Hard Cheese,"whole milk, salt, rennet, starter",vegetarian,en,GB,false,fresh,0.400,5000,false
+D-WWF-002,Brie 200g,DairyFarm,Dairy,Soft Cheese,"whole milk, cream, salt, rennet",vegetarian,en,GB,false,fresh,0.200,3000,false
+D-WWF-003,Whole Milk 2L,DairyFarm,Dairy,Fresh Milk,"whole milk",vegetarian,en,GB,false,fresh,2.000,6000,false
+D-WWF-004,Soured Cream 300ml,DairyFarm,Dairy,Cream,"cream, live cultures",vegetarian,en,GB,false,fresh,0.300,2500,false
+D-WWF-005,Butter 250g,DairyFarm,Dairy,Butter,"pasteurised cream, salt",vegetarian,en,GB,false,fresh,0.250,8000,false
+D-WWF-006,Oat Milk 1L,OatlyFix,Dairy Alternatives,Plant Milks,"water, oat (10%), rapeseed oil, salt",vegan,en,GB,false,grocery_ambient,1.000,7500,false
+D-WWF-007,Soy Yoghurt 400g,GreenLeaf,Dairy Alternatives,Plant Yoghurts,"water, soya (7%), live cultures",vegan,en,GB,false,grocery_ambient,0.400,2200,false
+D-WWF-008,Parmesan 100g,ItalFoods,Dairy,Hard Cheese,"skimmed milk, salt, rennet",vegetarian,en,IT,false,grocery_ambient,0.100,4000,false

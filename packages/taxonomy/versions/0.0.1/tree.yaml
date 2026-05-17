@@ -1,0 +1,35 @@
+# Altera AI canonical taxonomy tree — placeholder for version 0.0.1.
+#
+# The real tree is populated in a later phase. The shape below is purely
+# illustrative and exists so the package layout is correct.
+
+version: "0.0.1"
+methodology_coverage:
+  protein_tracker: true
+  wwf: true
+
+nodes:
+  - id: food
+    label: Food
+    children:
+      - id: food.meat
+        label: Meat
+        children:
+          - id: food.meat.red
+            label: Red meat
+            pt_group: animal_core
+            wwf_food_group: FG1
+            wwf_fg1_subgroup: red_meat
+          - id: food.meat.poultry
+            label: Poultry
+            pt_group: animal_core
+            wwf_food_group: FG1
+            wwf_fg1_subgroup: poultry
+      - id: food.pulses
+        label: Pulses
+        children:
+          - id: food.pulses.lentils
+            label: Lentils
+            pt_group: plant_based_core
+            wwf_food_group: FG1
+            wwf_fg1_subgroup: legumes

@@ -1,0 +1,64 @@
+# WWF — FG4 fruits and vegetables.
+# Broad keyword coverage for common produce; excludes cases where the
+# term appears in a non-FG4 context (e.g. "carrot cake", "tomato sauce").
+# French-language keywords included for EN/FR bilingual retailers.
+
+# ---- Vegetables ----
+
+- id: wwf.fg4.vegetables
+  methodology: wwf
+  category:
+    wwf_food_group: FG4
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains:
+          ["frozen peas", "broccoli", "carrot", "spinach", "cauliflower",
+           "courgette", "tomato", "onion", "leek", "pepper", "capsicum",
+           "cabbage", "kale", "lettuce", "cucumber", "mushroom",
+           "sweetcorn", "corn on the cob", "aubergine", "eggplant",
+           "asparagus", "artichoke", "celery", "fennel", "radish",
+           "beetroot", "beet", "turnip", "swede", "bok choy", "pak choi",
+           "bean sprout", "watercress", "rocket", "endive",
+           "brocoli", "carotte", "épinards", "chou-fleur", "courgette",
+           "tomate", "oignon", "poireau", "poivron", "chou", "laitue",
+           "concombre", "champignon", "maïs", "aubergine", "asperge",
+           "betterave", "navet", "chou de Bruxelles"]
+  exclude:
+    any_of:
+      - product_name_contains:
+          ["pea protein", "pea soup", "tomato sauce", "tomato purée",
+           "tomato paste", "carrot cake", "onion rings", "onion bhaji",
+           "mushroom soup", "mushroom risotto", "stuffed pepper",
+           "carrot soup"]
+
+# ---- Fruits ----
+
+- id: wwf.fg4.fruits
+  methodology: wwf
+  category:
+    wwf_food_group: FG4
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains:
+          ["apple", "apples", "banana", "bananas", "orange", "oranges",
+           "strawberry", "strawberries", "blueberry", "blueberries",
+           "raspberry", "raspberries", "grape", "grapes", "cherry", "cherries",
+           "mango", "mangoes", "pineapple", "pear", "pears",
+           "peach", "peaches", "plum", "plums", "apricot", "apricots",
+           "kiwi", "melon", "watermelon", "lemon", "lemons",
+           "lime", "limes", "grapefruit", "passion fruit",
+           "pomegranate", "fig", "figs", "date", "dates", "prune", "prunes",
+           "raisin", "raisins", "sultana", "sultanas",
+           "currant", "currants", "gooseberry", "gooseberries",
+           "blackberry", "blackberries", "cranberry", "cranberries",
+           "pomme", "banane", "fraise", "framboise", "cerise", "raisin",
+           "poire", "pêche", "abricot", "mangue", "ananas", "melon",
+           "citron", "orange", "figue", "datte", "pruneau"]
+  exclude:
+    any_of:
+      - product_name_contains:
+          ["apple juice", "orange juice", "fruit juice", "lemonade",
+           "apple cider", "fruit flavour", "apple pie", "strawberry jam",
+           "fruit yoghurt", "fruit bar", "dried fruit bar"]

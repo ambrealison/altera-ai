@@ -1,0 +1,13 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,retail_channel,weight_per_item_kg,items_sold,wwf_is_composite
+CS-WWF-001,Beef Lasagna,HomeChef,Ready Meals,Pasta Dishes,"pasta (40%), beef mince (25%), tomato sauce, bechamel",,en,GB,true,fresh,0.400,3000,true
+CS-WWF-002,Chicken Tikka Masala,HomeChef,Ready Meals,Curry,"chicken (30%), tomato sauce, cream, spices, rice",,en,GB,true,fresh,0.350,4500,true
+CS-WWF-003,Prawn Stir Fry,WokBox,Ready Meals,Asian,"prawns (25%), noodles (35%), vegetables, sauce",,en,GB,false,fresh,0.300,2200,true
+CS-WWF-004,Tuna Pasta Bake,SeaCatch,Ready Meals,Pasta Dishes,"pasta (45%), tuna (15%), cheese sauce",,en,GB,false,grocery_ambient,0.380,1800,true
+CS-WWF-005,Vegetable Korma,GreenChef,Ready Meals,Curry,"vegetables (50%), chickpeas (15%), cream, spices, rice",vegetarian,en,GB,true,fresh,0.350,2600,true
+CS-WWF-006,Lentil Dahl,GreenChef,Ready Meals,South Asian,"lentils (40%), vegetables, spices, coconut milk",vegan,en,GB,true,fresh,0.300,1900,true
+CS-WWF-007,Margherita Pizza 12inch,PizzaCo,Chilled Pizza,Margherita,"dough (40%), tomato sauce (20%), mozzarella (20%)",vegetarian,en,GB,false,fresh,0.350,7000,true
+CS-WWF-008,Meat Feast Pizza 12inch,PizzaCo,Chilled Pizza,Meat Feast,"dough (35%), pepperoni (15%), ham (10%), cheese, sauce",,en,GB,false,fresh,0.450,5500,true
+CS-WWF-009,Vegan Sausage Rolls 4pk,GreenBake,Bakery,Savoury Pastries,"pastry (40%), quorn mince (30%), vegetables",vegan,en,GB,false,grocery_ambient,0.240,3300,true
+CS-WWF-010,Ham and Cheese Sandwich,QuickEat,Chilled Sandwiches,Sandwiches,"bread (40%), ham (15%), cheese (10%), butter, salad",,en,GB,false,grocery_ambient,0.200,8500,true
+CS-WWF-011,Prawn Cocktail Sandwich,QuickEat,Chilled Sandwiches,Sandwiches,"bread (45%), prawns (15%), mayonnaise, lettuce",,en,GB,false,grocery_ambient,0.185,7200,true
+CS-WWF-012,Vegan Caesar Wrap,GreenBite,Chilled Sandwiches,Wraps,"tortilla (35%), tofu (15%), vegan Caesar dressing, romaine",vegan,en,GB,true,grocery_ambient,0.220,2400,true

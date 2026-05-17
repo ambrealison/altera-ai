@@ -1,0 +1,103 @@
+# Protein Tracker — plant_based_core rules.
+#
+# Plant proteins that are the primary protein contribution of the
+# product: pulses, soy products, seitan, edamame, tofu, tempeh,
+# mycoprotein (Quorn), pea protein products, nuts/seeds as primary
+# protein source.
+#
+# French-language keywords included for EN/FR bilingual retailers.
+
+# ---- Pulses ----
+
+- id: pt.plant.pulses
+  methodology: protein_tracker
+  category: plant_based_core
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains:
+          ["lentil", "lentils", "chickpea", "chickpeas", "bean", "beans",
+           "dal", "dahl", "dhal", "kidney bean", "black bean", "haricot",
+           "cannellini", "borlotti", "flageolet", "edamame",
+           "lentille", "lentilles", "pois chiche", "haricot", "fève", "feves",
+           "fèves", "soja", "soybeans", "soy bean", "soya bean"]
+  exclude:
+    any_of:
+      - product_name_contains:
+          ["green bean", "runner bean", "bean salad dressing",
+           "haricots verts", "vanilla bean", "coffee bean", "cocoa bean"]
+
+# ---- Soy / tofu / tempeh / seitan ----
+
+- id: pt.plant.tofu_tempeh_seitan
+  methodology: protein_tracker
+  category: plant_based_core
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains:
+          ["tofu", "tempeh", "seitan", "soya mince", "soy mince",
+           "soya protein", "soy protein"]
+
+- id: pt.plant.edamame_soy
+  methodology: protein_tracker
+  category: plant_based_core
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains:
+          ["edamame", "soya bean", "soy bean", "soybean"]
+
+# ---- Peas and pea protein ----
+
+- id: pt.plant.peas_and_pea_protein
+  methodology: protein_tracker
+  category: plant_based_core
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains:
+          ["pea protein", "pea soup", "split pea",
+           "protéine de pois", "soupe de pois", "pois cassés"]
+
+# ---- Mycoprotein ----
+
+- id: pt.plant.mycoprotein
+  methodology: protein_tracker
+  category: plant_based_core
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains: ["quorn", "mycoprotein", "myco protein", "fungal protein"]
+  exclude:
+    any_of:
+      - labels_contains: ["contains_egg"]
+
+# ---- Plant protein supplements / bars ----
+
+- id: pt.plant.plant_protein_supplement
+  methodology: protein_tracker
+  category: plant_based_core
+  priority: 210
+  match:
+    any_of:
+      - product_name_contains:
+          ["pea protein bar", "plant protein bar", "vegan protein bar",
+           "hemp protein", "rice protein", "pea protein powder",
+           "plant protein powder", "vegan protein powder"]
+  exclude:
+    any_of:
+      - product_name_contains: ["whey", "casein", "milk protein"]
+
+# ---- Nuts as main protein ----
+
+- id: pt.plant.nuts_as_main_protein
+  methodology: protein_tracker
+  category: plant_based_core
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains:
+          ["mixed nuts", "almond ", " almonds", "peanut butter", "hummus",
+           "tahini", "nut butter", "cashew butter", "almond butter",
+           "beurre de cacahuète", "houmous", "hoummos"]

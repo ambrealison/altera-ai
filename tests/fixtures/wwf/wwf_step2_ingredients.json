@@ -1,0 +1,36 @@
+{
+  "P-VL-001": {
+    "note": "Own brand vegan lasagna 400g. Step 2 ingredients sum to 340g; 60g residual (water, oil, spices).",
+    "ingredients": [
+      {"food_group": "FG1", "subgroup": "alternative_protein_sources", "ingredient_weight_kg_per_item": 0.070},
+      {"food_group": "FG2", "subgroup": "dairy_alternative_plant",     "ingredient_weight_kg_per_item": 0.020},
+      {"food_group": "FG5", "subgroup": "refined_grain",               "ingredient_weight_kg_per_item": 0.100},
+      {"food_group": "FG4", "subgroup": null,                          "ingredient_weight_kg_per_item": 0.150}
+    ]
+  },
+  "P-VL-002": {
+    "note": "Own brand chicken and veg pie 350g. Step 2 ingredients sum to 301g; 49g residual (gravy, seasoning).",
+    "ingredients": [
+      {"food_group": "FG1", "subgroup": "poultry",      "ingredient_weight_kg_per_item": 0.070},
+      {"food_group": "FG5", "subgroup": "refined_grain","ingredient_weight_kg_per_item": 0.133},
+      {"food_group": "FG4", "subgroup": null,           "ingredient_weight_kg_per_item": 0.098}
+    ]
+  },
+  "P-VL-003": {
+    "note": "Own brand veggie cottage pie 400g. Step 2 sum to 340g; 60g residual.",
+    "ingredients": [
+      {"food_group": "FG4", "subgroup": null,                          "ingredient_weight_kg_per_item": 0.160},
+      {"food_group": "FG1", "subgroup": "legumes",                     "ingredient_weight_kg_per_item": 0.072},
+      {"food_group": "FG1", "subgroup": "meat_egg_seafood_alternatives","ingredient_weight_kg_per_item": 0.048},
+      {"food_group": "FG4", "subgroup": null,                          "ingredient_weight_kg_per_item": 0.060}
+    ]
+  },
+  "P-VL-004": {
+    "note": "Own brand salmon en croute 300g. Step 2 sum to 252g; 48g residual.",
+    "ingredients": [
+      {"food_group": "FG1", "subgroup": "seafood",      "ingredient_weight_kg_per_item": 0.090},
+      {"food_group": "FG5", "subgroup": "refined_grain","ingredient_weight_kg_per_item": 0.120},
+      {"food_group": "FG4", "subgroup": null,           "ingredient_weight_kg_per_item": 0.042}
+    ]
+  }
+}

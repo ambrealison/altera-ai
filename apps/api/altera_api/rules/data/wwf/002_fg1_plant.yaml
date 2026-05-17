@@ -1,0 +1,56 @@
+# WWF — FG1 plant-side subgroups.
+# French-language keywords included for EN/FR bilingual retailers.
+
+# ---- Legumes ----
+
+- id: wwf.fg1.legumes
+  methodology: wwf
+  category:
+    wwf_food_group: FG1
+    wwf_fg1_subgroup: legumes
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains:
+          ["lentil", "chickpea", "kidney bean", "black bean", "red bean",
+           "haricot", "cannellini", "borlotti", "flageolet", "split pea",
+           "edamame", "broad bean", "butter bean", "lima bean", "soy bean",
+           "soya bean", "soybean", "pea soup", "pea protein",
+           "lentille", "lentilles", "pois chiche", "fève", "fèves",
+           "haricots rouges", "pois cassés"]
+  exclude:
+    any_of:
+      - product_name_contains: ["green bean", "runner bean", "haricots verts"]
+
+# ---- Nuts and seeds ----
+
+- id: wwf.fg1.nuts_seeds
+  methodology: wwf
+  category:
+    wwf_food_group: FG1
+    wwf_fg1_subgroup: nuts_seeds
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains:
+          ["mixed nuts", "almond ", " almonds", "walnut", "cashew", "pistachio",
+           "sunflower seed", "pumpkin seed", "chia", "flaxseed", "linseed",
+           "pecan", "brazil nut", "macadamia", "hemp seed",
+           "amande", "noix de cajou", "noix", "pistache", "graine de chia",
+           "graine de lin", "graine de tournesol"]
+
+# ---- Alternative protein sources (tofu, tempeh, seitan, mycoprotein) ----
+
+- id: wwf.fg1.alt_protein
+  methodology: wwf
+  category:
+    wwf_food_group: FG1
+    wwf_fg1_subgroup: alternative_protein_sources
+  priority: 200
+  match:
+    any_of:
+      - product_name_contains:
+          ["tofu", "tempeh", "seitan", "quorn", "mycoprotein",
+           "soya mince", "soy mince", "textured soy", "textured vegetable protein",
+           "tvp", "seitan", "wheat gluten",
+           "protéines de soja", "tofu fumé", "tofu ferme"]

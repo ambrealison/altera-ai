@@ -1,0 +1,76 @@
+# Protein Tracker — plant_based_non_core rules.
+#
+# Plant-source products that contribute *some* protein but are not the
+# primary protein contribution: plant milks, plant yoghurts, plant
+# creams, plant butters.
+
+# ---- Plant milks ----
+
+- id: pt.plant.plant_milks
+  methodology: protein_tracker
+  category: plant_based_non_core
+  priority: 300
+  match:
+    any_of:
+      - product_name_contains:
+          ["oat milk", "almond milk", "soy milk", "soya milk", "rice milk",
+           "coconut milk", "plant milk", "oat drink", "soya drink",
+           "almond drink", "hazelnut milk", "cashew milk", "hemp milk",
+           "lait d'avoine", "lait de soja", "lait d'amande", "lait végétal",
+           "boisson végétale", "boisson d'avoine", "boisson de soja"]
+
+# ---- Plant yoghurts ----
+
+- id: pt.plant.plant_yoghurts
+  methodology: protein_tracker
+  category: plant_based_non_core
+  priority: 300
+  match:
+    all_of:
+      - product_name_contains: ["yoghurt", "yogurt", "yaourt"]
+      - any_of:
+          - labels_contains: ["vegan", "dairy_free"]
+          - product_name_contains:
+              ["soy", "soya", "oat", "coconut", "almond", "cashew", "hemp",
+               "plant", "non-dairy"]
+
+# ---- Plant cream and plant butter ----
+
+- id: pt.plant.plant_cream
+  methodology: protein_tracker
+  category: plant_based_non_core
+  priority: 300
+  match:
+    any_of:
+      - product_name_contains:
+          ["oat cream", "soy cream", "soya cream", "coconut cream",
+           "plant cream", "vegan cream", "almond cream",
+           "crème d'avoine", "crème végétale", "crème de soja"]
+  exclude:
+    any_of:
+      - product_name_contains: ["cream cheese", "ice cream", "sour cream", "crème fraîche"]
+
+- id: pt.plant.plant_butter
+  methodology: protein_tracker
+  category: plant_based_non_core
+  priority: 300
+  match:
+    any_of:
+      - product_name_contains:
+          ["vegan butter", "plant butter", "dairy-free spread", "vegan spread",
+           "beurre végétal", "margarine végane"]
+  exclude:
+    any_of:
+      - product_name_contains: ["peanut butter", "nut butter", "almond butter", "cashew butter"]
+
+# ---- Plant-based cheese alternatives ----
+
+- id: pt.plant.plant_cheese
+  methodology: protein_tracker
+  category: plant_based_non_core
+  priority: 290
+  match:
+    any_of:
+      - product_name_contains:
+          ["vegan cheese", "plant cheese", "dairy-free cheese",
+           "fromage vegan", "fromage végétal"]

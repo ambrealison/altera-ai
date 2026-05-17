@@ -1,0 +1,154 @@
+# Protein Tracker — animal_core rules.
+#
+# Whole-animal-protein products: meat, poultry, seafood, eggs, and
+# straight dairy (milk, yoghurt, cheese, butter). Composite products
+# containing meat live in 030_composites.yaml — these rules deliberately
+# exclude common ready-meal terms.
+#
+# French-language keywords are included for EN/FR bilingual retailers.
+
+# ---- Red meat ----
+
+- id: pt.animal.red_meat
+  methodology: protein_tracker
+  category: animal_core
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["beef", "steak", "mince", "lamb", "pork", "bacon", "ham", "veal",
+           "boeuf", "agneau", "porc", "jambon", "veau", "bifteck"]
+  exclude:
+    any_of:
+      - product_name_contains: ["alternative", "vegan", "plant-based", "soy mince", "quorn"]
+      - labels_contains: ["vegan"]
+
+- id: pt.animal.game
+  methodology: protein_tracker
+  category: animal_core
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["venison", "rabbit", "wild boar", "pheasant", "partridge", "grouse",
+           "gibier", "lapin", "sanglier", "faisan"]
+  exclude:
+    any_of:
+      - labels_contains: ["vegan"]
+
+- id: pt.animal.processed_meat
+  methodology: protein_tracker
+  category: animal_core
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["salami", "pepperoni", "chorizo", "sausage", "frankfurter", "hot dog",
+           "bratwurst", "mortadella", "prosciutto", "pancetta", "lardons",
+           "saucisse", "saucisson", "merguez", "boudin", "rillettes"]
+  exclude:
+    any_of:
+      - product_name_contains: ["vegan", "plant-based", "veggie sausage", "vegetarian sausage"]
+      - labels_contains: ["vegan", "vegetarian"]
+
+# ---- Poultry ----
+
+- id: pt.animal.poultry
+  methodology: protein_tracker
+  category: animal_core
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["chicken", "turkey", "duck", "goose", "guinea fowl",
+           "poulet", "dinde", "canard", "oie", "pintade"]
+  exclude:
+    any_of:
+      - product_name_contains: ["alternative", "vegan", "plant-based"]
+      - labels_contains: ["vegan"]
+
+# ---- Seafood ----
+
+- id: pt.animal.seafood
+  methodology: protein_tracker
+  category: animal_core
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["salmon", "tuna", "cod", "haddock", "prawn", "shrimp", "mackerel",
+           "sardine", "anchovy", "trout", "sea bass", "sea bream", "halibut",
+           "plaice", "sole", "herring", "pilchard", "tilapia", "mahi",
+           "scallop", "mussel", "oyster", "crab", "lobster", "squid", "octopus",
+           "saumon", "thon", "cabillaud", "crevette", "maquereau", "hareng",
+           "lieu", "daurade", "loup de mer", "moule", "huître", "crabe"]
+  exclude:
+    any_of:
+      - product_name_contains: ["alternative", "vegan", "plant-based"]
+      - labels_contains: ["vegan"]
+
+# ---- Eggs ----
+
+- id: pt.animal.eggs
+  methodology: protein_tracker
+  category: animal_core
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains: ["egg ", " eggs", " egg", "oeuf", "oeufs"]
+  exclude:
+    any_of:
+      - product_name_contains: ["eggplant"]
+
+# ---- Dairy ----
+
+- id: pt.animal.dairy_milk_yoghurt
+  methodology: protein_tracker
+  category: animal_core
+  priority: 110
+  match:
+    any_of:
+      - product_name_contains:
+          ["milk", "yoghurt", "yogurt", "skyr", "kefir", "butter",
+           "fromage blanc", "lait entier", "lait demi", "yaourt", "beurre",
+           "crème fraîche", "creme fraiche", "buttermilk", "ghee"]
+  exclude:
+    any_of:
+      - product_name_contains:
+          ["oat milk", "soy milk", "almond milk", "rice milk", "coconut milk",
+           "plant milk", "soya milk", "peanut butter", "nut butter",
+           "lait d'avoine", "lait de soja", "lait d'amande",
+           "vegan butter", "plant butter", "coconut butter"]
+      - labels_contains: ["vegan", "dairy_free"]
+
+- id: pt.animal.cheese
+  methodology: protein_tracker
+  category: animal_core
+  priority: 110
+  match:
+    any_of:
+      - product_name_contains:
+          ["cheddar", "parmesan", "mozzarella", "brie", "camembert", "feta",
+           "ricotta", "gouda", "gruyère", "gruyere", "emmental", "roquefort",
+           "stilton", "manchego", "halloumi", "paneer", "quark",
+           "fromage", "chèvre", "chevre", "comté", "comte", "raclette",
+           "reblochon", "boursin", "brie"]
+      - all_of:
+          - product_name_contains: ["cheese"]
+  exclude:
+    any_of:
+      - product_name_contains: ["vegan cheese", "plant cheese", "alternative", "plant-based cheese"]
+      - labels_contains: ["vegan"]
+
+# ---- Whey / protein supplements (animal-derived) ----
+
+- id: pt.animal.whey_protein
+  methodology: protein_tracker
+  category: animal_core
+  priority: 120
+  match:
+    any_of:
+      - product_name_contains: ["whey protein", "whey bar", "casein protein", "milk protein"]
+  exclude:
+    any_of:
+      - labels_contains: ["vegan"]

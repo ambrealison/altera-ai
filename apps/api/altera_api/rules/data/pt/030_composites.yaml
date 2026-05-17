@@ -1,0 +1,144 @@
+# Protein Tracker — composite_products rules.
+#
+# Multi-ingredient products typical of foodservice menus. The 50/50
+# default is applied at calculation time, not here. Rules are intentionally
+# broad — borderline products that fire alongside animal or plant rules at
+# different priority levels will collide → manual review.
+
+# ---- Pasta dishes ----
+
+- id: pt.composite.pasta_dishes
+  methodology: protein_tracker
+  category: composite_products
+  priority: 500
+  match:
+    any_of:
+      - product_name_contains:
+          ["lasagna", "lasagne", "bolognese", "spaghetti bol", "pasta bake",
+           "carbonara", "moussaka", "pasta sauce", "pesto pasta",
+           "lasagnes", "bolognaise", "pâtes carbonara"]
+
+# ---- Curries, stews, and Asian dishes ----
+
+- id: pt.composite.curries_stews_asian
+  methodology: protein_tracker
+  category: composite_products
+  priority: 500
+  match:
+    any_of:
+      - product_name_contains:
+          ["curry", "tikka masala", "stew", "stir fry", "biryani",
+           "stir-fry", "korma", "dhal", "tagine", "ramen", "pho",
+           "pad thai", "noodle dish", "chow mein", "fried rice",
+           "risotto", "paella", "shakshuka",
+           "cari", "ragoût", "ragout", "fricassée", "fricassee"]
+
+# ---- Pies, pastries, and baked goods ----
+
+- id: pt.composite.pies_pastries
+  methodology: protein_tracker
+  category: composite_products
+  priority: 500
+  match:
+    any_of:
+      - product_name_contains:
+          ["pie", "pasty", "pastry", "sausage roll", "cottage pie",
+           "shepherd's pie", "sheperd", "quiche", "tart", "empanada",
+           "samosa", "spring roll",
+           "tourte", "quiche", "feuilleté", "feuillete"]
+  exclude:
+    any_of:
+      - product_name_contains: ["fruit pie", "apple pie", "cherry pie", "mince pie", "sweet tart"]
+
+# ---- Sandwiches and wraps ----
+
+- id: pt.composite.sandwiches_wraps
+  methodology: protein_tracker
+  category: composite_products
+  priority: 500
+  match:
+    any_of:
+      - product_name_contains:
+          ["sandwich", "wrap", "baguette", "sub roll", "panini", "flatbread",
+           "tortilla wrap", "taco", "burrito", "fajita", "pita",
+           "croque", "tartine garnie"]
+
+# ---- Pizza ----
+
+- id: pt.composite.pizza
+  methodology: protein_tracker
+  category: composite_products
+  priority: 500
+  match:
+    any_of:
+      - product_name_contains: ["pizza"]
+
+# ---- Burgers ----
+
+- id: pt.composite.burgers
+  methodology: protein_tracker
+  category: composite_products
+  priority: 500
+  match:
+    any_of:
+      - product_name_contains: ["burger", "hamburger", "cheeseburger", "veggie burger"]
+  exclude:
+    any_of:
+      - product_name_contains: ["burger patty", "burger bun"]
+
+# ---- Protein-containing salads ----
+
+- id: pt.composite.protein_salads
+  methodology: protein_tracker
+  category: composite_products
+  priority: 500
+  match:
+    any_of:
+      - product_name_contains:
+          ["chicken salad", "tuna salad", "egg salad", "prawn salad",
+           "niçoise", "nicoise", "caesar salad", "chef's salad",
+           "salade niçoise", "salade caesar", "salade de poulet",
+           "salmon salad", "quinoa salad with", "lentil salad with"]
+
+# ---- Protein-containing soups ----
+
+- id: pt.composite.protein_soups
+  methodology: protein_tracker
+  category: composite_products
+  priority: 500
+  match:
+    any_of:
+      - product_name_contains:
+          ["chicken soup", "beef stew", "fish soup", "seafood bisque",
+           "minestrone", "soupe au poulet", "bouillon de boeuf",
+           "cock-a-leekie", "ham and pea soup", "oxtail soup"]
+  exclude:
+    any_of:
+      - product_name_contains: ["lentil soup", "tomato soup", "vegetable soup", "pumpkin soup"]
+
+# ---- Sushi and grain bowls ----
+
+- id: pt.composite.sushi_bowls
+  methodology: protein_tracker
+  category: composite_products
+  priority: 500
+  match:
+    any_of:
+      - product_name_contains:
+          ["sushi", "maki", "nigiri", "sashimi", "poke bowl",
+           "buddha bowl", "grain bowl", "rice bowl with",
+           "bowl with chicken", "bowl with salmon", "bowl with tofu"]
+
+# ---- Ready meals (generic) ----
+
+- id: pt.composite.ready_meals
+  methodology: protein_tracker
+  category: composite_products
+  priority: 600
+  match:
+    all_of:
+      - product_name_contains: ["ready meal"]
+      - any_of:
+          - product_name_contains:
+              ["chicken", "beef", "pork", "lamb", "fish", "prawn",
+               "tofu", "lentil", "bean", "veggie"]

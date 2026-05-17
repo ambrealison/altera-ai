@@ -1,0 +1,7 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,retail_channel,weight_per_item_kg,items_sold,wwf_is_composite
+E-WWF-001,Black Pepper 50g,SpiceCo,Condiments,Spices,black pepper,vegan,en,GB,false,grocery_ambient,0.050,8000,false
+E-WWF-002,Sea Salt 500g,SaltCo,Condiments,Salt,sea salt,vegan,en,GB,false,grocery_ambient,0.500,5000,false
+E-WWF-003,White Wine 750ml,VinoCo,Alcohol,White Wine,"fermented grape juice, sulphites",,en,GB,false,grocery_ambient,0.750,3500,false
+E-WWF-004,Sparkling Water 1.5L,AquaCo,Beverages,Water,carbonated water,vegan,en,GB,false,grocery_ambient,1.500,12000,false
+E-WWF-005,Regular Chicken Breast,FarmFirst,Poultry,Fresh Chicken,chicken breast,free_range,en,GB,false,fresh,0.500,4000,false
+E-WWF-006,Red Kidney Beans,GreenLeaf,Tinned Pulses,Beans,"red kidney beans, water",vegan,en,GB,true,grocery_ambient,0.400,3000,false

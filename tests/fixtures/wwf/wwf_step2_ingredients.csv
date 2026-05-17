@@ -1,0 +1,7 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,retail_channel,weight_per_item_kg,items_sold,wwf_is_composite
+P-VL-001,Own Brand Vegan Lasagna,StoreBrand,Ready Meals,Vegan Meals,"tofu (17.5%), soy milk (5%), lasagne sheets (25%), vegetables (37.5%), olive oil, tomatoes",vegan,en,GB,true,fresh,0.400,2000,true
+P-VL-002,Own Brand Chicken and Veg Pie,StoreBrand,Ready Meals,Pies,"pastry (38%), chicken (20%), mixed vegetables (30%), gravy",,en,GB,true,fresh,0.350,3500,true
+P-VL-003,Own Brand Veggie Cottage Pie,StoreBrand,Ready Meals,Vegetarian Meals,"potato mash (40%), lentils (18%), quorn (12%), vegetables, gravy",vegetarian,en,GB,true,fresh,0.400,1500,true
+P-VL-004,Own Brand Salmon en Croute,StoreBrand,Ready Meals,Fish Dishes,"pastry (40%), salmon (30%), spinach, cream cheese",,en,GB,true,fresh,0.300,1200,true
+P-VL-005,Branded Beef Bolognese,QuickBite,Ready Meals,Pasta Dishes,"pasta (45%), beef mince (20%), tomato sauce",,en,GB,false,grocery_ambient,0.380,4200,true
+P-VL-006,Own Brand Vegan Shepherd Pie,StoreBrand,Ready Meals,Vegan Meals,"potato mash (40%), lentils (25%), vegetables (25%), herbs",vegan,en,GB,true,fresh,0.350,1800,true

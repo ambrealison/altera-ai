@@ -1,0 +1,7 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,weight_per_item_kg,items_purchased,protein_pct,protein_source,plant_protein_pct,animal_protein_pct
+S-PT-001,Own Brand Meat Lasagna,StoreBrand,Ready Meals,Pasta Dishes,"pasta (35%), beef (25%), tomato, bechamel",,en,GB,true,0.400,2000,9.0,label,2.7,6.3
+S-PT-002,Own Brand Chicken Biryani,StoreBrand,Ready Meals,Rice Dishes,"rice (45%), chicken (20%), spices",,en,GB,true,0.450,1800,8.5,label,1.7,6.8
+S-PT-003,Own Brand Veggie Moussaka,StoreBrand,Ready Meals,Mediterranean,"aubergine (30%), lentils (20%), bechamel",vegetarian,en,GB,true,0.350,1100,7.0,label,4.9,2.1
+S-PT-004,Branded Chicken Wrap,QuickEat,Chilled Sandwiches,Wraps,"tortilla, chicken, lettuce, sauce",,en,GB,false,0.220,4500,12.0,label,,
+S-PT-005,Own Brand Fish Pie,StoreBrand,Ready Meals,Fish Dishes,"potato mash (40%), mixed fish (35%), cream sauce",,en,GB,true,0.400,900,8.8,label,0.9,7.9
+S-PT-006,Own Brand Lentil Shepherd Pie,StoreBrand,Ready Meals,Vegetarian Meals,"lentils (30%), potato (40%), vegetables",vegan,en,GB,true,0.350,700,6.0,label,5.4,0.6

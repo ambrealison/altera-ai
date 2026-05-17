@@ -1,0 +1,73 @@
+# WWF — FG2 dairy and dairy alternatives.
+# French-language keywords included for EN/FR bilingual retailers.
+
+# ---- Cheese (animal dairy) ----
+
+- id: wwf.fg2.cheese
+  methodology: wwf
+  category:
+    wwf_food_group: FG2
+    wwf_fg2_subgroup: cheese
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["cheddar", "parmesan", "mozzarella", "brie", "camembert", "feta",
+           "ricotta", "gouda", "gruyère", "gruyere", "emmental", "roquefort",
+           "stilton", "manchego", "halloumi", "paneer", "quark",
+           "fromage", "chèvre", "chevre", "comté", "comte", "raclette",
+           "reblochon", "boursin"]
+      - all_of:
+          - product_name_contains: ["cheese"]
+  exclude:
+    any_of:
+      - product_name_contains: ["vegan", "plant cheese", "alternative", "plant-based cheese"]
+      - labels_contains: ["vegan"]
+
+# ---- Other animal dairy (milk, yoghurt, cream, butter) ----
+
+- id: wwf.fg2.other_dairy_animal
+  methodology: wwf
+  category:
+    wwf_food_group: FG2
+    wwf_fg2_subgroup: other_dairy_animal
+  priority: 110
+  match:
+    any_of:
+      - product_name_contains:
+          ["milk", "yoghurt", "yogurt", "kefir", "buttermilk", "cream",
+           "skyr", "butter", "ghee", "crème fraîche", "creme fraiche",
+           "fromage blanc", "quark", "clotted cream", "double cream",
+           "single cream", "soured cream", "sour cream",
+           "lait", "yaourt", "crème", "beurre", "lait entier", "lait demi-écrémé"]
+  exclude:
+    any_of:
+      - product_name_contains:
+          ["oat milk", "soy milk", "almond milk", "rice milk", "coconut milk",
+           "plant milk", "soya milk", "vegan butter", "plant butter",
+           "oat cream", "soy cream", "plant cream",
+           "peanut butter", "nut butter", "almond butter", "cashew butter",
+           "lait d'avoine", "lait de soja", "lait d'amande", "beurre végétal",
+           "cream cheese", "ice cream",
+           "milk chocolate", "white chocolate", "chocolate milk"]
+      - labels_contains: ["vegan", "dairy_free"]
+
+# ---- Dairy alternatives (plant-based) ----
+
+- id: wwf.fg2.plant_alternative
+  methodology: wwf
+  category:
+    wwf_food_group: FG2
+    wwf_fg2_subgroup: dairy_alternative_plant
+  priority: 110
+  match:
+    any_of:
+      - product_name_contains:
+          ["oat milk", "soy milk", "almond milk", "rice milk", "coconut milk",
+           "plant milk", "soya milk", "soy yoghurt", "soya yoghurt",
+           "oat yoghurt", "coconut yoghurt", "almond yoghurt",
+           "plant yoghurt", "vegan yoghurt", "oat cream", "soy cream",
+           "plant cream", "vegan butter", "plant butter", "coconut butter",
+           "oat drink", "soya drink", "almond drink",
+           "lait d'avoine", "lait de soja", "lait d'amande", "lait végétal",
+           "yaourt de soja", "crème d'avoine", "beurre végétal"]

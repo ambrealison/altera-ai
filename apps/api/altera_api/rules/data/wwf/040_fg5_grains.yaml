@@ -1,0 +1,47 @@
+# WWF — FG5 grains and cereals.
+# French-language keywords included for EN/FR bilingual retailers.
+
+# ---- Whole grain ----
+
+- id: wwf.fg5.whole_grain
+  methodology: wwf
+  category:
+    wwf_food_group: FG5
+    wwf_fg5_grain_kind: whole_grain
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["wholegrain", "whole grain", "wholemeal", "whole wheat",
+           "brown rice", "oat ", " oats", "oatmeal", "porridge",
+           "quinoa", "spelt", "buckwheat", "rye bread", "seeded bread",
+           "granola", "muesli", "bran flakes", "weetabix",
+           "pain complet", "pain au son", "riz complet", "flocons d'avoine",
+           "farine complète", "avoine", "sarrasin", "seigle complet"]
+  exclude:
+    any_of:
+      - product_name_contains: ["rice milk", "oat milk", "oat cream", "oat drink"]
+
+# ---- Refined grain ----
+
+- id: wwf.fg5.refined_grain
+  methodology: wwf
+  category:
+    wwf_food_group: FG5
+    wwf_fg5_grain_kind: refined_grain
+  priority: 110
+  match:
+    any_of:
+      - product_name_contains:
+          ["white pasta", "white bread", "white rice", "pasta", "rice",
+           "noodle", "couscous", "polenta", "semolina", "cornflakes",
+           "croissant", "brioche", "baguette", "white flour", "sourdough",
+           "rice cake", "cracker",
+           "pâtes", "riz blanc", "pain blanc", "semoule",
+           "farine blanche", "nouilles", "biscotte"]
+  exclude:
+    any_of:
+      - product_name_contains:
+          ["wholegrain", "whole grain", "wholemeal", "whole wheat",
+           "brown rice", "rice milk", "rice cake with", "rice paper",
+           "pain complet", "riz complet"]

@@ -1,0 +1,201 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,weight_per_item_kg,items_purchased,protein_pct,protein_source
+PT-MOCK-0001,Grilled Chicken Breast 300g,SeaCatch [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,0.3,3857,22.0,label
+PT-MOCK-0002,Beef Burger 100g,QuickEat [fixture],Red Meat,Burgers,,,en,GB,false,0.1,9135,18.7,label
+PT-MOCK-0003,Atlantic Salmon 100g,FarmFirst [fixture],Fish,Fresh Fish,,,en,GB,false,0.1,3782,18.1,label
+PT-MOCK-0004,Red Lentil Soup 350g,SeaCatch [fixture],Soups,Pulse Soups,,vegan,fr,FR,true,0.35,11931,4.1,reference_db
+PT-MOCK-0005,Pea Protein Powder 800g,NutBarn [fixture],Sports Nutrition,Protein Powders,,vegan,fr,FR,false,0.8,9854,76.3,label
+PT-MOCK-0006,Mixed Bean Salad 250g,MedFoods [fixture],Salads,Bean Salads,,vegan,nl,NL,true,0.25,2815,5.0,reference_db
+PT-MOCK-0007,Edamame Beans 450g,SeaCatch [fixture],Frozen Vegetables,Edamame,,vegan,en,GB,false,0.45,12709,9.8,reference_db
+PT-MOCK-0008,Cheddar Cheese 300g,BreadCo [fixture],Dairy,Cheese,,vegetarian,en,GB,false,0.3,14085,24.1,label
+PT-MOCK-0009,Greek Yoghurt 250g,ButcherBest [fixture],Dairy,Yoghurt,,vegetarian,en,GB,false,0.25,7727,11.2,label
+PT-MOCK-0010,Oat Milk 1150ml,HomeChef [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,1.15,13788,0.6,label
+PT-MOCK-0011,Soya Mince 350g,SeaCatch [fixture],Meat Alternatives,Soya Products,,vegan,nl,NL,true,0.35,11743,48.6,label
+PT-MOCK-0012,Tofu Block 300g,HomeChef [fixture],Meat Alternatives,Tofu,,vegan,de,DE,false,0.3,1507,7.7,label
+PT-MOCK-0013,Chicken and Vegetable Pie 450g,HomeChef [fixture],Ready Meals,Pies,,,nl,NL,true,0.45,7628,8.4,label
+PT-MOCK-0014,Beef Lasagna 450g,BreadCo [fixture],Ready Meals,Pasta Dishes,,,en,GB,true,0.45,3632,7.5,label
+PT-MOCK-0015,Prawn Stir Fry 350g,GardenFresh [fixture],Ready Meals,Asian,,,de,DE,false,0.35,1369,10.7,label
+PT-MOCK-0016,Veggie Shepherd Pie 450g,SeaCatch [fixture],Ready Meals,Vegetarian Meals,,vegetarian,en,GB,true,0.45,2877,7.6,label
+PT-MOCK-0017,Smoked Salmon 150g,GardenFresh [fixture],Fish,Smoked Fish,,,en,GB,false,0.15,11474,24.9,label
+PT-MOCK-0018,Pork Sausages 400g,MedFoods [fixture],Pork,Sausages,,,de,DE,false,0.4,12913,13.3,label
+PT-MOCK-0019,Tempeh 150g,BreadCo [fixture],Meat Alternatives,Fermented Soy,,vegan,nl,NL,false,0.15,6772,16.2,label
+PT-MOCK-0020,Hummus 200g,TofuCo [fixture],Dips,Hummus,,vegan,en,GB,false,0.2,14558,7.7,label
+PT-MOCK-0021,Grilled Chicken Breast 300g,WokBox [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,0.3,14694,21.6,label
+PT-MOCK-0022,Beef Burger 250g,DairyFarm [fixture],Red Meat,Burgers,,,en,GB,false,0.25,4240,16.6,label
+PT-MOCK-0023,Atlantic Salmon 200g,TofuCo [fixture],Fish,Fresh Fish,,,fr,FR,false,0.2,7219,19.1,label
+PT-MOCK-0024,Red Lentil Soup 500g,DairyFarm [fixture],Soups,Pulse Soups,,vegan,en,GB,true,0.5,8548,4.7,reference_db
+PT-MOCK-0025,Pea Protein Powder 750g,FarmFirst [fixture],Sports Nutrition,Protein Powders,,vegan,nl,NL,false,0.75,2704,70.7,label
+PT-MOCK-0026,Mixed Bean Salad 300g,TofuCo [fixture],Salads,Bean Salads,,vegan,nl,NL,true,0.3,1240,7.0,reference_db
+PT-MOCK-0027,Edamame Beans 400g,OatlyFix [fixture],Frozen Vegetables,Edamame,,vegan,fr,FR,false,0.4,4319,12.0,reference_db
+PT-MOCK-0028,Cheddar Cheese 500g,GardenFresh [fixture],Dairy,Cheese,,vegetarian,nl,NL,false,0.5,12008,25.8,label
+PT-MOCK-0029,Greek Yoghurt 200g,MedFoods [fixture],Dairy,Yoghurt,,vegetarian,fr,FR,false,0.2,10701,11.0,label
+PT-MOCK-0030,Oat Milk 1000ml,NutBarn [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,1.0,253,0.9,label
+PT-MOCK-0031,Soya Mince 400g,OatlyFix [fixture],Meat Alternatives,Soya Products,,vegan,de,DE,true,0.4,12683,47.6,label
+PT-MOCK-0032,Tofu Block 300g,HomeChef [fixture],Meat Alternatives,Tofu,,vegan,en,GB,false,0.3,13989,9.6,label
+PT-MOCK-0033,Chicken and Vegetable Pie 400g,BreadCo [fixture],Ready Meals,Pies,,,fr,FR,true,0.4,12692,8.8,label
+PT-MOCK-0034,Beef Lasagna 350g,QuickEat [fixture],Ready Meals,Pasta Dishes,,,nl,NL,true,0.35,209,9.8,label
+PT-MOCK-0035,Prawn Stir Fry 350g,QuickEat [fixture],Ready Meals,Asian,,,en,GB,false,0.35,6147,7.1,label
+PT-MOCK-0036,Veggie Shepherd Pie 500g,SeaCatch [fixture],Ready Meals,Vegetarian Meals,,vegetarian,nl,NL,true,0.5,1149,8.4,label
+PT-MOCK-0037,Smoked Salmon 100g,FarmFirst [fixture],Fish,Smoked Fish,,,fr,FR,false,0.1,12191,24.7,label
+PT-MOCK-0038,Pork Sausages 350g,OatlyFix [fixture],Pork,Sausages,,,en,GB,false,0.35,12747,15.9,label
+PT-MOCK-0039,Tempeh 150g,OatlyFix [fixture],Meat Alternatives,Fermented Soy,,vegan,de,DE,false,0.15,2905,18.9,label
+PT-MOCK-0040,Hummus 200g,SeaCatch [fixture],Dips,Hummus,,vegan,nl,NL,false,0.2,9035,6.8,label
+PT-MOCK-0041,Grilled Chicken Breast 300g,HomeChef [fixture],Poultry,Fresh Chicken,,free_range,de,DE,false,0.3,6737,19.8,label
+PT-MOCK-0042,Beef Burger 250g,QuickEat [fixture],Red Meat,Burgers,,,de,DE,false,0.25,8679,17.5,label
+PT-MOCK-0043,Atlantic Salmon 150g,BreadCo [fixture],Fish,Fresh Fish,,,en,GB,false,0.15,544,18.9,label
+PT-MOCK-0044,Red Lentil Soup 400g,GreenLeaf [fixture],Soups,Pulse Soups,,vegan,en,GB,true,0.4,1363,5.2,reference_db
+PT-MOCK-0045,Pea Protein Powder 850g,QuickEat [fixture],Sports Nutrition,Protein Powders,,vegan,en,GB,false,0.85,714,73.4,label
+PT-MOCK-0046,Mixed Bean Salad 350g,HomeChef [fixture],Salads,Bean Salads,,vegan,en,GB,true,0.35,11160,6.5,reference_db
+PT-MOCK-0047,Edamame Beans 400g,QuickEat [fixture],Frozen Vegetables,Edamame,,vegan,fr,FR,false,0.4,14656,9.4,reference_db
+PT-MOCK-0048,Cheddar Cheese 350g,NutBarn [fixture],Dairy,Cheese,,vegetarian,en,GB,false,0.35,13430,23.7,label
+PT-MOCK-0049,Greek Yoghurt 300g,WokBox [fixture],Dairy,Yoghurt,,vegetarian,en,GB,false,0.3,6004,8.4,label
+PT-MOCK-0050,Oat Milk 1050ml,GreenLeaf [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,1.05,11232,1.4,label
+PT-MOCK-0051,Soya Mince 350g,WokBox [fixture],Meat Alternatives,Soya Products,,vegan,de,DE,true,0.35,12131,46.0,label
+PT-MOCK-0052,Tofu Block 300g,SeaCatch [fixture],Meat Alternatives,Tofu,,vegan,nl,NL,false,0.3,3316,7.3,label
+PT-MOCK-0053,Chicken and Vegetable Pie 400g,HomeChef [fixture],Ready Meals,Pies,,,en,GB,true,0.4,7779,9.7,label
+PT-MOCK-0054,Beef Lasagna 400g,SpiceCo [fixture],Ready Meals,Pasta Dishes,,,en,GB,true,0.4,14224,8.3,label
+PT-MOCK-0055,Prawn Stir Fry 350g,OatlyFix [fixture],Ready Meals,Asian,,,en,GB,false,0.35,13897,9.6,label
+PT-MOCK-0056,Veggie Shepherd Pie 350g,SpiceCo [fixture],Ready Meals,Vegetarian Meals,,vegetarian,en,GB,true,0.35,4072,8.8,label
+PT-MOCK-0057,Smoked Salmon 100g,SpiceCo [fixture],Fish,Smoked Fish,,,en,GB,false,0.1,6770,22.4,label
+PT-MOCK-0058,Pork Sausages 450g,WokBox [fixture],Pork,Sausages,,,en,GB,false,0.45,4545,13.5,label
+PT-MOCK-0059,Tempeh 250g,WokBox [fixture],Meat Alternatives,Fermented Soy,,vegan,nl,NL,false,0.25,11612,18.7,label
+PT-MOCK-0060,Hummus 250g,ButcherBest [fixture],Dips,Hummus,,vegan,nl,NL,false,0.25,8173,6.7,label
+PT-MOCK-0061,Grilled Chicken Breast 200g,GreenLeaf [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,0.2,9689,19.9,label
+PT-MOCK-0062,Beef Burger 200g,GreenLeaf [fixture],Red Meat,Burgers,,,en,GB,false,0.2,1021,19.0,label
+PT-MOCK-0063,Atlantic Salmon 200g,OatlyFix [fixture],Fish,Fresh Fish,,,fr,FR,false,0.2,2779,21.7,label
+PT-MOCK-0064,Red Lentil Soup 300g,DairyFarm [fixture],Soups,Pulse Soups,,vegan,fr,FR,true,0.3,1322,4.2,reference_db
+PT-MOCK-0065,Pea Protein Powder 800g,WokBox [fixture],Sports Nutrition,Protein Powders,,vegan,de,DE,false,0.8,2164,82.9,label
+PT-MOCK-0066,Mixed Bean Salad 350g,TofuCo [fixture],Salads,Bean Salads,,vegan,fr,FR,true,0.35,851,5.7,reference_db
+PT-MOCK-0067,Edamame Beans 400g,TofuCo [fixture],Frozen Vegetables,Edamame,,vegan,en,GB,false,0.4,8765,11.0,reference_db
+PT-MOCK-0068,Cheddar Cheese 300g,ButcherBest [fixture],Dairy,Cheese,,vegetarian,en,GB,false,0.3,5347,23.6,label
+PT-MOCK-0069,Greek Yoghurt 250g,GardenFresh [fixture],Dairy,Yoghurt,,vegetarian,en,GB,false,0.25,5115,8.5,label
+PT-MOCK-0070,Oat Milk 1100ml,GreenLeaf [fixture],Dairy Alternatives,Plant Milks,,vegan,nl,NL,false,1.1,7708,1.4,label
+PT-MOCK-0071,Soya Mince 350g,FarmFirst [fixture],Meat Alternatives,Soya Products,,vegan,fr,FR,true,0.35,9008,55.0,label
+PT-MOCK-0072,Tofu Block 300g,BreadCo [fixture],Meat Alternatives,Tofu,,vegan,en,GB,false,0.3,14632,7.4,label
+PT-MOCK-0073,Chicken and Vegetable Pie 300g,DairyFarm [fixture],Ready Meals,Pies,,,en,GB,true,0.3,7379,9.5,label
+PT-MOCK-0074,Beef Lasagna 500g,MedFoods [fixture],Ready Meals,Pasta Dishes,,,de,DE,true,0.5,10914,7.9,label
+PT-MOCK-0075,Prawn Stir Fry 350g,HomeChef [fixture],Ready Meals,Asian,,,de,DE,false,0.35,11068,10.3,label
+PT-MOCK-0076,Veggie Shepherd Pie 350g,QuickEat [fixture],Ready Meals,Vegetarian Meals,,vegetarian,en,GB,true,0.35,1953,6.8,label
+PT-MOCK-0077,Smoked Salmon 150g,TofuCo [fixture],Fish,Smoked Fish,,,en,GB,false,0.15,3650,21.4,label
+PT-MOCK-0078,Pork Sausages 400g,SpiceCo [fixture],Pork,Sausages,,,en,GB,false,0.4,4525,14.7,label
+PT-MOCK-0079,Tempeh 200g,SpiceCo [fixture],Meat Alternatives,Fermented Soy,,vegan,en,GB,false,0.2,1032,21.4,label
+PT-MOCK-0080,Hummus 150g,GreenLeaf [fixture],Dips,Hummus,,vegan,en,GB,false,0.15,258,7.5,label
+PT-MOCK-0081,Grilled Chicken Breast 200g,HomeChef [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,0.2,2847,21.5,label
+PT-MOCK-0082,Beef Burger 200g,OatlyFix [fixture],Red Meat,Burgers,,,fr,FR,false,0.2,358,18.8,label
+PT-MOCK-0083,Atlantic Salmon 100g,OatlyFix [fixture],Fish,Fresh Fish,,,de,DE,false,0.1,790,21.6,label
+PT-MOCK-0084,Red Lentil Soup 450g,WokBox [fixture],Soups,Pulse Soups,,vegan,fr,FR,true,0.45,2288,5.1,reference_db
+PT-MOCK-0085,Pea Protein Powder 500g,MedFoods [fixture],Sports Nutrition,Protein Powders,,vegan,en,GB,false,0.5,14301,83.5,label
+PT-MOCK-0086,Mixed Bean Salad 200g,SeaCatch [fixture],Salads,Bean Salads,,vegan,en,GB,true,0.2,11127,5.6,reference_db
+PT-MOCK-0087,Edamame Beans 300g,SpiceCo [fixture],Frozen Vegetables,Edamame,,vegan,nl,NL,false,0.3,6858,10.7,reference_db
+PT-MOCK-0088,Cheddar Cheese 500g,QuickEat [fixture],Dairy,Cheese,,vegetarian,de,DE,false,0.5,4078,23.5,label
+PT-MOCK-0089,Greek Yoghurt 450g,QuickEat [fixture],Dairy,Yoghurt,,vegetarian,nl,NL,false,0.45,6955,11.2,label
+PT-MOCK-0090,Oat Milk 750ml,MedFoods [fixture],Dairy Alternatives,Plant Milks,,vegan,de,DE,false,0.75,6945,1.4,label
+PT-MOCK-0091,Soya Mince 350g,SeaCatch [fixture],Meat Alternatives,Soya Products,,vegan,nl,NL,true,0.35,4571,52.4,label
+PT-MOCK-0092,Tofu Block 300g,SpiceCo [fixture],Meat Alternatives,Tofu,,vegan,de,DE,false,0.3,834,7.3,label
+PT-MOCK-0093,Chicken and Vegetable Pie 450g,QuickEat [fixture],Ready Meals,Pies,,,en,GB,true,0.45,7741,8.8,label
+PT-MOCK-0094,Beef Lasagna 400g,SeaCatch [fixture],Ready Meals,Pasta Dishes,,,nl,NL,true,0.4,3852,9.4,label
+PT-MOCK-0095,Prawn Stir Fry 250g,HomeChef [fixture],Ready Meals,Asian,,,en,GB,false,0.25,14361,8.6,label
+PT-MOCK-0096,Veggie Shepherd Pie 350g,GardenFresh [fixture],Ready Meals,Vegetarian Meals,,vegetarian,nl,NL,true,0.35,8546,6.8,label
+PT-MOCK-0097,Smoked Salmon 150g,GreenLeaf [fixture],Fish,Smoked Fish,,,nl,NL,false,0.15,2089,22.7,label
+PT-MOCK-0098,Pork Sausages 450g,HomeChef [fixture],Pork,Sausages,,,en,GB,false,0.45,826,12.7,label
+PT-MOCK-0099,Tempeh 150g,MedFoods [fixture],Meat Alternatives,Fermented Soy,,vegan,en,GB,false,0.15,5339,18.1,label
+PT-MOCK-0100,Hummus 200g,QuickEat [fixture],Dips,Hummus,,vegan,fr,FR,false,0.2,9646,5.3,label
+PT-MOCK-0101,Grilled Chicken Breast 200g,GreenLeaf [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,0.2,8718,21.8,label
+PT-MOCK-0102,Beef Burger 250g,ButcherBest [fixture],Red Meat,Burgers,,,fr,FR,false,0.25,12275,18.7,label
+PT-MOCK-0103,Atlantic Salmon 200g,GardenFresh [fixture],Fish,Fresh Fish,,,en,GB,false,0.2,5609,19.7,label
+PT-MOCK-0104,Red Lentil Soup 400g,ButcherBest [fixture],Soups,Pulse Soups,,vegan,de,DE,true,0.4,14946,5.7,reference_db
+PT-MOCK-0105,Pea Protein Powder 650g,BreadCo [fixture],Sports Nutrition,Protein Powders,,vegan,en,GB,false,0.65,6792,80.0,label
+PT-MOCK-0106,Mixed Bean Salad 300g,WokBox [fixture],Salads,Bean Salads,,vegan,fr,FR,true,0.3,11094,5.4,reference_db
+PT-MOCK-0107,Edamame Beans 500g,DairyFarm [fixture],Frozen Vegetables,Edamame,,vegan,de,DE,false,0.5,10284,11.2,reference_db
+PT-MOCK-0108,Cheddar Cheese 350g,GreenLeaf [fixture],Dairy,Cheese,,vegetarian,en,GB,false,0.35,5178,24.6,label
+PT-MOCK-0109,Greek Yoghurt 250g,TofuCo [fixture],Dairy,Yoghurt,,vegetarian,en,GB,false,0.25,10926,11.1,label
+PT-MOCK-0110,Oat Milk 1000ml,SeaCatch [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,1.0,8575,0.9,label
+PT-MOCK-0111,Soya Mince 300g,GardenFresh [fixture],Meat Alternatives,Soya Products,,vegan,nl,NL,true,0.3,1589,52.4,label
+PT-MOCK-0112,Tofu Block 300g,BreadCo [fixture],Meat Alternatives,Tofu,,vegan,de,DE,false,0.3,1730,8.9,label
+PT-MOCK-0113,Chicken and Vegetable Pie 400g,HomeChef [fixture],Ready Meals,Pies,,,nl,NL,true,0.4,3880,8.9,label
+PT-MOCK-0114,Beef Lasagna 450g,SeaCatch [fixture],Ready Meals,Pasta Dishes,,,en,GB,true,0.45,7984,7.1,label
+PT-MOCK-0115,Prawn Stir Fry 350g,WokBox [fixture],Ready Meals,Asian,,,nl,NL,false,0.35,14718,7.3,label
+PT-MOCK-0116,Veggie Shepherd Pie 450g,WokBox [fixture],Ready Meals,Vegetarian Meals,,vegetarian,en,GB,true,0.45,8299,8.2,label
+PT-MOCK-0117,Smoked Salmon 150g,GreenLeaf [fixture],Fish,Smoked Fish,,,en,GB,false,0.15,14825,23.3,label
+PT-MOCK-0118,Pork Sausages 400g,MedFoods [fixture],Pork,Sausages,,,nl,NL,false,0.4,7165,15.5,label
+PT-MOCK-0119,Tempeh 150g,OatlyFix [fixture],Meat Alternatives,Fermented Soy,,vegan,nl,NL,false,0.15,7811,21.7,label
+PT-MOCK-0120,Hummus 150g,FarmFirst [fixture],Dips,Hummus,,vegan,en,GB,false,0.15,7678,7.8,label
+PT-MOCK-0121,Grilled Chicken Breast 200g,OatlyFix [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,0.2,9955,21.7,label
+PT-MOCK-0122,Beef Burger 150g,TofuCo [fixture],Red Meat,Burgers,,,nl,NL,false,0.15,13553,19.6,label
+PT-MOCK-0123,Atlantic Salmon 200g,QuickEat [fixture],Fish,Fresh Fish,,,fr,FR,false,0.2,9176,19.7,label
+PT-MOCK-0124,Red Lentil Soup 400g,NutBarn [fixture],Soups,Pulse Soups,,vegan,en,GB,true,0.4,7573,5.5,reference_db
+PT-MOCK-0125,Pea Protein Powder 650g,HomeChef [fixture],Sports Nutrition,Protein Powders,,vegan,en,GB,false,0.65,12747,82.6,label
+PT-MOCK-0126,Mixed Bean Salad 300g,HomeChef [fixture],Salads,Bean Salads,,vegan,en,GB,true,0.3,7406,6.9,reference_db
+PT-MOCK-0127,Edamame Beans 300g,BreadCo [fixture],Frozen Vegetables,Edamame,,vegan,en,GB,false,0.3,5438,9.7,reference_db
+PT-MOCK-0128,Cheddar Cheese 450g,SeaCatch [fixture],Dairy,Cheese,,vegetarian,en,GB,false,0.45,6475,23.4,label
+PT-MOCK-0129,Greek Yoghurt 400g,WokBox [fixture],Dairy,Yoghurt,,vegetarian,de,DE,false,0.4,6878,8.9,label
+PT-MOCK-0130,Oat Milk 1000ml,SeaCatch [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,1.0,13846,0.9,label
+PT-MOCK-0131,Soya Mince 300g,ButcherBest [fixture],Meat Alternatives,Soya Products,,vegan,nl,NL,true,0.3,520,50.8,label
+PT-MOCK-0132,Tofu Block 400g,NutBarn [fixture],Meat Alternatives,Tofu,,vegan,nl,NL,false,0.4,296,8.7,label
+PT-MOCK-0133,Chicken and Vegetable Pie 450g,SpiceCo [fixture],Ready Meals,Pies,,,en,GB,true,0.45,14808,11.0,label
+PT-MOCK-0134,Beef Lasagna 500g,ButcherBest [fixture],Ready Meals,Pasta Dishes,,,en,GB,true,0.5,9147,8.6,label
+PT-MOCK-0135,Prawn Stir Fry 350g,HomeChef [fixture],Ready Meals,Asian,,,en,GB,false,0.35,7340,9.0,label
+PT-MOCK-0136,Veggie Shepherd Pie 400g,GardenFresh [fixture],Ready Meals,Vegetarian Meals,,vegetarian,en,GB,true,0.4,13276,7.0,label
+PT-MOCK-0137,Smoked Salmon 150g,QuickEat [fixture],Fish,Smoked Fish,,,en,GB,false,0.15,2291,24.2,label
+PT-MOCK-0138,Pork Sausages 450g,WokBox [fixture],Pork,Sausages,,,fr,FR,false,0.45,9897,12.1,label
+PT-MOCK-0139,Tempeh 200g,WokBox [fixture],Meat Alternatives,Fermented Soy,,vegan,en,GB,false,0.2,2423,16.5,label
+PT-MOCK-0140,Hummus 250g,WokBox [fixture],Dips,Hummus,,vegan,en,GB,false,0.25,5563,5.2,label
+PT-MOCK-0141,Grilled Chicken Breast 200g,QuickEat [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,0.2,6411,20.4,label
+PT-MOCK-0142,Beef Burger 150g,SpiceCo [fixture],Red Meat,Burgers,,,nl,NL,false,0.15,1541,17.7,label
+PT-MOCK-0143,Atlantic Salmon 150g,BreadCo [fixture],Fish,Fresh Fish,,,de,DE,false,0.15,3873,20.2,label
+PT-MOCK-0144,Red Lentil Soup 450g,GreenLeaf [fixture],Soups,Pulse Soups,,vegan,nl,NL,true,0.45,12557,5.9,reference_db
+PT-MOCK-0145,Pea Protein Powder 500g,GreenLeaf [fixture],Sports Nutrition,Protein Powders,,vegan,en,GB,false,0.5,10379,73.0,label
+PT-MOCK-0146,Mixed Bean Salad 200g,FarmFirst [fixture],Salads,Bean Salads,,vegan,en,GB,true,0.2,9440,6.4,reference_db
+PT-MOCK-0147,Edamame Beans 500g,MedFoods [fixture],Frozen Vegetables,Edamame,,vegan,en,GB,false,0.5,6243,11.1,reference_db
+PT-MOCK-0148,Cheddar Cheese 250g,ButcherBest [fixture],Dairy,Cheese,,vegetarian,fr,FR,false,0.25,2076,25.9,label
+PT-MOCK-0149,Greek Yoghurt 400g,FarmFirst [fixture],Dairy,Yoghurt,,vegetarian,en,GB,false,0.4,9681,11.9,label
+PT-MOCK-0150,Oat Milk 750ml,QuickEat [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,0.75,6349,1.1,label
+PT-MOCK-0151,Soya Mince 300g,TofuCo [fixture],Meat Alternatives,Soya Products,,vegan,de,DE,true,0.3,11515,47.0,label
+PT-MOCK-0152,Tofu Block 400g,MedFoods [fixture],Meat Alternatives,Tofu,,vegan,en,GB,false,0.4,5141,7.3,label
+PT-MOCK-0153,Chicken and Vegetable Pie 450g,MedFoods [fixture],Ready Meals,Pies,,,fr,FR,true,0.45,9472,11.2,label
+PT-MOCK-0154,Beef Lasagna 450g,GardenFresh [fixture],Ready Meals,Pasta Dishes,,,en,GB,true,0.45,6271,8.6,label
+PT-MOCK-0155,Prawn Stir Fry 250g,SpiceCo [fixture],Ready Meals,Asian,,,de,DE,false,0.25,7082,8.4,label
+PT-MOCK-0156,Veggie Shepherd Pie 450g,BreadCo [fixture],Ready Meals,Vegetarian Meals,,vegetarian,en,GB,true,0.45,10613,7.3,label
+PT-MOCK-0157,Smoked Salmon 200g,WokBox [fixture],Fish,Smoked Fish,,,en,GB,false,0.2,3085,23.5,label
+PT-MOCK-0158,Pork Sausages 400g,MedFoods [fixture],Pork,Sausages,,,de,DE,false,0.4,9017,13.1,label
+PT-MOCK-0159,Tempeh 250g,ButcherBest [fixture],Meat Alternatives,Fermented Soy,,vegan,en,GB,false,0.25,9907,18.6,label
+PT-MOCK-0160,Hummus 200g,QuickEat [fixture],Dips,Hummus,,vegan,nl,NL,false,0.2,1619,5.7,label
+PT-MOCK-0161,Grilled Chicken Breast 200g,NutBarn [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,0.2,9536,20.0,label
+PT-MOCK-0162,Beef Burger 200g,NutBarn [fixture],Red Meat,Burgers,,,en,GB,false,0.2,14142,17.3,label
+PT-MOCK-0163,Atlantic Salmon 150g,MedFoods [fixture],Fish,Fresh Fish,,,en,GB,false,0.15,4432,18.8,label
+PT-MOCK-0164,Red Lentil Soup 350g,HomeChef [fixture],Soups,Pulse Soups,,vegan,fr,FR,true,0.35,9306,5.4,reference_db
+PT-MOCK-0165,Pea Protein Powder 500g,ButcherBest [fixture],Sports Nutrition,Protein Powders,,vegan,en,GB,false,0.5,6858,71.3,label
+PT-MOCK-0166,Mixed Bean Salad 250g,NutBarn [fixture],Salads,Bean Salads,,vegan,nl,NL,true,0.25,10782,5.7,reference_db
+PT-MOCK-0167,Edamame Beans 450g,FarmFirst [fixture],Frozen Vegetables,Edamame,,vegan,en,GB,false,0.45,5020,11.4,reference_db
+PT-MOCK-0168,Cheddar Cheese 250g,GardenFresh [fixture],Dairy,Cheese,,vegetarian,de,DE,false,0.25,9728,23.7,label
+PT-MOCK-0169,Greek Yoghurt 300g,WokBox [fixture],Dairy,Yoghurt,,vegetarian,fr,FR,false,0.3,12421,10.1,label
+PT-MOCK-0170,Oat Milk 1150ml,HomeChef [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,1.15,5223,1.2,label
+PT-MOCK-0171,Soya Mince 300g,BreadCo [fixture],Meat Alternatives,Soya Products,,vegan,en,GB,true,0.3,2158,52.2,label
+PT-MOCK-0172,Tofu Block 350g,SeaCatch [fixture],Meat Alternatives,Tofu,,vegan,nl,NL,false,0.35,3745,9.1,label
+PT-MOCK-0173,Chicken and Vegetable Pie 400g,MedFoods [fixture],Ready Meals,Pies,,,en,GB,true,0.4,8795,10.9,label
+PT-MOCK-0174,Beef Lasagna 450g,HomeChef [fixture],Ready Meals,Pasta Dishes,,,en,GB,true,0.45,3927,9.5,label
+PT-MOCK-0175,Prawn Stir Fry 300g,OatlyFix [fixture],Ready Meals,Asian,,,en,GB,false,0.3,2273,7.1,label
+PT-MOCK-0176,Veggie Shepherd Pie 400g,ButcherBest [fixture],Ready Meals,Vegetarian Meals,,vegetarian,en,GB,true,0.4,2268,7.7,label
+PT-MOCK-0177,Smoked Salmon 150g,SpiceCo [fixture],Fish,Smoked Fish,,,nl,NL,false,0.15,400,22.5,label
+PT-MOCK-0178,Pork Sausages 400g,BreadCo [fixture],Pork,Sausages,,,en,GB,false,0.4,3220,13.9,label
+PT-MOCK-0179,Tempeh 250g,NutBarn [fixture],Meat Alternatives,Fermented Soy,,vegan,en,GB,false,0.25,2069,21.6,label
+PT-MOCK-0180,Hummus 250g,TofuCo [fixture],Dips,Hummus,,vegan,en,GB,false,0.25,10512,6.5,label
+PT-MOCK-0181,Grilled Chicken Breast 300g,TofuCo [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,0.3,5178,19.6,label
+PT-MOCK-0182,Beef Burger 100g,MedFoods [fixture],Red Meat,Burgers,,,en,GB,false,0.1,7018,16.5,label
+PT-MOCK-0183,Atlantic Salmon 200g,MedFoods [fixture],Fish,Fresh Fish,,,nl,NL,false,0.2,8761,20.5,label
+PT-MOCK-0184,Red Lentil Soup 400g,TofuCo [fixture],Soups,Pulse Soups,,vegan,en,GB,true,0.4,7225,4.6,reference_db
+PT-MOCK-0185,Pea Protein Powder 650g,ButcherBest [fixture],Sports Nutrition,Protein Powders,,vegan,fr,FR,false,0.65,1825,70.9,label
+PT-MOCK-0186,Mixed Bean Salad 350g,HomeChef [fixture],Salads,Bean Salads,,vegan,en,GB,true,0.35,11020,6.9,reference_db
+PT-MOCK-0187,Edamame Beans 300g,FarmFirst [fixture],Frozen Vegetables,Edamame,,vegan,en,GB,false,0.3,2764,9.5,reference_db
+PT-MOCK-0188,Cheddar Cheese 200g,NutBarn [fixture],Dairy,Cheese,,vegetarian,en,GB,false,0.2,4971,25.1,label
+PT-MOCK-0189,Greek Yoghurt 150g,ButcherBest [fixture],Dairy,Yoghurt,,vegetarian,en,GB,false,0.15,14283,10.8,label
+PT-MOCK-0190,Oat Milk 1100ml,HomeChef [fixture],Dairy Alternatives,Plant Milks,,vegan,de,DE,false,1.1,13107,0.7,label
+PT-MOCK-0191,Soya Mince 350g,QuickEat [fixture],Meat Alternatives,Soya Products,,vegan,fr,FR,true,0.35,3441,51.6,label
+PT-MOCK-0192,Tofu Block 350g,DairyFarm [fixture],Meat Alternatives,Tofu,,vegan,fr,FR,false,0.35,4552,7.7,label
+PT-MOCK-0193,Chicken and Vegetable Pie 400g,MedFoods [fixture],Ready Meals,Pies,,,en,GB,true,0.4,5239,8.2,label
+PT-MOCK-0194,Beef Lasagna 450g,HomeChef [fixture],Ready Meals,Pasta Dishes,,,nl,NL,true,0.45,7395,8.7,label
+PT-MOCK-0195,Prawn Stir Fry 250g,WokBox [fixture],Ready Meals,Asian,,,de,DE,false,0.25,4660,8.2,label
+PT-MOCK-0196,Veggie Shepherd Pie 450g,TofuCo [fixture],Ready Meals,Vegetarian Meals,,vegetarian,en,GB,true,0.45,853,7.3,label
+PT-MOCK-0197,Smoked Salmon 200g,HomeChef [fixture],Fish,Smoked Fish,,,de,DE,false,0.2,623,21.6,label
+PT-MOCK-0198,Pork Sausages 300g,TofuCo [fixture],Pork,Sausages,,,de,DE,false,0.3,9819,15.3,label
+PT-MOCK-0199,Tempeh 250g,HomeChef [fixture],Meat Alternatives,Fermented Soy,,vegan,nl,NL,false,0.25,9641,20.0,label
+PT-MOCK-0200,Hummus 150g,OatlyFix [fixture],Dips,Hummus,,vegan,nl,NL,false,0.15,10874,5.5,label

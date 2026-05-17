@@ -1,0 +1,7 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,weight_per_item_kg,items_purchased,protein_pct,protein_source
+C-PT-001,Meat and Veg Pie,HomeChef,Ready Meals,Pies,"pastry (35%), beef (30%), vegetables (35%)",,en,GB,true,0.250,2000,8.0,label
+C-PT-002,Chicken and Mushroom Pasta,HomeChef,Ready Meals,Pasta Dishes,"pasta (40%), chicken (25%), mushrooms, cream sauce",,en,GB,true,0.350,1500,9.0,label
+C-PT-003,Prawn and Noodle Stir Fry,WokBox,Ready Meals,Stir Fry,"noodles (45%), prawns (20%), vegetables, soy sauce",,en,GB,false,0.300,1200,7.5,label
+C-PT-004,Veggie Sausage Roll,GreenBake,Bakery,Savoury Pastries,"pastry (40%), quorn (30%), vegetables (30%)",vegetarian,en,GB,false,0.150,3000,10.0,label
+C-PT-005,Tuna and Sweetcorn Sandwich Filler,OceanGold,Chilled Convenience,Sandwich Fillers,"tuna (50%), sweetcorn (30%), mayonnaise",,en,GB,false,0.200,900,15.0,label
+C-PT-006,Quorn Cottage Pie,QuornFoods,Ready Meals,Vegetarian Meals,"quorn mince (30%), potato topping (40%), vegetables",vegetarian,en,GB,false,0.400,800,9.5,label

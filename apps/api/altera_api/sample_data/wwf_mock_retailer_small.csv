@@ -1,0 +1,201 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,retail_channel,weight_per_item_kg,items_sold,wwf_is_composite
+WWF-MOCK-0001,Beef Mince 550g,DairyFarm [fixture],Red Meat,Fresh Beef,,,en,GB,false,fresh,0.55,19480,false
+WWF-MOCK-0002,Chicken Breast 450g,NutBarn [fixture],Poultry,Fresh Chicken,,free_range,nl,NL,false,fresh,0.45,3289,false
+WWF-MOCK-0003,Atlantic Salmon 200g,BreadCo [fixture],Fish,Fresh Fish,,,en,GB,false,fresh,0.2,10820,false
+WWF-MOCK-0004,Free Range Eggs 400pk,DairyFarm [fixture],Eggs,Free Range,,free_range|vegetarian,nl,NL,false,grocery_ambient,0.4,11107,false
+WWF-MOCK-0005,Whole Milk 1400L,HomeChef [fixture],Dairy,Fresh Milk,,vegetarian,en,GB,false,fresh,1.4,13422,false
+WWF-MOCK-0006,Cheddar Cheese 450g,GreenLeaf [fixture],Dairy,Hard Cheese,,vegetarian,fr,FR,false,fresh,0.45,15203,false
+WWF-MOCK-0007,Brie 150g,BreadCo [fixture],Dairy,Soft Cheese,,vegetarian,en,GB,false,fresh,0.15,4098,false
+WWF-MOCK-0008,Oat Milk 1500L,SpiceCo [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,grocery_ambient,1.5,17162,false
+WWF-MOCK-0009,Soy Yoghurt 450g,GardenFresh [fixture],Dairy Alternatives,Plant Yoghurts,,vegan,en,GB,false,grocery_ambient,0.45,18079,false
+WWF-MOCK-0010,Olive Oil 550ml,SeaCatch [fixture],Oils,Olive Oil,,vegan,en,GB,false,grocery_ambient,0.55,17288,false
+WWF-MOCK-0011,Butter 300g,NutBarn [fixture],Dairy,Butter,,vegetarian,nl,NL,false,fresh,0.3,14784,false
+WWF-MOCK-0012,Frozen Peas 1150g,HomeChef [fixture],Frozen Vegetables,Peas,,vegan,en,GB,true,frozen,1.15,18296,false
+WWF-MOCK-0013,Broccoli 350g,NutBarn [fixture],Fresh Vegetables,Brassicas,,vegan,en,GB,true,fresh,0.35,16183,false
+WWF-MOCK-0014,Sliced Wholegrain Bread 650g,TofuCo [fixture],Bakery,Sliced Bread,,vegan,de,DE,true,grocery_ambient,0.65,8141,false
+WWF-MOCK-0015,White Pasta 550g,OatlyFix [fixture],Dry Goods,Pasta,,vegan,en,GB,false,grocery_ambient,0.55,748,false
+WWF-MOCK-0016,Red Kidney Beans 400g,SeaCatch [fixture],Tinned Pulses,Kidney Beans,,vegan,en,GB,true,grocery_ambient,0.4,4017,false
+WWF-MOCK-0017,Mixed Nuts 200g,GardenFresh [fixture],Snacks,Nuts,,vegan,en,GB,false,grocery_ambient,0.2,5345,false
+WWF-MOCK-0018,Dark Chocolate 100g,HomeChef [fixture],Confectionery,Dark Chocolate,,vegan,de,DE,false,grocery_ambient,0.1,16974,false
+WWF-MOCK-0019,Beef and Potato Stew 450g,SpiceCo [fixture],Ready Meals,Stews,,,en,GB,true,fresh,0.45,16110,true
+WWF-MOCK-0020,Chicken Curry 450g,NutBarn [fixture],Ready Meals,Curry,,,en,GB,true,fresh,0.45,18363,true
+WWF-MOCK-0021,Vegan Lasagna 350g,QuickEat [fixture],Ready Meals,Vegan Meals,,vegan,en,GB,true,fresh,0.35,19940,true
+WWF-MOCK-0022,Vegetable Biryani 400g,SpiceCo [fixture],Ready Meals,Rice Dishes,,vegan,en,GB,true,grocery_ambient,0.4,2587,true
+WWF-MOCK-0023,Tuna Pasta Bake 350g,SpiceCo [fixture],Ready Meals,Pasta Dishes,,,nl,NL,false,grocery_ambient,0.35,13896,true
+WWF-MOCK-0024,Prawn Noodles 300g,OatlyFix [fixture],Ready Meals,Asian,,,nl,NL,false,fresh,0.3,9054,true
+WWF-MOCK-0025,Beef Mince 700g,ButcherBest [fixture],Red Meat,Fresh Beef,,,en,GB,false,fresh,0.7,10083,false
+WWF-MOCK-0026,Chicken Breast 550g,GardenFresh [fixture],Poultry,Fresh Chicken,,free_range,fr,FR,false,fresh,0.55,16344,false
+WWF-MOCK-0027,Atlantic Salmon 250g,OatlyFix [fixture],Fish,Fresh Fish,,,en,GB,false,fresh,0.25,16170,false
+WWF-MOCK-0028,Free Range Eggs 300pk,MedFoods [fixture],Eggs,Free Range,,free_range|vegetarian,fr,FR,false,grocery_ambient,0.3,18107,false
+WWF-MOCK-0029,Whole Milk 1400L,SpiceCo [fixture],Dairy,Fresh Milk,,vegetarian,en,GB,false,fresh,1.4,6481,false
+WWF-MOCK-0030,Cheddar Cheese 500g,TofuCo [fixture],Dairy,Hard Cheese,,vegetarian,en,GB,false,fresh,0.5,12849,false
+WWF-MOCK-0031,Brie 150g,WokBox [fixture],Dairy,Soft Cheese,,vegetarian,nl,NL,false,fresh,0.15,1730,false
+WWF-MOCK-0032,Oat Milk 1000L,ButcherBest [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,grocery_ambient,1.0,12792,false
+WWF-MOCK-0033,Soy Yoghurt 400g,MedFoods [fixture],Dairy Alternatives,Plant Yoghurts,,vegan,de,DE,false,grocery_ambient,0.4,5284,false
+WWF-MOCK-0034,Olive Oil 550ml,DairyFarm [fixture],Oils,Olive Oil,,vegan,en,GB,false,grocery_ambient,0.55,16759,false
+WWF-MOCK-0035,Butter 500g,SpiceCo [fixture],Dairy,Butter,,vegetarian,en,GB,false,fresh,0.5,3588,false
+WWF-MOCK-0036,Frozen Peas 1200g,FarmFirst [fixture],Frozen Vegetables,Peas,,vegan,en,GB,true,frozen,1.2,17534,false
+WWF-MOCK-0037,Broccoli 550g,ButcherBest [fixture],Fresh Vegetables,Brassicas,,vegan,en,GB,true,fresh,0.55,5023,false
+WWF-MOCK-0038,Sliced Wholegrain Bread 700g,DairyFarm [fixture],Bakery,Sliced Bread,,vegan,de,DE,true,grocery_ambient,0.7,2751,false
+WWF-MOCK-0039,White Pasta 450g,BreadCo [fixture],Dry Goods,Pasta,,vegan,en,GB,false,grocery_ambient,0.45,13324,false
+WWF-MOCK-0040,Red Kidney Beans 400g,BreadCo [fixture],Tinned Pulses,Kidney Beans,,vegan,nl,NL,true,grocery_ambient,0.4,17785,false
+WWF-MOCK-0041,Mixed Nuts 200g,GardenFresh [fixture],Snacks,Nuts,,vegan,en,GB,false,grocery_ambient,0.2,16289,false
+WWF-MOCK-0042,Dark Chocolate 100g,TofuCo [fixture],Confectionery,Dark Chocolate,,vegan,en,GB,false,grocery_ambient,0.1,2542,false
+WWF-MOCK-0043,Beef and Potato Stew 400g,QuickEat [fixture],Ready Meals,Stews,,,de,DE,true,fresh,0.4,9716,true
+WWF-MOCK-0044,Chicken Curry 450g,FarmFirst [fixture],Ready Meals,Curry,,,de,DE,true,fresh,0.45,14520,true
+WWF-MOCK-0045,Vegan Lasagna 450g,GardenFresh [fixture],Ready Meals,Vegan Meals,,vegan,nl,NL,true,fresh,0.45,3593,true
+WWF-MOCK-0046,Vegetable Biryani 350g,HomeChef [fixture],Ready Meals,Rice Dishes,,vegan,de,DE,true,grocery_ambient,0.35,1248,true
+WWF-MOCK-0047,Tuna Pasta Bake 350g,GreenLeaf [fixture],Ready Meals,Pasta Dishes,,,nl,NL,false,grocery_ambient,0.35,9913,true
+WWF-MOCK-0048,Prawn Noodles 300g,DairyFarm [fixture],Ready Meals,Asian,,,en,GB,false,fresh,0.3,8301,true
+WWF-MOCK-0049,Beef Mince 600g,GardenFresh [fixture],Red Meat,Fresh Beef,,,fr,FR,false,fresh,0.6,6200,false
+WWF-MOCK-0050,Chicken Breast 350g,TofuCo [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,fresh,0.35,12835,false
+WWF-MOCK-0051,Atlantic Salmon 200g,NutBarn [fixture],Fish,Fresh Fish,,,en,GB,false,fresh,0.2,19408,false
+WWF-MOCK-0052,Free Range Eggs 300pk,GardenFresh [fixture],Eggs,Free Range,,free_range|vegetarian,en,GB,false,grocery_ambient,0.3,8622,false
+WWF-MOCK-0053,Whole Milk 1450L,GreenLeaf [fixture],Dairy,Fresh Milk,,vegetarian,de,DE,false,fresh,1.45,15545,false
+WWF-MOCK-0054,Cheddar Cheese 450g,OatlyFix [fixture],Dairy,Hard Cheese,,vegetarian,de,DE,false,fresh,0.45,5476,false
+WWF-MOCK-0055,Brie 150g,TofuCo [fixture],Dairy,Soft Cheese,,vegetarian,en,GB,false,fresh,0.15,10102,false
+WWF-MOCK-0056,Oat Milk 1250L,ButcherBest [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,grocery_ambient,1.25,8495,false
+WWF-MOCK-0057,Soy Yoghurt 400g,SeaCatch [fixture],Dairy Alternatives,Plant Yoghurts,,vegan,en,GB,false,grocery_ambient,0.4,12905,false
+WWF-MOCK-0058,Olive Oil 700ml,SeaCatch [fixture],Oils,Olive Oil,,vegan,en,GB,false,grocery_ambient,0.7,12796,false
+WWF-MOCK-0059,Butter 350g,HomeChef [fixture],Dairy,Butter,,vegetarian,fr,FR,false,fresh,0.35,9974,false
+WWF-MOCK-0060,Frozen Peas 750g,GardenFresh [fixture],Frozen Vegetables,Peas,,vegan,nl,NL,true,frozen,0.75,13269,false
+WWF-MOCK-0061,Broccoli 400g,SpiceCo [fixture],Fresh Vegetables,Brassicas,,vegan,fr,FR,true,fresh,0.4,1907,false
+WWF-MOCK-0062,Sliced Wholegrain Bread 850g,NutBarn [fixture],Bakery,Sliced Bread,,vegan,de,DE,true,grocery_ambient,0.85,9678,false
+WWF-MOCK-0063,White Pasta 550g,TofuCo [fixture],Dry Goods,Pasta,,vegan,en,GB,false,grocery_ambient,0.55,11844,false
+WWF-MOCK-0064,Red Kidney Beans 350g,TofuCo [fixture],Tinned Pulses,Kidney Beans,,vegan,en,GB,true,grocery_ambient,0.35,8512,false
+WWF-MOCK-0065,Mixed Nuts 200g,MedFoods [fixture],Snacks,Nuts,,vegan,de,DE,false,grocery_ambient,0.2,4781,false
+WWF-MOCK-0066,Dark Chocolate 100g,GardenFresh [fixture],Confectionery,Dark Chocolate,,vegan,de,DE,false,grocery_ambient,0.1,1591,false
+WWF-MOCK-0067,Beef and Potato Stew 400g,GreenLeaf [fixture],Ready Meals,Stews,,,en,GB,true,fresh,0.4,19291,true
+WWF-MOCK-0068,Chicken Curry 350g,FarmFirst [fixture],Ready Meals,Curry,,,en,GB,true,fresh,0.35,9970,true
+WWF-MOCK-0069,Vegan Lasagna 400g,DairyFarm [fixture],Ready Meals,Vegan Meals,,vegan,en,GB,true,fresh,0.4,6879,true
+WWF-MOCK-0070,Vegetable Biryani 300g,QuickEat [fixture],Ready Meals,Rice Dishes,,vegan,fr,FR,true,grocery_ambient,0.3,12288,true
+WWF-MOCK-0071,Tuna Pasta Bake 400g,SpiceCo [fixture],Ready Meals,Pasta Dishes,,,en,GB,false,grocery_ambient,0.4,5691,true
+WWF-MOCK-0072,Prawn Noodles 300g,NutBarn [fixture],Ready Meals,Asian,,,nl,NL,false,fresh,0.3,9971,true
+WWF-MOCK-0073,Beef Mince 650g,MedFoods [fixture],Red Meat,Fresh Beef,,,en,GB,false,fresh,0.65,4073,false
+WWF-MOCK-0074,Chicken Breast 450g,DairyFarm [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,fresh,0.45,7692,false
+WWF-MOCK-0075,Atlantic Salmon 250g,GardenFresh [fixture],Fish,Fresh Fish,,,de,DE,false,fresh,0.25,13322,false
+WWF-MOCK-0076,Free Range Eggs 450pk,OatlyFix [fixture],Eggs,Free Range,,free_range|vegetarian,nl,NL,false,grocery_ambient,0.45,12285,false
+WWF-MOCK-0077,Whole Milk 1100L,GreenLeaf [fixture],Dairy,Fresh Milk,,vegetarian,en,GB,false,fresh,1.1,8965,false
+WWF-MOCK-0078,Cheddar Cheese 350g,BreadCo [fixture],Dairy,Hard Cheese,,vegetarian,en,GB,false,fresh,0.35,8890,false
+WWF-MOCK-0079,Brie 200g,GardenFresh [fixture],Dairy,Soft Cheese,,vegetarian,nl,NL,false,fresh,0.2,12472,false
+WWF-MOCK-0080,Oat Milk 850L,NutBarn [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,grocery_ambient,0.85,1120,false
+WWF-MOCK-0081,Soy Yoghurt 450g,BreadCo [fixture],Dairy Alternatives,Plant Yoghurts,,vegan,fr,FR,false,grocery_ambient,0.45,7553,false
+WWF-MOCK-0082,Olive Oil 650ml,SpiceCo [fixture],Oils,Olive Oil,,vegan,de,DE,false,grocery_ambient,0.65,15513,false
+WWF-MOCK-0083,Butter 450g,GardenFresh [fixture],Dairy,Butter,,vegetarian,en,GB,false,fresh,0.45,13679,false
+WWF-MOCK-0084,Frozen Peas 800g,GreenLeaf [fixture],Frozen Vegetables,Peas,,vegan,en,GB,true,frozen,0.8,10273,false
+WWF-MOCK-0085,Broccoli 600g,FarmFirst [fixture],Fresh Vegetables,Brassicas,,vegan,en,GB,true,fresh,0.6,7993,false
+WWF-MOCK-0086,Sliced Wholegrain Bread 850g,WokBox [fixture],Bakery,Sliced Bread,,vegan,en,GB,true,grocery_ambient,0.85,15164,false
+WWF-MOCK-0087,White Pasta 450g,ButcherBest [fixture],Dry Goods,Pasta,,vegan,de,DE,false,grocery_ambient,0.45,18001,false
+WWF-MOCK-0088,Red Kidney Beans 400g,ButcherBest [fixture],Tinned Pulses,Kidney Beans,,vegan,de,DE,true,grocery_ambient,0.4,5363,false
+WWF-MOCK-0089,Mixed Nuts 250g,FarmFirst [fixture],Snacks,Nuts,,vegan,de,DE,false,grocery_ambient,0.25,16334,false
+WWF-MOCK-0090,Dark Chocolate 100g,GreenLeaf [fixture],Confectionery,Dark Chocolate,,vegan,en,GB,false,grocery_ambient,0.1,12441,false
+WWF-MOCK-0091,Beef and Potato Stew 400g,SeaCatch [fixture],Ready Meals,Stews,,,en,GB,true,fresh,0.4,12184,true
+WWF-MOCK-0092,Chicken Curry 300g,BreadCo [fixture],Ready Meals,Curry,,,de,DE,true,fresh,0.3,18141,true
+WWF-MOCK-0093,Vegan Lasagna 450g,BreadCo [fixture],Ready Meals,Vegan Meals,,vegan,de,DE,true,fresh,0.45,2284,true
+WWF-MOCK-0094,Vegetable Biryani 350g,FarmFirst [fixture],Ready Meals,Rice Dishes,,vegan,en,GB,true,grocery_ambient,0.35,15200,true
+WWF-MOCK-0095,Tuna Pasta Bake 350g,GardenFresh [fixture],Ready Meals,Pasta Dishes,,,en,GB,false,grocery_ambient,0.35,19867,true
+WWF-MOCK-0096,Prawn Noodles 400g,MedFoods [fixture],Ready Meals,Asian,,,en,GB,false,fresh,0.4,11228,true
+WWF-MOCK-0097,Beef Mince 500g,MedFoods [fixture],Red Meat,Fresh Beef,,,en,GB,false,fresh,0.5,18800,false
+WWF-MOCK-0098,Chicken Breast 350g,MedFoods [fixture],Poultry,Fresh Chicken,,free_range,nl,NL,false,fresh,0.35,18460,false
+WWF-MOCK-0099,Atlantic Salmon 150g,SpiceCo [fixture],Fish,Fresh Fish,,,en,GB,false,fresh,0.15,7934,false
+WWF-MOCK-0100,Free Range Eggs 300pk,MedFoods [fixture],Eggs,Free Range,,free_range|vegetarian,en,GB,false,grocery_ambient,0.3,19829,false
+WWF-MOCK-0101,Whole Milk 1000L,DairyFarm [fixture],Dairy,Fresh Milk,,vegetarian,nl,NL,false,fresh,1.0,4559,false
+WWF-MOCK-0102,Cheddar Cheese 350g,DairyFarm [fixture],Dairy,Hard Cheese,,vegetarian,nl,NL,false,fresh,0.35,3902,false
+WWF-MOCK-0103,Brie 200g,DairyFarm [fixture],Dairy,Soft Cheese,,vegetarian,en,GB,false,fresh,0.2,786,false
+WWF-MOCK-0104,Oat Milk 1000L,SeaCatch [fixture],Dairy Alternatives,Plant Milks,,vegan,nl,NL,false,grocery_ambient,1.0,19595,false
+WWF-MOCK-0105,Soy Yoghurt 400g,HomeChef [fixture],Dairy Alternatives,Plant Yoghurts,,vegan,en,GB,false,grocery_ambient,0.4,2017,false
+WWF-MOCK-0106,Olive Oil 450ml,OatlyFix [fixture],Oils,Olive Oil,,vegan,en,GB,false,grocery_ambient,0.45,4024,false
+WWF-MOCK-0107,Butter 400g,NutBarn [fixture],Dairy,Butter,,vegetarian,en,GB,false,fresh,0.4,12163,false
+WWF-MOCK-0108,Frozen Peas 1000g,NutBarn [fixture],Frozen Vegetables,Peas,,vegan,en,GB,true,frozen,1.0,16809,false
+WWF-MOCK-0109,Broccoli 350g,GreenLeaf [fixture],Fresh Vegetables,Brassicas,,vegan,fr,FR,true,fresh,0.35,17386,false
+WWF-MOCK-0110,Sliced Wholegrain Bread 700g,GreenLeaf [fixture],Bakery,Sliced Bread,,vegan,de,DE,true,grocery_ambient,0.7,2293,false
+WWF-MOCK-0111,White Pasta 600g,WokBox [fixture],Dry Goods,Pasta,,vegan,nl,NL,false,grocery_ambient,0.6,14268,false
+WWF-MOCK-0112,Red Kidney Beans 400g,ButcherBest [fixture],Tinned Pulses,Kidney Beans,,vegan,en,GB,true,grocery_ambient,0.4,14834,false
+WWF-MOCK-0113,Mixed Nuts 150g,BreadCo [fixture],Snacks,Nuts,,vegan,en,GB,false,grocery_ambient,0.15,5160,false
+WWF-MOCK-0114,Dark Chocolate 100g,TofuCo [fixture],Confectionery,Dark Chocolate,,vegan,en,GB,false,grocery_ambient,0.1,19481,false
+WWF-MOCK-0115,Beef and Potato Stew 450g,WokBox [fixture],Ready Meals,Stews,,,en,GB,true,fresh,0.45,19875,true
+WWF-MOCK-0116,Chicken Curry 400g,OatlyFix [fixture],Ready Meals,Curry,,,en,GB,true,fresh,0.4,14396,true
+WWF-MOCK-0117,Vegan Lasagna 350g,FarmFirst [fixture],Ready Meals,Vegan Meals,,vegan,de,DE,true,fresh,0.35,18366,true
+WWF-MOCK-0118,Vegetable Biryani 400g,WokBox [fixture],Ready Meals,Rice Dishes,,vegan,en,GB,true,grocery_ambient,0.4,15096,true
+WWF-MOCK-0119,Tuna Pasta Bake 400g,BreadCo [fixture],Ready Meals,Pasta Dishes,,,en,GB,false,grocery_ambient,0.4,15160,true
+WWF-MOCK-0120,Prawn Noodles 300g,FarmFirst [fixture],Ready Meals,Asian,,,de,DE,false,fresh,0.3,10541,true
+WWF-MOCK-0121,Beef Mince 550g,HomeChef [fixture],Red Meat,Fresh Beef,,,de,DE,false,fresh,0.55,12565,false
+WWF-MOCK-0122,Chicken Breast 600g,QuickEat [fixture],Poultry,Fresh Chicken,,free_range,de,DE,false,fresh,0.6,15840,false
+WWF-MOCK-0123,Atlantic Salmon 150g,FarmFirst [fixture],Fish,Fresh Fish,,,nl,NL,false,fresh,0.15,3354,false
+WWF-MOCK-0124,Free Range Eggs 350pk,ButcherBest [fixture],Eggs,Free Range,,free_range|vegetarian,de,DE,false,grocery_ambient,0.35,12510,false
+WWF-MOCK-0125,Whole Milk 1800L,GreenLeaf [fixture],Dairy,Fresh Milk,,vegetarian,fr,FR,false,fresh,1.8,19517,false
+WWF-MOCK-0126,Cheddar Cheese 500g,BreadCo [fixture],Dairy,Hard Cheese,,vegetarian,fr,FR,false,fresh,0.5,4305,false
+WWF-MOCK-0127,Brie 200g,GardenFresh [fixture],Dairy,Soft Cheese,,vegetarian,nl,NL,false,fresh,0.2,14158,false
+WWF-MOCK-0128,Oat Milk 1400L,GreenLeaf [fixture],Dairy Alternatives,Plant Milks,,vegan,de,DE,false,grocery_ambient,1.4,9725,false
+WWF-MOCK-0129,Soy Yoghurt 450g,FarmFirst [fixture],Dairy Alternatives,Plant Yoghurts,,vegan,en,GB,false,grocery_ambient,0.45,19237,false
+WWF-MOCK-0130,Olive Oil 600ml,GardenFresh [fixture],Oils,Olive Oil,,vegan,en,GB,false,grocery_ambient,0.6,16100,false
+WWF-MOCK-0131,Butter 250g,BreadCo [fixture],Dairy,Butter,,vegetarian,en,GB,false,fresh,0.25,18527,false
+WWF-MOCK-0132,Frozen Peas 950g,HomeChef [fixture],Frozen Vegetables,Peas,,vegan,nl,NL,true,frozen,0.95,19112,false
+WWF-MOCK-0133,Broccoli 350g,SpiceCo [fixture],Fresh Vegetables,Brassicas,,vegan,en,GB,true,fresh,0.35,18681,false
+WWF-MOCK-0134,Sliced Wholegrain Bread 900g,TofuCo [fixture],Bakery,Sliced Bread,,vegan,nl,NL,true,grocery_ambient,0.9,18543,false
+WWF-MOCK-0135,White Pasta 350g,SpiceCo [fixture],Dry Goods,Pasta,,vegan,de,DE,false,grocery_ambient,0.35,9063,false
+WWF-MOCK-0136,Red Kidney Beans 350g,ButcherBest [fixture],Tinned Pulses,Kidney Beans,,vegan,en,GB,true,grocery_ambient,0.35,10424,false
+WWF-MOCK-0137,Mixed Nuts 250g,GreenLeaf [fixture],Snacks,Nuts,,vegan,en,GB,false,grocery_ambient,0.25,6244,false
+WWF-MOCK-0138,Dark Chocolate 100g,GardenFresh [fixture],Confectionery,Dark Chocolate,,vegan,fr,FR,false,grocery_ambient,0.1,13432,false
+WWF-MOCK-0139,Beef and Potato Stew 350g,GardenFresh [fixture],Ready Meals,Stews,,,de,DE,true,fresh,0.35,1304,true
+WWF-MOCK-0140,Chicken Curry 300g,SeaCatch [fixture],Ready Meals,Curry,,,fr,FR,true,fresh,0.3,12627,true
+WWF-MOCK-0141,Vegan Lasagna 400g,DairyFarm [fixture],Ready Meals,Vegan Meals,,vegan,en,GB,true,fresh,0.4,12425,true
+WWF-MOCK-0142,Vegetable Biryani 350g,MedFoods [fixture],Ready Meals,Rice Dishes,,vegan,en,GB,true,grocery_ambient,0.35,18898,true
+WWF-MOCK-0143,Tuna Pasta Bake 400g,DairyFarm [fixture],Ready Meals,Pasta Dishes,,,en,GB,false,grocery_ambient,0.4,5458,true
+WWF-MOCK-0144,Prawn Noodles 350g,GardenFresh [fixture],Ready Meals,Asian,,,en,GB,false,fresh,0.35,2973,true
+WWF-MOCK-0145,Beef Mince 500g,WokBox [fixture],Red Meat,Fresh Beef,,,de,DE,false,fresh,0.5,16214,false
+WWF-MOCK-0146,Chicken Breast 500g,HomeChef [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,fresh,0.5,7363,false
+WWF-MOCK-0147,Atlantic Salmon 250g,BreadCo [fixture],Fish,Fresh Fish,,,en,GB,false,fresh,0.25,14387,false
+WWF-MOCK-0148,Free Range Eggs 250pk,GardenFresh [fixture],Eggs,Free Range,,free_range|vegetarian,de,DE,false,grocery_ambient,0.25,19735,false
+WWF-MOCK-0149,Whole Milk 1500L,HomeChef [fixture],Dairy,Fresh Milk,,vegetarian,de,DE,false,fresh,1.5,1788,false
+WWF-MOCK-0150,Cheddar Cheese 250g,GreenLeaf [fixture],Dairy,Hard Cheese,,vegetarian,fr,FR,false,fresh,0.25,551,false
+WWF-MOCK-0151,Brie 150g,MedFoods [fixture],Dairy,Soft Cheese,,vegetarian,en,GB,false,fresh,0.15,4796,false
+WWF-MOCK-0152,Oat Milk 1300L,BreadCo [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,grocery_ambient,1.3,4231,false
+WWF-MOCK-0153,Soy Yoghurt 350g,WokBox [fixture],Dairy Alternatives,Plant Yoghurts,,vegan,de,DE,false,grocery_ambient,0.35,6057,false
+WWF-MOCK-0154,Olive Oil 450ml,ButcherBest [fixture],Oils,Olive Oil,,vegan,fr,FR,false,grocery_ambient,0.45,7840,false
+WWF-MOCK-0155,Butter 350g,GardenFresh [fixture],Dairy,Butter,,vegetarian,nl,NL,false,fresh,0.35,11905,false
+WWF-MOCK-0156,Frozen Peas 800g,ButcherBest [fixture],Frozen Vegetables,Peas,,vegan,nl,NL,true,frozen,0.8,1686,false
+WWF-MOCK-0157,Broccoli 450g,QuickEat [fixture],Fresh Vegetables,Brassicas,,vegan,en,GB,true,fresh,0.45,2851,false
+WWF-MOCK-0158,Sliced Wholegrain Bread 850g,WokBox [fixture],Bakery,Sliced Bread,,vegan,fr,FR,true,grocery_ambient,0.85,19089,false
+WWF-MOCK-0159,White Pasta 450g,WokBox [fixture],Dry Goods,Pasta,,vegan,de,DE,false,grocery_ambient,0.45,9786,false
+WWF-MOCK-0160,Red Kidney Beans 350g,BreadCo [fixture],Tinned Pulses,Kidney Beans,,vegan,en,GB,true,grocery_ambient,0.35,5931,false
+WWF-MOCK-0161,Mixed Nuts 250g,NutBarn [fixture],Snacks,Nuts,,vegan,fr,FR,false,grocery_ambient,0.25,12157,false
+WWF-MOCK-0162,Dark Chocolate 100g,FarmFirst [fixture],Confectionery,Dark Chocolate,,vegan,nl,NL,false,grocery_ambient,0.1,8272,false
+WWF-MOCK-0163,Beef and Potato Stew 400g,OatlyFix [fixture],Ready Meals,Stews,,,en,GB,true,fresh,0.4,2877,true
+WWF-MOCK-0164,Chicken Curry 350g,ButcherBest [fixture],Ready Meals,Curry,,,en,GB,true,fresh,0.35,11425,true
+WWF-MOCK-0165,Vegan Lasagna 350g,DairyFarm [fixture],Ready Meals,Vegan Meals,,vegan,nl,NL,true,fresh,0.35,2802,true
+WWF-MOCK-0166,Vegetable Biryani 400g,OatlyFix [fixture],Ready Meals,Rice Dishes,,vegan,en,GB,true,grocery_ambient,0.4,17010,true
+WWF-MOCK-0167,Tuna Pasta Bake 350g,BreadCo [fixture],Ready Meals,Pasta Dishes,,,nl,NL,false,grocery_ambient,0.35,11804,true
+WWF-MOCK-0168,Prawn Noodles 350g,GardenFresh [fixture],Ready Meals,Asian,,,nl,NL,false,fresh,0.35,5139,true
+WWF-MOCK-0169,Beef Mince 500g,HomeChef [fixture],Red Meat,Fresh Beef,,,en,GB,false,fresh,0.5,6764,false
+WWF-MOCK-0170,Chicken Breast 350g,MedFoods [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,fresh,0.35,2769,false
+WWF-MOCK-0171,Atlantic Salmon 150g,GardenFresh [fixture],Fish,Fresh Fish,,,nl,NL,false,fresh,0.15,16491,false
+WWF-MOCK-0172,Free Range Eggs 350pk,MedFoods [fixture],Eggs,Free Range,,free_range|vegetarian,fr,FR,false,grocery_ambient,0.35,19288,false
+WWF-MOCK-0173,Whole Milk 1450L,GardenFresh [fixture],Dairy,Fresh Milk,,vegetarian,fr,FR,false,fresh,1.45,10890,false
+WWF-MOCK-0174,Cheddar Cheese 450g,BreadCo [fixture],Dairy,Hard Cheese,,vegetarian,de,DE,false,fresh,0.45,5246,false
+WWF-MOCK-0175,Brie 200g,NutBarn [fixture],Dairy,Soft Cheese,,vegetarian,en,GB,false,fresh,0.2,10222,false
+WWF-MOCK-0176,Oat Milk 1350L,GreenLeaf [fixture],Dairy Alternatives,Plant Milks,,vegan,fr,FR,false,grocery_ambient,1.35,11832,false
+WWF-MOCK-0177,Soy Yoghurt 450g,NutBarn [fixture],Dairy Alternatives,Plant Yoghurts,,vegan,en,GB,false,grocery_ambient,0.45,15108,false
+WWF-MOCK-0178,Olive Oil 400ml,SpiceCo [fixture],Oils,Olive Oil,,vegan,en,GB,false,grocery_ambient,0.4,9706,false
+WWF-MOCK-0179,Butter 200g,SpiceCo [fixture],Dairy,Butter,,vegetarian,nl,NL,false,fresh,0.2,3258,false
+WWF-MOCK-0180,Frozen Peas 1050g,WokBox [fixture],Frozen Vegetables,Peas,,vegan,fr,FR,true,frozen,1.05,15462,false
+WWF-MOCK-0181,Broccoli 450g,ButcherBest [fixture],Fresh Vegetables,Brassicas,,vegan,nl,NL,true,fresh,0.45,1644,false
+WWF-MOCK-0182,Sliced Wholegrain Bread 750g,TofuCo [fixture],Bakery,Sliced Bread,,vegan,nl,NL,true,grocery_ambient,0.75,6468,false
+WWF-MOCK-0183,White Pasta 450g,OatlyFix [fixture],Dry Goods,Pasta,,vegan,en,GB,false,grocery_ambient,0.45,5243,false
+WWF-MOCK-0184,Red Kidney Beans 450g,FarmFirst [fixture],Tinned Pulses,Kidney Beans,,vegan,en,GB,true,grocery_ambient,0.45,11553,false
+WWF-MOCK-0185,Mixed Nuts 250g,OatlyFix [fixture],Snacks,Nuts,,vegan,en,GB,false,grocery_ambient,0.25,5954,false
+WWF-MOCK-0186,Dark Chocolate 100g,NutBarn [fixture],Confectionery,Dark Chocolate,,vegan,de,DE,false,grocery_ambient,0.1,14698,false
+WWF-MOCK-0187,Beef and Potato Stew 450g,DairyFarm [fixture],Ready Meals,Stews,,,fr,FR,true,fresh,0.45,12224,true
+WWF-MOCK-0188,Chicken Curry 350g,WokBox [fixture],Ready Meals,Curry,,,en,GB,true,fresh,0.35,13694,true
+WWF-MOCK-0189,Vegan Lasagna 450g,TofuCo [fixture],Ready Meals,Vegan Meals,,vegan,de,DE,true,fresh,0.45,2015,true
+WWF-MOCK-0190,Vegetable Biryani 400g,BreadCo [fixture],Ready Meals,Rice Dishes,,vegan,de,DE,true,grocery_ambient,0.4,2459,true
+WWF-MOCK-0191,Tuna Pasta Bake 350g,GardenFresh [fixture],Ready Meals,Pasta Dishes,,,fr,FR,false,grocery_ambient,0.35,12966,true
+WWF-MOCK-0192,Prawn Noodles 300g,SpiceCo [fixture],Ready Meals,Asian,,,de,DE,false,fresh,0.3,5227,true
+WWF-MOCK-0193,Beef Mince 500g,GardenFresh [fixture],Red Meat,Fresh Beef,,,fr,FR,false,fresh,0.5,4934,false
+WWF-MOCK-0194,Chicken Breast 600g,GardenFresh [fixture],Poultry,Fresh Chicken,,free_range,en,GB,false,fresh,0.6,13143,false
+WWF-MOCK-0195,Atlantic Salmon 150g,FarmFirst [fixture],Fish,Fresh Fish,,,de,DE,false,fresh,0.15,10444,false
+WWF-MOCK-0196,Free Range Eggs 350pk,MedFoods [fixture],Eggs,Free Range,,free_range|vegetarian,de,DE,false,grocery_ambient,0.35,11063,false
+WWF-MOCK-0197,Whole Milk 1800L,ButcherBest [fixture],Dairy,Fresh Milk,,vegetarian,de,DE,false,fresh,1.8,17548,false
+WWF-MOCK-0198,Cheddar Cheese 250g,WokBox [fixture],Dairy,Hard Cheese,,vegetarian,de,DE,false,fresh,0.25,16962,false
+WWF-MOCK-0199,Brie 200g,HomeChef [fixture],Dairy,Soft Cheese,,vegetarian,en,GB,false,fresh,0.2,6206,false
+WWF-MOCK-0200,Oat Milk 1450L,MedFoods [fixture],Dairy Alternatives,Plant Milks,,vegan,en,GB,false,grocery_ambient,1.45,16234,false

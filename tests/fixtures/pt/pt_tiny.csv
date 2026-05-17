@@ -1,0 +1,13 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,weight_per_item_kg,items_purchased,protein_pct,protein_source
+P-PT-001,Red Lentil Soup,GreenLeaf,Soups,Pulse Soups,"red lentils, water, onion, carrot, spices",vegan|organic,en,GB,false,0.400,1200,4.5,label
+P-PT-002,Chicken Breast Fillet,FarmFirst,Poultry,Fresh Chicken,chicken breast,free_range,en,GB,false,0.500,3400,22.0,label
+P-PT-003,Mixed Bean Salad,GreenLeaf,Salads,Bean Salads,"mixed beans, vinaigrette, herbs",vegan,en,GB,true,0.250,800,6.2,reference_db
+P-PT-004,Beef Mince 20% Fat,ButcherBest,Red Meat,Fresh Beef,beef,,en,GB,false,0.500,2100,18.5,label
+P-PT-005,Oat Milk Drink,OatlyFix,Dairy Alternatives,Plant Milks,"water, oat (10%), rapeseed oil, salt",vegan,en,GB,false,1.000,4500,1.0,label
+P-PT-006,Spaghetti Bolognese Ready Meal,HomeChef,Ready Meals,Pasta Dishes,"pasta (40%), beef mince (25%), tomato sauce, vegetables",,en,GB,true,0.400,1800,8.5,label
+P-PT-007,Atlantic Salmon Fillet,SeaCatch,Fish,Fresh Fish,salmon,,en,GB,false,0.200,950,20.0,label
+P-PT-008,Soya Mince,GreenLeaf,Meat Alternatives,Soya Products,"soya protein (95%), spices",vegan,en,GB,true,0.300,600,52.0,label
+P-PT-009,Greek Yoghurt,DairyFarm,Dairy,Yoghurt,"whole milk, live cultures",vegetarian,en,GB,false,0.500,5200,10.0,label
+P-PT-010,Edamame Beans Frozen,AsiaKitchen,Frozen Vegetables,Edamame,edamame beans,vegan,en,GB,false,0.400,720,11.0,reference_db
+P-PT-011,Whole Milk Cheddar,DairyFarm,Dairy,Cheese,"whole milk, salt, rennet, starter culture",vegetarian,en,GB,false,0.400,6800,25.0,label
+P-PT-012,Pea Protein Powder,PureForm,Sports Nutrition,Protein Powders,pea protein isolate (95%),vegan,en,GB,false,0.500,310,80.0,label

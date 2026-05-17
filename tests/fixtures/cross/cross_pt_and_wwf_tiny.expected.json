@@ -1,0 +1,74 @@
+{
+  "note": "Single upload exercising both methodologies. PT uses items_purchased; WWF uses items_sold. The two results are strictly independent.",
+  "protein_tracker": {
+    "rows": [
+      {"external_product_id": "X-001", "pt_group": "animal_core",         "volume_kg": "1500.00000000", "protein_kg": "330.00000000"},
+      {"external_product_id": "X-002", "pt_group": "plant_based_core",    "volume_kg": "720.00000000",  "protein_kg": "32.40000000"},
+      {"external_product_id": "X-003", "pt_group": "animal_core",         "volume_kg": "7200.00000000", "protein_kg": "244.80000000"},
+      {"external_product_id": "X-004", "pt_group": "animal_core",         "volume_kg": "1800.00000000", "protein_kg": "450.00000000"},
+      {"external_product_id": "X-005", "pt_group": "animal_core",         "volume_kg": "1900.00000000", "protein_kg": "351.50000000"},
+      {"external_product_id": "X-006", "pt_group": "plant_based_non_core","volume_kg": "3300.00000000", "protein_kg": "33.00000000"},
+      {"external_product_id": "X-007", "pt_group": "composite_products",  "volume_kg": "880.00000000",  "protein_kg": "74.80000000"},
+      {"external_product_id": "X-008", "pt_group": "animal_core",         "volume_kg": "300.00000000",  "protein_kg": "60.00000000"},
+      {"external_product_id": "X-009", "pt_group": "plant_based_core",    "volume_kg": "9000.00000000", "protein_kg": "495.00000000"},
+      {"external_product_id": "X-010", "pt_group": "animal_core",         "volume_kg": "3050.00000000", "protein_kg": "305.00000000"},
+      {"external_product_id": "X-011", "pt_group": "plant_based_core",    "volume_kg": "480.00000000",  "protein_kg": "19.20000000"},
+      {"external_product_id": "X-012", "pt_group": "plant_based_core",    "volume_kg": "960.00000000",  "protein_kg": "192.00000000"}
+    ],
+    "groups": {
+      "plant_based_core":    {"volume_kg": "11160.00000000", "protein_kg": "738.60000000",  "item_count": 4},
+      "plant_based_non_core":{"volume_kg": "3300.00000000",  "protein_kg": "33.00000000",   "item_count": 1},
+      "composite_products":  {"volume_kg": "880.00000000",   "protein_kg": "74.80000000",   "item_count": 1},
+      "animal_core":         {"volume_kg": "15750.00000000", "protein_kg": "1741.30000000", "item_count": 6}
+    },
+    "summary": {
+      "plant_protein_kg":          "809.00000000",
+      "animal_protein_kg":         "1778.70000000",
+      "composite_50_50_plant_kg":  "37.40000000",
+      "composite_50_50_animal_kg": "37.40000000",
+      "total_in_scope_protein_kg": "2587.70000000",
+      "plant_share_pct":           "31.26340000",
+      "animal_share_pct":          "68.73660000"
+    }
+  },
+  "wwf": {
+    "rows": [
+      {"external_product_id": "X-001", "wwf_food_group": "FG1", "wwf_fg1_subgroup": "poultry",             "weight_kg": "1560.00000000", "dairy_equiv_weight_kg": null},
+      {"external_product_id": "X-002", "wwf_food_group": "FG1", "wwf_fg1_subgroup": "legumes",             "weight_kg": "640.00000000",  "dairy_equiv_weight_kg": null},
+      {"external_product_id": "X-003", "wwf_food_group": "FG2", "wwf_fg2_kind": "dairy_animal", "wwf_fg2_dairy_class": "other",  "weight_kg": "6800.00000000", "dairy_equiv_weight_kg": "6800.00000000"},
+      {"external_product_id": "X-004", "wwf_food_group": "FG2", "wwf_fg2_kind": "dairy_animal", "wwf_fg2_dairy_class": "cheese", "weight_kg": "1640.00000000", "dairy_equiv_weight_kg": "16400.00000000"},
+      {"external_product_id": "X-005", "wwf_food_group": "FG1", "wwf_fg1_subgroup": "red_meat",            "weight_kg": "1750.00000000", "dairy_equiv_weight_kg": null},
+      {"external_product_id": "X-006", "wwf_food_group": "FG2", "wwf_fg2_kind": "dairy_alternative_plant", "weight_kg": "3100.00000000", "dairy_equiv_weight_kg": "3100.00000000"},
+      {"external_product_id": "X-007", "wwf_food_group": "composite", "wwf_composite_step1_bucket": "meat_based", "weight_kg": "840.00000000"},
+      {"external_product_id": "X-008", "wwf_food_group": "FG1", "wwf_fg1_subgroup": "seafood",             "weight_kg": "320.00000000",  "dairy_equiv_weight_kg": null},
+      {"external_product_id": "X-009", "wwf_food_group": "FG4",                                            "weight_kg": "8700.00000000", "dairy_equiv_weight_kg": null},
+      {"external_product_id": "X-010", "wwf_food_group": "FG2", "wwf_fg2_kind": "dairy_animal", "wwf_fg2_dairy_class": "other",  "weight_kg": "2950.00000000", "dairy_equiv_weight_kg": "2950.00000000"},
+      {"external_product_id": "X-011", "wwf_food_group": "FG4",                                            "weight_kg": "440.00000000",  "dairy_equiv_weight_kg": null},
+      {"external_product_id": "X-012", "wwf_food_group": "FG1", "wwf_fg1_subgroup": "nuts_seeds",          "weight_kg": "920.00000000",  "dairy_equiv_weight_kg": null}
+    ],
+    "total_sales_weight_in_scope_kg": "29660.00000000",
+    "food_group_weights_raw_kg": {
+      "FG1": "5190.00000000",
+      "FG2": "14490.00000000",
+      "FG4": "9140.00000000"
+    },
+    "food_group_shares_pct": {
+      "FG1": "17.49832000",
+      "FG2_raw_vs_total": "48.85367000",
+      "FG4": "30.81727000"
+    },
+    "fg2_equiv_weight_kg": "29250.00000000",
+    "composites": {
+      "total_composite_weight_kg": "840.00000000",
+      "step1_buckets": {
+        "meat_based_kg":  "840.00000000",
+        "meat_based_pct": "100.00000000"
+      }
+    }
+  },
+  "independence_check": {
+    "pt_uses_items_purchased": true,
+    "wwf_uses_items_sold": true,
+    "pt_and_wwf_never_merged": true
+  }
+}

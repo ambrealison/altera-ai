@@ -1,0 +1,50 @@
+# WWF — FG3 fats and oils.
+
+# ---- Plant-based fats and oils ----
+
+- id: wwf.fg3.plant_oils
+  methodology: wwf
+  category:
+    wwf_food_group: FG3
+    wwf_fg3_subgroup: plant_based_fat
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["olive oil", "rapeseed oil", "sunflower oil", "vegetable oil",
+           "coconut oil", "palm oil", "avocado oil", "sesame oil",
+           "linseed oil", "flaxseed oil", "hemp oil",
+           "huile d'olive", "huile de tournesol", "huile de colza",
+           "huile végétale", "huile de coco"]
+
+- id: wwf.fg3.plant_spreads
+  methodology: wwf
+  category:
+    wwf_food_group: FG3
+    wwf_fg3_subgroup: plant_based_fat
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["margarine", "vegan spread", "plant spread",
+           "margarine végétale"]
+  exclude:
+    any_of:
+      - product_name_contains: ["butter", "beurre"]
+
+# ---- Animal-based fats ----
+
+- id: wwf.fg3.animal_fats
+  methodology: wwf
+  category:
+    wwf_food_group: FG3
+    wwf_fg3_subgroup: animal_based_fat
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["lard", "tallow", "suet", "dripping", "duck fat",
+           "saindoux", "graisse de canard", "graisse d'oie"]
+  exclude:
+    any_of:
+      - product_name_contains: ["plant", "vegan", "vegetable"]

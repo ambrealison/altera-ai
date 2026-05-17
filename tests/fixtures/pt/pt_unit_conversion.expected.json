@@ -1,0 +1,30 @@
+{
+  "methodology": "protein_tracker",
+  "note": "Verifies weight_per_item_g and weight_per_item_lb are correctly converted to weight_per_item_kg before calculation. 1 lb = 0.45359237 kg.",
+  "rows": [
+    {"external_product_id": "U-PT-001", "weight_per_item_kg_normalised": "0.30000000", "volume_kg": "300.00000000",  "protein_kg": "66.00000000"},
+    {"external_product_id": "U-PT-002", "weight_per_item_kg_normalised": "0.18000000", "volume_kg": "144.00000000",  "protein_kg": "28.80000000"},
+    {"external_product_id": "U-PT-003", "weight_per_item_kg_normalised": "0.39600000", "volume_kg": "237.60000000",  "protein_kg": "19.00800000"},
+    {"external_product_id": "U-PT-004", "weight_per_item_kg_normalised": "0.40000000", "volume_kg": "600.00000000",  "protein_kg": "54.00000000"},
+    {"external_product_id": "U-PT-005", "weight_per_item_kg_normalised": "0.22700000", "volume_kg": "454.00000000",  "protein_kg": "81.72000000"},
+    {"external_product_id": "U-PT-006", "weight_per_item_kg_normalised": "0.30000000", "volume_kg": "330.00000000",  "protein_kg": "13.20000000"},
+    {"external_product_id": "U-PT-007", "weight_per_item_kg_normalised": "0.17000000", "volume_kg": "544.00000000",  "protein_kg": "54.40000000"},
+    {"external_product_id": "U-PT-008", "weight_per_item_kg_normalised": "0.20000000", "volume_kg": "500.00000000",  "protein_kg": "32.50000000"},
+    {"external_product_id": "U-PT-009", "weight_per_item_kg_normalised": "0.02500000", "volume_kg": "200.00000000",  "protein_kg": "50.00000000"},
+    {"external_product_id": "U-PT-010", "weight_per_item_kg_normalised": "1.00000000", "volume_kg": "900.00000000",  "protein_kg": "4.50000000"},
+    {"external_product_id": "U-PT-011", "weight_per_item_kg_normalised": "0.90718474", "volume_kg": "453.59237000", "protein_kg": "81.64662660"},
+    {"external_product_id": "U-PT-012", "weight_per_item_kg_normalised": "0.68038856", "volume_kg": "204.11656800", "protein_kg": "42.86447928"},
+    {"external_product_id": "U-PT-013", "weight_per_item_kg_normalised": "1.36077711", "volume_kg": "272.15542200", "protein_kg": "43.54486752"},
+    {"external_product_id": "U-PT-014", "weight_per_item_kg_normalised": "0.45359237", "volume_kg": "181.43694800", "protein_kg": "36.28738960"},
+    {"external_product_id": "U-PT-015", "weight_per_item_kg_normalised": "0.39689332", "volume_kg": "277.82532400", "protein_kg": "22.22602592"},
+    {"external_product_id": "U-PT-016", "weight_per_item_kg_normalised": "0.48000000", "volume_kg": "864.00000000",  "protein_kg": "38.88000000"},
+    {"external_product_id": "U-PT-017", "weight_per_item_kg_normalised": "0.10000000", "volume_kg": "120.00000000",  "protein_kg": "26.40000000"},
+    {"external_product_id": "U-PT-018", "weight_per_item_kg_normalised": "0.34000000", "volume_kg": "748.00000000",  "protein_kg": "187.00000000"},
+    {"external_product_id": "U-PT-019", "weight_per_item_kg_normalised": "0.45000000", "volume_kg": "720.00000000",  "protein_kg": "79.20000000"},
+    {"external_product_id": "U-PT-020", "weight_per_item_kg_normalised": "0.20000000", "volume_kg": "90.00000000",   "protein_kg": "17.10000000"}
+  ],
+  "conversion_constants": {
+    "g_to_kg": "0.00100000",
+    "lb_to_kg": "0.45359237"
+  }
+}

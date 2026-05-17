@@ -1,0 +1,6 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,retail_channel,weight_per_item_kg,items_purchased,items_sold,protein_pct,protein_source,wwf_is_composite
+U-X-001,Unclassified Ready Meal A,MysteryBrand,Ready Meals,Unknown Category,mixed ingredients,,en,GB,false,fresh,0.350,1000,950,7.5,reference_db,true
+U-X-002,Unclassified Snack B,MysteryBrand,Confectionery,Unknown Category,,,en,GB,false,grocery_ambient,0.100,2000,1900,3.0,reference_db,false
+U-X-003,Unclassified Beverage C,MysteryBrand,Beverages,Unknown Category,"water, natural flavours",,en,GB,false,grocery_ambient,0.500,1500,1400,0.2,reference_db,false
+U-X-004,Unclassified Bakery D,MysteryBrand,Bakery,Unknown Category,"flour, water, yeast",,en,GB,true,grocery_ambient,0.300,800,750,9.0,reference_db,false
+U-X-005,Unclassified Condiment E,MysteryBrand,Condiments,Unknown Category,"vinegar, spices",vegan,en,GB,false,grocery_ambient,0.250,600,560,1.5,reference_db,false

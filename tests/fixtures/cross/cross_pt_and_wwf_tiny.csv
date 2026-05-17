@@ -1,0 +1,13 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,retail_channel,weight_per_item_kg,items_purchased,items_sold,protein_pct,protein_source,wwf_is_composite
+X-001,Grilled Chicken Breast,FarmFirst,Poultry,Fresh Chicken,chicken breast,free_range,en,GB,false,fresh,0.300,5000,5200,22.0,label,false
+X-002,Red Lentil Soup 400g,GreenLeaf,Soups,Pulse Soups,"red lentils, water, onion, spices",vegan,en,GB,true,grocery_ambient,0.400,1800,1600,4.5,reference_db,false
+X-003,Whole Milk 1L,DairyFarm,Dairy,Fresh Milk,whole milk,vegetarian,en,GB,false,fresh,1.000,7200,6800,3.4,label,false
+X-004,Cheddar Cheese 400g,DairyFarm,Dairy,Cheese,"whole milk, salt, rennet",vegetarian,en,GB,false,fresh,0.400,4500,4100,25.0,label,false
+X-005,Beef Mince 500g,ButcherBest,Red Meat,Fresh Beef,beef,,en,GB,false,fresh,0.500,3800,3500,18.5,label,false
+X-006,Oat Milk Barista 1L,OatlyFix,Dairy Alternatives,Plant Milks,"water, oat (10%), rapeseed oil",vegan,en,GB,false,grocery_ambient,1.000,3300,3100,1.0,label,false
+X-007,Spaghetti Bolognese 400g,HomeChef,Ready Meals,Pasta Dishes,"pasta (40%), beef mince (25%), tomato sauce",,en,GB,true,fresh,0.400,2200,2100,8.5,label,true
+X-008,Atlantic Salmon 200g,SeaCatch,Fish,Fresh Fish,salmon,,en,GB,false,fresh,0.200,1500,1600,20.0,label,false
+X-009,Frozen Peas 1kg,GardenFresh,Frozen Vegetables,Peas,garden peas,vegan,en,GB,true,frozen,1.000,9000,8700,5.5,label,false
+X-010,Greek Yoghurt 500g,DairyFarm,Dairy,Yoghurt,"whole milk, live cultures",vegetarian,en,GB,false,fresh,0.500,6100,5900,10.0,label,false
+X-011,Pea and Mint Soup 400g,GreenLeaf,Soups,Vegetable Soups,"peas (35%), water, mint, onion",vegan,en,GB,true,grocery_ambient,0.400,1200,1100,4.0,label,false
+X-012,Mixed Nuts 200g,NutBarn,Snacks,Nuts,mixed nuts,vegan,en,GB,false,grocery_ambient,0.200,4800,4600,20.0,label,false

@@ -1,0 +1,13 @@
+external_product_id,product_name,brand,retailer_category,retailer_subcategory,ingredients_text,labels,language,country,is_own_brand,weight_per_item_kg,items_purchased,protein_pct,protein_source
+M-PT-001,Free Range Chicken Breast,FarmFirst,Poultry,Fresh Chicken,chicken breast,free_range,en,GB,false,0.300,4000,22.0,label
+M-PT-002,Firm Tofu,TofuCo,Meat Alternatives,Tofu,"soya beans, water, calcium sulphate",vegan,en,GB,false,0.400,800,8.0,label
+M-PT-003,Pork Loin Chop,ButcherBest,Pork,Fresh Pork,pork,,en,GB,false,0.250,2200,21.5,reference_db
+M-PT-004,Red Lentils Dried,GreenLeaf,Dry Goods,Pulses,red lentils,vegan,en,GB,true,0.500,1400,24.6,reference_db
+M-PT-005,Smoked Mackerel Fillet,SeaCatch,Fish,Smoked Fish,smoked mackerel,,en,GB,false,0.125,1800,18.5,label
+M-PT-006,Chickpea Flour,GreenLeaf,Baking,Specialist Flours,chickpea (100%),vegan,en,GB,true,1.000,350,20.0,reference_db
+M-PT-007,Lamb Shoulder,ButcherBest,Lamb,Fresh Lamb,lamb,,en,GB,false,0.900,600,17.8,label
+M-PT-008,Edamame Frozen,AsiaKitchen,Frozen Vegetables,Edamame,edamame beans,vegan,en,GB,false,0.500,950,11.0,reference_db
+M-PT-009,Whole Milk Mozzarella,ItalFoods,Dairy,Cheese,"whole milk, salt, rennet",vegetarian,en,IT,false,0.125,7200,18.0,label
+M-PT-010,Seitan Strips,GreenLeaf,Meat Alternatives,Wheat Protein,"vital wheat gluten, spices",vegan,en,GB,true,0.200,420,25.0,label
+M-PT-011,Cooked Prawns,SeaCatch,Fish,Shellfish,cooked prawns,,en,GB,false,0.180,1600,17.0,reference_db
+M-PT-012,Almonds Raw,NutBarn,Snacks,Nuts,almonds,vegan,en,GB,false,0.200,2800,21.2,reference_db

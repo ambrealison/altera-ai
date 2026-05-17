@@ -1,0 +1,117 @@
+# WWF — FG1 animal-side subgroups.
+# French-language keywords included for EN/FR bilingual retailers.
+
+# ---- Red meat ----
+
+- id: wwf.fg1.red_meat
+  methodology: wwf
+  category:
+    wwf_food_group: FG1
+    wwf_fg1_subgroup: red_meat
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["beef", "lamb", "pork", "veal", "venison", "rabbit", "wild boar",
+           "boeuf", "agneau", "porc", "veau", "gibier", "lapin", "sanglier"]
+  exclude:
+    any_of:
+      - product_name_contains:
+          ["alternative", "vegan", "plant-based",
+           "dripping", "tallow", "suet", "lard",
+           "jerky", "biltong", "meat snack"]
+      - labels_contains: ["vegan"]
+
+# ---- Poultry ----
+
+- id: wwf.fg1.poultry
+  methodology: wwf
+  category:
+    wwf_food_group: FG1
+    wwf_fg1_subgroup: poultry
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["chicken", "turkey", "duck", "goose", "guinea fowl", "pheasant",
+           "poulet", "dinde", "canard", "oie", "pintade", "faisan"]
+  exclude:
+    any_of:
+      - product_name_contains: ["alternative", "vegan", "plant-based"]
+      - labels_contains: ["vegan"]
+
+# ---- Processed meats ----
+
+- id: wwf.fg1.processed_meats
+  methodology: wwf
+  category:
+    wwf_food_group: FG1
+    wwf_fg1_subgroup: processed_meats_alternatives
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["salami", "pepperoni", "chorizo", "sausage", "frankfurter", "hot dog",
+           "bratwurst", "mortadella", "prosciutto", "pancetta", "lardons",
+           "bacon", "ham", "smoked ham",
+           "saucisse", "saucisson", "merguez", "boudin", "jambon"]
+  exclude:
+    any_of:
+      - product_name_contains: ["vegan", "plant-based", "veggie sausage"]
+      - labels_contains: ["vegan"]
+
+# ---- Seafood ----
+
+- id: wwf.fg1.seafood
+  methodology: wwf
+  category:
+    wwf_food_group: FG1
+    wwf_fg1_subgroup: seafood
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["salmon", "tuna", "cod", "haddock", "prawn", "shrimp", "mackerel",
+           "trout", "anchovy", "sardine", "sea bass", "sea bream", "halibut",
+           "plaice", "sole", "herring", "tilapia", "scallop", "mussel", "oyster",
+           "crab", "lobster", "squid", "octopus",
+           "saumon", "thon", "cabillaud", "crevette", "maquereau", "hareng",
+           "moule", "huître", "crabe", "daurade", "loup de mer"]
+  exclude:
+    any_of:
+      - product_name_contains: ["alternative", "vegan", "plant-based"]
+      - labels_contains: ["vegan"]
+
+# ---- Eggs ----
+
+- id: wwf.fg1.eggs
+  methodology: wwf
+  category:
+    wwf_food_group: FG1
+    wwf_fg1_subgroup: eggs
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains: ["egg ", " eggs", "oeuf", "oeufs"]
+  exclude:
+    any_of:
+      - product_name_contains: ["eggplant"]
+
+# ---- Plant-based meat / egg / seafood alternatives ----
+
+- id: wwf.fg1.meat_alternatives
+  methodology: wwf
+  category:
+    wwf_food_group: FG1
+    wwf_fg1_subgroup: meat_egg_seafood_alternatives
+  priority: 150
+  match:
+    any_of:
+      - product_name_contains:
+          ["veggie burger", "vegan burger", "plant burger",
+           "veggie sausage", "vegan sausage", "plant sausage",
+           "vegan mince", "plant mince", "meat-free mince",
+           "vegan chicken", "plant chicken", "no-chicken",
+           "fishless", "vegan fish", "plant-based fish",
+           "vegan scampi", "vegan prawns",
+           "galette végétale", "steak végétal", "saucisse végétale"]

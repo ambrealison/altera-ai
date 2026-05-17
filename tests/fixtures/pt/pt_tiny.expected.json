@@ -1,0 +1,154 @@
+{
+  "methodology": "protein_tracker",
+  "reporting_period_label": "FY 2024",
+  "versions": {
+    "methodology_version": "1.0.0",
+    "methodology_source_edition": "GPA & ProVeg Foodservice 2024-08",
+    "taxonomy_version": "1.0.0",
+    "rules_version": "1.0.0"
+  },
+  "rows": [
+    {
+      "external_product_id": "P-PT-001",
+      "pt_group": "plant_based_core",
+      "volume_kg": "480.00000000",
+      "protein_kg": "21.60000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    },
+    {
+      "external_product_id": "P-PT-002",
+      "pt_group": "animal_core",
+      "volume_kg": "1700.00000000",
+      "protein_kg": "374.00000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    },
+    {
+      "external_product_id": "P-PT-003",
+      "pt_group": "plant_based_core",
+      "volume_kg": "200.00000000",
+      "protein_kg": "12.40000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    },
+    {
+      "external_product_id": "P-PT-004",
+      "pt_group": "animal_core",
+      "volume_kg": "1050.00000000",
+      "protein_kg": "194.25000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    },
+    {
+      "external_product_id": "P-PT-005",
+      "pt_group": "plant_based_non_core",
+      "volume_kg": "4500.00000000",
+      "protein_kg": "45.00000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    },
+    {
+      "external_product_id": "P-PT-006",
+      "pt_group": "composite_products",
+      "volume_kg": "720.00000000",
+      "protein_kg": "61.20000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    },
+    {
+      "external_product_id": "P-PT-007",
+      "pt_group": "animal_core",
+      "volume_kg": "190.00000000",
+      "protein_kg": "38.00000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    },
+    {
+      "external_product_id": "P-PT-008",
+      "pt_group": "plant_based_core",
+      "volume_kg": "180.00000000",
+      "protein_kg": "93.60000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    },
+    {
+      "external_product_id": "P-PT-009",
+      "pt_group": "animal_core",
+      "volume_kg": "2600.00000000",
+      "protein_kg": "260.00000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    },
+    {
+      "external_product_id": "P-PT-010",
+      "pt_group": "plant_based_core",
+      "volume_kg": "288.00000000",
+      "protein_kg": "31.68000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    },
+    {
+      "external_product_id": "P-PT-011",
+      "pt_group": "animal_core",
+      "volume_kg": "2720.00000000",
+      "protein_kg": "680.00000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    },
+    {
+      "external_product_id": "P-PT-012",
+      "pt_group": "plant_based_core",
+      "volume_kg": "155.00000000",
+      "protein_kg": "124.00000000",
+      "used_per_product_split": false,
+      "plant_protein_kg": null,
+      "animal_protein_kg": null
+    }
+  ],
+  "groups": {
+    "plant_based_core": {
+      "volume_kg": "1303.00000000",
+      "protein_kg": "283.28000000",
+      "item_count": 5
+    },
+    "plant_based_non_core": {
+      "volume_kg": "4500.00000000",
+      "protein_kg": "45.00000000",
+      "item_count": 1
+    },
+    "composite_products": {
+      "volume_kg": "720.00000000",
+      "protein_kg": "61.20000000",
+      "item_count": 1
+    },
+    "animal_core": {
+      "volume_kg": "8260.00000000",
+      "protein_kg": "1546.25000000",
+      "item_count": 5
+    }
+  },
+  "summary": {
+    "plant_protein_kg": "358.88000000",
+    "animal_protein_kg": "1576.85000000",
+    "total_in_scope_protein_kg": "1935.73000000",
+    "plant_share_pct": "18.53977569",
+    "animal_share_pct": "81.46022431",
+    "rows_with_per_product_split": 0,
+    "rows_protein_source_label": 10,
+    "rows_protein_source_reference_db": 2,
+    "out_of_scope_count": 0,
+    "unknown_count": 0
+  }
+}

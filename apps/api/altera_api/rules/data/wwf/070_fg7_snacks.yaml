@@ -1,0 +1,53 @@
+# WWF — FG7 snacks and discretionary foods.
+# French-language keywords included for EN/FR bilingual retailers.
+
+# ---- Plant-based snacks ----
+
+- id: wwf.fg7.plant_snacks
+  methodology: wwf
+  category:
+    wwf_food_group: FG7
+    wwf_fg7_snack_kind: plant_based_snack
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["dark chocolate", "chocolate bar",
+           "crisps", "chips", "popcorn", "pretzels",
+           "rice crackers", "corn chips", "tortilla chips",
+           "biscuit", "cookie", "digestive", "flapjack",
+           "cereal bar", "granola bar", "energy bar", "fruit bar",
+           "sweets", "candy", "jelly sweets", "fruit pastille",
+           "sorbet", "fruit sorbet",
+           "chips", "biscuit", "gâteau", "barre de céréales",
+           "bonbon", "confiserie végétalienne", "chocolat noir",
+           "vegan chocolate", "vegan biscuit"]
+  exclude:
+    any_of:
+      - product_name_contains:
+          ["milk chocolate", "white chocolate", "chocolate with milk",
+           "whey protein bar", "casein bar", "protein bar with whey",
+           "butter biscuit", "cream biscuit"]
+      - labels_contains: ["contains_milk", "contains_egg"]
+
+# ---- Animal-based snacks ----
+
+- id: wwf.fg7.animal_snacks
+  methodology: wwf
+  category:
+    wwf_food_group: FG7
+    wwf_fg7_snack_kind: animal_based_snack
+  priority: 100
+  match:
+    any_of:
+      - product_name_contains:
+          ["milk chocolate", "white chocolate",
+           "butter biscuit", "cream biscuit", "shortbread",
+           "whey protein bar", "casein bar",
+           "meat snack", "beef jerky", "pepperami", "pork scratching",
+           "chocolat au lait", "chocolat blanc", "sablé au beurre",
+           "beurre"]
+  exclude:
+    any_of:
+      - product_name_contains: ["vegan", "plant-based", "dairy-free"]
+      - labels_contains: ["vegan", "dairy_free"]
