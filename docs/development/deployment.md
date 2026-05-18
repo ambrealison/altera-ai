@@ -258,3 +258,93 @@ dependency vulnerability notifications.
 - [ ] Reviewed Supabase Storage bucket policies (no public buckets for `uploads`/`exports`)
 - [ ] HSTS configured at reverse proxy with `includeSubDomains`
 - [ ] Security headers verified via browser DevTools or `curl -I`
+
+---
+
+## Staging deployment
+
+### Required backend env vars
+
+All of the following must be set in the backend secret manager before starting the container.
+
+| Variable | Description |
+|---|---|
+| `SUPABASE_URL` | Supabase project URL (`https://<ref>.supabase.co`) |
+| `SUPABASE_JWT_SECRET` | Used to verify Supabase JWTs (from project settings) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Backend-only service role key — never expose to frontend |
+| `SUPABASE_ANON_KEY` | Anon/publishable key for per-request RLS clients |
+| `DATABASE_URL` | Direct Postgres URL (used by some Supabase clients; may be empty if using REST only) |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated frontend origin(s), e.g. `https://staging.altera-ai.com` |
+| `ALTERA_USE_IN_MEMORY_STORE` | `false` for Postgres persistence |
+| `ALTERA_DEV_AUTH_ENABLED` | Must be `false` in staging/production |
+| `OPENAI_API_KEY` | Required when `ALTERA_AI_PROVIDER=openai` |
+| `LOG_LEVEL` | `INFO` (default) — use `DEBUG` temporarily to diagnose issues |
+| `SENTRY_DSN` | Sentry ingest URL; leave empty to disable |
+| `SENTRY_ENVIRONMENT` | `staging` or `production` |
+| `RATE_LIMIT_ENABLED` | `true` for staging/production single-process deployments |
+| `TRUSTED_PROXIES` | CIDRs of reverse proxy egress ranges (e.g. Fly.io or Cloudflare) |
+
+Optional rate-limit overrides (defaults shown):
+
+```
+RATE_LIMIT_UPLOADS_PER_MINUTE=20
+RATE_LIMIT_CLASSIFY_PER_MINUTE=10
+RATE_LIMIT_EXPORTS_PER_MINUTE=30
+RATE_LIMIT_COMPUTE_PER_MINUTE=5
+RATE_LIMIT_DEFAULT_PER_MINUTE=200
+RATE_LIMIT_MAX_BUCKETS=100000
+```
+
+### Required frontend env vars
+
+| Variable | Description |
+|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | Backend URL, e.g. `https://api.staging.altera-ai.com` |
+| `NEXT_PUBLIC_SUPABASE_URL` | Same Supabase project URL as backend |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Anon/publishable key (safe to expose — governed by RLS) |
+
+### Supabase migration deployment
+
+```bash
+# Apply all pending migrations to the target project.
+supabase db push --project-ref <PROJECT_REF>
+
+# Alternatively, for manual application:
+psql "$DATABASE_URL" -f supabase/migrations/<file>.sql
+```
+
+Migrations are idempotent and back-compatible across one release. Never apply a migration that drops or renames a column without a two-release shadow-column strategy.
+
+### Supabase Storage bucket checklist
+
+- [ ] `uploads` bucket is **private** (not public)
+- [ ] `exports` bucket is **private** (not public)
+- [ ] Signed URL expiry: uploads ≤ 300 s, exports ≤ 600 s (configured in `StorageService`)
+- [ ] Bucket-level RLS policies match the application RLS policies
+
+### Secret rotation
+
+To rotate a secret:
+
+1. Generate the new value in the provider dashboard (Supabase, OpenAI, Sentry).
+2. Add the new value to the secret manager **without removing the old one**.
+3. Deploy the new backend version that reads the new env var.
+4. Verify the deployment is healthy (`GET /health`, check Sentry for errors).
+5. Remove the old secret from the secret manager.
+
+For `SUPABASE_JWT_SECRET` rotation: Supabase rotates the JWT secret automatically when you roll the JWT secret in the dashboard. All existing sessions are invalidated; users must re-login.
+
+If a secret is found committed to git history: revoke it immediately in the provider dashboard, then rewrite history (see `docs/development/ci.md` — Git history note).
+
+### Staging deployment checklist
+
+- [ ] CI passes on the branch being deployed
+- [ ] All required backend env vars set in the staging secret manager
+- [ ] All required frontend env vars set in the Vercel project settings (or equivalent)
+- [ ] `supabase db push` applied to the staging Supabase project
+- [ ] `GET /health` returns `{"status": "ok"}` after deploy
+- [ ] `/version` returns the expected build version
+- [ ] Login flow works end-to-end (Supabase Auth → JWT → API `/me`)
+- [ ] At least one test upload processed successfully
+- [ ] Sentry events visible in the staging environment
+- [ ] `ALTERA_DEV_AUTH_ENABLED=false` confirmed in staging logs
