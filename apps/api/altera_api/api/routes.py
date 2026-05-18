@@ -1410,7 +1410,7 @@ def generate_recommendations_route(
     Existing recommendations are upserted with status preservation — already
     proposed/accepted/dismissed/archived items keep their status.
     """
-    if not auth.is_altera_internal:
+    if not auth.can_generate_recommendations:
         raise HTTPException(status_code=403, detail="altera internal access required")
 
     record = store.get_run(run_id)
@@ -1767,7 +1767,7 @@ def create_scenario_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ScenarioResponse:
     """Create a scenario attached to a base run (Altera only)."""
-    if not auth.is_altera_internal:
+    if not auth.can_create_scenario:
         raise HTTPException(status_code=403, detail="altera internal access required")
 
     run = store.get_run(body.base_run_id)
@@ -1828,7 +1828,7 @@ def list_scenario_operations_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> list[ScenarioOperationResponse]:
     """List operations for a scenario (Altera only)."""
-    if not auth.is_altera_internal:
+    if not auth.can_create_scenario:
         raise HTTPException(status_code=403, detail="altera internal access required")
 
     scenario = store.get_scenario(scenario_id)
@@ -1862,7 +1862,7 @@ def add_scenario_operation_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ScenarioOperationResponse:
     """Add an operation to a scenario (Altera only)."""
-    if not auth.is_altera_internal:
+    if not auth.can_create_scenario:
         raise HTTPException(status_code=403, detail="altera internal access required")
 
     scenario = store.get_scenario(scenario_id)
@@ -1914,7 +1914,7 @@ def run_scenario_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ScenarioResultResponse:
     """Execute a scenario projection and persist the result (Altera only)."""
-    if not auth.is_altera_internal:
+    if not auth.can_create_scenario:
         raise HTTPException(status_code=403, detail="altera internal access required")
 
     scenario = store.get_scenario(scenario_id)
@@ -2443,7 +2443,7 @@ def create_manual_enrichment_route(
     )
     from altera_api.domain.product import NormalizedProduct
 
-    if not auth.is_altera_internal:
+    if not auth.can_apply_enrichment:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
 
     product = _resolve_pt_product(project.id, product_id, store)
@@ -2514,7 +2514,7 @@ def apply_category_average_enrichment_route(
     from altera_api.domain.product import NormalizedProduct
     from altera_api.enrichment.providers.category_average import CategoryAverageProvider
 
-    if not auth.is_altera_internal:
+    if not auth.can_apply_enrichment:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
 
     product = _resolve_pt_product(project.id, product_id, store)

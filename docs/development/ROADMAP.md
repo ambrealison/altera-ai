@@ -48,180 +48,109 @@ and approves reports before client download.
 
 ## Roadmap
 
-### Foundation completion (finish before product workflow)
+All phases through 28A-4 are complete (see status table above).
+The remaining roadmap runs from Phase 28B to pilot readiness.
 
-#### Phase 13C-polish — Close out the Auth chapter
-- Update `apps/api/version.py` phase string to `phase_13c_supabase_auth`.
-- Update `tests/api/test_health.py` phase assertion.
-- Backfill `apps/api/.env.example`, `apps/web/.env.example` with
-  `SUPABASE_*`, `ALTERA_DEV_*`, `NEXT_PUBLIC_SUPABASE_*`.
-- Update `apps/api/README.md`, `apps/web/README.md`, `supabase/README.md`.
-- Run `pytest`, `ruff`, frontend `tsc --noEmit`, `eslint`.
-- Browser smoke: sign in via Supabase, hit `/me`, see dashboard.
+### Phase 28B — Operational baseline
 
-#### Phase 13B — Postgres persistence
-- Replace `InMemoryStore` with a repository layer talking to Supabase
-  Postgres (asyncpg or supabase-py). Keep `InMemoryStore` only as a
-  test/dev fallback under a feature flag.
-- Migrate all route handlers off the singleton store.
-- Add integration tests against a local Supabase Postgres.
-- RLS tests under `supabase/tests/rls/`.
+The product is functionally complete through Phase 28A. Phase 28B
+closes the gap between "it works" and "it can run in production
+unattended."
 
-#### Phase 13D — Supabase Storage
-- Signed-URL uploads from the client UI; raw CSVs stored under
-  `organisations/<org_id>/uploads/<upload_id>/<filename>`.
-- Storage policies mirroring RLS.
-- Report exports (CSV / JSON / MD) also stored in Storage with
-  signed-URL download.
-- Remove the in-memory CSV bytes path.
+- **Structured logging**: replace bare `print` / `logging` calls
+  with JSON-structured logs (service, trace_id, org_id, level,
+  message). Target: Cloud Run log sink + Supabase log drain.
+- **Sentry error tracking**: instrument FastAPI + Next.js with Sentry
+  DSN; capture unhandled exceptions with org_id tag; alert on error
+  rate spike.
+- **Startup RLS audit**: on `PostgresRepository` init, verify that
+  the connected user can only see rows scoped to its own `organisation_id`
+  by running a canary query. Fail fast if RLS is misconfigured.
+- **Job backend SLA decision**: choose between in-process
+  `SyncDevRunner` (current) and a proper queue (Supabase Edge Function,
+  Inngest, or dedicated worker). The decision gate is pilot volume and
+  latency SLO. Document the chosen approach.
+- **Staging Postgres integration tests**: run `tests/integration/`
+  against a staging Supabase project in CI (requires secrets injection).
+  Currently the integration tests are skipped without credentials.
+- **Runbooks**: on-call runbook for stuck jobs, failed runs, upload
+  validation errors. Linked from `docs/operations/runbooks.md`.
 
-### Product workflow separation
+### Phase 29 — Audit log UI
 
-#### Phase 14 — Organisation type + role namespace split ✓
-**Complete.** See ROADMAP status table above for summary.
+- Internal UI surface for `audit_events`: who approved what and when,
+  methodology version stamped on each decision, review decision history.
+- Client-facing audit summary panel on the approved report header
+  (methodology version, approval date, approver role).
+- Note: `ORG_CREATED`, `ORG_MEMBER_INVITED`, `ORG_ROLE_CHANGED` audit
+  events are defined but not yet emitted (no app-level org management
+  endpoints — provisioning happens via Supabase Auth). These will be
+  wired when org management endpoints are added.
 
-#### Phase 15 — Production upload pipeline ✓
-**Complete.** See ROADMAP status table above for summary.
+### Phase 30 — Methodology version pinning + replay
 
-#### Phase 16 — Background jobs + async processing ✓
-**Complete.** See ROADMAP status table above for summary.
-
-#### Phase 16B — Storage-first job resolution ✓
-**Complete.** See ROADMAP status table above for summary.
-
-#### Phase 17 — AI classifier integration ✓
-**Complete.** See ROADMAP status table above for summary.
-
-#### Phase 17+ — Internal-operator UI: review queue and lifecycle
-- Internal-only Next.js routes under `app/(altera)/` rendered when
-  `organisation_type = 'altera_internal'`.
-- Manual review queue UI: filter, assign, decide, bulk actions.
-- Lifecycle dashboard: list projects by `project_status`, trigger
-  transitions, see who is assigned.
-- Client routes (under `app/(client)/`) hidden from Altera staff
-  unless impersonating; client surface unchanged for clients.
-
-#### Phase 18 — Advanced deterministic classification + taxonomy ✓
-**Complete.** See ROADMAP status table above for summary.
-
-#### Phase 18B — Report delivery workflow + client-facing UI
-- Add `report_exports.delivered_to_client_at` + `deliver` endpoint
-  (Altera staff only) for the final hand-off step after approval.
-- Client download gate already enforces `approval_status = approved`
-  since Phase 14; this phase adds the explicit delivery event.
-- Client surface: dashboard with simplified status, upload widget,
-  approved-report download, no review queue, no internal states.
-- Status-mapping helper in domain + a shared TypeScript type for the
-  client status enum.
-- Visual differentiation from the internal UI to prevent
-  cross-context confusion when Altera staff impersonate.
-- Tests: deliver gate, delivery audit event.
-
-### Auditability and trust
-
-#### Phase 19 — Audit log surfacing
-- Internal UI surface for `audit_events`: who approved, when,
-  methodology version, manual-review decisions.
-- Client-facing audit summary on the approved report header.
-
-#### Phase 20 — Multi-catalogue per project (YoY)
-- Allow multiple uploads per project keyed by `period`.
-- Compare runs across periods; YoY trend in the report.
-
-#### Phase 21 — Methodology version pinning + replay
 - Pin methodology, taxonomy, and rules versions per project at
   approval time.
 - Replay endpoint: re-run a project against its pinned versions to
-  reproduce an old number byte-for-byte.
+  reproduce a historical number byte-for-byte.
+- Required for auditability during a regulatory review.
 
-### Client experience
+### Phase 31 — PDF report export
 
-#### Phase 22 — Email notifications
-- Upload received, processing started, report ready, project
-  archived. Transactional email via Supabase or a provider.
+- Render the `ReportDocument` to a client-branded PDF
+  (client logo + colour scheme).
+- Store in Supabase Storage; signed-URL download via existing
+  `export.downloaded` audit path.
+- Deferred at MVP because the structured JSON/CSV formats are
+  sufficient for design-partner pilots.
 
-#### Phase 23 — Billing
-- Stripe integration for client billing. Seat-based +
-  per-project-completion model (subject to commercial decisions).
+### Phase 32 — Email notifications
 
-#### Phase 24 — SSO for enterprise clients
-- SAML / OIDC via Supabase Auth.
+- Transactional email for: upload received, processing started,
+  report ready for review, report approved, report delivered.
+- Provider: Supabase or Resend.
 
-#### Phase 25 — GDPR data retention
-- Configurable retention per organisation; client-driven export
-  and delete operations on their own data.
+### Phase 33 — SSO for enterprise clients
 
-### Operations and scale
+- SAML / OIDC via Supabase Auth for clients with enterprise IdP
+  requirements.
 
-#### Phase 26 — Observability
-- Sentry for errors; structured JSON logs; SLO dashboards (latency,
-  error rate, queue depth) on Grafana.
+### Phase 34 — GDPR data retention
 
-#### Phase 27 — Bulk client onboarding (internal tooling)
-- CLI or internal UI for `altera_admin` to provision a new client
-  org + invite users + create stub project in one operation.
+- Configurable retention period per organisation.
+- Client-driven export-and-delete for their own data.
 
-#### Phase 28 — Localisation (client UI)
-- FR, EN, DE, ES, IT for the client UI. Internal UI stays English.
+### Phase 35 — Pilot hardening
 
-#### Phase 29 — Report PDF branding per client
-- Client-supplied logo + colour on the approved PDF report.
-- Bring PDF export into scope (was deferred at MVP).
+- Load tests at expected pilot volumes (target: 100k product rows,
+  10 concurrent classification jobs).
+- External pen-test.
+- DPA / data-processing-agreement templates reviewed by legal.
 
-### Recommendation engine (post-measurement)
+### Phase 36 — Pilot rollout
 
-See [../future/recommendation-engine.md](../future/recommendation-engine.md)
-for the design intent.
-
-#### Phase 30 — Design + data plumbing
-- Substitution graph extension to the taxonomy.
-- Domain types for `RecommendationSet`, `Recommendation`.
-- Internal-only generation; not yet client-visible.
-
-#### Phase 31 — Rules-based substitution ranking
-- Generate ranked actions from approved runs.
-- Internal preview surface; an `altera_methodology_lead` reviews
-  before any client release.
-
-#### Phase 32 — LLM-assisted explanations (opt-in)
-- Optional natural-language explanation per recommendation.
-- LLM never sees commercial data; explanation is generated from the
-  structured recommendation only.
-
-### Pilot
-
-#### Phase 33 — Pilot hardening
-- Load tests at expected pilot volumes.
-- Pen-test (external).
-- DPA / data-processing-agreement templates.
-
-#### Phase 34 — Pilot rollout
 - Onboard 1–2 design-partner retailers.
-- Run a full cycle: upload → approve → deliver.
-- Collect feedback.
+- Run a full cycle: upload → classify → approve → deliver.
+- Collect structured feedback; triage into Phase 37+.
 
-#### Phase 35 — Pilot readiness review
-- Decision gate for GA.
+### Phase 37 — Pilot readiness review
+
+- Decision gate for GA based on pilot feedback and SLO data.
 
 ## Recommended next implementation phase
 
-**13C-polish, then 13B, then 13D, then 14.**
+**Phase 28B** — operational baseline.
 
-Reasoning:
+All product features through Phase 28A-4 are working and tested.
+The critical gap before a production pilot is observability and
+operational resilience:
 
-- 13C-polish is ~30 minutes and closes the auth chapter cleanly so
-  the version string and READMEs match reality.
-- 13B (Postgres persistence) **must** land before any of the product
-  workflow phases (14–17). Building the org-type/role split, the
-  lifecycle state machine, and the approval gate on top of
-  `InMemoryStore` would create state that vanishes on restart and
-  cannot be tested under real RLS. Doing 13B after 14–17 would mean
-  re-migrating the same surfaces twice.
-- 13D (Storage) is needed before client-visible uploads in 18 and
-  before client-downloadable approved reports in 17.
-- 14–17 then deliver the product-workflow differentiation that the
-  managed-SaaS direction requires.
+1. Structured logging and Sentry give visibility into production errors.
+2. The startup RLS check prevents a misconfigured deployment from
+   silently leaking cross-org data.
+3. The job backend SLA decision unblocks the transition from
+   in-process dev runner to a production-grade worker.
+4. Staging integration tests close the gap between the InMemoryStore
+   test suite and real Postgres/RLS behaviour.
 
-Phases 14–17 can be sequenced as a single "Product workflow"
-milestone delivered in one pass once the foundation is in place,
-since they share schema migrations.
+These four items can be parallelised within a single sprint.

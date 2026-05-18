@@ -87,3 +87,18 @@ class AuthContext:
             AlteraRole.ALTERA_METHODOLOGY_LEAD,
             AlteraRole.ALTERA_ADMIN,
         }
+
+    @property
+    def can_create_scenario(self) -> bool:
+        """Scenario creation, operations, and execution — any Altera-internal user."""
+        return self.is_altera_internal
+
+    @property
+    def can_apply_enrichment(self) -> bool:
+        """Manual and category-average nutrition enrichment — any Altera-internal user."""
+        return self.is_altera_internal
+
+    @property
+    def can_generate_recommendations(self) -> bool:
+        """Recommendation generation — any Altera-internal user."""
+        return self.is_altera_internal
