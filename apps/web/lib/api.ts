@@ -203,7 +203,7 @@ export interface CurrentUser {
   is_dev_auth: boolean;
 }
 
-export type ApprovalStatus = "draft" | "approved" | "rejected";
+export type ApprovalStatus = "draft" | "under_review" | "approved" | "rejected" | "delivered";
 
 export type JobType =
   | "validate_upload"
@@ -278,6 +278,18 @@ export interface ExportRecord {
   filename: string;
   size_bytes: number;
   created_at: string;
+  // Phase 20 — approval/delivery metadata
+  approved_by: string | null;
+  approved_at: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  under_review_by: string | null;
+  under_review_at: string | null;
+  delivered_by: string | null;
+  delivered_at: string | null;
+  client_download_count: number;
+  client_downloaded_at: string | null;
 }
 
 async function request<T>(
@@ -519,6 +531,20 @@ export function createApi(accessToken: string | null) {
       request<ExportRecord>(
         `/api/v1/projects/${projectId}/runs/${runId}/exports/${exportId}/reject`,
         { method: "POST", body: JSON.stringify({ rejection_reason: reason ?? null }) },
+        accessToken,
+      ),
+
+    submitExportForReview: (projectId: string, runId: string, exportId: string) =>
+      request<ExportRecord>(
+        `/api/v1/projects/${projectId}/runs/${runId}/exports/${exportId}/submit-for-review`,
+        { method: "POST", body: JSON.stringify({}) },
+        accessToken,
+      ),
+
+    deliverExport: (projectId: string, runId: string, exportId: string) =>
+      request<ExportRecord>(
+        `/api/v1/projects/${projectId}/runs/${runId}/exports/${exportId}/deliver`,
+        { method: "POST", body: JSON.stringify({}) },
         accessToken,
       ),
 

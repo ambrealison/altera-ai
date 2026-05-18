@@ -5,6 +5,7 @@ are Pydantic models defined inline; they're intentionally narrower than
 the full domain models so the wire contract is stable even as the
 domain evolves.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -38,6 +39,7 @@ from altera_api.domain.audit import AuditEvent, AuditEventType
 from altera_api.domain.common import Methodology
 from altera_api.domain.job import Job, JobStatus, JobType
 from altera_api.domain.project import Project
+from altera_api.domain.report_exports import ReportApprovalStatus
 from altera_api.domain.review import (
     ManualReviewPriority,
     ManualReviewQueueReason,
@@ -211,10 +213,16 @@ def _upload_response(summary: IngestSummary) -> UploadResponse:
         file_size_bytes=u.file_size_bytes,
         checksum_sha256=u.checksum_sha256,
         duplicate_of=summary.duplicate_of,
-        validation_started_at=u.validation_started_at.isoformat() if u.validation_started_at else None,
-        validation_completed_at=u.validation_completed_at.isoformat() if u.validation_completed_at else None,
+        validation_started_at=u.validation_started_at.isoformat()
+        if u.validation_started_at
+        else None,
+        validation_completed_at=u.validation_completed_at.isoformat()
+        if u.validation_completed_at
+        else None,
         ingestion_started_at=u.ingestion_started_at.isoformat() if u.ingestion_started_at else None,
-        ingestion_completed_at=u.ingestion_completed_at.isoformat() if u.ingestion_completed_at else None,
+        ingestion_completed_at=u.ingestion_completed_at.isoformat()
+        if u.ingestion_completed_at
+        else None,
     )
 
 
@@ -232,9 +240,7 @@ async def upload_csv(
     if not file.filename:
         raise HTTPException(status_code=400, detail="file is required")
     payload = await file.read()
-    pre_errors = validate_upload(
-        file.filename, payload, content_type=file.content_type
-    )
+    pre_errors = validate_upload(file.filename, payload, content_type=file.content_type)
     if pre_errors:
         raise HTTPException(status_code=400, detail="; ".join(pre_errors))
     summary = ingest_upload(
@@ -313,10 +319,18 @@ def get_upload_route(
         file_size_bytes=rec.upload.file_size_bytes,
         checksum_sha256=rec.upload.checksum_sha256,
         duplicate_of=rec.duplicate_of,
-        validation_started_at=rec.upload.validation_started_at.isoformat() if rec.upload.validation_started_at else None,
-        validation_completed_at=rec.upload.validation_completed_at.isoformat() if rec.upload.validation_completed_at else None,
-        ingestion_started_at=rec.upload.ingestion_started_at.isoformat() if rec.upload.ingestion_started_at else None,
-        ingestion_completed_at=rec.upload.ingestion_completed_at.isoformat() if rec.upload.ingestion_completed_at else None,
+        validation_started_at=rec.upload.validation_started_at.isoformat()
+        if rec.upload.validation_started_at
+        else None,
+        validation_completed_at=rec.upload.validation_completed_at.isoformat()
+        if rec.upload.validation_completed_at
+        else None,
+        ingestion_started_at=rec.upload.ingestion_started_at.isoformat()
+        if rec.upload.ingestion_started_at
+        else None,
+        ingestion_completed_at=rec.upload.ingestion_completed_at.isoformat()
+        if rec.upload.ingestion_completed_at
+        else None,
     )
 
 
@@ -401,7 +415,9 @@ def ingest_from_storage_route(
     try:
         payload = storage.download(body.storage_path)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Could not fetch file from storage: {exc}") from exc
+        raise HTTPException(
+            status_code=400, detail=f"Could not fetch file from storage: {exc}"
+        ) from exc
     pre_errors = validate_upload(body.original_filename, payload)
     if pre_errors:
         raise HTTPException(status_code=400, detail="; ".join(pre_errors))
@@ -506,6 +522,7 @@ class DecisionRequest(BaseModel):
 def _review_response(v: object) -> ReviewItemResponse:
     """Serialise a ReviewItemView → ReviewItemResponse."""
     from altera_api.api.orchestrator import ReviewItemView
+
     assert isinstance(v, ReviewItemView)
     return ReviewItemResponse(
         product_id=v.product_id,
@@ -625,11 +642,16 @@ def claim_item_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ReviewItemResponse:
     if not auth.can_review:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only Altera staff can claim review items")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="only Altera staff can claim review items"
+        )
     try:
         view = claim_review_item(
-            store, project=project, product_id=product_id,
-            methodology=methodology, reviewer_user_id=auth.user_id,
+            store,
+            project=project,
+            product_id=product_id,
+            methodology=methodology,
+            reviewer_user_id=auth.user_id,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -650,11 +672,17 @@ def release_item_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ReviewItemResponse:
     if not auth.can_review:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only Altera staff can release review items")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="only Altera staff can release review items",
+        )
     try:
         view = release_review_item(
-            store, project=project, product_id=product_id,
-            methodology=methodology, reviewer_user_id=auth.user_id,
+            store,
+            project=project,
+            product_id=product_id,
+            methodology=methodology,
+            reviewer_user_id=auth.user_id,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -675,11 +703,17 @@ def refresh_lock_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ReviewItemResponse:
     if not auth.can_review:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only Altera staff can refresh review locks")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="only Altera staff can refresh review locks",
+        )
     try:
         view = refresh_review_lock(
-            store, project=project, product_id=product_id,
-            methodology=methodology, reviewer_user_id=auth.user_id,
+            store,
+            project=project,
+            product_id=product_id,
+            methodology=methodology,
+            reviewer_user_id=auth.user_id,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -701,11 +735,17 @@ def assign_item_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ReviewItemResponse:
     if not auth.can_review:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only Altera staff can assign review items")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="only Altera staff can assign review items",
+        )
     try:
         view = assign_review_item(
-            store, project=project, product_id=product_id,
-            methodology=methodology, assigner_user_id=auth.user_id,
+            store,
+            project=project,
+            product_id=product_id,
+            methodology=methodology,
+            assigner_user_id=auth.user_id,
             assign_to_user_id=body.assign_to_user_id,
             auth_can_assign_others=auth.can_approve_report,
         )
@@ -872,6 +912,13 @@ def get_run_route(
 # ---------------------------------------------------------------------------
 # Exports
 # ---------------------------------------------------------------------------
+
+_CLIENT_VISIBLE_STATUSES = {
+    ReportApprovalStatus.APPROVED.value,
+    ReportApprovalStatus.DELIVERED.value,
+}
+
+
 class ExportRecordResponse(BaseModel):
     id: UUID
     run_id: UUID
@@ -880,10 +927,45 @@ class ExportRecordResponse(BaseModel):
     filename: str
     size_bytes: int
     created_at: str
+    # Phase 20 — approval/delivery metadata
+    approved_by: str | None = None
+    approved_at: str | None = None
+    rejected_by: str | None = None
+    rejected_at: str | None = None
+    rejection_reason: str | None = None
+    under_review_by: str | None = None
+    under_review_at: str | None = None
+    delivered_by: str | None = None
+    delivered_at: str | None = None
+    client_download_count: int = 0
+    client_downloaded_at: str | None = None
 
 
 class ApproveExportRequest(BaseModel):
     rejection_reason: str | None = None
+
+
+def _to_export_response(r: ExportRecord) -> ExportRecordResponse:
+    return ExportRecordResponse(
+        id=r.id,
+        run_id=r.run_id,
+        format=r.format,
+        approval_status=r.approval_status,
+        filename=r.filename,
+        size_bytes=r.size_bytes,
+        created_at=r.created_at.isoformat(),
+        approved_by=str(r.approved_by) if r.approved_by else None,
+        approved_at=r.approved_at.isoformat() if r.approved_at else None,
+        rejected_by=str(r.rejected_by) if r.rejected_by else None,
+        rejected_at=r.rejected_at.isoformat() if r.rejected_at else None,
+        rejection_reason=r.rejection_reason,
+        under_review_by=str(r.under_review_by) if r.under_review_by else None,
+        under_review_at=r.under_review_at.isoformat() if r.under_review_at else None,
+        delivered_by=str(r.delivered_by) if r.delivered_by else None,
+        delivered_at=r.delivered_at.isoformat() if r.delivered_at else None,
+        client_download_count=r.client_download_count,
+        client_downloaded_at=r.client_downloaded_at.isoformat() if r.client_downloaded_at else None,
+    )
 
 
 @api_router.get("/projects/{project_id}/runs/{run_id}/export")
@@ -896,22 +978,36 @@ def export_run_route(
     fmt: Literal["csv", "json", "md"] = "json",
 ) -> Response:
     # When Storage is configured: enforce the approval gate for client users.
-    # Client users can only download an export that has been approved by an
-    # Altera methodology lead; Altera staff always get a fresh render.
+    # Clients can download approved or delivered exports; Altera always gets a fresh render.
     if storage is not None and not auth.is_altera_internal:
         exports = store.get_exports_for_run(run_id)
-        approved = [e for e in exports if e.approval_status == "approved" and e.format == fmt]
-        if not approved:
+        available = [
+            e for e in exports if e.approval_status in _CLIENT_VISIBLE_STATUSES and e.format == fmt
+        ]
+        if not available:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="no approved export available for this run",
             )
-        latest = max(approved, key=lambda e: e.created_at)
+        latest = max(available, key=lambda e: e.created_at)
         try:
-            signed_url = storage.generate_export_download_url(
-                latest.storage_path, latest.filename
+            store.record_client_download(latest.id)
+            store.append_audit(
+                AuditEvent(
+                    id=uuid4(),
+                    organisation_id=project.organisation_id,
+                    actor_user_id=auth.user_id,
+                    action=AuditEventType.EXPORT_DOWNLOADED,
+                    target_table="report_exports",
+                    target_id=latest.id,
+                    metadata={"format": fmt, "export_id": str(latest.id)},
+                    created_at=datetime.now(UTC),
+                )
             )
+            signed_url = storage.generate_export_download_url(latest.storage_path, latest.filename)
             return Response(status_code=302, headers={"Location": signed_url})
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -948,6 +1044,18 @@ def export_run_route(
                 finished_at=datetime.now(UTC),
             )
             store.add_export_record(record)
+            store.append_audit(
+                AuditEvent(
+                    id=uuid4(),
+                    organisation_id=project.organisation_id,
+                    actor_user_id=auth.user_id,
+                    action=AuditEventType.EXPORT_GENERATED,
+                    target_table="report_exports",
+                    target_id=export_id,
+                    metadata={"format": fmt, "filename": filename},
+                    created_at=datetime.now(UTC),
+                )
+            )
             signed_url = storage.generate_export_download_url(storage_path, filename)
             return Response(status_code=302, headers={"Location": signed_url})
         except Exception:
@@ -968,21 +1076,55 @@ def list_exports_route(
     run_id: UUID,
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> list[ExportRecordResponse]:
     exports = store.get_exports_for_run(run_id)
-    return [
-        ExportRecordResponse(
-            id=e.id,
-            run_id=e.run_id,
-            format=e.format,
-            approval_status=e.approval_status,
-            filename=e.filename,
-            size_bytes=e.size_bytes,
-            created_at=e.created_at.isoformat(),
+    # Clients only see approved/delivered exports; Altera sees all.
+    if not auth.is_altera_internal:
+        exports = [e for e in exports if e.approval_status in _CLIENT_VISIBLE_STATUSES]
+    return [_to_export_response(e) for e in exports if e.run_id == run_id]
+
+
+@api_router.post(
+    "/projects/{project_id}/runs/{run_id}/exports/{export_id}/submit-for-review",
+    response_model=ExportRecordResponse,
+)
+def submit_export_for_review_route(
+    run_id: UUID,
+    export_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ExportRecordResponse:
+    if not auth.is_altera_internal:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="only Altera internal users can submit exports for review",
         )
-        for e in exports
-        if e.run_id == run_id
-    ]
+    record = store.get_export_record(export_id)
+    if record is None or record.run_id != run_id:
+        raise HTTPException(status_code=404, detail="export not found")
+    if record.approval_status == ReportApprovalStatus.DELIVERED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="cannot submit an already-delivered export for review",
+        )
+    updated = store.mark_export_under_review(export_id, by_user_id=auth.user_id)
+    if updated is None:
+        raise HTTPException(status_code=500, detail="submit for review failed")
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=project.organisation_id,
+            actor_user_id=auth.user_id,
+            action=AuditEventType.EXPORT_SUBMITTED_FOR_REVIEW,
+            target_table="report_exports",
+            target_id=export_id,
+            metadata={"export_id": str(export_id)},
+            created_at=datetime.now(UTC),
+        )
+    )
+    return _to_export_response(updated)
 
 
 @api_router.post(
@@ -1009,15 +1151,19 @@ def approve_export_route(
     )
     if updated is None:
         raise HTTPException(status_code=500, detail="approval failed")
-    return ExportRecordResponse(
-        id=updated.id,
-        run_id=updated.run_id,
-        format=updated.format,
-        approval_status=updated.approval_status,
-        filename=updated.filename,
-        size_bytes=updated.size_bytes,
-        created_at=updated.created_at.isoformat(),
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=project.organisation_id,
+            actor_user_id=auth.user_id,
+            action=AuditEventType.EXPORT_APPROVED,
+            target_table="report_exports",
+            target_id=export_id,
+            metadata={"export_id": str(export_id)},
+            created_at=datetime.now(UTC),
+        )
     )
+    return _to_export_response(updated)
 
 
 @api_router.post(
@@ -1048,20 +1194,71 @@ def reject_export_route(
     )
     if updated is None:
         raise HTTPException(status_code=500, detail="rejection failed")
-    return ExportRecordResponse(
-        id=updated.id,
-        run_id=updated.run_id,
-        format=updated.format,
-        approval_status=updated.approval_status,
-        filename=updated.filename,
-        size_bytes=updated.size_bytes,
-        created_at=updated.created_at.isoformat(),
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=project.organisation_id,
+            actor_user_id=auth.user_id,
+            action=AuditEventType.EXPORT_REJECTED,
+            target_table="report_exports",
+            target_id=export_id,
+            metadata={
+                "export_id": str(export_id),
+                "rejection_reason": body.rejection_reason or "",
+            },
+            created_at=datetime.now(UTC),
+        )
     )
+    return _to_export_response(updated)
+
+
+@api_router.post(
+    "/projects/{project_id}/runs/{run_id}/exports/{export_id}/deliver",
+    response_model=ExportRecordResponse,
+)
+def deliver_export_route(
+    run_id: UUID,
+    export_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ExportRecordResponse:
+    if not auth.can_deliver_report:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="only altera_methodology_lead or altera_admin can deliver exports",
+        )
+    record = store.get_export_record(export_id)
+    if record is None or record.run_id != run_id:
+        raise HTTPException(status_code=404, detail="export not found")
+    if record.approval_status != ReportApprovalStatus.APPROVED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"cannot deliver export with status '{record.approval_status}'; "
+            "export must be approved first",
+        )
+    updated = store.deliver_export(export_id, by_user_id=auth.user_id)
+    if updated is None:
+        raise HTTPException(status_code=500, detail="delivery failed")
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=project.organisation_id,
+            actor_user_id=auth.user_id,
+            action=AuditEventType.EXPORT_DELIVERED,
+            target_table="report_exports",
+            target_id=export_id,
+            metadata={"export_id": str(export_id)},
+            created_at=datetime.now(UTC),
+        )
+    )
+    return _to_export_response(updated)
 
 
 # ---------------------------------------------------------------------------
 # Jobs (Phase 16)
 # ---------------------------------------------------------------------------
+
 
 class JobResponse(BaseModel):
     job_id: UUID
@@ -1124,9 +1321,7 @@ def _create_and_dispatch(
     with the same idempotency_key was found and returned instead.
     """
     if idempotency_key is not None:
-        existing = store.find_active_job(
-            job_type=job_type, idempotency_key=idempotency_key
-        )
+        existing = store.find_active_job(job_type=job_type, idempotency_key=idempotency_key)
         if existing is not None:
             return existing, False
 
@@ -1167,6 +1362,7 @@ def _create_and_dispatch(
 
 
 # --- Upload-scoped job endpoints -------------------------------------------
+
 
 class ValidateUploadJobRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
@@ -1278,6 +1474,7 @@ def enqueue_classify_upload(
 
 # --- Project-scoped calculation job -----------------------------------------
 
+
 class CalculateJobRequest(BaseModel):
     methodology: Methodology
 
@@ -1306,6 +1503,7 @@ def enqueue_calculate(
 
 
 # --- Run-scoped export job --------------------------------------------------
+
 
 class ExportJobRequest(BaseModel):
     fmt: Literal["csv", "json", "md"] = "json"
@@ -1341,6 +1539,7 @@ def enqueue_export(
 
 
 # --- Generic job lookup -----------------------------------------------------
+
 
 @api_router.get("/jobs/{job_id}", response_model=JobResponse)
 def get_job_route(

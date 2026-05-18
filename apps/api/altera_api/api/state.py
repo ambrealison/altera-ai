@@ -8,6 +8,7 @@ test via dependency override.
 The store is concurrency-naive — Phase 12 is single-user, single-tenant.
 Supabase + RLS lands in Phase 13 and replaces this whole module.
 """
+
 from __future__ import annotations
 
 import threading
@@ -61,7 +62,8 @@ class ExportRecord:
     storage_path: str
     filename: str
     size_bytes: int
-    approval_status: str = "draft"  # "draft" | "approved" | "rejected"
+    # Phase 20 — full delivery lifecycle
+    approval_status: str = "draft"  # draft | under_review | approved | rejected | delivered
     sha256: str | None = None
     requested_by: UUID | None = None
     approved_by: UUID | None = None
@@ -69,6 +71,12 @@ class ExportRecord:
     rejected_by: UUID | None = None
     rejected_at: datetime | None = None
     rejection_reason: str | None = None
+    under_review_by: UUID | None = None
+    under_review_at: datetime | None = None
+    delivered_by: UUID | None = None
+    delivered_at: datetime | None = None
+    client_downloaded_at: datetime | None = None
+    client_download_count: int = 0
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     finished_at: datetime | None = None
 
@@ -180,9 +188,7 @@ class InMemoryStore:
         with self._lock:
             self.uploads[upload.id] = UploadRecord(upload=upload, product_ids=product_ids)
 
-    def update_upload(
-        self, upload: Upload, *, product_ids: list[UUID] | None = None
-    ) -> None:
+    def update_upload(self, upload: Upload, *, product_ids: list[UUID] | None = None) -> None:
         """Replace the Upload in an existing UploadRecord.
 
         If *product_ids* is provided it replaces the existing list;
@@ -200,9 +206,7 @@ class InMemoryStore:
                     duplicate_of=rec.duplicate_of,
                 )
             else:
-                self.uploads[upload.id] = UploadRecord(
-                    upload=upload, product_ids=product_ids or []
-                )
+                self.uploads[upload.id] = UploadRecord(upload=upload, product_ids=product_ids or [])
 
     def set_upload_validation_report(
         self,
@@ -230,8 +234,7 @@ class InMemoryStore:
         matches = [
             rec.upload
             for rec in self.uploads.values()
-            if rec.upload.project_id == project_id
-            and rec.upload.checksum_sha256 == checksum
+            if rec.upload.project_id == project_id and rec.upload.checksum_sha256 == checksum
         ]
         if not matches:
             return None
@@ -253,15 +256,11 @@ class InMemoryStore:
     # ------------------------------------------------------------------
     # Classifications
     # ------------------------------------------------------------------
-    def upsert_pt_classification(
-        self, classification: ProteinTrackerProductClassification
-    ) -> None:
+    def upsert_pt_classification(self, classification: ProteinTrackerProductClassification) -> None:
         with self._lock:
             self.pt_classifications[classification.product_id] = classification
 
-    def upsert_wwf_classification(
-        self, classification: WWFProductClassification
-    ) -> None:
+    def upsert_wwf_classification(self, classification: WWFProductClassification) -> None:
         with self._lock:
             self.wwf_classifications[classification.product_id] = classification
 
@@ -362,9 +361,58 @@ class InMemoryStore:
                 approved_at=now if approval_status == "approved" else record.approved_at,
                 rejected_by=by_user_id if approval_status == "rejected" else record.rejected_by,
                 rejected_at=now if approval_status == "rejected" else record.rejected_at,
-                rejection_reason=rejection_reason if approval_status == "rejected" else record.rejection_reason,
+                rejection_reason=rejection_reason
+                if approval_status == "rejected"
+                else record.rejection_reason,
                 created_at=record.created_at,
                 finished_at=record.finished_at,
+            )
+            self.export_records[export_id] = updated
+            return updated
+
+    def mark_export_under_review(self, export_id: UUID, *, by_user_id: UUID) -> ExportRecord | None:
+        import dataclasses
+
+        with self._lock:
+            record = self.export_records.get(export_id)
+            if record is None:
+                return None
+            updated = dataclasses.replace(
+                record,
+                approval_status="under_review",
+                under_review_by=by_user_id,
+                under_review_at=datetime.now(UTC),
+            )
+            self.export_records[export_id] = updated
+            return updated
+
+    def deliver_export(self, export_id: UUID, *, by_user_id: UUID) -> ExportRecord | None:
+        import dataclasses
+
+        with self._lock:
+            record = self.export_records.get(export_id)
+            if record is None:
+                return None
+            updated = dataclasses.replace(
+                record,
+                approval_status="delivered",
+                delivered_by=by_user_id,
+                delivered_at=datetime.now(UTC),
+            )
+            self.export_records[export_id] = updated
+            return updated
+
+    def record_client_download(self, export_id: UUID) -> ExportRecord | None:
+        import dataclasses
+
+        with self._lock:
+            record = self.export_records.get(export_id)
+            if record is None:
+                return None
+            updated = dataclasses.replace(
+                record,
+                client_download_count=record.client_download_count + 1,
+                client_downloaded_at=record.client_downloaded_at or datetime.now(UTC),
             )
             self.export_records[export_id] = updated
             return updated
@@ -382,14 +430,10 @@ class InMemoryStore:
     def get_product(self, product_id: UUID) -> NormalizedProduct | None:
         return self.products.get(product_id)
 
-    def get_pt_classification(
-        self, product_id: UUID
-    ) -> ProteinTrackerProductClassification | None:
+    def get_pt_classification(self, product_id: UUID) -> ProteinTrackerProductClassification | None:
         return self.pt_classifications.get(product_id)
 
-    def get_wwf_classification(
-        self, product_id: UUID
-    ) -> WWFProductClassification | None:
+    def get_wwf_classification(self, product_id: UUID) -> WWFProductClassification | None:
         return self.wwf_classifications.get(product_id)
 
     def get_wwf_ingredients_by_project(
@@ -399,8 +443,7 @@ class InMemoryStore:
         return {
             product_id: ingredients
             for product_id, ingredients in self.wwf_ingredients.items()
-            if product_id in self.products
-            and self.products[product_id].project_id == project_id
+            if product_id in self.products and self.products[product_id].project_id == project_id
         }
 
     def get_user(self, user_id: UUID) -> UserProfile | None:
@@ -430,9 +473,7 @@ class InMemoryStore:
     def list_jobs_for_project(self, project_id: UUID) -> list[Job]:
         return [j for j in self.jobs.values() if j.project_id == project_id]
 
-    def find_active_job(
-        self, *, job_type: JobType, idempotency_key: str
-    ) -> Job | None:
+    def find_active_job(self, *, job_type: JobType, idempotency_key: str) -> Job | None:
         """Return a queued/running job with the given type + idempotency key."""
         for job in self.jobs.values():
             if (

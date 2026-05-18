@@ -5,7 +5,23 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button, Card, CardHeader, Pill, Stat } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
-import { createApi, type ExportRecord, type Run } from "@/lib/api";
+import { createApi, type ApprovalStatus, type ExportRecord, type Run } from "@/lib/api";
+
+const STATUS_TONE: Record<ApprovalStatus, "neutral" | "warn" | "ok" | "error" | "brand"> = {
+  draft: "neutral",
+  under_review: "warn",
+  approved: "ok",
+  rejected: "error",
+  delivered: "brand",
+};
+
+const CLIENT_STATUS_LABEL: Record<ApprovalStatus, string> = {
+  draft: "Report is being prepared by Altera.",
+  under_review: "Report is being reviewed by the Altera methodology team.",
+  approved: "Report has been approved and is available for download.",
+  rejected: "Report is being revised by Altera.",
+  delivered: "Report has been delivered.",
+};
 
 export default function RunDetail() {
   const params = useParams<{ id: string; runId: string }>();
@@ -17,16 +33,19 @@ export default function RunDetail() {
   const [exports, setExports] = useState<ExportRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
-  const [approvalBusy, setApprovalBusy] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
 
   const isMethodologyLead = currentUser?.role === "altera_methodology_lead";
+  const isAdmin = currentUser?.role === "altera_admin";
+  const canDeliver = isMethodologyLead || isAdmin;
 
   const refreshExports = useCallback(async () => {
     if (!id || !runId) return;
     try {
       setExports(await api.listExports(id, runId));
     } catch {
-      // non-fatal; exports section just stays empty
+      // non-fatal
     }
   }, [api, id, runId]);
 
@@ -42,9 +61,7 @@ export default function RunDetail() {
       .catch((e: Error) => {
         if (active) setError(e.message);
       });
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [api, id, runId, loading]);
 
   async function handleDownload(fmt: "csv" | "json" | "md") {
@@ -56,27 +73,16 @@ export default function RunDetail() {
     }
   }
 
-  async function handleApprove(exportId: string) {
-    setApprovalBusy(exportId);
+  async function withAction(exportId: string, fn: () => Promise<unknown>) {
+    setActionBusy(exportId);
+    setExportError(null);
     try {
-      await api.approveExport(id, runId, exportId);
+      await fn();
       await refreshExports();
     } catch (e) {
-      setExportError(e instanceof Error ? e.message : "Approval failed");
+      setExportError(e instanceof Error ? e.message : "Action failed");
     } finally {
-      setApprovalBusy(null);
-    }
-  }
-
-  async function handleReject(exportId: string) {
-    setApprovalBusy(exportId);
-    try {
-      await api.rejectExport(id, runId, exportId);
-      await refreshExports();
-    } catch (e) {
-      setExportError(e instanceof Error ? e.message : "Rejection failed");
-    } finally {
-      setApprovalBusy(null);
+      setActionBusy(null);
     }
   }
 
@@ -92,8 +98,18 @@ export default function RunDetail() {
 
   const summary = run.summary as Record<string, unknown>;
   const isPt = run.methodology === "protein_tracker";
-  const approvedExports = exports.filter((e) => e.approval_status === "approved");
-  const hasApprovedExport = approvedExports.length > 0;
+  const clientVisibleExports = exports.filter(
+    (e) => e.approval_status === "approved" || e.approval_status === "delivered",
+  );
+  const hasClientExport = clientVisibleExports.length > 0;
+
+  // For clients: determine the highest lifecycle status across all visible exports
+  const latestClientStatus: ApprovalStatus | null =
+    !isAltera && exports.length > 0
+      ? (["delivered", "approved", "under_review", "rejected", "draft"] as ApprovalStatus[]).find(
+          (s) => exports.some((e) => e.approval_status === s),
+        ) ?? null
+      : null;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -124,10 +140,10 @@ export default function RunDetail() {
             title="Exports"
             subtitle={
               isAltera
-                ? "Download the per-row CSV, the full JSON, or a Markdown summary."
-                : hasApprovedExport
-                  ? "Approved exports are available for download."
-                  : "Reports are reviewed and approved by the Altera methodology team before download."
+                ? "Manage the report lifecycle: submit for review, approve, reject, and deliver."
+                : hasClientExport
+                  ? "Your approved report is available for download."
+                  : "Reports are reviewed and approved by the Altera methodology team."
             }
           />
 
@@ -137,28 +153,36 @@ export default function RunDetail() {
             </div>
           )}
 
-          {/* Download buttons — always shown for Altera; only shown to clients when an approved export exists */}
-          {(isAltera || hasApprovedExport) && (
+          {/* Client status banner */}
+          {!isAltera && latestClientStatus && (
+            <div className="mt-4 flex items-center gap-3">
+              <Pill tone={STATUS_TONE[latestClientStatus]}>{latestClientStatus.replace("_", " ")}</Pill>
+              <span className="text-sm text-gray-600">
+                {CLIENT_STATUS_LABEL[latestClientStatus]}
+              </span>
+            </div>
+          )}
+
+          {/* Download buttons */}
+          {(isAltera || hasClientExport) && (
             <div className="mt-4 flex flex-wrap gap-2">
               {(["csv", "json", "md"] as const).map((fmt) => (
-                <Button
-                  key={fmt}
-                  variant="secondary"
-                  onClick={() => handleDownload(fmt)}
-                >
+                <Button key={fmt} variant="secondary" onClick={() => handleDownload(fmt)}>
                   Download {fmt.toUpperCase()}
                 </Button>
               ))}
             </div>
           )}
 
-          {!isAltera && !hasApprovedExport && (
+          {!isAltera && !hasClientExport && (
             <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Awaiting approval from the Altera methodology team.
+              {latestClientStatus
+                ? CLIENT_STATUS_LABEL[latestClientStatus]
+                : "Awaiting approval from the Altera methodology team."}
             </div>
           )}
 
-          {/* Export approval list — Altera users see all exports with approve/reject controls */}
+          {/* Altera export list with lifecycle controls */}
           {isAltera && exports.length > 0 && (
             <div className="mt-6">
               <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -166,44 +190,113 @@ export default function RunDetail() {
               </div>
               <ul className="mt-2 divide-y divide-gray-100">
                 {exports.map((exp) => (
-                  <li key={exp.id} className="flex items-center justify-between py-3 text-sm">
-                    <div>
-                      <span className="font-medium">{exp.filename}</span>
-                      <span className="ml-2 text-xs text-gray-500">
-                        {new Date(exp.created_at).toLocaleString()}
-                      </span>
+                  <li key={exp.id} className="py-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium">{exp.filename}</span>
+                        <span className="ml-2 text-xs text-gray-500">
+                          {new Date(exp.created_at).toLocaleString()}
+                        </span>
+                        {exp.client_download_count > 0 && (
+                          <span className="ml-2 text-xs text-gray-400">
+                            · {exp.client_download_count} client download{exp.client_download_count !== 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Pill tone={STATUS_TONE[exp.approval_status]}>
+                          {exp.approval_status.replace("_", " ")}
+                        </Pill>
+
+                        {/* Submit for review */}
+                        {isAltera &&
+                          exp.approval_status !== "delivered" &&
+                          exp.approval_status !== "under_review" && (
+                            <Button
+                              variant="ghost"
+                              onClick={() =>
+                                withAction(exp.id, () => api.submitExportForReview(id, runId, exp.id))
+                              }
+                              disabled={actionBusy === exp.id}
+                            >
+                              Submit for review
+                            </Button>
+                          )}
+
+                        {/* Approve / Reject — methodology lead only, on draft or under_review */}
+                        {isMethodologyLead &&
+                          (exp.approval_status === "draft" || exp.approval_status === "under_review") && (
+                            <>
+                              <Button
+                                variant="primary"
+                                onClick={() =>
+                                  withAction(exp.id, () => api.approveExport(id, runId, exp.id))
+                                }
+                                disabled={actionBusy === exp.id}
+                              >
+                                {actionBusy === exp.id ? "…" : "Approve"}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                onClick={() =>
+                                  withAction(exp.id, () =>
+                                    api.rejectExport(id, runId, exp.id, rejectReason[exp.id]),
+                                  )
+                                }
+                                disabled={actionBusy === exp.id}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+
+                        {/* Deliver — methodology lead or admin, approved only */}
+                        {canDeliver && exp.approval_status === "approved" && (
+                          <Button
+                            variant="secondary"
+                            onClick={() =>
+                              withAction(exp.id, () => api.deliverExport(id, runId, exp.id))
+                            }
+                            disabled={actionBusy === exp.id}
+                          >
+                            {actionBusy === exp.id ? "…" : "Deliver to client"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Pill
-                        tone={
-                          exp.approval_status === "approved"
-                            ? "ok"
-                            : exp.approval_status === "rejected"
-                              ? "error"
-                              : "warn"
-                        }
-                      >
-                        {exp.approval_status}
-                      </Pill>
-                      {isMethodologyLead && exp.approval_status === "draft" && (
-                        <>
-                          <Button
-                            variant="primary"
-                            onClick={() => handleApprove(exp.id)}
-                            disabled={approvalBusy === exp.id}
-                          >
-                            {approvalBusy === exp.id ? "…" : "Approve"}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            onClick={() => handleReject(exp.id)}
-                            disabled={approvalBusy === exp.id}
-                          >
-                            Reject
-                          </Button>
-                        </>
+
+                    {/* Rejection reason */}
+                    {isMethodologyLead &&
+                      (exp.approval_status === "draft" || exp.approval_status === "under_review") && (
+                        <div className="mt-2 ml-0">
+                          <input
+                            type="text"
+                            placeholder="Rejection reason (optional)"
+                            value={rejectReason[exp.id] ?? ""}
+                            onChange={(e) =>
+                              setRejectReason((prev) => ({ ...prev, [exp.id]: e.target.value }))
+                            }
+                            className="w-64 rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-300"
+                          />
+                        </div>
                       )}
-                    </div>
+
+                    {/* Approval metadata */}
+                    {exp.rejection_reason && (
+                      <div className="mt-1 text-xs text-rose-600">
+                        Rejection reason: {exp.rejection_reason}
+                      </div>
+                    )}
+                    {exp.approved_at && (
+                      <div className="mt-1 text-xs text-gray-400">
+                        Approved {new Date(exp.approved_at).toLocaleString()}
+                      </div>
+                    )}
+                    {exp.delivered_at && (
+                      <div className="mt-1 text-xs text-gray-400">
+                        Delivered {new Date(exp.delivered_at).toLocaleString()}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

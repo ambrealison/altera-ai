@@ -3,6 +3,7 @@
 The action vocabulary mirrors docs/saas/audit-logs.md. Events are
 immutable: a correction is a new event, never an in-place edit.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -39,8 +40,13 @@ class AuditEventType(StrEnum):
     RUN_SUCCEEDED = "run.succeeded"
     RUN_FAILED = "run.failed"
 
-    # Export
+    # Export lifecycle (Phase 20)
     EXPORT_GENERATED = "export.generated"
+    EXPORT_SUBMITTED_FOR_REVIEW = "export.submitted_for_review"
+    EXPORT_APPROVED = "export.approved"
+    EXPORT_REJECTED = "export.rejected"
+    EXPORT_DELIVERED = "export.delivered"
+    EXPORT_DOWNLOADED = "export.downloaded"
 
     # Auth
     AUTH_SIGNED_IN = "auth.signed_in"
@@ -100,13 +106,9 @@ class AuditEvent(DomainBase):
     @model_validator(mode="after")
     def _system_events_have_no_actor(self) -> Self:
         if self.action in _SYSTEM_EVENT_TYPES and self.actor_user_id is not None:
-            raise ValueError(
-                f"{self.action.value} is a system event; actor_user_id must be null."
-            )
+            raise ValueError(f"{self.action.value} is a system event; actor_user_id must be null.")
         if self.action not in _SYSTEM_EVENT_TYPES and self.actor_user_id is None:
-            raise ValueError(
-                f"{self.action.value} requires actor_user_id."
-            )
+            raise ValueError(f"{self.action.value} requires actor_user_id.")
         return self
 
     @model_validator(mode="after")

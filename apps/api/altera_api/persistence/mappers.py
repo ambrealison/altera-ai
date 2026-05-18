@@ -5,6 +5,7 @@ and the typed domain / state models.  Callers are responsible for
 providing any context that cannot be derived from the row alone
 (e.g. ``methodologies_enabled`` for products).
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -73,6 +74,7 @@ def _parse_dt(value: str | datetime) -> datetime:
 # Organisation
 # ---------------------------------------------------------------------------
 
+
 def organisation_from_row(row: dict) -> Organisation:
     return Organisation(
         id=UUID(row["id"]),
@@ -86,6 +88,7 @@ def organisation_from_row(row: dict) -> Organisation:
 # ---------------------------------------------------------------------------
 # UserProfile
 # ---------------------------------------------------------------------------
+
 
 def user_profile_from_rows(profile_row: dict, membership_row: dict) -> UserProfile:
     return UserProfile(
@@ -102,14 +105,13 @@ def user_profile_from_rows(profile_row: dict, membership_row: dict) -> UserProfi
 # Project
 # ---------------------------------------------------------------------------
 
+
 def project_from_row(row: dict) -> Project:
     return Project(
         id=UUID(row["id"]),
         organisation_id=UUID(row["organisation_id"]),
         name=row["name"],
-        methodologies_enabled=frozenset(
-            Methodology(m) for m in row["methodologies_enabled"]
-        ),
+        methodologies_enabled=frozenset(Methodology(m) for m in row["methodologies_enabled"]),
         reporting_period_label=row["reporting_period_label"],
         pt_validation_status=PTValidationStatus(row.get("pt_validation_status", "none")),
         project_status=ProjectStatus(row.get("project_status", "created")),
@@ -135,6 +137,7 @@ def project_to_row(project: Project) -> dict:
 # ---------------------------------------------------------------------------
 # Upload
 # ---------------------------------------------------------------------------
+
 
 def upload_from_row(row: dict) -> Upload:
     return Upload(
@@ -177,11 +180,15 @@ def upload_record_from_rows(upload_row: dict, product_id_rows: list[dict]) -> Up
 # NormalizedProduct
 # ---------------------------------------------------------------------------
 
+
 def product_from_row(
     row: dict, *, methodologies_enabled: frozenset[Methodology]
 ) -> NormalizedProduct:
     pt_fields: PTProductFields | None = None
-    if Methodology.PROTEIN_TRACKER in methodologies_enabled and row.get("items_purchased") is not None:
+    if (
+        Methodology.PROTEIN_TRACKER in methodologies_enabled
+        and row.get("items_purchased") is not None
+    ):
         pt_fields = PTProductFields(
             items_purchased=Decimal(str(row["items_purchased"])),
             protein_pct=Decimal(str(row["protein_pct"])),
@@ -261,9 +268,7 @@ def product_to_row(product: NormalizedProduct) -> dict:
                     float(f.plant_protein_pct) if f.plant_protein_pct is not None else None
                 ),
                 "animal_protein_pct": (
-                    float(f.animal_protein_pct)
-                    if f.animal_protein_pct is not None
-                    else None
+                    float(f.animal_protein_pct) if f.animal_protein_pct is not None else None
                 ),
             }
         )
@@ -281,6 +286,7 @@ def product_to_row(product: NormalizedProduct) -> dict:
 # ---------------------------------------------------------------------------
 # Classifications — Protein Tracker
 # ---------------------------------------------------------------------------
+
 
 def pt_classification_from_row(row: dict) -> ProteinTrackerProductClassification:
     return ProteinTrackerProductClassification(
@@ -320,6 +326,7 @@ def pt_classification_to_row(
 # Classifications — WWF
 # ---------------------------------------------------------------------------
 
+
 def wwf_classification_from_row(row: dict) -> WWFProductClassification:
     fg = WWFFoodGroup(row["category"])
     subgroup_str: str | None = row.get("wwf_subgroup")
@@ -343,9 +350,7 @@ def wwf_classification_from_row(row: dict) -> WWFProductClassification:
         product_id=UUID(row["product_id"]),
         wwf_food_group=fg,
         wwf_is_composite=row.get("wwf_is_composite") or False,
-        composite_step1_bucket=(
-            WWFCompositeStep1Bucket(composite_str) if composite_str else None
-        ),
+        composite_step1_bucket=(WWFCompositeStep1Bucket(composite_str) if composite_str else None),
         source=ClassificationSource(row["source"]),
         confidence=Decimal(str(row["confidence"])),
         rule_id=row.get("rule_id"),
@@ -358,9 +363,7 @@ def wwf_classification_from_row(row: dict) -> WWFProductClassification:
     )
 
 
-def wwf_classification_to_row(
-    c: WWFProductClassification, *, organisation_id: UUID
-) -> dict:
+def wwf_classification_to_row(c: WWFProductClassification, *, organisation_id: UUID) -> dict:
     subgroup: str | None = None
     for sg in (c.fg1_subgroup, c.fg2_subgroup, c.fg3_subgroup, c.fg5_grain_kind, c.fg7_snack_kind):
         if sg is not None:
@@ -392,6 +395,7 @@ def wwf_classification_to_row(
 # Manual review
 # ---------------------------------------------------------------------------
 
+
 def manual_review_from_row(row: dict) -> ManualReviewItem:
     return ManualReviewItem(
         product_id=UUID(row["product_id"]),
@@ -403,9 +407,7 @@ def manual_review_from_row(row: dict) -> ManualReviewItem:
             UUID(row["soft_lock_user_id"]) if row.get("soft_lock_user_id") else None
         ),
         soft_lock_expires_at=(
-            _parse_dt(row["soft_lock_expires_at"])
-            if row.get("soft_lock_expires_at")
-            else None
+            _parse_dt(row["soft_lock_expires_at"]) if row.get("soft_lock_expires_at") else None
         ),
         queued_at=_parse_dt(row["queued_at"]),
     )
@@ -419,9 +421,7 @@ def manual_review_to_row(item: ManualReviewItem, *, organisation_id: UUID) -> di
         "status": item.status.value,
         "reason": item.reason.value,
         "owner_type": item.owner_type.value,
-        "soft_lock_user_id": (
-            str(item.soft_lock_user_id) if item.soft_lock_user_id else None
-        ),
+        "soft_lock_user_id": (str(item.soft_lock_user_id) if item.soft_lock_user_id else None),
         "soft_lock_expires_at": (
             item.soft_lock_expires_at.isoformat() if item.soft_lock_expires_at else None
         ),
@@ -432,6 +432,7 @@ def manual_review_to_row(item: ManualReviewItem, *, organisation_id: UUID) -> di
 # ---------------------------------------------------------------------------
 # Calculation run
 # ---------------------------------------------------------------------------
+
 
 def run_record_from_row(row: dict) -> RunRecord:
     rows_payload: list[dict] = row.get("rows_payload") or []
@@ -444,9 +445,7 @@ def run_record_from_row(row: dict) -> RunRecord:
         finished_at=(
             _parse_dt(row["finished_at"]) if row.get("finished_at") else datetime.now(UTC)
         ),
-        triggered_by=(
-            UUID(row["triggered_by"]) if row.get("triggered_by") else UUID(int=0)
-        ),
+        triggered_by=(UUID(row["triggered_by"]) if row.get("triggered_by") else UUID(int=0)),
         rows_payload=rows_payload,
         summary_payload=row.get("summary_payload") or {},
         rows_count=len(rows_payload),
@@ -478,6 +477,7 @@ def run_record_to_row(record: RunRecord) -> dict:
 # Export records
 # ---------------------------------------------------------------------------
 
+
 def export_record_to_row(record: ExportRecord) -> dict:
     return {
         "id": str(record.id),
@@ -495,6 +495,14 @@ def export_record_to_row(record: ExportRecord) -> dict:
         "rejected_by": str(record.rejected_by) if record.rejected_by else None,
         "rejected_at": record.rejected_at.isoformat() if record.rejected_at else None,
         "rejection_reason": record.rejection_reason,
+        "under_review_by": str(record.under_review_by) if record.under_review_by else None,
+        "under_review_at": record.under_review_at.isoformat() if record.under_review_at else None,
+        "delivered_by": str(record.delivered_by) if record.delivered_by else None,
+        "delivered_at": record.delivered_at.isoformat() if record.delivered_at else None,
+        "client_downloaded_at": record.client_downloaded_at.isoformat()
+        if record.client_downloaded_at
+        else None,
+        "client_download_count": record.client_download_count,
         "created_at": record.created_at.isoformat(),
         "finished_at": record.finished_at.isoformat() if record.finished_at else None,
     }
@@ -517,6 +525,14 @@ def export_record_from_row(row: dict) -> ExportRecord:
         rejected_by=UUID(row["rejected_by"]) if row.get("rejected_by") else None,
         rejected_at=_parse_dt(row["rejected_at"]) if row.get("rejected_at") else None,
         rejection_reason=row.get("rejection_reason"),
+        under_review_by=UUID(row["under_review_by"]) if row.get("under_review_by") else None,
+        under_review_at=_parse_dt(row["under_review_at"]) if row.get("under_review_at") else None,
+        delivered_by=UUID(row["delivered_by"]) if row.get("delivered_by") else None,
+        delivered_at=_parse_dt(row["delivered_at"]) if row.get("delivered_at") else None,
+        client_downloaded_at=_parse_dt(row["client_downloaded_at"])
+        if row.get("client_downloaded_at")
+        else None,
+        client_download_count=row.get("client_download_count") or 0,
         created_at=_parse_dt(row["created_at"]),
         finished_at=_parse_dt(row["finished_at"]) if row.get("finished_at") else None,
     )
@@ -525,6 +541,7 @@ def export_record_from_row(row: dict) -> ExportRecord:
 # ---------------------------------------------------------------------------
 # WWF composite ingredients
 # ---------------------------------------------------------------------------
+
 
 def wwf_ingredient_from_row(row: dict) -> WWFCompositeIngredient:
     fg = WWFFoodGroup(row["food_group"])

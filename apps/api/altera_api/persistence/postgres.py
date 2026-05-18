@@ -10,6 +10,7 @@ that must bypass RLS.
 so Postgres RLS policies apply to every data operation.  Falls back to
 ``_svc`` when no JWT is available (dev mode, integration tests).
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -77,8 +78,7 @@ class PostgresRepository:
     @property
     def default_user_id(self) -> UUID:
         raise RuntimeError(
-            "default_user_id is unavailable in Postgres mode. "
-            "Set ALTERA_DEV_USER_ID explicitly."
+            "default_user_id is unavailable in Postgres mode. Set ALTERA_DEV_USER_ID explicitly."
         )
 
     def get_user(self, user_id: UUID) -> UserProfile | None:
@@ -123,13 +123,7 @@ class PostgresRepository:
         ).execute()
 
     def get_organisation(self, org_id: UUID) -> Organisation | None:
-        r = (
-            self._svc.table("organisations")
-            .select("*")
-            .eq("id", str(org_id))
-            .limit(1)
-            .execute()
-        )
+        r = self._svc.table("organisations").select("*").eq("id", str(org_id)).limit(1).execute()
         if not r.data:
             return None
         return organisation_from_row(r.data[0])
@@ -171,13 +165,7 @@ class PostgresRepository:
         return [project_from_row(row) for row in (r.data or [])]
 
     def get_project(self, project_id: UUID) -> Project | None:
-        r = (
-            self._rls.table("projects")
-            .select("*")
-            .eq("id", str(project_id))
-            .limit(1)
-            .execute()
-        )
+        r = self._rls.table("projects").select("*").eq("id", str(project_id)).limit(1).execute()
         if not r.data:
             return None
         return project_from_row(r.data[0])
@@ -191,30 +179,14 @@ class PostgresRepository:
         self._rls.table("uploads").insert(upload_to_row(upload)).execute()
 
     def get_upload(self, upload_id: UUID) -> UploadRecord | None:
-        r = (
-            self._rls.table("uploads")
-            .select("*")
-            .eq("id", str(upload_id))
-            .limit(1)
-            .execute()
-        )
+        r = self._rls.table("uploads").select("*").eq("id", str(upload_id)).limit(1).execute()
         if not r.data:
             return None
-        pr = (
-            self._rls.table("products")
-            .select("id")
-            .eq("upload_id", str(upload_id))
-            .execute()
-        )
+        pr = self._rls.table("products").select("id").eq("upload_id", str(upload_id)).execute()
         return upload_record_from_rows(r.data[0], pr.data or [])
 
     def list_uploads_for_project(self, project_id: UUID) -> list[UploadRecord]:
-        r = (
-            self._rls.table("uploads")
-            .select("*")
-            .eq("project_id", str(project_id))
-            .execute()
-        )
+        r = self._rls.table("uploads").select("*").eq("project_id", str(project_id)).execute()
         rows = r.data or []
         if not rows:
             return []
@@ -228,10 +200,7 @@ class PostgresRepository:
         products_by_upload: dict[str, list[dict]] = defaultdict(list)
         for p in pr.data or []:
             products_by_upload[p["upload_id"]].append(p)
-        return [
-            upload_record_from_rows(row, products_by_upload.get(row["id"], []))
-            for row in rows
-        ]
+        return [upload_record_from_rows(row, products_by_upload.get(row["id"], [])) for row in rows]
 
     def add_product(self, product: NormalizedProduct) -> None:
         self._rls.table("products").insert(product_to_row(product)).execute()
@@ -240,25 +209,14 @@ class PostgresRepository:
         proj = self.get_project(project_id)
         if proj is None:
             return []
-        r = (
-            self._rls.table("products")
-            .select("*")
-            .eq("project_id", str(project_id))
-            .execute()
-        )
+        r = self._rls.table("products").select("*").eq("project_id", str(project_id)).execute()
         return [
             product_from_row(row, methodologies_enabled=proj.methodologies_enabled)
             for row in (r.data or [])
         ]
 
     def get_product(self, product_id: UUID) -> NormalizedProduct | None:
-        r = (
-            self._rls.table("products")
-            .select("*")
-            .eq("id", str(product_id))
-            .limit(1)
-            .execute()
-        )
+        r = self._rls.table("products").select("*").eq("id", str(product_id)).limit(1).execute()
         if not r.data:
             return None
         row = r.data[0]
@@ -283,18 +241,14 @@ class PostgresRepository:
             raise LookupError(f"product {product_id} not found")
         return UUID(r.data[0]["organisation_id"])
 
-    def upsert_pt_classification(
-        self, classification: ProteinTrackerProductClassification
-    ) -> None:
+    def upsert_pt_classification(self, classification: ProteinTrackerProductClassification) -> None:
         org_id = self._get_org_id_for_product(classification.product_id)
         self._rls.table("classifications").upsert(
             pt_classification_to_row(classification, organisation_id=org_id),
             on_conflict="product_id,methodology",
         ).execute()
 
-    def get_pt_classification(
-        self, product_id: UUID
-    ) -> ProteinTrackerProductClassification | None:
+    def get_pt_classification(self, product_id: UUID) -> ProteinTrackerProductClassification | None:
         r = (
             self._rls.table("classifications")
             .select("*")
@@ -307,18 +261,14 @@ class PostgresRepository:
             return None
         return pt_classification_from_row(r.data[0])
 
-    def upsert_wwf_classification(
-        self, classification: WWFProductClassification
-    ) -> None:
+    def upsert_wwf_classification(self, classification: WWFProductClassification) -> None:
         org_id = self._get_org_id_for_product(classification.product_id)
         self._rls.table("classifications").upsert(
             wwf_classification_to_row(classification, organisation_id=org_id),
             on_conflict="product_id,methodology",
         ).execute()
 
-    def get_wwf_classification(
-        self, product_id: UUID
-    ) -> WWFProductClassification | None:
+    def get_wwf_classification(self, product_id: UUID) -> WWFProductClassification | None:
         r = (
             self._rls.table("classifications")
             .select("*")
@@ -338,12 +288,7 @@ class PostgresRepository:
     def get_wwf_ingredients_by_project(
         self, project_id: UUID
     ) -> dict[UUID, list[WWFCompositeIngredient]]:
-        pr = (
-            self._rls.table("products")
-            .select("id")
-            .eq("project_id", str(project_id))
-            .execute()
-        )
+        pr = self._rls.table("products").select("id").eq("project_id", str(project_id)).execute()
         product_ids = [r["id"] for r in (pr.data or [])]
         if not product_ids:
             return {}
@@ -371,9 +316,9 @@ class PostgresRepository:
         ).execute()
 
     def remove_review_item(self, product_id: UUID, methodology: Methodology) -> None:
-        self._rls.table("manual_reviews").delete().eq(
-            "product_id", str(product_id)
-        ).eq("methodology", methodology.value).execute()
+        self._rls.table("manual_reviews").delete().eq("product_id", str(product_id)).eq(
+            "methodology", methodology.value
+        ).execute()
 
     def get_review_item(
         self, product_id: UUID, methodology: Methodology
@@ -393,20 +338,11 @@ class PostgresRepository:
     def list_review_items_for_project(
         self, project_id: UUID, *, methodology: Methodology | None = None
     ) -> list[ManualReviewItem]:
-        pr = (
-            self._rls.table("products")
-            .select("id")
-            .eq("project_id", str(project_id))
-            .execute()
-        )
+        pr = self._rls.table("products").select("id").eq("project_id", str(project_id)).execute()
         product_ids = [r["id"] for r in (pr.data or [])]
         if not product_ids:
             return []
-        q = (
-            self._rls.table("manual_reviews")
-            .select("*")
-            .in_("product_id", product_ids)
-        )
+        q = self._rls.table("manual_reviews").select("*").in_("product_id", product_ids)
         if methodology is not None:
             q = q.eq("methodology", methodology.value)
         r = q.execute()
@@ -420,13 +356,7 @@ class PostgresRepository:
         self._rls.table("calculation_runs").insert(run_record_to_row(record)).execute()
 
     def get_run(self, run_id: UUID) -> RunRecord | None:
-        r = (
-            self._rls.table("calculation_runs")
-            .select("*")
-            .eq("id", str(run_id))
-            .limit(1)
-            .execute()
-        )
+        r = self._rls.table("calculation_runs").select("*").eq("id", str(run_id)).limit(1).execute()
         if not r.data:
             return None
         return run_record_from_row(r.data[0])
@@ -465,12 +395,7 @@ class PostgresRepository:
 
     def get_exports_for_run(self, run_id: UUID) -> list[ExportRecord]:
         try:
-            r = (
-                self._rls.table("report_exports")
-                .select("*")
-                .eq("run_id", str(run_id))
-                .execute()
-            )
+            r = self._rls.table("report_exports").select("*").eq("run_id", str(run_id)).execute()
             return [export_record_from_row(row) for row in (r.data or [])]
         except Exception:
             return []
@@ -496,12 +421,67 @@ class PostgresRepository:
             if rejection_reason is not None:
                 update["rejection_reason"] = rejection_reason
         try:
+            r = self._svc.table("report_exports").update(update).eq("id", str(export_id)).execute()
+            return export_record_from_row(r.data[0]) if r.data else None
+        except Exception:
+            return None
+
+    def mark_export_under_review(self, export_id: UUID, *, by_user_id: UUID) -> ExportRecord | None:
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC).isoformat()
+        try:
             r = (
                 self._svc.table("report_exports")
-                .update(update)
+                .update(
+                    {
+                        "approval_status": "under_review",
+                        "under_review_by": str(by_user_id),
+                        "under_review_at": now,
+                    }
+                )
                 .eq("id", str(export_id))
                 .execute()
             )
+            return export_record_from_row(r.data[0]) if r.data else None
+        except Exception:
+            return None
+
+    def deliver_export(self, export_id: UUID, *, by_user_id: UUID) -> ExportRecord | None:
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC).isoformat()
+        try:
+            r = (
+                self._svc.table("report_exports")
+                .update(
+                    {
+                        "approval_status": "delivered",
+                        "delivered_by": str(by_user_id),
+                        "delivered_at": now,
+                    }
+                )
+                .eq("id", str(export_id))
+                .execute()
+            )
+            return export_record_from_row(r.data[0]) if r.data else None
+        except Exception:
+            return None
+
+    def record_client_download(self, export_id: UUID) -> ExportRecord | None:
+        from datetime import UTC, datetime
+
+        try:
+            current = self.get_export_record(export_id)
+            if current is None:
+                return None
+            now = datetime.now(UTC).isoformat()
+            update: dict = {
+                "client_download_count": current.client_download_count + 1,
+            }
+            if current.client_downloaded_at is None:
+                update["client_downloaded_at"] = now
+            r = self._svc.table("report_exports").update(update).eq("id", str(export_id)).execute()
             return export_record_from_row(r.data[0]) if r.data else None
         except Exception:
             return None

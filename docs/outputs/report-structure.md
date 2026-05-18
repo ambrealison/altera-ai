@@ -7,21 +7,40 @@ format; the format is a rendering decision.
 A project running both methodologies produces **two parallel report
 blocks** — never merged.
 
-## Approval gate
+## Report lifecycle (Phase 20)
 
-Reports are gated by an **Altera-internal approval step** before they
-are visible or downloadable by clients. Every `report_exports` row
-carries:
+Every `report_exports` row follows a five-stage lifecycle:
 
-- `approval_status` — `draft` | `approved` | `rejected`.
-- `approved_by` — the `altera_methodology_lead` user id at approval.
-- `approved_at` — timestamp at approval.
-- `delivered_to_client_at` — timestamp when released to the client.
+```
+draft → under_review → approved → delivered
+            ↓ rejected (from draft or under_review)
+```
 
-The download endpoint refuses any request from a `gms_client` user
-where `approval_status != 'approved'`. Altera staff can preview drafts
-and rejected reports inside the internal-operator UI; clients see
-only "Under Altera review" in the client UI for those states.
+| Status         | Who sets it              | Client sees                        |
+|----------------|--------------------------|------------------------------------|
+| `draft`        | Export renderer          | "Being prepared"                   |
+| `under_review` | Any Altera internal      | "Under Altera review"              |
+| `approved`     | `altera_methodology_lead`| Downloadable                       |
+| `rejected`     | `altera_methodology_lead`| "Being revised" (reason hidden)    |
+| `delivered`    | Lead or admin            | "Delivered" — explicitly surfaced  |
+
+Fields stored on `report_exports`:
+
+- `approval_status` — one of the five values above.
+- `approved_by` / `approved_at` — set on approval.
+- `rejected_by` / `rejected_at` / `rejection_reason` — set on rejection.
+- `under_review_by` / `under_review_at` — set when submitted for review.
+- `delivered_by` / `delivered_at` — set on delivery.
+- `client_downloaded_at` / `client_download_count` — tracked on each client download.
+
+**Download gate**: clients may only download `approved` or `delivered` exports.
+Altera staff can preview any status from the internal UI.
+The `list_exports` endpoint only returns `approved`/`delivered` records to clients;
+Altera sees all statuses.
+
+**Audit events** are emitted for every lifecycle transition and for each
+client download: `export.submitted_for_review`, `export.approved`,
+`export.rejected`, `export.delivered`, `export.downloaded`.
 
 The header block (below) carries the approval state, the approver,
 and the approval timestamp on any client-facing export.

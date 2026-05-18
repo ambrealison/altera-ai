@@ -169,41 +169,65 @@ the full report block (see
 including all data-quality flags and methodology-specific
 interpretation notes. Drafts are visible only to Altera staff.
 
-## 9. Approval (Altera-internal — methodology lead only)
+## 9. Submit for review (Altera-internal)
+
+`report_draft → report_under_altera_review`:
+
+Any `altera_internal` user calls
+`POST .../exports/{id}/submit-for-review`. This:
+
+- Sets `approval_status = 'under_review'`, stamps `under_review_by`
+  and `under_review_at`.
+- Emits `export.submitted_for_review` audit event.
+- Signals to the methodology lead that the export is ready to review.
+
+## 10. Approval (Altera-internal — methodology lead only)
 
 `report_under_altera_review → report_approved` *or* back to
 `report_draft` on rejection.
 
-An `altera_methodology_lead`:
+An `altera_methodology_lead` calls `POST .../exports/{id}/approve`
+or `POST .../exports/{id}/reject`:
 
-- Reviews the draft report against the methodology version pinned on
-  the project.
-- Either:
-  - **Approves**: writes `approval_status = 'approved'`, stamps
-    `approved_by` (their user id) and `approved_at`. The project
-    transitions to `report_approved`. An optional release note is
-    captured.
-  - **Rejects**: writes `approval_status = 'rejected'` with a
-    required reason. The project transitions back to `report_draft`
-    so an analyst can rework (rerun review, recompute, regenerate).
+- **Approves**: writes `approval_status = 'approved'`, stamps
+  `approved_by` and `approved_at`. Emits `export.approved`.
+- **Rejects**: writes `approval_status = 'rejected'` with an optional
+  reason. Stamps `rejected_by` and `rejected_at`. Emits
+  `export.rejected`. The analyst can then re-run, re-review, or
+  regenerate and re-submit.
 
-`altera_admin` cannot approve; the role separation is intentional.
+`altera_admin` cannot approve or reject; the role separation is
+intentional. `altera_admin` can, however, deliver (step 11).
 
-## 10. Delivery (Altera-internal → client)
+## 11. Delivery (Altera-internal → client)
 
-`report_approved → delivered_to_client`:
+`report_approved → delivered`:
 
-An `altera_analyst`, `altera_methodology_lead`, or `altera_admin`
-clicks "release to client." This:
+An `altera_methodology_lead` or `altera_admin` calls
+`POST .../exports/{id}/deliver`. This:
 
-- Stamps `delivered_to_client_at` on the `report_exports` row.
-- Sends an email notification to the client contacts.
-- Flips the client-facing status from "Under Altera review" to
-  "Report ready."
+- Sets `approval_status = 'delivered'`, stamps `delivered_by` and
+  `delivered_at`.
+- Emits `export.delivered` audit event.
+- Makes the export downloadable by the client (status `delivered`
+  is treated as downloadable alongside `approved`).
 
-The client can now download the approved exports (CSV, JSON,
-Markdown) from the client UI. The download endpoint refuses anything
-where `approval_status != 'approved'`.
+**Note**: delivery is an explicit act. An `approved` export is not
+automatically visible to clients until it is also `delivered` (or the
+client fetches directly and the export is already `approved`). In
+practice, clients can download both `approved` and `delivered` exports;
+`delivered` is the explicit acknowledgment that the report has been
+formally handed over.
+
+Each client download:
+- Sets `client_downloaded_at` (first download only).
+- Increments `client_download_count`.
+- Emits `export.downloaded` audit event.
+
+Email notification on delivery: **not yet implemented** (Phase 21+).
+
+The download endpoint refuses anything where `approval_status` is not
+`approved` or `delivered` for `gms_client` users.
 
 ## 11. Closing out
 

@@ -3,6 +3,7 @@
 Pure functions with no I/O. The API layer calls these before persisting
 approval decisions and before serving download requests.
 """
+
 from __future__ import annotations
 
 from altera_api.domain.common import AlteraRole, ClientRole
@@ -18,6 +19,11 @@ class ApprovalPermissionDenied(Exception):
         self.role = role
 
 
+def can_submit_for_review(role: AlteraRole | ClientRole | str) -> bool:
+    """Any Altera-internal role may submit a report for review."""
+    return isinstance(role, AlteraRole)
+
+
 def can_approve(role: AlteraRole | ClientRole | str) -> bool:
     """Only ``altera_methodology_lead`` may approve a report."""
     return role == AlteraRole.ALTERA_METHODOLOGY_LEAD
@@ -26,6 +32,17 @@ def can_approve(role: AlteraRole | ClientRole | str) -> bool:
 def can_reject(role: AlteraRole | ClientRole | str) -> bool:
     """Only ``altera_methodology_lead`` may reject a report."""
     return role == AlteraRole.ALTERA_METHODOLOGY_LEAD
+
+
+def can_deliver(role: AlteraRole | ClientRole | str) -> bool:
+    """``altera_methodology_lead`` and ``altera_admin`` may deliver a report."""
+    return role in {AlteraRole.ALTERA_METHODOLOGY_LEAD, AlteraRole.ALTERA_ADMIN}
+
+
+def assert_can_submit_for_review(role: AlteraRole | ClientRole | str) -> None:
+    """Raise ``ApprovalPermissionDenied`` if the role cannot submit for review."""
+    if not can_submit_for_review(role):
+        raise ApprovalPermissionDenied("submit_for_review", str(role))
 
 
 def assert_can_approve(role: AlteraRole | ClientRole | str) -> None:
@@ -40,30 +57,43 @@ def assert_can_reject(role: AlteraRole | ClientRole | str) -> None:
         raise ApprovalPermissionDenied("reject", str(role))
 
 
-def can_client_download(approval_status: ReportApprovalStatus) -> bool:
-    """True only when the report has been approved.
+def assert_can_deliver(role: AlteraRole | ClientRole | str) -> None:
+    """Raise ``ApprovalPermissionDenied`` if the role cannot deliver."""
+    if not can_deliver(role):
+        raise ApprovalPermissionDenied("deliver", str(role))
 
-    This is the gate enforced by the download endpoint for gms_client
-    users.  Altera staff may preview any state from the internal UI.
+
+def can_client_download(approval_status: ReportApprovalStatus) -> bool:
+    """True for ``approved`` or ``delivered`` exports.
+
+    Clients may download once Altera has approved — delivery is the
+    explicit act of making the report visible to the client.
     """
-    return approval_status == ReportApprovalStatus.APPROVED
+    return approval_status in {
+        ReportApprovalStatus.APPROVED,
+        ReportApprovalStatus.DELIVERED,
+    }
 
 
 def assert_client_can_download(approval_status: ReportApprovalStatus) -> None:
-    """Raise ``PermissionError`` if the report is not yet approved."""
+    """Raise ``PermissionError`` if the report is not yet approved or delivered."""
     if not can_client_download(approval_status):
         raise PermissionError(
             f"Report export with status '{approval_status}' is not available "
-            "for client download. Only approved reports may be downloaded."
+            "for client download. Only approved or delivered reports may be downloaded."
         )
 
 
 __all__ = [
     "ApprovalPermissionDenied",
     "assert_can_approve",
+    "assert_can_deliver",
     "assert_can_reject",
+    "assert_can_submit_for_review",
     "assert_client_can_download",
     "can_approve",
     "can_client_download",
+    "can_deliver",
     "can_reject",
+    "can_submit_for_review",
 ]

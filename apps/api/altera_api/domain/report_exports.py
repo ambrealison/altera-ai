@@ -1,4 +1,5 @@
 """Report export domain model with Altera approval lifecycle."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -11,13 +12,18 @@ from altera_api.domain.common import DomainBase
 class ReportApprovalStatus(StrEnum):
     """Approval state of a report export.
 
-    Clients may only download exports with status ``approved``.
-    Draft and rejected reports are visible to Altera staff only.
+    Lifecycle: draft → under_review → approved → delivered
+                              ↓ rejected (from draft or under_review)
+
+    Clients may only download exports with status ``approved`` or ``delivered``.
+    Draft, under_review, and rejected reports are visible to Altera staff only.
     """
 
     DRAFT = "draft"
+    UNDER_REVIEW = "under_review"
     APPROVED = "approved"
     REJECTED = "rejected"
+    DELIVERED = "delivered"
 
 
 class ReviewOwnerType(StrEnum):

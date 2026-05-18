@@ -1,4 +1,5 @@
 """Request-scoped authentication context."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -72,3 +73,10 @@ class AuthContext:
     @property
     def can_approve_report(self) -> bool:
         return isinstance(self.role, AlteraRole) and self.role == AlteraRole.ALTERA_METHODOLOGY_LEAD
+
+    @property
+    def can_deliver_report(self) -> bool:
+        return isinstance(self.role, AlteraRole) and self.role in {
+            AlteraRole.ALTERA_METHODOLOGY_LEAD,
+            AlteraRole.ALTERA_ADMIN,
+        }
