@@ -7,6 +7,7 @@ spec calls for. Catching a missing table or a typo'd RLS policy here
 is cheap — the behavioural contract is ``pg_prove`` against the local
 Supabase, documented in ``supabase/README.md``.
 """
+
 from __future__ import annotations
 
 import re
@@ -134,6 +135,8 @@ def test_rls_enabled_on_every_multi_tenant_table() -> None:
         "rules_versions_select",
         "uploads_storage_select",
         "exports_storage_select",
+        # Phase 20: broad Altera-internal UPDATE policy replaces approval-only one
+        "report_exports_update",
     ],
 )
 def test_named_policy_exists(policy_name: str) -> None:
@@ -313,3 +316,45 @@ def test_readme_notes_phase_13b_and_13c() -> None:
     readme = SUPABASE_README.read_text()
     assert "Phase 13B" in readme
     assert "Phase 13C" in readme
+
+
+# ---------------------------------------------------------------------
+# Phase 20B: report delivery lifecycle migration
+# ---------------------------------------------------------------------
+def test_phase20_report_exports_new_columns_present() -> None:
+    """0022 must add all six Phase 20 columns to report_exports."""
+    sql = _all_migration_sql()
+    for col in (
+        "under_review_by",
+        "under_review_at",
+        "delivered_by",
+        "delivered_at",
+        "client_downloaded_at",
+        "client_download_count",
+    ):
+        assert col in sql, f"Phase 20 column missing from migrations: {col}"
+
+
+def test_phase20_approval_status_constraint_includes_lifecycle_states() -> None:
+    """The approval_status CHECK must include under_review and delivered."""
+    sql = _all_migration_sql()
+    assert "'under_review'" in sql, "approval_status CHECK missing 'under_review'"
+    assert "'delivered'" in sql, "approval_status CHECK missing 'delivered'"
+
+
+def test_phase20_old_approve_policy_replaced() -> None:
+    """report_exports_approve must be dropped; report_exports_update must exist."""
+    sql = _all_migration_sql()
+    assert "drop policy if exists report_exports_approve" in sql.lower(), (
+        "0022 must drop the old report_exports_approve policy"
+    )
+    pattern = re.compile(r"create\s+policy\s+report_exports_update\b", re.IGNORECASE)
+    assert pattern.search(sql), "report_exports_update policy not created"
+
+
+def test_phase20_select_policy_filters_client_visible_statuses() -> None:
+    """The Phase 20 SELECT policy must gate clients to approved/delivered exports."""
+    sql = _all_migration_sql()
+    assert "approval_status in ('approved', 'delivered')" in sql.lower(), (
+        "report_exports_select must restrict clients to approved/delivered statuses"
+    )
