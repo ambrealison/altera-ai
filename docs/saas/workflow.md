@@ -291,7 +291,15 @@ The report page shows:
 3. **Classification sources** — deterministic / AI / manual review counts.
 4. **Manual review summary** — Altera-only; total reviewed, by status,
    top queue reasons.
-5. **Data coverage and uncertainty** (Phase 22) — upload validation
+5. **Recommendations** (Phase 25A) — deterministic, directional action
+   signals derived from the run summary and coverage data. No LLM is
+   called; no numeric impact estimates are provided; no unsupported
+   health claims are made. See
+   [../recommendations/action-taxonomy.md](../recommendations/action-taxonomy.md)
+   for the full trigger list and taxonomy. Client-facing recommendations
+   are visible to GMS users; Altera-only recommendations (e.g.
+   `create_category_target`) are shown only to Altera staff.
+6. **Data coverage and uncertainty** (Phase 22) — upload validation
    metrics, product-tier counts, missing-data flags, and a deterministic
    uncertainty label (`low` / `medium` / `high`). The label is computed
    from thresholds documented in

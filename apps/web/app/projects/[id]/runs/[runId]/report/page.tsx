@@ -9,6 +9,7 @@ import {
   createApi,
   type CoverageSection,
   type PTReportSection,
+  type RecommendationItem,
   type ReportDocument,
   type WWFReportSection,
 } from "@/lib/api";
@@ -83,7 +84,7 @@ export default function ReportPage() {
 
   if (!report) return <div className="text-sm text-gray-500">Loading…</div>;
 
-  const { meta, executive_summary, pt_section, wwf_section, review_summary, coverage } = report;
+  const { meta, executive_summary, pt_section, wwf_section, review_summary, coverage, recommendations } = report;
   const statusTone = STATUS_TONE[meta.approval_status] ?? "neutral";
 
   return (
@@ -184,9 +185,77 @@ export default function ReportPage() {
         </Card>
       )}
 
+      {/* Recommendations */}
+      <RecommendationsCard recommendations={recommendations} isAltera={isAltera} />
+
       {/* Data coverage and uncertainty */}
       <CoverageSectionCard coverage={coverage} />
     </div>
+  );
+}
+
+const PRIORITY_TONE: Record<string, "ok" | "warn" | "error" | "neutral"> = {
+  low: "neutral",
+  medium: "warn",
+  high: "error",
+  critical: "error",
+};
+
+function RecommendationsCard({
+  recommendations,
+  isAltera,
+}: {
+  recommendations: RecommendationItem[];
+  isAltera: boolean;
+}) {
+  const visible = recommendations.filter((r) => r.client_facing || isAltera);
+
+  return (
+    <Card>
+      <CardHeader
+        title="Recommendations"
+        subtitle="Deterministic, directional signals from this run. No numeric impact estimates."
+      />
+      {visible.length === 0 ? (
+        <p className="mt-3 text-sm text-gray-500">No recommendations generated yet.</p>
+      ) : (
+        <ul className="mt-4 space-y-4">
+          {visible.map((r) => (
+            <li key={r.action_type} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium text-sm text-gray-900">{r.title}</span>
+                <Pill tone={PRIORITY_TONE[r.priority] ?? "neutral"}>{r.priority}</Pill>
+                {!r.client_facing && isAltera && (
+                  <Pill tone="brand">Altera only</Pill>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-gray-500 uppercase tracking-wide">
+                {r.action_type.replace(/_/g, " ")}
+              </p>
+              <p className="mt-2 text-sm text-gray-700">{r.rationale}</p>
+              <p className="mt-1 text-xs text-gray-500 italic">{r.expected_direction}</p>
+              {r.evidence.length > 0 && (
+                <ul className="mt-2 space-y-0.5">
+                  {r.evidence.map((e, i) => (
+                    <li key={i} className="text-xs text-gray-600">· {e}</li>
+                  ))}
+                </ul>
+              )}
+              {r.caveats.length > 0 && (
+                <div className="mt-2 rounded border border-amber-100 bg-amber-50 px-2 py-1.5">
+                  <p className="text-xs font-medium text-amber-700 mb-1">Caveats</p>
+                  <ul className="space-y-0.5">
+                    {r.caveats.map((c, i) => (
+                      <li key={i} className="text-xs text-amber-700">· {c}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 

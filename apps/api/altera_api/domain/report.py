@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from altera_api.domain.recommendation import Recommendation  # noqa: F401 — re-exported
+
 
 class ClassificationSources(BaseModel):
     """How many products were resolved by each classification method."""
@@ -184,6 +186,8 @@ class ReportDocument(BaseModel):
 
     Exactly one of ``pt_section`` / ``wwf_section`` is populated,
     matching ``meta.methodology``.
+    ``recommendations`` is always present but may be an empty list when no
+    triggers fire (e.g. all data is clean and ratios are strong).
     """
 
     meta: ReportMeta
@@ -192,3 +196,4 @@ class ReportDocument(BaseModel):
     wwf_section: WWFReportSection | None
     review_summary: ReviewSummary
     coverage: CoverageSection
+    recommendations: list[Recommendation]

@@ -213,6 +213,36 @@ Fields that are methodology-specific (`products_with_missing_protein`,
 `missing_protein_share_pct`) are `null` for WWF runs.
 Percentages are `null` when the denominator is zero.
 
+### Recommendations section (Phase 25A)
+
+The `recommendations` field in `ReportDocument` is always present (empty list
+when no triggers fire). Each item is a `Recommendation` with:
+
+- `action_type` — unique identifier from the taxonomy (e.g.
+  `increase_plant_core_share`)
+- `category` — one of: `pt_protein_shift`, `wwf_food_group`, `data_quality`,
+  `composite_quality`, `enrichment`
+- `title`, `description`, `rationale`, `expected_direction` — display text;
+  entirely deterministic, no LLM
+- `priority` — `low` / `medium` / `high` / `critical`
+- `confidence` — `low` / `medium` / `high`
+- `evidence` — bullet list of data points that triggered the recommendation
+- `caveats` — static caveats from the taxonomy
+- `status` — always `draft` in Phase 25A
+- `client_facing` — `true` for GMS-visible items; `false` for Altera-only
+
+**Phase 25A constraints:**
+
+- Recommendations are deterministic. Same inputs → same output, no randomness.
+- No LLM is called.
+- No numeric impact estimates.
+- No scenario modelling.
+- No unsupported health or nutrition claims.
+- `status` lifecycle (accept / dismiss / archive) is Phase 25B+.
+
+See [../recommendations/action-taxonomy.md](../recommendations/action-taxonomy.md)
+for the full trigger list.
+
 ### WWF Step 2 coverage caveats (Phase 24B)
 
 The `caveats` list in WWF coverage sections includes Step 2 disclosure

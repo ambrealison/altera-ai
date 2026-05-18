@@ -420,6 +420,24 @@ export interface CoverageSection {
   review_completion_note: string;
 }
 
+// Phase 25A — recommendation engine
+export type RecommendationPriority = "low" | "medium" | "high" | "critical";
+
+export interface RecommendationItem {
+  action_type: string;
+  category: string;
+  title: string;
+  description: string;
+  rationale: string;
+  expected_direction: string;
+  priority: RecommendationPriority;
+  confidence: string;
+  evidence: string[];
+  status: string;
+  caveats: string[];
+  client_facing: boolean;
+}
+
 export interface ReportDocument {
   meta: ReportMeta;
   executive_summary: string;
@@ -427,6 +445,7 @@ export interface ReportDocument {
   wwf_section: WWFReportSection | null;
   review_summary: ReviewSummary;
   coverage: CoverageSection;
+  recommendations: RecommendationItem[];
 }
 
 async function request<T>(

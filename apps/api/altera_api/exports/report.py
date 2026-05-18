@@ -37,6 +37,7 @@ from altera_api.domain.wwf import WWFCalculationSummary
 from altera_api.exports.common import format_decimal
 from altera_api.exports.coverage import build_coverage_section
 from altera_api.persistence.protocol import StoreProtocol
+from altera_api.recommendations.engine import generate_recommendations
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -266,6 +267,56 @@ def build_report_document(
 
     coverage = build_coverage_section(store, run, project)
 
+    # --- Recommendations ---
+    if run.methodology is Methodology.PROTEIN_TRACKER:
+        s_pt_for_recs = ProteinTrackerCalculationSummary.model_validate(run.summary_payload)
+        recs = generate_recommendations(
+            Methodology.PROTEIN_TRACKER,
+            pt_summary=s_pt_for_recs,
+            uncertainty_level=coverage.uncertainty_level,
+            products_total=coverage.products_total,
+            products_unknown=coverage.products_unknown,
+            products_ai_classified=coverage.products_ai_classified,
+            products_with_missing_protein=coverage.products_with_missing_protein,
+        )
+    else:
+        s_wwf_for_recs = WWFCalculationSummary.model_validate(run.summary_payload)
+        # Count own-brand composites with/without step2 data for WWF recommendation triggers.
+        step2_map = store.get_wwf_ingredients_by_project(project.id)
+        wwf_step2_applied = len(step2_map)
+        product_ids_in_run = {
+            row["product_id"] for row in run.rows_payload if row.get("product_id")
+        }
+        products_in_run_list = [
+            p
+            for p in store.list_products_for_project(project.id)
+            if str(p.id) in product_ids_in_run or p.id in product_ids_in_run
+        ]
+        own_brand_composite_count = 0
+        branded_composite_count = 0
+        for p in products_in_run_list:
+            if p.wwf_fields is None:
+                continue
+            clf = store.get_wwf_classification(p.id)
+            if clf is None or not clf.wwf_is_composite:
+                continue
+            if p.wwf_fields.is_own_brand:
+                own_brand_composite_count += 1
+            else:
+                branded_composite_count += 1
+
+        recs = generate_recommendations(
+            Methodology.WWF,
+            wwf_summary=s_wwf_for_recs,
+            uncertainty_level=coverage.uncertainty_level,
+            products_total=coverage.products_total,
+            products_unknown=coverage.products_unknown,
+            products_ai_classified=coverage.products_ai_classified,
+            wwf_step2_applied_count=wwf_step2_applied,
+            wwf_own_brand_composite_count=own_brand_composite_count,
+            wwf_branded_composite_count=branded_composite_count,
+        )
+
     return ReportDocument(
         meta=meta,
         executive_summary=exec_summary,
@@ -273,4 +324,5 @@ def build_report_document(
         wwf_section=wwf,
         review_summary=rev_summary,
         coverage=coverage,
+        recommendations=recs,
     )
