@@ -85,7 +85,7 @@ def test_review_listing_includes_queue_items(client: TestClient, pt_tiny_csv: by
     )
     r = client.get(f"/api/v1/projects/{pid}/review")
     assert r.status_code == 200
-    items = r.json()
+    items = r.json()["items"]
     assert all(i["methodology"] == "protein_tracker" for i in items)
     assert all(i["status"] == "in_queue" for i in items)
 
@@ -102,7 +102,7 @@ def test_reviewer_change_decision_promotes_classification(
         f"/api/v1/projects/{pid}/uploads/{upload['id']}/classify",
         json={"methodology": "protein_tracker"},
     )
-    queue = client.get(f"/api/v1/projects/{pid}/review").json()
+    queue = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
     if not queue:
         return  # nothing to review for this dataset
     item = queue[0]
@@ -130,7 +130,7 @@ def test_full_pipeline_run_and_export(client: TestClient, pt_tiny_csv: bytes) ->
         json={"methodology": "protein_tracker"},
     )
     # Force all unknown items to a real category so the run has scope.
-    queue = client.get(f"/api/v1/projects/{pid}/review").json()
+    queue = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
     for item in queue:
         client.post(
             f"/api/v1/projects/{pid}/review/{item['product_id']}/protein_tracker/decision",

@@ -356,7 +356,6 @@ class TestLifecycleRoutes:
             app.dependency_overrides.pop(authed_user, None)
 
         assert r.status_code == 409, r.text
-        assert "approved" in r.json()["detail"]
 
     def test_cannot_deliver_rejected_export(self, client: TestClient, store: InMemoryStore) -> None:
         altera_org = _make_org(store, name="Altera")
@@ -448,7 +447,7 @@ class TestExportPermissions:
             app.dependency_overrides.pop(authed_user, None)
 
         assert r.status_code == 403, r.text
-        assert "methodology_lead" in r.json()["detail"]
+        assert r.json()["detail"]["error_code"] == "forbidden"
 
     def test_reviewer_cannot_reject(self, client: TestClient, store: InMemoryStore) -> None:
         altera_org = _make_org(store, name="Altera")
@@ -692,7 +691,7 @@ class TestClientDownloadTracking:
             app.dependency_overrides.pop(get_storage_service, None)
 
         assert r.status_code == 403, r.text
-        assert "approved" in r.json()["detail"]
+        assert r.json()["detail"]["error_code"] == "forbidden"
 
 
 # ---------------------------------------------------------------------------

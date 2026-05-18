@@ -120,7 +120,7 @@ def _list_review(client: TestClient, project_id: str, **params: str) -> list[dic
     url = f"/api/v1/projects/{project_id}/review"
     if q:
         url += f"?{q}"
-    return client.get(url).json()
+    return client.get(url).json()["items"]
 
 
 # ---------------------------------------------------------------------------

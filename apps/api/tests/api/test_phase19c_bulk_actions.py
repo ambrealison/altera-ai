@@ -83,7 +83,7 @@ def _upload_and_classify(
 
 
 def _get_review_product_ids(client: TestClient, project_id: str) -> list[str]:
-    items = client.get(f"/api/v1/projects/{project_id}/review").json()
+    items = client.get(f"/api/v1/projects/{project_id}/review").json()["items"]
     return [i["product_id"] for i in items]
 
 
@@ -246,7 +246,7 @@ class TestBulkDefer:
         assert r.json()["updated_count"] == 2
 
         # Deferred items should still be in queue but not in in_queue state
-        all_items = client.get(f"/api/v1/projects/{pid}/review").json()
+        all_items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         deferred = [i for i in all_items if i["status"] == "deferred"]
         deferred_ids = {i["product_id"] for i in deferred}
         for pid_item in ids[:2]:

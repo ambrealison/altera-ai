@@ -280,7 +280,7 @@ class TestExportJobStorage:
             f"/api/v1/projects/{pid}/uploads/{uid}/jobs/classify",
             json={"methodology": "protein_tracker"},
         )
-        for item in client.get(f"/api/v1/projects/{pid}/review").json():
+        for item in client.get(f"/api/v1/projects/{pid}/review").json()["items"]:
             client.post(
                 f"/api/v1/projects/{pid}/review/{item['product_id']}/protein_tracker/decision",
                 json={"decision": "changed", "to_category": "plant_based_core"},

@@ -116,7 +116,7 @@ class TestResponseShape:
     def test_upload_id_in_response(self, client: TestClient, two_product_csv: bytes) -> None:
         pid = _create_project(client)
         uid = _upload_and_classify(client, pid, two_product_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         assert len(items) > 0
         for item in items:
             assert "upload_id" in item
@@ -125,7 +125,7 @@ class TestResponseShape:
     def test_confidence_in_response(self, client: TestClient, two_product_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, two_product_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         # confidence key must be present (may be null if not yet classified)
         assert len(items) > 0
         for item in items:
@@ -134,7 +134,7 @@ class TestResponseShape:
     def test_no_commercial_fields(self, client: TestClient, two_product_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, two_product_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         assert len(items) > 0
         forbidden = {
             "items_purchased",
@@ -151,7 +151,7 @@ class TestResponseShape:
     def test_required_fields_present(self, client: TestClient, two_product_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, two_product_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         assert len(items) > 0
         required = {
             "product_id",
@@ -188,10 +188,10 @@ class TestFilters:
 
         pt_items = client.get(
             f"/api/v1/projects/{pid_pt}/review?methodology=protein_tracker"
-        ).json()
+        ).json()["items"]
         assert all(i["methodology"] == "protein_tracker" for i in pt_items)
 
-        wwf_items = client.get(f"/api/v1/projects/{pid_wwf}/review?methodology=wwf").json()
+        wwf_items = client.get(f"/api/v1/projects/{pid_wwf}/review?methodology=wwf").json()["items"]
         assert all(i["methodology"] == "wwf" for i in wwf_items)
 
     def test_filter_by_status(self, client: TestClient, two_product_csv: bytes) -> None:
@@ -199,12 +199,12 @@ class TestFilters:
         _upload_and_classify(client, pid, two_product_csv)
 
         # All newly queued items should be in_queue
-        in_queue = client.get(f"/api/v1/projects/{pid}/review?status=in_queue").json()
+        in_queue = client.get(f"/api/v1/projects/{pid}/review?status=in_queue").json()["items"]
         assert len(in_queue) > 0
         assert all(i["status"] == "in_queue" for i in in_queue)
 
         # Nothing should be in accepted state yet
-        accepted = client.get(f"/api/v1/projects/{pid}/review?status=accepted").json()
+        accepted = client.get(f"/api/v1/projects/{pid}/review?status=accepted").json()["items"]
         assert accepted == []
 
     def test_filter_by_reason(
@@ -215,16 +215,16 @@ class TestFilters:
 
         # All pass-through items should have reason=low_confidence or a similar
         # AI-related reason; verify the filter restricts correctly
-        items_all = client.get(f"/api/v1/projects/{pid}/review").json()
+        items_all = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         reasons_present = {i["reason"] for i in items_all}
 
         for reason in reasons_present:
-            filtered = client.get(f"/api/v1/projects/{pid}/review?reason={reason}").json()
+            filtered = client.get(f"/api/v1/projects/{pid}/review?reason={reason}").json()["items"]
             assert len(filtered) > 0
             assert all(i["reason"] == reason for i in filtered)
 
         # A reason that was NOT produced should return empty
-        filtered_empty = client.get(f"/api/v1/projects/{pid}/review?reason=requested").json()
+        filtered_empty = client.get(f"/api/v1/projects/{pid}/review?reason=requested").json()["items"]
         # Only assert it doesn't include items with a different reason
         assert all(i["reason"] == "requested" for i in filtered_empty)
 
@@ -233,8 +233,8 @@ class TestFilters:
         uid1 = _upload_and_classify(client, pid, two_product_csv)
         uid2 = _upload_and_classify(client, pid, two_product_csv)
 
-        items_u1 = client.get(f"/api/v1/projects/{pid}/review?upload_id={uid1}").json()
-        items_u2 = client.get(f"/api/v1/projects/{pid}/review?upload_id={uid2}").json()
+        items_u1 = client.get(f"/api/v1/projects/{pid}/review?upload_id={uid1}").json()["items"]
+        items_u2 = client.get(f"/api/v1/projects/{pid}/review?upload_id={uid2}").json()["items"]
 
         # Both uploads have the same products (same external IDs)
         # so dedup or re-ingest happens; we only care that the filter restricts
@@ -246,7 +246,7 @@ class TestFilters:
         _upload_and_classify(client, pid, two_product_csv)
 
         # "mystery" should match "Mystery Sauce Alpha" but not "Enigma Drink Beta"
-        results = client.get(f"/api/v1/projects/{pid}/review?product_search=mystery").json()
+        results = client.get(f"/api/v1/projects/{pid}/review?product_search=mystery").json()["items"]
         assert len(results) >= 1
         assert all("mystery" in i["product_name"].lower() for i in results)
 
@@ -256,8 +256,8 @@ class TestFilters:
         pid = _create_project(client)
         _upload_and_classify(client, pid, two_product_csv)
 
-        upper = client.get(f"/api/v1/projects/{pid}/review?product_search=MYSTERY").json()
-        lower = client.get(f"/api/v1/projects/{pid}/review?product_search=mystery").json()
+        upper = client.get(f"/api/v1/projects/{pid}/review?product_search=MYSTERY").json()["items"]
+        lower = client.get(f"/api/v1/projects/{pid}/review?product_search=mystery").json()["items"]
         assert len(upper) == len(lower)
 
     def test_product_search_by_external_id(
@@ -267,7 +267,7 @@ class TestFilters:
         _upload_and_classify(client, pid, two_product_csv)
 
         # "EXT-A" should match only the first product
-        results = client.get(f"/api/v1/projects/{pid}/review?product_search=EXT-A").json()
+        results = client.get(f"/api/v1/projects/{pid}/review?product_search=EXT-A").json()["items"]
         assert all("ext-a" in i["external_product_id"].lower() for i in results)
 
     def test_product_search_no_match_returns_empty(
@@ -276,7 +276,7 @@ class TestFilters:
         pid = _create_project(client)
         _upload_and_classify(client, pid, two_product_csv)
 
-        results = client.get(f"/api/v1/projects/{pid}/review?product_search=xyzzy_no_match").json()
+        results = client.get(f"/api/v1/projects/{pid}/review?product_search=xyzzy_no_match").json()["items"]
         assert results == []
 
     def test_combined_filters(self, client: TestClient, two_product_csv: bytes) -> None:
@@ -286,7 +286,7 @@ class TestFilters:
         # Combining status=in_queue with search should still restrict both ways
         results = client.get(
             f"/api/v1/projects/{pid}/review?status=in_queue&product_search=mystery"
-        ).json()
+        ).json()["items"]
         assert all(i["status"] == "in_queue" for i in results)
         assert all("mystery" in i["product_name"].lower() for i in results)
 
@@ -301,7 +301,7 @@ class TestSorting:
         pid = _create_project(client)
         _upload_and_classify(client, pid, two_product_csv)
 
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         if len(items) >= 2:
             times = [i["queued_at"] for i in items]
             assert times == sorted(times), "default sort must be oldest-first"
@@ -310,7 +310,7 @@ class TestSorting:
         pid = _create_project(client)
         _upload_and_classify(client, pid, two_product_csv)
 
-        items = client.get(f"/api/v1/projects/{pid}/review?sort=oldest").json()
+        items = client.get(f"/api/v1/projects/{pid}/review?sort=oldest").json()["items"]
         if len(items) >= 2:
             times = [i["queued_at"] for i in items]
             assert times == sorted(times)
@@ -319,8 +319,8 @@ class TestSorting:
         pid = _create_project(client)
         _upload_and_classify(client, pid, two_product_csv)
 
-        oldest = client.get(f"/api/v1/projects/{pid}/review?sort=oldest").json()
-        newest = client.get(f"/api/v1/projects/{pid}/review?sort=newest").json()
+        oldest = client.get(f"/api/v1/projects/{pid}/review?sort=oldest").json()["items"]
+        newest = client.get(f"/api/v1/projects/{pid}/review?sort=newest").json()["items"]
 
         if len(oldest) >= 2:
             assert [i["product_id"] for i in oldest] == [i["product_id"] for i in reversed(newest)]
@@ -343,7 +343,7 @@ class TestPermissions:
         # Use dev auth (Role.OWNER) to set up project + review items
         pid = _create_project(client)
         _upload_and_classify(client, pid, two_product_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
 
         if not items:
             pytest.skip("no review items produced — cannot test decision gating")

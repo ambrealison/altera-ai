@@ -236,7 +236,7 @@ class TestRoleCheck:
             },
         )
         assert r.status_code == 403
-        assert "analyst" in r.json()["detail"]
+        assert r.json()["detail"]["error_code"] == "forbidden"
 
 
 # This is the contract assertion the user explicitly requested.

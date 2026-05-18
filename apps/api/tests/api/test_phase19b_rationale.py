@@ -102,7 +102,7 @@ class TestSourceField:
     def test_source_present_in_response(self, client: TestClient, passthrough_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, passthrough_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         assert len(items) > 0
         for item in items:
             assert "source" in item
@@ -110,7 +110,7 @@ class TestSourceField:
     def test_deterministic_source_value(self, client: TestClient, passthrough_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, passthrough_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         assert len(items) > 0
         # Pass-through products get a provisional `unknown` classification
         # with source=deterministic
@@ -122,7 +122,7 @@ class TestSourceField:
     ) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, passthrough_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         assert len(items) > 0
         for item in items:
             assert item["rule_id"] is not None
@@ -132,7 +132,7 @@ class TestSourceField:
     ) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, passthrough_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         assert len(items) > 0
         for item in items:
             assert item["ai_model"] is None
@@ -150,7 +150,7 @@ class TestContradictionRationale:
     ) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, contradiction_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         contradiction_items = [i for i in items if i["reason"] == "contradiction_detected"]
         assert len(contradiction_items) >= 1
 
@@ -159,7 +159,7 @@ class TestContradictionRationale:
     ) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, contradiction_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         contradiction_items = [i for i in items if i["reason"] == "contradiction_detected"]
         assert len(contradiction_items) >= 1
         for item in contradiction_items:
@@ -170,7 +170,7 @@ class TestContradictionRationale:
     ) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, contradiction_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         contradiction_items = [i for i in items if i["reason"] == "contradiction_detected"]
         assert len(contradiction_items) >= 1
         notes_text = " ".join(
@@ -188,7 +188,7 @@ class TestRuleCollisionRationale:
     def test_collision_item_is_queued(self, client: TestClient, collision_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, collision_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         collision_items = [i for i in items if i["reason"] == "rule_collision"]
         assert len(collision_items) >= 1
 
@@ -197,7 +197,7 @@ class TestRuleCollisionRationale:
     ) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, collision_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         collision_items = [i for i in items if i["reason"] == "rule_collision"]
         assert len(collision_items) >= 1
         for item in collision_items:
@@ -211,7 +211,7 @@ class TestRuleCollisionRationale:
     ) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, collision_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         collision_items = [i for i in items if i["reason"] == "rule_collision"]
         assert len(collision_items) >= 1
         notes = collision_items[0]["rationale_notes"]
@@ -231,7 +231,7 @@ class TestPassthroughRationale:
     ) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, passthrough_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         requested_items = [i for i in items if i["reason"] == "requested"]
         for item in requested_items:
             assert item["rationale_notes"] == [], (
@@ -250,7 +250,7 @@ class TestNoCommercialFields:
     ) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, contradiction_csv)
-        items = client.get(f"/api/v1/projects/{pid}/review").json()
+        items = client.get(f"/api/v1/projects/{pid}/review").json()["items"]
         assert len(items) > 0
         required_rationale = {
             "source",

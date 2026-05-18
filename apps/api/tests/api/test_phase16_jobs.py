@@ -162,7 +162,7 @@ class TestRunCalculationJob:
             json={"methodology": "protein_tracker"},
         )
         # Manually approve all review items so calculation has full scope
-        for item in client.get(f"/api/v1/projects/{pid}/review").json():
+        for item in client.get(f"/api/v1/projects/{pid}/review").json()["items"]:
             client.post(
                 f"/api/v1/projects/{pid}/review/{item['product_id']}/protein_tracker/decision",
                 json={"decision": "changed", "to_category": "plant_based_core"},
@@ -186,7 +186,7 @@ class TestRunCalculationJob:
             f"/api/v1/projects/{pid}/uploads/{uid}/jobs/classify",
             json={"methodology": "protein_tracker"},
         )
-        for item in client.get(f"/api/v1/projects/{pid}/review").json():
+        for item in client.get(f"/api/v1/projects/{pid}/review").json()["items"]:
             client.post(
                 f"/api/v1/projects/{pid}/review/{item['product_id']}/protein_tracker/decision",
                 json={"decision": "changed", "to_category": "plant_based_core"},
@@ -215,7 +215,7 @@ class TestGenerateExportJob:
             f"/api/v1/projects/{pid}/uploads/{uid}/jobs/classify",
             json={"methodology": "protein_tracker"},
         )
-        for item in client.get(f"/api/v1/projects/{pid}/review").json():
+        for item in client.get(f"/api/v1/projects/{pid}/review").json()["items"]:
             client.post(
                 f"/api/v1/projects/{pid}/review/{item['product_id']}/protein_tracker/decision",
                 json={"decision": "changed", "to_category": "plant_based_core"},
@@ -351,7 +351,7 @@ class TestJobListing:
         )
         r = client.get(f"/api/v1/projects/{pid}/jobs")
         assert r.status_code == 200
-        jobs = r.json()
+        jobs = r.json()["items"]
         assert len(jobs) >= 1
         assert all(j["project_id"] == pid for j in jobs)
 
@@ -363,7 +363,7 @@ class TestJobListing:
             json={"methodology": "protein_tracker"},
         )
         r = client.get(f"/api/v1/projects/{pid}/jobs?job_type=classify_upload")
-        jobs = r.json()
+        jobs = r.json()["items"]
         assert all(j["job_type"] == "classify_upload" for j in jobs)
 
     def test_get_job_by_id(self, client: TestClient, pt_tiny_csv: bytes) -> None:
@@ -404,7 +404,7 @@ class TestJobCrossTenantIsolation:
         )
         # Project B has no jobs
         r = client.get(f"/api/v1/projects/{pid_b}/jobs")
-        assert r.json() == []
+        assert r.json()["items"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -453,7 +453,7 @@ class TestExistingSyncEndpointsUnchanged:
             f"/api/v1/projects/{pid}/uploads/{uid}/classify",
             json={"methodology": "protein_tracker"},
         )
-        for item in client.get(f"/api/v1/projects/{pid}/review").json():
+        for item in client.get(f"/api/v1/projects/{pid}/review").json()["items"]:
             client.post(
                 f"/api/v1/projects/{pid}/review/{item['product_id']}/protein_tracker/decision",
                 json={"decision": "changed", "to_category": "plant_based_core"},

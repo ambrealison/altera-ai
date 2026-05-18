@@ -688,7 +688,7 @@ class TestAuthGate:
                 json={"methodology": "protein_tracker", "use_enriched_nutrition": True},
             )
             assert r.status_code == 403
-            assert "use_enriched_nutrition" in r.json()["detail"]
+            assert r.json()["detail"]["error_code"] == "forbidden"
         finally:
             app.dependency_overrides.pop(authed_user, None)
 

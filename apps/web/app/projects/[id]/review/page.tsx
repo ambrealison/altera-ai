@@ -79,7 +79,7 @@ export default function ReviewPage() {
     if (filterSearch.trim()) filters.product_search = filterSearch.trim();
     if (sortOrder !== "oldest") filters.sort = sortOrder;
     try {
-      setItems(await api.listReview(projectId, filters));
+      setItems((await api.listReview(projectId, filters)).items);
       setSelected(new Set()); // clear selection on refresh
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");

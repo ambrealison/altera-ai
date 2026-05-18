@@ -417,7 +417,7 @@ class TestExportApprovalWorkflow:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert r.status_code == 403
-        assert "methodology_lead" in r.json()["detail"]
+        assert r.json()["detail"]["error_code"] == "forbidden"
 
     def test_methodology_lead_can_approve_via_api(
         self,
@@ -524,7 +524,7 @@ class TestExportApprovalWorkflow:
             app.dependency_overrides.pop(get_storage_service, None)
 
         assert r.status_code == 403
-        assert "approved" in r.json()["detail"]
+        assert r.json()["detail"]["error_code"] == "forbidden"
 
 
 # ---------------------------------------------------------------------------
@@ -564,7 +564,7 @@ class TestManualReviewOwnership:
             json={"decision": "accepted"},
         )
         assert r.status_code == 403
-        assert "Altera" in r.json()["detail"]
+        assert r.json()["detail"]["error_code"] == "forbidden"
 
     def test_altera_reviewer_can_submit_review_decision_404_on_unknown_product(
         self,

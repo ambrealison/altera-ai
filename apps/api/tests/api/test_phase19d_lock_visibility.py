@@ -97,7 +97,7 @@ def _upload_and_classify(client: TestClient, project_id: str) -> None:
 
 
 def _get_review_items(client: TestClient, project_id: str) -> list[dict]:
-    return client.get(f"/api/v1/projects/{project_id}/review").json()
+    return client.get(f"/api/v1/projects/{project_id}/review").json()["items"]
 
 
 def _setup(client: TestClient) -> tuple[str, str]:

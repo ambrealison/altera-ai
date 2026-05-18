@@ -15,6 +15,13 @@ export function getApiBaseUrl(): string {
   );
 }
 
+export interface Page<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export type Methodology = "protein_tracker" | "wwf";
 
 export type ProteinTrackerGroup =
@@ -727,7 +734,7 @@ export function createApi(accessToken: string | null) {
       if (filters.product_search) params.set("product_search", filters.product_search);
       if (filters.sort) params.set("sort", filters.sort);
       const q = params.size > 0 ? `?${params.toString()}` : "";
-      return request<ReviewItem[]>(
+      return request<Page<ReviewItem>>(
         `/api/v1/projects/${projectId}/review${q}`,
         { method: "GET" },
         accessToken,
@@ -882,7 +889,7 @@ export function createApi(accessToken: string | null) {
 
     listJobs: (projectId: string, jobType?: JobType) => {
       const q = jobType ? `?job_type=${jobType}` : "";
-      return request<Job[]>(
+      return request<Page<Job>>(
         `/api/v1/projects/${projectId}/jobs${q}`,
         { method: "GET" },
         accessToken,

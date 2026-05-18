@@ -17,6 +17,9 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Up
 from pydantic import BaseModel, Field
 
 from altera_api.api.dependencies import current_user_id, get_data_store, get_project
+from altera_api.api.errors import (
+    raise_forbidden,
+)
 from altera_api.api.orchestrator import (
     BulkActionResult,
     IngestSummary,
@@ -33,6 +36,7 @@ from altera_api.api.orchestrator import (
     run_calculation,
     submit_decision,
 )
+from altera_api.api.pagination import Page, PaginationParams, paginate
 from altera_api.api.state import (
     ExportRecord,
     PersistedRecommendation,
@@ -139,10 +143,7 @@ def create_project(
     store: StoreProtocol = Depends(get_data_store),
 ) -> ProjectResponse:
     if not auth.can_write_data:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="creating projects requires analyst, admin, or owner",
-        )
+        raise_forbidden("creating projects requires analyst, admin, or owner")
     project = store.create_project(
         name=body.name,
         methodologies_enabled=frozenset(body.methodologies_enabled),
@@ -569,12 +570,13 @@ def _review_response(v: object) -> ReviewItemResponse:
 
 @api_router.get(
     "/projects/{project_id}/review",
-    response_model=list[ReviewItemResponse],
+    response_model=Page[ReviewItemResponse],
 )
 def list_review_route(
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
     auth: Annotated[AuthContext, Depends(authed_user)],
+    pagination: Annotated[PaginationParams, Depends()],
     methodology: Methodology | None = None,
     status: ManualReviewStatus | None = None,
     reason: ManualReviewQueueReason | None = None,
@@ -582,13 +584,18 @@ def list_review_route(
     upload_id: UUID | None = None,
     product_search: str | None = None,
     sort: Literal["oldest", "newest", "priority"] = "oldest",
-) -> list[ReviewItemResponse]:
+) -> Page[ReviewItemResponse]:
     """List review items for a project with optional filtering and sorting.
 
     Filters: methodology, status, reason, priority_level, upload_id,
     product_search (name or external_product_id substring, case-insensitive).
 
     Sort: oldest (default) | newest | priority (critical first).
+
+    Pagination: limit (default 50, max 200) and offset (default 0).
+
+    # TODO(Phase 29B): add rate limiting — this endpoint is called on every
+    # reviewer page load and during active review sessions.
     """
     views = list_review(
         store,
@@ -602,7 +609,8 @@ def list_review_route(
         sort=sort,
         viewer_user_id=auth.user_id if auth.can_review else None,
     )
-    return [_review_response(v) for v in views]
+    all_items = [_review_response(v) for v in views]
+    return paginate(all_items, pagination)
 
 
 @api_router.post(
@@ -618,10 +626,7 @@ def submit_decision_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ReviewItemResponse:
     if not auth.can_review:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="only Altera staff can submit review decisions",
-        )
+        raise_forbidden("only Altera staff can submit review decisions")
     user_id = auth.user_id
     try:
         view = submit_decision(
@@ -656,9 +661,7 @@ def claim_item_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ReviewItemResponse:
     if not auth.can_review:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="only Altera staff can claim review items"
-        )
+        raise_forbidden("only Altera staff can claim review items")
     try:
         view = claim_review_item(
             store,
@@ -686,10 +689,7 @@ def release_item_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ReviewItemResponse:
     if not auth.can_review:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="only Altera staff can release review items",
-        )
+        raise_forbidden("only Altera staff can release review items")
     try:
         view = release_review_item(
             store,
@@ -717,10 +717,7 @@ def refresh_lock_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ReviewItemResponse:
     if not auth.can_review:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="only Altera staff can refresh review locks",
-        )
+        raise_forbidden("only Altera staff can refresh review locks")
     try:
         view = refresh_review_lock(
             store,
@@ -749,10 +746,7 @@ def assign_item_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ReviewItemResponse:
     if not auth.can_review:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="only Altera staff can assign review items",
-        )
+        raise_forbidden("only Altera staff can assign review items")
     try:
         view = assign_review_item(
             store,
@@ -813,10 +807,7 @@ def bulk_action_route(
     missing, already terminal, or belongs to a different organisation.
     """
     if not auth.can_review:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="only Altera staff can submit review decisions",
-        )
+        raise_forbidden("only Altera staff can submit review decisions")
     try:
         result = bulk_submit_decision(
             store,
@@ -864,10 +855,7 @@ def create_run(
     user_id: Annotated[UUID, Depends(current_user_id)],
 ) -> RunResponse:
     if body.use_enriched_nutrition and not auth.is_altera_internal:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="use_enriched_nutrition may only be enabled by Altera internal users",
-        )
+        raise_forbidden("use_enriched_nutrition may only be enabled by Altera internal users")
     try:
         record = run_calculation(
             store,
@@ -1010,10 +998,7 @@ def export_run_route(
             e for e in exports if e.approval_status in _CLIENT_VISIBLE_STATUSES and e.format == fmt
         ]
         if not available:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="no approved export available for this run",
-            )
+            raise_forbidden("no approved export available for this run")
         latest = max(available, key=lambda e: e.created_at)
         try:
             store.record_client_download(latest.id)
@@ -1122,10 +1107,7 @@ def submit_export_for_review_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ExportRecordResponse:
     if not auth.is_altera_internal:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="only Altera internal users can submit exports for review",
-        )
+        raise_forbidden("only Altera internal users can submit exports for review")
     record = store.get_export_record(export_id)
     if record is None or record.run_id != run_id:
         raise HTTPException(status_code=404, detail="export not found")
@@ -1164,10 +1146,7 @@ def approve_export_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ExportRecordResponse:
     if not auth.can_approve_report:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="only altera_methodology_lead can approve exports",
-        )
+        raise_forbidden("only altera_methodology_lead can approve exports")
     record = store.get_export_record(export_id)
     if record is None or record.run_id != run_id:
         raise HTTPException(status_code=404, detail="export not found")
@@ -1204,10 +1183,7 @@ def reject_export_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ExportRecordResponse:
     if not auth.can_approve_report:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="only altera_methodology_lead can reject exports",
-        )
+        raise_forbidden("only altera_methodology_lead can reject exports")
     record = store.get_export_record(export_id)
     if record is None or record.run_id != run_id:
         raise HTTPException(status_code=404, detail="export not found")
@@ -1249,10 +1225,7 @@ def deliver_export_route(
     auth: Annotated[AuthContext, Depends(authed_user)],
 ) -> ExportRecordResponse:
     if not auth.can_deliver_report:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="only altera_methodology_lead or altera_admin can deliver exports",
-        )
+        raise_forbidden("only altera_methodology_lead or altera_admin can deliver exports")
     record = store.get_export_record(export_id)
     if record is None or record.run_id != run_id:
         raise HTTPException(status_code=404, detail="export not found")
@@ -1311,10 +1284,7 @@ def get_report_route(
     else:
         visible = [e for e in exports if e.approval_status in _CLIENT_VISIBLE_STATUSES]
         if not visible:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="report is not yet approved for client access",
-            )
+            raise_forbidden("report is not yet approved for client access")
         export = max(visible, key=lambda e: e.created_at)
 
     return build_report_document(store, record, project, export, is_altera=auth.is_altera_internal)
@@ -1411,7 +1381,7 @@ def generate_recommendations_route(
     proposed/accepted/dismissed/archived items keep their status.
     """
     if not auth.can_generate_recommendations:
-        raise HTTPException(status_code=403, detail="altera internal access required")
+        raise_forbidden("altera internal access required")
 
     record = store.get_run(run_id)
     if record is None or record.project_id != project.id:
@@ -1533,7 +1503,7 @@ def _transition_recommendation(
 
     # Cross-org guard
     if rec.organisation_id != auth.organisation_id and not auth.is_altera_internal:
-        raise HTTPException(status_code=403, detail="access denied")
+        raise_forbidden("access denied")
 
     updated = store.update_recommendation_status(
         recommendation_id, status=new_status, by_user_id=auth.user_id
@@ -1568,7 +1538,7 @@ def propose_recommendation_route(
 ) -> RecommendationResponse:
     """Propose a recommendation (promote from draft → proposed). Altera METHODOLOGY_LEAD/ADMIN only."""
     if not auth.can_propose_recommendation:
-        raise HTTPException(status_code=403, detail="insufficient permissions to propose recommendations")
+        raise_forbidden("insufficient permissions to propose recommendations")
     return _transition_recommendation(
         recommendation_id, "proposed", AuditEventType.RECOMMENDATION_PROPOSED, store, auth
     )
@@ -1585,7 +1555,7 @@ def dismiss_recommendation_route(
 ) -> RecommendationResponse:
     """Dismiss a recommendation (Altera internal only)."""
     if not auth.is_altera_internal:
-        raise HTTPException(status_code=403, detail="altera internal access required")
+        raise_forbidden("altera internal access required")
     return _transition_recommendation(
         recommendation_id, "dismissed", AuditEventType.RECOMMENDATION_DISMISSED, store, auth
     )
@@ -1602,7 +1572,7 @@ def archive_recommendation_route(
 ) -> RecommendationResponse:
     """Archive a recommendation (Altera internal only)."""
     if not auth.is_altera_internal:
-        raise HTTPException(status_code=403, detail="altera internal access required")
+        raise_forbidden("altera internal access required")
     return _transition_recommendation(
         recommendation_id, "archived", AuditEventType.RECOMMENDATION_ARCHIVED, store, auth
     )
@@ -1619,7 +1589,7 @@ def accept_recommendation_route(
 ) -> RecommendationResponse:
     """Accept a recommendation (proposed → accepted). Altera METHODOLOGY_LEAD/ADMIN only."""
     if not auth.can_propose_recommendation:
-        raise HTTPException(status_code=403, detail="insufficient permissions to accept recommendations")
+        raise_forbidden("insufficient permissions to accept recommendations")
     return _transition_recommendation(
         recommendation_id, "accepted", AuditEventType.RECOMMENDATION_ACCEPTED, store, auth
     )
@@ -1768,7 +1738,7 @@ def create_scenario_route(
 ) -> ScenarioResponse:
     """Create a scenario attached to a base run (Altera only)."""
     if not auth.can_create_scenario:
-        raise HTTPException(status_code=403, detail="altera internal access required")
+        raise_forbidden("altera internal access required")
 
     run = store.get_run(body.base_run_id)
     if run is None or run.project_id != project.id:
@@ -1829,7 +1799,7 @@ def list_scenario_operations_route(
 ) -> list[ScenarioOperationResponse]:
     """List operations for a scenario (Altera only)."""
     if not auth.can_create_scenario:
-        raise HTTPException(status_code=403, detail="altera internal access required")
+        raise_forbidden("altera internal access required")
 
     scenario = store.get_scenario(scenario_id)
     if scenario is None:
@@ -1863,13 +1833,13 @@ def add_scenario_operation_route(
 ) -> ScenarioOperationResponse:
     """Add an operation to a scenario (Altera only)."""
     if not auth.can_create_scenario:
-        raise HTTPException(status_code=403, detail="altera internal access required")
+        raise_forbidden("altera internal access required")
 
     scenario = store.get_scenario(scenario_id)
     if scenario is None:
         raise HTTPException(status_code=404, detail="scenario not found")
     if scenario.organisation_id != auth.organisation_id and not auth.is_altera_internal:
-        raise HTTPException(status_code=403, detail="access denied")
+        raise_forbidden("access denied")
 
     # Validate operation type
     try:
@@ -1915,7 +1885,7 @@ def run_scenario_route(
 ) -> ScenarioResultResponse:
     """Execute a scenario projection and persist the result (Altera only)."""
     if not auth.can_create_scenario:
-        raise HTTPException(status_code=403, detail="altera internal access required")
+        raise_forbidden("altera internal access required")
 
     scenario = store.get_scenario(scenario_id)
     if scenario is None:
@@ -2001,7 +1971,7 @@ def get_scenario_result_route(
 
     # Clients only see active scenarios
     if not auth.is_altera_internal and scenario.status != ScenarioStatus.ACTIVE.value:
-        raise HTTPException(status_code=403, detail="scenario not yet active")
+        raise_forbidden("scenario not yet active")
 
     result_record = store.get_scenario_result(scenario_id)
     if result_record is None:
@@ -2249,10 +2219,7 @@ def enqueue_calculate(
     worker: Annotated[WorkerBackend, Depends(get_worker)],
 ) -> JobResponse:
     if body.use_enriched_nutrition and not auth.is_altera_internal:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="use_enriched_nutrition may only be enabled by Altera internal users",
-        )
+        raise_forbidden("use_enriched_nutrition may only be enabled by Altera internal users")
     job, _created = _create_and_dispatch(
         job_type=JobType.RUN_CALCULATION,
         project=project,
@@ -2320,17 +2287,19 @@ def get_job_route(
     return _job_response(job)
 
 
-@api_router.get("/projects/{project_id}/jobs", response_model=list[JobResponse])
+@api_router.get("/projects/{project_id}/jobs", response_model=Page[JobResponse])
 def list_jobs_route(
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
+    pagination: Annotated[PaginationParams, Depends()],
     job_type: JobType | None = None,
-) -> list[JobResponse]:
+) -> Page[JobResponse]:
+    # TODO(Phase 29B): add rate limiting — this endpoint is polled during active job processing
     jobs = store.list_jobs_for_project(project.id)
     if job_type is not None:
         jobs = [j for j in jobs if j.job_type is job_type]
     jobs.sort(key=lambda j: j.created_at, reverse=True)
-    return [_job_response(j) for j in jobs]
+    return paginate([_job_response(j) for j in jobs], pagination)
 
 
 # ---------------------------------------------------------------------------
@@ -2410,7 +2379,7 @@ def list_enrichments_route(
 ) -> list[EnrichmentRecordResponse]:
     """List all enrichment records for a product. Altera-only."""
     if not auth.is_altera_internal:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+        raise_forbidden("altera internal access required")
     _resolve_pt_product(project.id, product_id, store)
     records = store.get_enrichment_records_for_product(product_id)
     records.sort(key=lambda r: r.created_at)
@@ -2444,7 +2413,7 @@ def create_manual_enrichment_route(
     from altera_api.domain.product import NormalizedProduct
 
     if not auth.can_apply_enrichment:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+        raise_forbidden("altera internal access required")
 
     product = _resolve_pt_product(project.id, product_id, store)
     assert isinstance(product, NormalizedProduct)
@@ -2515,7 +2484,7 @@ def apply_category_average_enrichment_route(
     from altera_api.enrichment.providers.category_average import CategoryAverageProvider
 
     if not auth.can_apply_enrichment:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+        raise_forbidden("altera internal access required")
 
     product = _resolve_pt_product(project.id, product_id, store)
     assert isinstance(product, NormalizedProduct)
@@ -3014,13 +2983,10 @@ def get_run_comparison_route(
         for run_obj, label in [(base_run, "baseline"), (comp_run, "comparison")]:
             exports = store.get_exports_for_run(run_obj.id)
             if not any(e.approval_status in _CLIENT_VISIBLE_STATUSES for e in exports):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=(
-                        f"No approved export available for the {label} run. "
-                        "Run comparisons are only available once both reports "
-                        "have been approved or delivered."
-                    ),
+                raise_forbidden(
+                    f"No approved export available for the {label} run. "
+                    "Run comparisons are only available once both reports "
+                    "have been approved or delivered."
                 )
 
     from altera_api.comparisons.engine import build_run_comparison
