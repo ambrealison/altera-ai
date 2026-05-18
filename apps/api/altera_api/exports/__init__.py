@@ -17,6 +17,7 @@ The exporters never emit commercial fields. The product master only
 carries identity fields (no sales/revenue/margin) by construction —
 see :class:`ExportProductMaster`.
 """
+
 from __future__ import annotations
 
 from altera_api.exports.common import (
@@ -32,6 +33,7 @@ from altera_api.exports.protein_tracker import (
     render_pt_json,
     render_pt_markdown,
 )
+from altera_api.exports.report import build_report_document
 from altera_api.exports.wwf import (
     WWFExportContext,
     render_wwf_csv,
@@ -45,6 +47,7 @@ __all__ = [
     "PTExportContext",
     "RunMetadata",
     "WWFExportContext",
+    "build_report_document",
     "export_filename",
     "format_decimal",
     "render_pt_csv",

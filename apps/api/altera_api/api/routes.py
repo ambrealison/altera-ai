@@ -39,12 +39,14 @@ from altera_api.domain.audit import AuditEvent, AuditEventType
 from altera_api.domain.common import Methodology
 from altera_api.domain.job import Job, JobStatus, JobType
 from altera_api.domain.project import Project
+from altera_api.domain.report import ReportDocument
 from altera_api.domain.report_exports import ReportApprovalStatus
 from altera_api.domain.review import (
     ManualReviewPriority,
     ManualReviewQueueReason,
     ManualReviewStatus,
 )
+from altera_api.exports.report import build_report_document
 from altera_api.ingestion.validators import validate_upload
 from altera_api.jobs.dependencies import get_worker
 from altera_api.jobs.runner import WorkerBackend
@@ -1253,6 +1255,46 @@ def deliver_export_route(
         )
     )
     return _to_export_response(updated)
+
+
+# ---------------------------------------------------------------------------
+# Report (Phase 21)
+# ---------------------------------------------------------------------------
+
+
+@api_router.get(
+    "/projects/{project_id}/runs/{run_id}/report",
+    response_model=ReportDocument,
+)
+def get_report_route(
+    run_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ReportDocument:
+    """Return a structured ReportDocument for a run.
+
+    Altera users: always accessible regardless of approval status.
+    Client users: 403 if no approved or delivered export exists.
+    """
+    record = store.get_run(run_id)
+    if record is None or record.project_id != project.id:
+        raise HTTPException(status_code=404, detail="run not found")
+
+    exports = store.get_exports_for_run(run_id)
+
+    if auth.is_altera_internal:
+        export = max(exports, key=lambda e: e.created_at) if exports else None
+    else:
+        visible = [e for e in exports if e.approval_status in _CLIENT_VISIBLE_STATUSES]
+        if not visible:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="report is not yet approved for client access",
+            )
+        export = max(visible, key=lambda e: e.created_at)
+
+    return build_report_document(store, record, project, export)
 
 
 # ---------------------------------------------------------------------------

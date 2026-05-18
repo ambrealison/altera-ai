@@ -229,7 +229,31 @@ Email notification on delivery: **not yet implemented** (Phase 21+).
 The download endpoint refuses anything where `approval_status` is not
 `approved` or `delivered` for `gms_client` users.
 
-## 11. Closing out
+## 12. Viewing the report (client and Altera)
+
+`GET /api/v1/projects/{project_id}/runs/{run_id}/report` serves a
+structured `ReportDocument` JSON — not a download, but a live view
+assembled from the run's pre-computed summary.
+
+**Altera staff** can view the report at any approval status (including
+`draft` and `under_review`) as a preview — the UI shows an amber
+"Altera preview" banner when the report is not yet approved.
+
+**Clients** can view the report only when the export is `approved` or
+`delivered`. Attempting to access an unapproved report returns `403`.
+The client UI shows an amber "Report under review" message in this case.
+
+The report page shows:
+
+1. **Executive summary** — one or two sentences capturing the headline
+   result, methodology version, and approval phrase.
+2. **Methodology section** — full PT or WWF breakdown without any
+   commercial fields.
+3. **Classification sources** — deterministic / AI / manual review counts.
+4. **Manual review summary** — Altera-only; total reviewed, by status,
+   top queue reasons.
+
+## 13. Closing out
 
 `delivered_to_client → archived`:
 

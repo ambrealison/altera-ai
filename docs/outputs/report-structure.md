@@ -114,6 +114,44 @@ project header but each carries its own methodology header (versions,
 source edition, etc.). There is **no** combined headline; the
 arithmetic and units differ.
 
+## Report API endpoint (Phase 21)
+
+`GET /api/v1/projects/{project_id}/runs/{run_id}/report` returns a
+`ReportDocument` JSON object assembled at request time.
+
+**Access control**
+
+| User type        | Condition                        | Result              |
+|------------------|----------------------------------|---------------------|
+| Altera internal  | Any run state                    | 200 with full doc   |
+| Client           | Export is `approved` or `delivered` | 200 with full doc |
+| Client           | No approved/delivered export     | 403                 |
+
+**`ReportDocument` shape**
+
+```json
+{
+  "meta": {
+    "run_id": "...", "project_name": "...", "organisation_id": "...",
+    "reporting_period": "2024", "methodology": "protein_tracker",
+    "generated_at": "...", "approval_status": "approved",
+    "approved_by": "...", "approved_at": "...",
+    "delivered_at": null, "export_id": "..."
+  },
+  "executive_summary": "For the 2024 reporting period, ...",
+  "pt_section": { ... },   // populated for protein_tracker runs
+  "wwf_section": null,      // populated for wwf runs
+  "review_summary": {
+    "total_reviewed": 12, "accepted": 8, "changed": 3,
+    "deferred": 1, "pending": 2, "top_reasons": ["low_confidence"]
+  }
+}
+```
+
+The executive summary is **deterministic** — no LLM is called; the text
+is assembled from a fixed template per methodology, incorporating the
+headline metric, methodology version, and approval phrase.
+
 ## What is never shown
 
 - Any sales revenue, sales value, margin, or supplier figure.

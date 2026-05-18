@@ -292,6 +292,104 @@ export interface ExportRecord {
   client_downloaded_at: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 21 — Report document types
+// ---------------------------------------------------------------------------
+
+export interface ClassificationSources {
+  deterministic: number;
+  ai: number;
+  manual_review: number;
+  total: number;
+}
+
+export interface ReviewSummary {
+  total_reviewed: number;
+  accepted: number;
+  changed: number;
+  deferred: number;
+  pending: number;
+  top_reasons: string[];
+}
+
+export interface PTGroupData {
+  pt_group: string;
+  item_count: number;
+  volume_kg: string;
+  protein_kg: string;
+}
+
+export interface PTReportSection {
+  methodology_version: string;
+  methodology_source_edition: string;
+  taxonomy_version: string;
+  rules_version: string;
+  reporting_period_label: string;
+  plant_protein_kg: string;
+  animal_protein_kg: string;
+  total_in_scope_protein_kg: string;
+  plant_share_pct: string | null;
+  animal_share_pct: string | null;
+  groups: PTGroupData[];
+  composite_note: string;
+  out_of_scope_count: number;
+  unknown_count: number;
+  rows_with_per_product_split: number;
+  rows_protein_source_label: number;
+  rows_protein_source_reference_db: number;
+  classification_sources: ClassificationSources;
+  pt_validation_status: string;
+}
+
+export interface WWFFoodGroupData {
+  food_group: string;
+  weight_kg: string;
+  share_pct: string;
+  phd_reference_share_pct: string | null;
+}
+
+export interface WWFReportSection {
+  methodology_version: string;
+  methodology_source_edition: string;
+  taxonomy_version: string;
+  rules_version: string;
+  reporting_period_label: string;
+  total_in_scope_weight_kg: string;
+  per_food_group: WWFFoodGroupData[];
+  composites_meat_based_kg: string;
+  composites_seafood_based_kg: string;
+  composites_vegetarian_kg: string;
+  composites_vegan_kg: string;
+  composites_total_weight_kg: string;
+  whole_diet_plant_weight_kg: string;
+  whole_diet_animal_weight_kg: string;
+  out_of_scope_count: number;
+  unknown_count: number;
+  classification_sources: ClassificationSources;
+}
+
+export interface ReportMeta {
+  run_id: string;
+  project_name: string;
+  organisation_id: string;
+  reporting_period: string;
+  methodology: string;
+  generated_at: string;
+  approval_status: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  delivered_at: string | null;
+  export_id: string | null;
+}
+
+export interface ReportDocument {
+  meta: ReportMeta;
+  executive_summary: string;
+  pt_section: PTReportSection | null;
+  wwf_section: WWFReportSection | null;
+  review_summary: ReviewSummary;
+}
+
 async function request<T>(
   path: string,
   init: RequestInit,
@@ -545,6 +643,13 @@ export function createApi(accessToken: string | null) {
       request<ExportRecord>(
         `/api/v1/projects/${projectId}/runs/${runId}/exports/${exportId}/deliver`,
         { method: "POST", body: JSON.stringify({}) },
+        accessToken,
+      ),
+
+    getReport: (projectId: string, runId: string) =>
+      request<ReportDocument>(
+        `/api/v1/projects/${projectId}/runs/${runId}/report`,
+        { method: "GET" },
         accessToken,
       ),
 

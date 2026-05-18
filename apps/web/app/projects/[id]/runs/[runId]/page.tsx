@@ -125,9 +125,14 @@ export default function RunDetail() {
             <span>{run.rows_count} rows</span>
           </div>
         </div>
-        <Link href={`/projects/${id}/runs`}>
-          <Button variant="ghost">← All runs</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href={`/projects/${id}/runs/${runId}/report`}>
+            <Button variant="secondary">View Report</Button>
+          </Link>
+          <Link href={`/projects/${id}/runs`}>
+            <Button variant="ghost">← All runs</Button>
+          </Link>
+        </div>
       </div>
 
       <section className="mt-8">
