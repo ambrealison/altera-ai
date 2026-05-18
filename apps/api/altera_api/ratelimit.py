@@ -41,7 +41,7 @@ import ipaddress
 import os
 import threading
 import time
-from collections import deque
+from collections import OrderedDict, deque
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -54,7 +54,6 @@ from starlette.types import ASGIApp
 
 _CLASSIFY_SUFFIXES = ("/classify", "/jobs/classify")
 _EXPORT_SUFFIXES = ("/export", "/jobs/export")
-_COMPUTE_SUFFIXES = ("/jobs/calculate", "/comparisons")
 
 
 def _route_group(path: str, method: str) -> str:
@@ -154,7 +153,11 @@ def _extract_ip(
         if forwarded:
             first_hop = forwarded.split(",")[0].strip()
             if first_hop:
-                return f"ip:{first_hop}"
+                try:
+                    ipaddress.ip_address(first_hop)
+                    return f"ip:{first_hop}"
+                except ValueError:
+                    pass  # malformed; fall through to peer
 
     return f"ip:{peer}" if peer else "ip:unknown"
 
@@ -236,20 +239,20 @@ class RateLimiter:
         self._limits: dict[str, int] = limits or dict(_DEFAULT_LIMITS)
         self._trusted_proxies = trusted_proxies or []
         self._max_buckets = max_buckets
-        self._buckets: dict[tuple[str, str], _Bucket] = {}
+        self._buckets: OrderedDict[tuple[str, str], _Bucket] = OrderedDict()
         self._lock = threading.Lock()
         self._check_count = 0
 
     def _evict(self, now: float) -> None:
-        """Remove stale buckets; if cap exceeded, drop oldest by last_seen."""
+        """Remove stale buckets; if cap exceeded, drop least-recently-used."""
         stale = [k for k, b in self._buckets.items() if b.is_stale(now)]
         for k in stale:
             del self._buckets[k]
 
         if len(self._buckets) >= self._max_buckets:
-            # Drop the bucket with the oldest last_seen.
-            oldest_key = min(self._buckets, key=lambda k: self._buckets[k].last_seen)
-            del self._buckets[oldest_key]
+            # LRU order is maintained by move_to_end() in check(); first item
+            # is the least-recently-used bucket — O(1) pop.
+            self._buckets.popitem(last=False)
 
     def extract_key(self, request: Request) -> str:
         return _extract_ip(request, self._trusted_proxies)
@@ -268,6 +271,7 @@ class RateLimiter:
                 if len(self._buckets) >= self._max_buckets:
                     self._evict(now)
                 self._buckets[bucket_key] = _Bucket(limit)
+            self._buckets.move_to_end(bucket_key)
             return self._buckets[bucket_key].check_and_record(now)
 
 

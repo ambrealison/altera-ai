@@ -35,11 +35,3 @@ description = "Supabase service role key (long JWT)"
 regex = '''SUPABASE_SERVICE_ROLE_KEY\s*=\s*ey[A-Za-z0-9_-]{20,}'''
 tags = ["secret", "supabase"]
 
-[allowlist]
-# .env.example files must only contain placeholders, so suppress the
-# whole-file allowlist and let the per-rule allowlists handle it.
-paths = [
-  '''.env.example''',
-  '''apps/api/.env.example''',
-  '''apps/web/.env.example''',
-]
