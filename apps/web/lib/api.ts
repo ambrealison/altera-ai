@@ -809,5 +809,6 @@ export interface WWFStep2UploadResult {
   unknown_product_count: number;
   branded_composite_count: number;
   stored: boolean;
+  replaced: boolean;
   product_results: WWFIngredientProductResult[];
 }

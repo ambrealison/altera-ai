@@ -82,16 +82,43 @@ keyed by `external_product_id`:
         "food_group": "FG2",
         "subgroup": "dairy_alternative_plant",
         "ingredient_weight_kg_per_item": 0.020
+      },
+      {
+        "food_group": "FG3",
+        "subgroup": "plant_based_fat",
+        "ingredient_weight_kg_per_item": 0.010
+      },
+      {
+        "food_group": "FG5",
+        "grain_kind": "whole_grain",
+        "ingredient_weight_kg_per_item": 0.050
       }
     ]
   }
 }
 ```
 
+Optional dimension fields (Phase 24B):
+
+- **`subgroup`** — required for FG1 and FG2; optional for FG3
+  (`"plant_based_fat"` / `"animal_based_fat"`). When omitted for FG3 the
+  plant/animal fat contribution is excluded from the whole-diet split.
+- **`grain_kind`** — optional for FG5 (`"whole_grain"` / `"refined_grain"`).
+  Stored for future reporting; no current calculation effect.
+
 Ingredient weights are per item. The system multiplies them by
 `items_sold` at calculation time. The sum of ingredient weights for a
 product may be less than the product's whole weight (the remainder is
 unreported residual, e.g. water).
+
+**File limits:** maximum 50 MB; maximum 200,000 total ingredient rows
+across all products. Oversized files are rejected before any row is
+processed.
+
+**Re-upload:** a valid upload **replaces** all previously stored
+Step 2 ingredients for the project. An invalid upload is rejected without
+touching existing data. The response includes `"replaced": true` when
+previous data was overwritten.
 
 Step 2 data is accepted only for `is_own_brand=true` products, per
 the methodology.

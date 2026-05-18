@@ -213,6 +213,19 @@ Fields that are methodology-specific (`products_with_missing_protein`,
 `missing_protein_share_pct`) are `null` for WWF runs.
 Percentages are `null` when the denominator is zero.
 
+### WWF Step 2 coverage caveats (Phase 24B)
+
+The `caveats` list in WWF coverage sections includes Step 2 disclosure
+messages when relevant:
+
+- **Step 2 applied**: `"Step 2 ingredient attribution applied to N own-brand composite product(s). Ingredient weights replace whole product weights for these products in the food-group breakdown."`
+  Emitted when `N > 0` own-brand composites have stored Step 2 ingredients.
+- **Branded at Step 1**: `"N branded composite product(s) reported at Step 1 (whole product weight). Ingredient-level attribution is not available for branded products."`
+  Emitted when `N > 0` branded composites are present in the run.
+
+These caveats are always surfaced when their conditions are met, regardless of
+the report's uncertainty level.
+
 ### Enrichment caveats (Phase 23A/23B/23C)
 
 The `caveats` list in PT coverage sections is dual-mode:

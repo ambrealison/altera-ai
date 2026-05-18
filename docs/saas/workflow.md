@@ -90,7 +90,7 @@ The client UI never shows row-by-row validation errors as a wall of
 detail; it shows a summary count and "Altera is reviewing this." The
 detailed report goes to Altera staff.
 
-### WWF Step 2 ingredient upload (Phase 24A)
+### WWF Step 2 ingredient upload (Phase 24A / hardened Phase 24B)
 
 For projects running the WWF methodology, the analyst may upload a
 companion **Step 2 ingredient JSON** after classification is complete.
@@ -100,21 +100,34 @@ whether a Step 2 file is supplied.
 
 The upload endpoint validates:
 
+- File size ≤ 50 MB and total ingredient rows ≤ 200,000 (hard limits
+  enforced before any row is processed; 413 / 422 on breach).
+- Top-level JSON must be a dict; each product entry must be a dict with
+  a non-empty `"ingredients"` list.
 - Each `external_product_id` exists in the project, has WWF enabled,
   and has been classified as a composite.
 - Branded composites produce a warning; their ingredients are not stored.
 - Food groups FG1–FG6 accepted; FG7 rejected (not decomposed at
   ingredient level).
 - FG1 and FG2 entries require a valid subgroup.
+- FG3 entries may carry an optional subgroup (`"plant_based_fat"` /
+  `"animal_based_fat"`); missing subgroup produces a warning (stored,
+  but excluded from the whole-diet plant/animal split).
+- FG5 entries may carry an optional `grain_kind` field.
+- Duplicate `(food_group, subgroup)` combination within a single product
+  produces a warning (both rows stored).
 - Ingredient weights must be strictly positive; sum exceeding the parent
   product weight produces a warning but does not block storage.
 
 If validation passes (no errors, warnings allowed), ingredients are
-stored and used by the WWF calculation engine in place of the whole
-product weight for own-brand composites at Step 2.
+stored atomically, replacing any previous Step 2 data for the project.
+The response includes `"replaced": true` when prior data was overwritten.
+Stored ingredients are used by the WWF calculation engine in place of the
+whole product weight for own-brand composites at Step 2.
 
 The upload page shows this section automatically after a successful WWF
-classification.
+classification. When data is stored, a notice prompts the analyst to
+re-run the calculation to apply the new ingredients.
 
 ## 4. Validation (Altera-internal, automated)
 

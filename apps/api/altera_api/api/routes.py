@@ -1854,6 +1854,8 @@ class WWFIngredientResponse(BaseModel):
     food_group: str
     fg1_subgroup: str | None
     fg2_subgroup: str | None
+    fg3_subgroup: str | None
+    fg5_grain_kind: str | None
     ingredient_weight_kg_per_item: str
 
 
@@ -1885,6 +1887,7 @@ class WWFStep2UploadResponse(BaseModel):
     unknown_product_count: int
     branded_composite_count: int
     stored: bool
+    replaced: bool
     product_results: list[WWFIngredientProductResultResponse]
 
 
@@ -1905,11 +1908,22 @@ async def upload_wwf_step2_ingredients(
     returned in the response. Branded composites receive a warning and are
     not stored.
 
+    A successful upload **replaces** any previously stored Step 2 ingredients
+    for the project. If validation fails, old records are preserved.
+
+    Limits: 50 MB file, 200,000 total ingredient rows.
+
     Requires WWF to be enabled on the project. Accessible to project
     members (GMS clients can upload for their own project).
     """
+    import json as _json
+
     from altera_api.domain.common import Methodology
-    from altera_api.ingestion.wwf_step2 import validate_wwf_step2_json
+    from altera_api.ingestion.validators import MAX_UPLOAD_BYTES
+    from altera_api.ingestion.wwf_step2 import (
+        MAX_STEP2_INGREDIENT_ROWS,
+        validate_wwf_step2_json,
+    )
 
     if Methodology.WWF not in project.methodologies_enabled:
         raise HTTPException(
@@ -1921,9 +1935,16 @@ async def upload_wwf_step2_ingredients(
         raise HTTPException(status_code=400, detail="file is required")
 
     payload = await file.read()
-    try:
-        import json as _json
 
+    # File-size guard
+    if len(payload) > MAX_UPLOAD_BYTES:
+        mb = MAX_UPLOAD_BYTES // (1024 * 1024)
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"ingredient file exceeds {mb} MB limit ({len(payload):,} bytes)",
+        )
+
+    try:
         raw = _json.loads(payload)
     except Exception as exc:
         raise HTTPException(status_code=400, detail="file must be valid JSON") from exc
@@ -1932,6 +1953,18 @@ async def upload_wwf_step2_ingredients(
         raise HTTPException(
             status_code=400,
             detail="JSON must be an object keyed by external_product_id",
+        )
+
+    # Row-count guard (count across all product entries)
+    total_rows = sum(
+        len(v["ingredients"])
+        for v in raw.values()
+        if isinstance(v, dict) and isinstance(v.get("ingredients"), list)
+    )
+    if total_rows > MAX_STEP2_INGREDIENT_ROWS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"ingredient file exceeds {MAX_STEP2_INGREDIENT_ROWS:,} row limit",
         )
 
     products = store.list_products_for_project(project.id)
@@ -1949,7 +1982,12 @@ async def upload_wwf_step2_ingredients(
     )
 
     stored = False
+    replaced = False
     if result.is_valid:
+        # Re-upload semantics: clear old records before storing new ones.
+        existing = store.get_wwf_ingredients_by_project(project.id)
+        replaced = bool(existing)
+        store.clear_wwf_ingredients_for_project(project.id)
         for product_id, ingredients in result.all_valid_ingredients:
             store.upsert_wwf_ingredients_for_product(product_id, ingredients)
         stored = True
@@ -1962,6 +2000,7 @@ async def upload_wwf_step2_ingredients(
         unknown_product_count=result.unknown_product_count,
         branded_composite_count=result.branded_composite_count,
         stored=stored,
+        replaced=replaced,
         product_results=[
             WWFIngredientProductResultResponse(
                 external_product_id=pr.external_product_id,
@@ -2014,6 +2053,8 @@ def list_wwf_ingredients_route(
             food_group=ing.food_group.value,
             fg1_subgroup=ing.fg1_subgroup.value if ing.fg1_subgroup else None,
             fg2_subgroup=ing.fg2_subgroup.value if ing.fg2_subgroup else None,
+            fg3_subgroup=ing.fg3_subgroup.value if ing.fg3_subgroup else None,
+            fg5_grain_kind=ing.fg5_grain_kind.value if ing.fg5_grain_kind else None,
             ingredient_weight_kg_per_item=str(ing.ingredient_weight_kg_per_item),
         )
         for ing in ingredients

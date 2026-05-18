@@ -30,8 +30,31 @@ Validation rules
   :class:`WWFFG1Subgroup` value (error).
 - When ``food_group=FG2``, ``subgroup`` is required and must be a valid
   :class:`WWFFG2Subgroup` value (error).
-- For FG3..FG6, ``subgroup`` is accepted in the input for informational
-  purposes but is not stored in the domain model.
+- When ``food_group=FG3``, ``subgroup`` is accepted and must be a valid
+  :class:`WWFFG3Subgroup` value if provided (error on invalid); a warning
+  is emitted when omitted because the FG3 plant/animal fat split cannot be
+  determined.
+- When ``food_group=FG5``, ``subgroup`` is accepted and must be a valid
+  :class:`WWFFG5GrainKind` value if provided (error on invalid); no warning
+  when omitted (grain kind is informational).
+- For FG4 and FG6, ``subgroup`` is accepted in the input for informational
+  purposes but is silently ignored (no domain field exists).
+- Duplicate (food_group, subgroup) combinations within one product produce
+  a per-product warning (both rows are stored — the data may be intentional).
+- Product entries must be JSON objects with an ``ingredients`` key containing
+  a non-empty list.  Missing key, non-dict entry, non-list value, and empty
+  list are all validation errors.
+
+Upload size limits (enforced by the route before calling this module)
+----------------------------------------------------------------------
+- File: 50 MB  (reuses ``MAX_UPLOAD_BYTES`` from ``ingestion.validators``).
+- Rows: 200,000 total ingredient rows across all products in the file.
+
+Re-upload semantics
+-------------------
+A new upload **replaces** the previous Step 2 ingredient set for the project.
+The route calls ``clear_wwf_ingredients_for_project`` before persisting
+new records.  If validation fails, old records are **not** cleared.
 
 No I/O — all look-ups are done against caller-supplied dicts.
 """
@@ -48,16 +71,38 @@ from altera_api.domain.wwf import (
     WWFCompositeIngredient,
     WWFFG1Subgroup,
     WWFFG2Subgroup,
+    WWFFG3Subgroup,
+    WWFFG5GrainKind,
     WWFFoodGroup,
     WWFProductClassification,
 )
+from altera_api.ingestion.validators import MAX_UPLOAD_BYTES
 
 # ---------------------------------------------------------------------------
-# Result types
+# Module-level constants
+# ---------------------------------------------------------------------------
+
+#: Maximum number of total ingredient rows across all products in a Step 2 file.
+MAX_STEP2_INGREDIENT_ROWS: int = 200_000
+
+# Re-export so callers can guard before calling validate_wwf_step2_json.
+__all__ = [
+    "MAX_STEP2_INGREDIENT_ROWS",
+    "MAX_UPLOAD_BYTES",
+    "IngredientRowError",
+    "ProductIngredientResult",
+    "Step2ValidationResult",
+    "validate_wwf_step2_json",
+]
+
+# ---------------------------------------------------------------------------
+# Internal lookup tables
 # ---------------------------------------------------------------------------
 
 _VALID_FG1_SUBGROUPS = {m.value: m for m in WWFFG1Subgroup}
 _VALID_FG2_SUBGROUPS = {m.value: m for m in WWFFG2Subgroup}
+_VALID_FG3_SUBGROUPS = {m.value: m for m in WWFFG3Subgroup}
+_VALID_FG5_GRAIN_KINDS = {m.value: m for m in WWFFG5GrainKind}
 
 # Food groups legal in Step 2 (FG7 is explicitly excluded per the domain model).
 _STEP2_FOOD_GROUPS = {
@@ -68,6 +113,11 @@ _STEP2_FOOD_GROUPS = {
     WWFFoodGroup.FG5,
     WWFFoodGroup.FG6,
 }
+
+
+# ---------------------------------------------------------------------------
+# Result types
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -182,7 +232,8 @@ def validate_wwf_step2_json(
             result.non_composite_count += 1
         elif is_own_brand is False:
             result.branded_composite_count += 1
-        elif not product_result.errors:
+        elif not product_result.errors and product_result.valid_ingredient_count > 0:
+            # Only count as valid if ingredients were actually attributed.
             result.valid_product_count += 1
 
     return result
@@ -220,6 +271,100 @@ def _validate_product_entry(
                     ingredient_index=-1,
                     field="external_product_id",
                     message=f"product '{ext_id}' not found in project",
+                ),
+            ),
+            warnings=(),
+            valid_ingredients=(),
+        )
+
+    # Validate entry shape: must be a JSON object
+    if not isinstance(entry, dict):
+        return ProductIngredientResult(
+            external_product_id=ext_id,
+            product_id=product.id,
+            is_own_brand=product.wwf_fields.is_own_brand if product.wwf_fields else None,
+            is_composite=None,
+            ingredient_count=0,
+            valid_ingredient_count=0,
+            total_attributed_weight_kg=Decimal("0"),
+            product_weight_kg=product.weight_per_item_kg,
+            residual_weight_kg=None,
+            errors=(
+                IngredientRowError(
+                    ingredient_index=-1,
+                    field="entry",
+                    message=f"entry for '{ext_id}' must be a JSON object",
+                ),
+            ),
+            warnings=(),
+            valid_ingredients=(),
+        )
+
+    # Must have an 'ingredients' key
+    if "ingredients" not in entry:
+        return ProductIngredientResult(
+            external_product_id=ext_id,
+            product_id=product.id,
+            is_own_brand=product.wwf_fields.is_own_brand if product.wwf_fields else None,
+            is_composite=None,
+            ingredient_count=0,
+            valid_ingredient_count=0,
+            total_attributed_weight_kg=Decimal("0"),
+            product_weight_kg=product.weight_per_item_kg,
+            residual_weight_kg=None,
+            errors=(
+                IngredientRowError(
+                    ingredient_index=-1,
+                    field="ingredients",
+                    message=f"entry for '{ext_id}' is missing required 'ingredients' key",
+                ),
+            ),
+            warnings=(),
+            valid_ingredients=(),
+        )
+
+    raw_ingredients = entry["ingredients"]
+
+    # ingredients must be a list
+    if not isinstance(raw_ingredients, list):
+        return ProductIngredientResult(
+            external_product_id=ext_id,
+            product_id=product.id,
+            is_own_brand=product.wwf_fields.is_own_brand if product.wwf_fields else None,
+            is_composite=None,
+            ingredient_count=0,
+            valid_ingredient_count=0,
+            total_attributed_weight_kg=Decimal("0"),
+            product_weight_kg=product.weight_per_item_kg,
+            residual_weight_kg=None,
+            errors=(
+                IngredientRowError(
+                    ingredient_index=-1,
+                    field="ingredients",
+                    message=f"'ingredients' for '{ext_id}' must be a list",
+                ),
+            ),
+            warnings=(),
+            valid_ingredients=(),
+        )
+
+    # Empty list is an error: a product entry with no ingredients is meaningless.
+    if len(raw_ingredients) == 0:
+        return ProductIngredientResult(
+            external_product_id=ext_id,
+            product_id=product.id,
+            is_own_brand=product.wwf_fields.is_own_brand if product.wwf_fields else None,
+            is_composite=None,
+            ingredient_count=0,
+            valid_ingredient_count=0,
+            total_attributed_weight_kg=Decimal("0"),
+            product_weight_kg=product.weight_per_item_kg,
+            residual_weight_kg=None,
+            errors=(
+                IngredientRowError(
+                    ingredient_index=-1,
+                    field="ingredients",
+                    message=f"'ingredients' for '{ext_id}' must not be empty",
                 ),
             ),
             warnings=(),
@@ -309,9 +454,11 @@ def _validate_product_entry(
             "They are reported at Step 1 (whole product weight) only."
         )
 
-    raw_ingredients = entry.get("ingredients", []) if isinstance(entry, dict) else []
     ingredient_count = len(raw_ingredients)
     total_weight = Decimal("0")
+
+    # Duplicate detection: track (food_group, subgroup_key) within this product
+    seen_combinations: set[tuple[str, str | None]] = set()
 
     for i, raw_ing in enumerate(raw_ingredients):
         ingredient, ing_errors = _validate_ingredient(
@@ -322,8 +469,43 @@ def _validate_product_entry(
         if ing_errors:
             errors.extend(ing_errors)
         elif ingredient is not None and is_own_brand:
+            # Duplicate detection
+            subgroup_key = (
+                ingredient.fg1_subgroup.value
+                if ingredient.fg1_subgroup is not None
+                else (
+                    ingredient.fg2_subgroup.value
+                    if ingredient.fg2_subgroup is not None
+                    else (
+                        ingredient.fg3_subgroup.value
+                        if ingredient.fg3_subgroup is not None
+                        else (
+                            ingredient.fg5_grain_kind.value
+                            if ingredient.fg5_grain_kind is not None
+                            else None
+                        )
+                    )
+                )
+            )
+            combo = (ingredient.food_group.value, subgroup_key)
+            if combo in seen_combinations:
+                warnings.append(
+                    f"ingredient {i}: duplicate ({ingredient.food_group.value}"
+                    + (f", {subgroup_key}" if subgroup_key else "")
+                    + ") combination; both rows stored, but this may be a data entry error"
+                )
+            seen_combinations.add(combo)
+
             valid_ingredients.append(ingredient)
             total_weight += ingredient.ingredient_weight_kg_per_item
+
+            # Warn when FG3 lacks subgroup: plant/animal split unavailable
+            if ingredient.food_group is WWFFoodGroup.FG3 and ingredient.fg3_subgroup is None:
+                warnings.append(
+                    f"ingredient {i}: FG3 ingredient has no subgroup; "
+                    "plant/animal fat split will not be captured in whole-diet calculation. "
+                    f"Valid subgroups: {', '.join(_VALID_FG3_SUBGROUPS)}"
+                )
 
     residual = product.weight_per_item_kg - total_weight
     if is_own_brand and total_weight > product.weight_per_item_kg:
@@ -397,10 +579,12 @@ def _validate_ingredient(
         )
         return None, errors
 
-    # subgroup — required for FG1/FG2, optional (ignored) for FG3-FG6
+    # subgroup — FG1/FG2 required; FG3/FG5 optional and validated; FG4/FG6 ignored
     subgroup_value: str | None = raw.get("subgroup")
     fg1_subgroup: WWFFG1Subgroup | None = None
     fg2_subgroup: WWFFG2Subgroup | None = None
+    fg3_subgroup: WWFFG3Subgroup | None = None
+    fg5_grain_kind: WWFFG5GrainKind | None = None
 
     if fg is WWFFoodGroup.FG1:
         if subgroup_value is None:
@@ -446,6 +630,36 @@ def _validate_ingredient(
                     )
                 )
 
+    elif fg is WWFFoodGroup.FG3:
+        if subgroup_value is not None:
+            fg3_subgroup = _VALID_FG3_SUBGROUPS.get(subgroup_value)
+            if fg3_subgroup is None:
+                errors.append(
+                    IngredientRowError(
+                        index,
+                        "subgroup",
+                        f"'{subgroup_value}' is not a valid FG3 subgroup; "
+                        f"valid values: {', '.join(_VALID_FG3_SUBGROUPS)}",
+                    )
+                )
+        # fg3_subgroup=None is allowed; product-level code will emit a warning
+
+    elif fg is WWFFoodGroup.FG5:
+        if subgroup_value is not None:
+            fg5_grain_kind = _VALID_FG5_GRAIN_KINDS.get(subgroup_value)
+            if fg5_grain_kind is None:
+                errors.append(
+                    IngredientRowError(
+                        index,
+                        "subgroup",
+                        f"'{subgroup_value}' is not a valid FG5 grain kind; "
+                        f"valid values: {', '.join(_VALID_FG5_GRAIN_KINDS)}",
+                    )
+                )
+        # fg5_grain_kind=None is allowed (informational, no warning)
+
+    # FG4 / FG6: subgroup silently ignored
+
     if errors:
         return None, errors
 
@@ -488,6 +702,8 @@ def _validate_ingredient(
             food_group=fg,
             fg1_subgroup=fg1_subgroup,
             fg2_subgroup=fg2_subgroup,
+            fg3_subgroup=fg3_subgroup,
+            fg5_grain_kind=fg5_grain_kind,
             ingredient_weight_kg_per_item=weight,
         )
     except ValueError as exc:

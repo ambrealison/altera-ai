@@ -145,7 +145,7 @@ Branded composite products continue to be reported at the Composite
 Product Level (Step 1) until ingredient data becomes industry-
 available.
 
-#### Step 2 upload API (Phase 24A)
+#### Step 2 upload API (Phase 24A / hardened Phase 24B)
 
 The companion ingredient JSON is uploaded via:
 
@@ -156,6 +156,18 @@ Content-Type: multipart/form-data  (field name: "file")
 
 The file must be uploaded **after** classification, because the validator
 checks that each product has a WWF classification and is marked composite.
+
+**File-level limits (Phase 24B):**
+
+| Limit | Value | HTTP status on breach |
+|-------|-------|-----------------------|
+| File size | 50 MB | 413 |
+| Total ingredient rows (sum of all `ingredients` arrays) | 200,000 | 422 |
+
+**JSON shape validation (Phase 24B):** The top-level value must be a
+dict. Each product entry must be a dict, must have an `"ingredients"`
+key, `"ingredients"` must be a list, and the list must be non-empty.
+Violations are hard errors that abort processing for that product.
 
 **Validation rules applied at upload time:**
 
@@ -169,8 +181,31 @@ checks that each product has a WWF classification and is marked composite.
 | `food_group` must be FG1–FG6 (FG7 rejected) | error |
 | FG1 requires a valid `subgroup` | error |
 | FG2 requires a valid `subgroup` | error |
+| FG3 entry missing `subgroup` | **warning** (stored; plant/animal fat split excluded from whole-diet calculation) |
+| FG3 `subgroup` must be `"plant_based_fat"` or `"animal_based_fat"` if present | error |
+| FG5 `grain_kind` must be `"whole_grain"` or `"refined_grain"` if present | error |
+| Duplicate `(food_group, subgroup)` combo within the same product | **warning** (both rows stored) |
 | `ingredient_weight_kg_per_item` must be strictly positive | error |
 | Sum of ingredient weights > product weight | **warning** (storage allowed) |
+
+**FG3 subgroup and FG5 grain kind (Phase 24B):**
+
+- FG3 ingredients may carry a `"subgroup"` field:
+  `"plant_based_fat"` or `"animal_based_fat"`. When present it determines
+  the ingredient's contribution to the whole-diet plant/animal split.
+  When absent the ingredient is stored but excluded from that split (a
+  warning is emitted). Use when fat source is known.
+- FG5 ingredients may carry a `"grain_kind"` field:
+  `"whole_grain"` or `"refined_grain"`. Stored for future reporting; not
+  yet used in the main calculation.
+
+**Re-upload semantics (Phase 24B):**
+
+When a new upload is accepted (no hard errors), all previously stored
+Step 2 ingredients for the project are replaced atomically. The response
+carries `"replaced": true` when previous data existed. Invalid uploads
+are rejected without touching stored data — the previous state is
+preserved.
 
 If there are no hard errors, the ingredients are stored and the response
 carries `"stored": true`.  A `GET /projects/{id}/products/{pid}/wwf-ingredients`

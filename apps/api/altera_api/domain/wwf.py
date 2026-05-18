@@ -248,6 +248,8 @@ class WWFCompositeIngredient(DomainBase):
     food_group: WWFFoodGroup
     fg1_subgroup: WWFFG1Subgroup | None = None
     fg2_subgroup: WWFFG2Subgroup | None = None
+    fg3_subgroup: WWFFG3Subgroup | None = None
+    fg5_grain_kind: WWFFG5GrainKind | None = None
     ingredient_weight_kg_per_item: Quantity
 
     @model_validator(mode="after")
@@ -260,21 +262,28 @@ class WWFCompositeIngredient(DomainBase):
 
     @model_validator(mode="after")
     def _subgroups_match_food_group(self) -> Self:
+        _all = (self.fg1_subgroup, self.fg2_subgroup, self.fg3_subgroup, self.fg5_grain_kind)
         if self.food_group is WWFFoodGroup.FG1:
             if self.fg1_subgroup is None:
                 raise ValueError("fg1_subgroup is required when food_group=FG1.")
-            if self.fg2_subgroup is not None:
-                raise ValueError("fg2_subgroup must be null when food_group=FG1.")
+            if any(s is not None for s in (self.fg2_subgroup, self.fg3_subgroup, self.fg5_grain_kind)):
+                raise ValueError("only fg1_subgroup may be set when food_group=FG1.")
         elif self.food_group is WWFFoodGroup.FG2:
             if self.fg2_subgroup is None:
                 raise ValueError("fg2_subgroup is required when food_group=FG2.")
-            if self.fg1_subgroup is not None:
-                raise ValueError("fg1_subgroup must be null when food_group=FG2.")
+            if any(s is not None for s in (self.fg1_subgroup, self.fg3_subgroup, self.fg5_grain_kind)):
+                raise ValueError("only fg2_subgroup may be set when food_group=FG2.")
+        elif self.food_group is WWFFoodGroup.FG3:
+            if any(s is not None for s in (self.fg1_subgroup, self.fg2_subgroup, self.fg5_grain_kind)):
+                raise ValueError("only fg3_subgroup may be set when food_group=FG3.")
+        elif self.food_group is WWFFoodGroup.FG5:
+            if any(s is not None for s in (self.fg1_subgroup, self.fg2_subgroup, self.fg3_subgroup)):
+                raise ValueError("only fg5_grain_kind may be set when food_group=FG5.")
         else:
-            if self.fg1_subgroup is not None or self.fg2_subgroup is not None:
+            # FG4, FG6 — no subgroup fields
+            if any(s is not None for s in _all):
                 raise ValueError(
-                    f"fg1_subgroup / fg2_subgroup must be null when food_group="
-                    f"{self.food_group.value}."
+                    f"no subgroup fields are allowed when food_group={self.food_group.value}."
                 )
         return self
 

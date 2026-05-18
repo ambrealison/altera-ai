@@ -341,12 +341,13 @@ export default function UploadPage() {
               subtitle="Optional: upload a JSON file mapping own-brand composite products to their ingredients."
             />
             <p className="mt-3 text-sm text-gray-600">
-              Step 2 ingredient attribution applies to own-brand composite products only. Branded
-              composites are reported at Step 1 (whole product weight) and are not affected by this
-              file.
+              Step 2 applies to <strong>own-brand composite products only</strong>. Branded
+              composites are always reported at Step 1 (whole product weight) and are unaffected by
+              this file. Uploading a new file replaces any previously stored Step 2 data for this
+              project.
             </p>
             <form onSubmit={onWwfStep2Upload} className="mt-4 space-y-4">
-              <Field label="Ingredient JSON file">
+              <Field label="Ingredient JSON file (.json, max 50 MB)">
                 <input
                   type="file"
                   accept=".json,application/json"
@@ -376,18 +377,24 @@ export default function UploadPage() {
                   </Pill>
                   {wwfStep2Result.stored && (
                     <span className="text-xs text-gray-500">
-                      Ingredients saved for {wwfStep2Result.valid_product_count} product
+                      {wwfStep2Result.replaced ? "Replaced previous data — i" : "I"}
+                      ngredients saved for {wwfStep2Result.valid_product_count} product
                       {wwfStep2Result.valid_product_count !== 1 ? "s" : ""}
                     </span>
                   )}
                 </div>
+                {wwfStep2Result.stored && (
+                  <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                    Re-run the calculation to apply these ingredients to the report.
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
                   <div>
                     <div className="text-xs uppercase tracking-wider text-gray-500">Products in file</div>
                     <div className="mt-1 text-lg font-semibold">{wwfStep2Result.total_products_in_file}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">Valid</div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">Own-brand stored</div>
                     <div className="mt-1 text-lg font-semibold">{wwfStep2Result.valid_product_count}</div>
                   </div>
                   <div>
@@ -402,12 +409,12 @@ export default function UploadPage() {
                 {(wwfStep2Result.unknown_product_count > 0 || wwfStep2Result.branded_composite_count > 0) && (
                   <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                     {wwfStep2Result.unknown_product_count > 0 && (
-                      <div>{wwfStep2Result.unknown_product_count} product(s) not found in project.</div>
+                      <div>{wwfStep2Result.unknown_product_count} product(s) not found in project — check external IDs.</div>
                     )}
                     {wwfStep2Result.branded_composite_count > 0 && (
                       <div>
-                        {wwfStep2Result.branded_composite_count} branded composite(s) skipped (Step 1
-                        only).
+                        {wwfStep2Result.branded_composite_count} branded composite(s): ingredients not stored.
+                        These products remain at Step 1 (whole product weight) only.
                       </div>
                     )}
                   </div>

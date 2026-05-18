@@ -201,8 +201,8 @@ def _wwf_caveats(s: WWFCalculationSummary) -> list[str]:
     if s.composites_total_weight_kg > _ZERO:
         caveats.append(
             f"Composite products ({format_decimal(s.composites_total_weight_kg)} kg total) "
-            "were classified using Step 1 ingredient buckets. "
-            "Step 2 own-brand ingredient attribution was not applied."
+            "classified using Step 1 ingredient buckets (whole product weight per composite "
+            "category). Step 1 totals are always reported."
         )
 
     return caveats
@@ -301,6 +301,47 @@ def _enrichment_caveats(
             "(not from retailer labels) not yet applied to this calculation. "
             "Enrichment source recorded per product."
         )
+    return caveats
+
+
+def _wwf_step2_caveats(
+    store: StoreProtocol,
+    project_id: UUID,
+    *,
+    products_in_run: list,
+) -> list[str]:
+    """Disclose WWF Step 2 ingredient attribution status (Phase 24A/24B).
+
+    Reports how many own-brand composites had ingredient-level attribution
+    applied and how many branded composites remained at Step 1 only.
+    """
+    caveats: list[str] = []
+
+    step2_map = store.get_wwf_ingredients_by_project(project_id)
+    step2_count = len(step2_map)
+    if step2_count > 0:
+        caveats.append(
+            f"Step 2 ingredient attribution applied to {step2_count} own-brand composite "
+            "product(s). Ingredient weights distributed across food groups FG1–FG6."
+        )
+
+    # Count branded composites from the products-in-run list.
+    branded_step1_count = sum(
+        1
+        for p in products_in_run
+        if p.wwf_fields is not None
+        and not p.wwf_fields.is_own_brand
+        # Only count if this product has a composite classification.
+        and store.get_wwf_classification(p.id) is not None
+        and (store.get_wwf_classification(p.id).wwf_is_composite or False)
+    )
+    if branded_step1_count > 0:
+        caveats.append(
+            f"{branded_step1_count} branded composite product(s) reported at Step 1 "
+            "(whole product weight) only. Ingredient-level attribution is not available "
+            "for branded products."
+        )
+
     return caveats
 
 
@@ -462,6 +503,9 @@ def build_coverage_section(
     else:
         s_wwf = WWFCalculationSummary.model_validate(run.summary_payload)
         caveats = _wwf_caveats(s_wwf)
+        caveats = caveats + _wwf_step2_caveats(
+            store, project.id, products_in_run=products_in_run
+        )
 
     review_note = _review_completion_note(
         sent_to_review=products_sent_to_review,

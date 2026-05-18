@@ -161,11 +161,16 @@ def _whole_diet_contribution_for_ingredient(
                 ingredient_weight_kg * ingredient.fg2_subgroup.dairy_equivalent_factor
             )
         return _ZERO, ingredient_weight_kg
+    if fg is WWFFoodGroup.FG3:
+        if ingredient.fg3_subgroup is WWFFG3Subgroup.PLANT_BASED_FAT:
+            return ingredient_weight_kg, _ZERO
+        if ingredient.fg3_subgroup is WWFFG3Subgroup.ANIMAL_BASED_FAT:
+            return _ZERO, ingredient_weight_kg
+        # No subgroup: FG3 plant/animal split unknown; excluded from whole-diet
+        return _ZERO, _ZERO
     if fg in {WWFFoodGroup.FG4, WWFFoodGroup.FG5, WWFFoodGroup.FG6}:
         return ingredient_weight_kg, _ZERO
-    # FG3 / FG7 are not in the Step 2 target set per WWFCompositeIngredient
-    # validator (FG7 is rejected; FG3 ingredients carry no subgroup, so we
-    # leave them out of the whole-diet split).
+    # FG7 is rejected by domain validator; system states cannot reach here.
     return _ZERO, _ZERO
 
 
