@@ -9,6 +9,7 @@
 Auth lands with Supabase in Phase 13; until then a stub demo user is
 wired in via :mod:`altera_api.api.dependencies`.
 """
+
 from __future__ import annotations
 
 from fastapi import FastAPI

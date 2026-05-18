@@ -14,6 +14,7 @@ Tests set ``ALTERA_AI_PROVIDER=mock`` to get a deterministic fake provider
 without making HTTP calls. Production sets ``ALTERA_AI_PROVIDER=openai``
 and supplies a real key.
 """
+
 from __future__ import annotations
 
 import json
@@ -43,20 +44,24 @@ class _MockProvider(ClassifierProvider):
     def classify(self, prompt: ClassifierPrompt) -> ProviderResponse:
         assert_payload_allowed(prompt.product_card)
         if prompt.methodology is Methodology.PROTEIN_TRACKER:
-            raw = json.dumps({
-                "methodology": "protein_tracker",
-                "pt_group": "plant_based_core",
-                "confidence": 0.9,
-                "rationale": "mock provider: accepted",
-            })
+            raw = json.dumps(
+                {
+                    "methodology": "protein_tracker",
+                    "pt_group": "plant_based_core",
+                    "confidence": 0.9,
+                    "rationale": "mock provider: accepted",
+                }
+            )
         else:
-            raw = json.dumps({
-                "methodology": "wwf",
-                "wwf_food_group": "FG4",
-                "wwf_is_composite": False,
-                "confidence": 0.9,
-                "rationale": "mock provider: accepted",
-            })
+            raw = json.dumps(
+                {
+                    "methodology": "wwf",
+                    "wwf_food_group": "FG4",
+                    "wwf_is_composite": False,
+                    "confidence": 0.9,
+                    "rationale": "mock provider: accepted",
+                }
+            )
         return ProviderResponse(raw_text=raw, model=self.model)
 
 
@@ -77,9 +82,7 @@ def get_ai_provider() -> ClassifierProvider | None:
 
     if provider_name == "openai":
         if not settings.openai_api_key:
-            raise ValueError(
-                "OPENAI_API_KEY is required when ALTERA_AI_PROVIDER=openai"
-            )
+            raise ValueError("OPENAI_API_KEY is required when ALTERA_AI_PROVIDER=openai")
         from altera_api.ai.openai_provider import OpenAIProvider
 
         return OpenAIProvider(

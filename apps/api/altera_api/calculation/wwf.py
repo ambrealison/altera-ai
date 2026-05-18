@@ -15,6 +15,7 @@ Implements docs/calculation/wwf-calculation.md verbatim:
 WWF and Protein Tracker share no arithmetic. The unit here is
 kilogrammes of product weight as sold, never protein.
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence

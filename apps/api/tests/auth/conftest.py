@@ -4,6 +4,7 @@ Unlike ``tests/api/conftest.py``, dev auth is **disabled** by default
 here. Each test toggles env explicitly so the matrix
 (token-present / dev-on / both-off) is readable.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator

@@ -1,4 +1,5 @@
 """Manual review queue, status, and decision models."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -87,8 +88,7 @@ class ManualReviewItem(DomainBase):
     def _soft_lock_fields_paired(self) -> Self:
         if (self.soft_lock_user_id is None) != (self.soft_lock_expires_at is None):
             raise ValueError(
-                "soft_lock_user_id and soft_lock_expires_at must be set together "
-                "or both omitted."
+                "soft_lock_user_id and soft_lock_expires_at must be set together or both omitted."
             )
         return self
 
@@ -121,15 +121,18 @@ class ManualReviewDecision(DomainBase):
 
     @model_validator(mode="after")
     def _to_category_required_when_changed_or_accepted(self) -> Self:
-        if self.decision in {
-            ManualReviewDecisionType.ACCEPTED,
-            ManualReviewDecisionType.CHANGED,
-        } and self.to_category is None:
-            raise ValueError(
-                "to_category is required when decision is accepted or changed."
-            )
-        if self.decision is ManualReviewDecisionType.CHANGED and self.from_category == self.to_category:
-            raise ValueError(
-                "decision=changed requires from_category != to_category."
-            )
+        if (
+            self.decision
+            in {
+                ManualReviewDecisionType.ACCEPTED,
+                ManualReviewDecisionType.CHANGED,
+            }
+            and self.to_category is None
+        ):
+            raise ValueError("to_category is required when decision is accepted or changed.")
+        if (
+            self.decision is ManualReviewDecisionType.CHANGED
+            and self.from_category == self.to_category
+        ):
+            raise ValueError("decision=changed requires from_category != to_category.")
         return self

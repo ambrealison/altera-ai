@@ -4,6 +4,7 @@ Applies methodology-aware requirements to a parsed row and produces a
 persistent ``NormalizedProduct`` (or row-level validation errors when
 methodology-required fields are missing).
 """
+
 from __future__ import annotations
 
 from datetime import datetime

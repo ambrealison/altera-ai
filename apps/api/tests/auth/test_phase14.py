@@ -1,4 +1,5 @@
 """Phase 14 tests: role namespace split + cross-org visibility + export approval."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -16,6 +17,7 @@ from tests.auth.conftest import TEST_JWT_SECRET
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_org(
     store: InMemoryStore,
@@ -62,22 +64,39 @@ def _token(mint_token: Callable[..., str], user: UserProfile) -> str:
 # Role namespace — AuthContext.is_altera_internal
 # ---------------------------------------------------------------------------
 
+
 class TestAuthContextRoles:
-    def test_altera_role_is_altera_internal(self, store: InMemoryStore, client: TestClient, mint_token: Callable[..., str], monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_altera_role_is_altera_internal(
+        self,
+        store: InMemoryStore,
+        client: TestClient,
+        mint_token: Callable[..., str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         altera_org = _make_org(store, name="Altera HQ", org_type=OrganisationType.ALTERA_INTERNAL)
         user = _make_user(store, org=altera_org, role=AlteraRole.ALTERA_ANALYST)
-        r = client.get("/api/v1/me", headers={"Authorization": f"Bearer {_token(mint_token, user)}"})
+        r = client.get(
+            "/api/v1/me", headers={"Authorization": f"Bearer {_token(mint_token, user)}"}
+        )
         assert r.status_code == 200
         body = r.json()
         assert body["role"] == "altera_analyst"
         assert body["organisation_type"] == "altera_internal"
 
-    def test_client_role_is_gms_client(self, store: InMemoryStore, client: TestClient, mint_token: Callable[..., str], monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_client_role_is_gms_client(
+        self,
+        store: InMemoryStore,
+        client: TestClient,
+        mint_token: Callable[..., str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         client_org = _make_org(store, name="RetailCo", org_type=OrganisationType.GMS_CLIENT)
         user = _make_user(store, org=client_org, role=ClientRole.CLIENT_OWNER)
-        r = client.get("/api/v1/me", headers={"Authorization": f"Bearer {_token(mint_token, user)}"})
+        r = client.get(
+            "/api/v1/me", headers={"Authorization": f"Bearer {_token(mint_token, user)}"}
+        )
         assert r.status_code == 200
         body = r.json()
         assert body["role"] == "client_owner"
@@ -148,6 +167,7 @@ class TestAuthContextRoles:
 # ---------------------------------------------------------------------------
 # Cross-org visibility for Altera staff
 # ---------------------------------------------------------------------------
+
 
 class TestAlteraCrossOrgVisibility:
     def test_altera_can_list_client_projects(
@@ -267,6 +287,7 @@ class TestAlteraCrossOrgVisibility:
 # Export approval workflow
 # ---------------------------------------------------------------------------
 
+
 class TestExportApprovalWorkflow:
     def _seed_run(self, store: InMemoryStore, org_id: UUID) -> RunRecord:
         run = RunRecord(
@@ -281,7 +302,9 @@ class TestExportApprovalWorkflow:
         store.runs[run.id] = run
         return run
 
-    def _seed_export(self, store: InMemoryStore, run: RunRecord, *, approval_status: str = "draft") -> ExportRecord:
+    def _seed_export(
+        self, store: InMemoryStore, run: RunRecord, *, approval_status: str = "draft"
+    ) -> ExportRecord:
         record = ExportRecord(
             id=uuid4(),
             run_id=run.id,
@@ -468,7 +491,11 @@ class TestExportApprovalWorkflow:
         r = client.post(
             "/api/v1/projects",
             headers={"Authorization": f"Bearer {token}"},
-            json={"name": "P", "methodologies_enabled": ["protein_tracker"], "reporting_period_label": "FY2025"},
+            json={
+                "name": "P",
+                "methodologies_enabled": ["protein_tracker"],
+                "reporting_period_label": "FY2025",
+            },
         )
         assert r.status_code == 201
         project_id = r.json()["id"]
@@ -504,6 +531,7 @@ class TestExportApprovalWorkflow:
 # Manual review ownership
 # ---------------------------------------------------------------------------
 
+
 class TestManualReviewOwnership:
     def test_client_cannot_submit_review_decision(
         self,
@@ -521,7 +549,11 @@ class TestManualReviewOwnership:
         r = client.post(
             "/api/v1/projects",
             headers={"Authorization": f"Bearer {token}"},
-            json={"name": "P", "methodologies_enabled": ["protein_tracker"], "reporting_period_label": "FY2025"},
+            json={
+                "name": "P",
+                "methodologies_enabled": ["protein_tracker"],
+                "reporting_period_label": "FY2025",
+            },
         )
         assert r.status_code == 201
         project_id = r.json()["id"]
@@ -554,7 +586,11 @@ class TestManualReviewOwnership:
         r = client.post(
             "/api/v1/projects",
             headers={"Authorization": f"Bearer {client_token}"},
-            json={"name": "P", "methodologies_enabled": ["protein_tracker"], "reporting_period_label": "FY2025"},
+            json={
+                "name": "P",
+                "methodologies_enabled": ["protein_tracker"],
+                "reporting_period_label": "FY2025",
+            },
         )
         project_id = r.json()["id"]
 

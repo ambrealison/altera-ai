@@ -5,6 +5,7 @@ controls which implementation is returned.  Both are singletons: the
 in-memory store is created once at import time; the Postgres client is
 created once on the first request that needs it.
 """
+
 from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict

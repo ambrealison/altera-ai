@@ -5,6 +5,7 @@ single PT group (a string) or a structured WWF object whose cross-field
 constraints are enforced here so an invalid rule fails to load — before
 any product is classified.
 """
+
 from __future__ import annotations
 
 from typing import Literal, Self
@@ -78,9 +79,7 @@ class ConditionNode(_RuleBaseModel):
         if total == 0:
             raise ValueError("ConditionNode must set exactly one field; got none.")
         if total > 1:
-            raise ValueError(
-                "ConditionNode must set exactly one field; cannot combine forms."
-            )
+            raise ValueError("ConditionNode must set exactly one field; cannot combine forms.")
         return self
 
 
@@ -114,8 +113,7 @@ class WWFRuleCategory(_RuleBaseModel):
             field_name, value = required[self.wwf_food_group]
             if value is None:
                 raise ValueError(
-                    f"{field_name} is required when wwf_food_group="
-                    f"{self.wwf_food_group.value}."
+                    f"{field_name} is required when wwf_food_group={self.wwf_food_group.value}."
                 )
         return self
 
@@ -130,21 +128,15 @@ class WWFRuleCategory(_RuleBaseModel):
         )
         for name, value, parent in pairs:
             if value is not None and self.wwf_food_group is not parent:
-                raise ValueError(
-                    f"{name} must be null when wwf_food_group != {parent.value}."
-                )
+                raise ValueError(f"{name} must be null when wwf_food_group != {parent.value}.")
         return self
 
     @model_validator(mode="after")
     def _composite_bucket_iff_composite(self) -> Self:
         if self.wwf_is_composite and self.wwf_composite_step1_bucket is None:
-            raise ValueError(
-                "wwf_composite_step1_bucket is required when wwf_is_composite=true."
-            )
+            raise ValueError("wwf_composite_step1_bucket is required when wwf_is_composite=true.")
         if not self.wwf_is_composite and self.wwf_composite_step1_bucket is not None:
-            raise ValueError(
-                "wwf_composite_step1_bucket must be null when wwf_is_composite=false."
-            )
+            raise ValueError("wwf_composite_step1_bucket must be null when wwf_is_composite=false.")
         return self
 
 
@@ -166,9 +158,7 @@ class PTRule(_RuleBase):
     @model_validator(mode="after")
     def _category_is_real_group(self) -> Self:
         if not self.category.is_methodology_group:
-            raise ValueError(
-                "PT rules cannot target system states (out_of_scope, unknown)."
-            )
+            raise ValueError("PT rules cannot target system states (out_of_scope, unknown).")
         return self
 
 
@@ -179,9 +169,7 @@ class WWFRule(_RuleBase):
     @model_validator(mode="after")
     def _category_is_real_group(self) -> Self:
         if not self.category.wwf_food_group.is_methodology_group:
-            raise ValueError(
-                "WWF rules cannot target system states (out_of_scope, unknown)."
-            )
+            raise ValueError("WWF rules cannot target system states (out_of_scope, unknown).")
         return self
 
 

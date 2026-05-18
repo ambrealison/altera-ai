@@ -17,6 +17,7 @@ auth layer here works against either backend because it asks the
 ``Store`` for ``user_profile`` + ``membership`` records via the same
 interface.
 """
+
 from __future__ import annotations
 
 from altera_api.auth.config import AuthSettings, get_auth_settings

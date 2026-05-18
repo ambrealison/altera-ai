@@ -1,4 +1,5 @@
 """Project model + Protein Tracker validation state machine + internal lifecycle."""
+
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -112,9 +113,15 @@ class Project(DomainBase):
 
     @model_validator(mode="after")
     def _pt_pin_only_when_pt_enabled(self) -> Self:
-        if self.pinned_pt_version is not None and Methodology.PROTEIN_TRACKER not in self.methodologies_enabled:
+        if (
+            self.pinned_pt_version is not None
+            and Methodology.PROTEIN_TRACKER not in self.methodologies_enabled
+        ):
             raise ValueError("pinned_pt_version requires protein_tracker to be enabled.")
-        if self.pinned_wwf_version is not None and Methodology.WWF not in self.methodologies_enabled:
+        if (
+            self.pinned_wwf_version is not None
+            and Methodology.WWF not in self.methodologies_enabled
+        ):
             raise ValueError("pinned_wwf_version requires wwf to be enabled.")
         return self
 

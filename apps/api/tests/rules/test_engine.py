@@ -1,4 +1,5 @@
 """Engine behaviour: pass-through, single match, agreed-multi, collision."""
+
 from __future__ import annotations
 
 from datetime import datetime

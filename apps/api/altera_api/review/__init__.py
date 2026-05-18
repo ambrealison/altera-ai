@@ -20,6 +20,7 @@ carrying the updated item, the audit-trail decision, and (where
 applicable) the new methodology-specific classification with
 ``source=MANUAL_REVIEW``.
 """
+
 from __future__ import annotations
 
 from altera_api.review.bulk import (

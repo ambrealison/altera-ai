@@ -31,16 +31,12 @@ class TestBuildPrompt:
         assert "WWF" in prompt.methodology_card
         assert "Protein Tracker" not in prompt.methodology_card
 
-    def test_product_card_contains_only_allowed_fields(
-        self, pt_product: NormalizedProduct
-    ) -> None:
+    def test_product_card_contains_only_allowed_fields(self, pt_product: NormalizedProduct) -> None:
         inp = ClassifierPromptInput.from_product(pt_product)
         prompt = build_classifier_prompt(inp, Methodology.PROTEIN_TRACKER)
         assert set(prompt.product_card.keys()) <= ALLOWED_PROMPT_FIELDS
 
-    def test_prompt_does_not_leak_pt_quantities(
-        self, pt_product: NormalizedProduct
-    ) -> None:
+    def test_prompt_does_not_leak_pt_quantities(self, pt_product: NormalizedProduct) -> None:
         inp = ClassifierPromptInput.from_product(pt_product)
         prompt = build_classifier_prompt(inp, Methodology.PROTEIN_TRACKER)
         # The PT product has items_purchased, protein_pct, weight_per_item_kg.
@@ -51,9 +47,7 @@ class TestBuildPrompt:
             "weight_per_item_kg",
             "plant_protein_pct",
         ]
-        haystack = (
-            prompt.system_instructions + prompt.methodology_card + str(prompt.product_card)
-        )
+        haystack = prompt.system_instructions + prompt.methodology_card + str(prompt.product_card)
         for s in bad_strings:
             assert s not in haystack
 

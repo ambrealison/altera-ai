@@ -4,6 +4,7 @@ Every input below is small enough that the expected output can be
 re-derived in two lines on a piece of paper. These tests pin the
 formulas from docs/calculation/protein-tracker-calculation.md.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -300,7 +301,9 @@ class TestOutOfScopeAndUnknown:
         )
         cls = {
             in_scope.id: _classification(in_scope.id, ProteinTrackerGroup.PLANT_BASED_CORE, now),
-            out_of_scope.id: _classification(out_of_scope.id, ProteinTrackerGroup.OUT_OF_SCOPE, now),
+            out_of_scope.id: _classification(
+                out_of_scope.id, ProteinTrackerGroup.OUT_OF_SCOPE, now
+            ),
         }
         result = calculate_pt_run(
             [in_scope, out_of_scope],
@@ -468,7 +471,9 @@ class TestPerGroupAggregate:
             ProteinTrackerGroup.ANIMAL_CORE,
         }
         # Empty groups have zero protein and zero items.
-        empty = next(a for a in result.summary.per_group if a.pt_group is ProteinTrackerGroup.ANIMAL_CORE)
+        empty = next(
+            a for a in result.summary.per_group if a.pt_group is ProteinTrackerGroup.ANIMAL_CORE
+        )
         assert empty.protein_kg == Decimal("0.00000000")
         assert empty.item_count == 0
 

@@ -4,6 +4,7 @@ Covers: job creation, status transitions, duplicate-active-job prevention,
 failed-job error message, project-scoped listing, cross-org access denial,
 dev runner executing tasks, and existing synchronous flows unchanged.
 """
+
 from __future__ import annotations
 
 import base64
@@ -16,6 +17,7 @@ from altera_api.domain.job import JobStatus
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _create_project(client: TestClient, methodology: str = "protein_tracker") -> str:
     r = client.post(
@@ -48,10 +50,9 @@ def _b64(data: bytes) -> str:
 # Classify-upload job
 # ---------------------------------------------------------------------------
 
+
 class TestClassifyUploadJob:
-    def test_classify_job_succeeds(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_classify_job_succeeds(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         uid = _upload_and_ingest(client, pid, pt_tiny_csv)
 
@@ -133,9 +134,7 @@ class TestClassifyUploadJob:
         assert r2.status_code == 202
         assert r2.json()["job_type"] == "classify_upload"
 
-    def test_classify_job_fails_on_unknown_upload(
-        self, client: TestClient
-    ) -> None:
+    def test_classify_job_fails_on_unknown_upload(self, client: TestClient) -> None:
         pid = _create_project(client)
         r = client.post(
             f"/api/v1/projects/{pid}/uploads/00000000-0000-0000-0000-000000000099/jobs/classify",
@@ -152,10 +151,9 @@ class TestClassifyUploadJob:
 # Run-calculation job
 # ---------------------------------------------------------------------------
 
+
 class TestRunCalculationJob:
-    def test_calculate_job_succeeds(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_calculate_job_succeeds(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         uid = _upload_and_ingest(client, pid, pt_tiny_csv)
         # Classify first so products have categories
@@ -181,9 +179,7 @@ class TestRunCalculationJob:
         assert body["result"]["rows_count"] == 12
         assert body["run_id"] is not None
 
-    def test_calculate_job_result_has_run_id(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_calculate_job_result_has_run_id(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         uid = _upload_and_ingest(client, pid, pt_tiny_csv)
         client.post(
@@ -209,6 +205,7 @@ class TestRunCalculationJob:
 # Generate-export job
 # ---------------------------------------------------------------------------
 
+
 class TestGenerateExportJob:
     def _setup_run(self, client: TestClient, pt_tiny_csv: bytes) -> tuple[str, str]:
         """Return (project_id, run_id)."""
@@ -229,9 +226,7 @@ class TestGenerateExportJob:
         ).json()["id"]
         return pid, run_id
 
-    def test_export_job_csv_succeeds(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_export_job_csv_succeeds(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid, run_id = self._setup_run(client, pt_tiny_csv)
         r = client.post(
             f"/api/v1/projects/{pid}/runs/{run_id}/jobs/export",
@@ -246,9 +241,7 @@ class TestGenerateExportJob:
         assert result["size_bytes"] > 0
         assert result["filename"].endswith(".csv")
 
-    def test_export_job_json_succeeds(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_export_job_json_succeeds(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid, run_id = self._setup_run(client, pt_tiny_csv)
         r = client.post(
             f"/api/v1/projects/{pid}/runs/{run_id}/jobs/export",
@@ -256,9 +249,7 @@ class TestGenerateExportJob:
         )
         assert r.json()["status"] == JobStatus.SUCCEEDED
 
-    def test_export_job_idempotency(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_export_job_idempotency(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid, run_id = self._setup_run(client, pt_tiny_csv)
         r1 = client.post(
             f"/api/v1/projects/{pid}/runs/{run_id}/jobs/export",
@@ -272,9 +263,7 @@ class TestGenerateExportJob:
         assert r2.status_code == 202
         # Both are export jobs; idempotency returns existing once terminal
 
-    def test_export_job_fails_on_unknown_run(
-        self, client: TestClient
-    ) -> None:
+    def test_export_job_fails_on_unknown_run(self, client: TestClient) -> None:
         pid = _create_project(client)
         r = client.post(
             f"/api/v1/projects/{pid}/runs/00000000-0000-0000-0000-000000000099/jobs/export",
@@ -290,10 +279,9 @@ class TestGenerateExportJob:
 # Validate-upload and ingest-upload jobs
 # ---------------------------------------------------------------------------
 
+
 class TestValidateAndIngestJobs:
-    def test_validate_upload_job_valid_csv(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_validate_upload_job_valid_csv(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         uid = _upload_and_ingest(client, pid, pt_tiny_csv)
         r = client.post(
@@ -352,10 +340,9 @@ class TestValidateAndIngestJobs:
 # Job listing and lookup
 # ---------------------------------------------------------------------------
 
+
 class TestJobListing:
-    def test_list_jobs_for_project(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_list_jobs_for_project(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         uid = _upload_and_ingest(client, pid, pt_tiny_csv)
         client.post(
@@ -368,24 +355,18 @@ class TestJobListing:
         assert len(jobs) >= 1
         assert all(j["project_id"] == pid for j in jobs)
 
-    def test_list_jobs_filter_by_type(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_list_jobs_filter_by_type(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         uid = _upload_and_ingest(client, pid, pt_tiny_csv)
         client.post(
             f"/api/v1/projects/{pid}/uploads/{uid}/jobs/classify",
             json={"methodology": "protein_tracker"},
         )
-        r = client.get(
-            f"/api/v1/projects/{pid}/jobs?job_type=classify_upload"
-        )
+        r = client.get(f"/api/v1/projects/{pid}/jobs?job_type=classify_upload")
         jobs = r.json()
         assert all(j["job_type"] == "classify_upload" for j in jobs)
 
-    def test_get_job_by_id(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_get_job_by_id(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         uid = _upload_and_ingest(client, pid, pt_tiny_csv)
         job_id = client.post(
@@ -405,6 +386,7 @@ class TestJobListing:
 # ---------------------------------------------------------------------------
 # Cross-tenant isolation
 # ---------------------------------------------------------------------------
+
 
 class TestJobCrossTenantIsolation:
     def test_job_listed_only_for_owning_project(
@@ -429,10 +411,9 @@ class TestJobCrossTenantIsolation:
 # Failed job records error_message
 # ---------------------------------------------------------------------------
 
+
 class TestFailedJobErrorMessage:
-    def test_failed_job_has_error_message(
-        self, client: TestClient, store: InMemoryStore
-    ) -> None:
+    def test_failed_job_has_error_message(self, client: TestClient, store: InMemoryStore) -> None:
         pid = _create_project(client)
         # Request classify on a non-existent upload → job fails
         r = client.post(
@@ -452,10 +433,9 @@ class TestFailedJobErrorMessage:
 # Existing synchronous endpoints still pass (regression)
 # ---------------------------------------------------------------------------
 
+
 class TestExistingSyncEndpointsUnchanged:
-    def test_sync_classify_still_works(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_sync_classify_still_works(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         uid = _upload_and_ingest(client, pid, pt_tiny_csv)
         r = client.post(
@@ -466,9 +446,7 @@ class TestExistingSyncEndpointsUnchanged:
         body = r.json()
         assert body["matched"] + body["pass_through"] + body["rule_collision"] == 12
 
-    def test_sync_run_calculation_still_works(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_sync_run_calculation_still_works(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         uid = _upload_and_ingest(client, pid, pt_tiny_csv)
         client.post(
@@ -491,6 +469,7 @@ class TestExistingSyncEndpointsUnchanged:
 # ---------------------------------------------------------------------------
 # Dev runner executes expected task
 # ---------------------------------------------------------------------------
+
 
 class TestDevRunner:
     def test_dev_runner_executes_synchronously(

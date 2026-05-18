@@ -16,6 +16,7 @@ Mirrors ``test_protein_tracker_fixtures.py``. This is the byte-identical
 reproducibility check described in
 ``docs/development/testing.md``.
 """
+
 from __future__ import annotations
 
 import json
@@ -245,10 +246,9 @@ def _assert_matches(result, products: list[NormalizedProduct], expected: dict) -
         if expected_row["weight_kg_dairy_equiv"] is None:
             assert actual.weight_kg_dairy_equiv is None, ext
         else:
-            assert (
-                f"{actual.weight_kg_dairy_equiv:.8f}"
-                == expected_row["weight_kg_dairy_equiv"]
-            ), ext
+            assert f"{actual.weight_kg_dairy_equiv:.8f}" == expected_row["weight_kg_dairy_equiv"], (
+                ext
+            )
 
     actual_groups = {a.food_group.value: a for a in result.summary.per_food_group}
     for expected_group in expected["per_food_group"]:

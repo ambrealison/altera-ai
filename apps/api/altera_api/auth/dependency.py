@@ -5,6 +5,7 @@ The single source of truth for "who is this request?" is
 ``current_user_id`` and ``get_project`` helpers in
 ``altera_api.api.dependencies`` re-export from it.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -53,9 +54,7 @@ def _ensure_profile_and_membership(
         organisation_id = fallback_organisation_id or store.default_org_id
         organisation: Organisation | None = store.get_organisation(organisation_id)
         if organisation is None:
-            raise MissingProfileError(
-                f"no organisation {organisation_id} for user {user_id}"
-            )
+            raise MissingProfileError(f"no organisation {organisation_id} for user {user_id}")
         try:
             default_org_id = store.default_org_id
         except RuntimeError:

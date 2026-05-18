@@ -10,6 +10,7 @@ Covers:
 - AI disabled: no ai_attempted in result
 - Privacy: ClassifierPromptInput.from_product() never includes forbidden fields
 """
+
 from __future__ import annotations
 
 import json
@@ -40,6 +41,7 @@ from altera_api.domain.review import ManualReviewQueueReason
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _create_project(client: TestClient, methodology: str = "protein_tracker") -> str:
     r = client.post(
         "/api/v1/projects",
@@ -63,12 +65,14 @@ def _upload_and_ingest(client: TestClient, project_id: str, csv_bytes: bytes) ->
 
 
 def _pt_response(group: str = "plant_based_core", confidence: float = 0.92) -> str:
-    return json.dumps({
-        "methodology": "protein_tracker",
-        "pt_group": group,
-        "confidence": confidence,
-        "rationale": "test",
-    })
+    return json.dumps(
+        {
+            "methodology": "protein_tracker",
+            "pt_group": group,
+            "confidence": confidence,
+            "rationale": "test",
+        }
+    )
 
 
 def _pt_low_confidence() -> str:
@@ -78,6 +82,7 @@ def _pt_low_confidence() -> str:
 # ---------------------------------------------------------------------------
 # Unit-level: classify_upload() directly
 # ---------------------------------------------------------------------------
+
 
 class TestClassifyUploadUnit:
     """Tests against the orchestrator function directly, using InMemoryStore."""
@@ -90,6 +95,7 @@ class TestClassifyUploadUnit:
             reporting_period_label="FY2025",
         )
         from altera_api.api.orchestrator import ingest_upload
+
         summary = ingest_upload(
             store,
             project=project,
@@ -104,8 +110,11 @@ class TestClassifyUploadUnit:
     ) -> None:
         project, upload_id = self._setup(store, pt_tiny_csv)
         summary = classify_upload(
-            store, project=project, upload_id=upload_id,
-            methodology=Methodology.PROTEIN_TRACKER, ai_provider=None
+            store,
+            project=project,
+            upload_id=upload_id,
+            methodology=Methodology.PROTEIN_TRACKER,
+            ai_provider=None,
         )
         assert summary.ai_attempted == 0
         assert summary.ai_accepted == 0
@@ -118,8 +127,11 @@ class TestClassifyUploadUnit:
         project, upload_id = self._setup(store, pt_tiny_csv)
         provider = StaticFakeProvider(raw_text=_pt_response("plant_based_core", 0.92))
         summary = classify_upload(
-            store, project=project, upload_id=upload_id,
-            methodology=Methodology.PROTEIN_TRACKER, ai_provider=provider
+            store,
+            project=project,
+            upload_id=upload_id,
+            methodology=Methodology.PROTEIN_TRACKER,
+            ai_provider=provider,
         )
         assert summary.ai_attempted == summary.pass_through
         assert summary.ai_accepted == summary.pass_through
@@ -133,8 +145,11 @@ class TestClassifyUploadUnit:
         project, upload_id = self._setup(store, pt_tiny_csv)
         provider = RaisingFakeProvider(message="simulated 503")
         summary = classify_upload(
-            store, project=project, upload_id=upload_id,
-            methodology=Methodology.PROTEIN_TRACKER, ai_provider=provider
+            store,
+            project=project,
+            upload_id=upload_id,
+            methodology=Methodology.PROTEIN_TRACKER,
+            ai_provider=provider,
         )
         assert summary.ai_attempted == summary.pass_through
         assert summary.ai_accepted == 0
@@ -142,8 +157,7 @@ class TestClassifyUploadUnit:
         # All pass-through end up in review with ai_provider_error reason
         review_items = store.list_review_items_for_project(project.id)
         provider_error_items = [
-            i for i in review_items
-            if i.reason is ManualReviewQueueReason.AI_PROVIDER_ERROR
+            i for i in review_items if i.reason is ManualReviewQueueReason.AI_PROVIDER_ERROR
         ]
         assert len(provider_error_items) == summary.pass_through
 
@@ -153,16 +167,18 @@ class TestClassifyUploadUnit:
         project, upload_id = self._setup(store, pt_tiny_csv)
         provider = FailingFakeProvider()  # always returns invalid JSON
         summary = classify_upload(
-            store, project=project, upload_id=upload_id,
-            methodology=Methodology.PROTEIN_TRACKER, ai_provider=provider
+            store,
+            project=project,
+            upload_id=upload_id,
+            methodology=Methodology.PROTEIN_TRACKER,
+            ai_provider=provider,
         )
         assert summary.ai_attempted == summary.pass_through
         assert summary.ai_accepted == 0
         assert summary.ai_failed == summary.pass_through
         review_items = store.list_review_items_for_project(project.id)
         parse_failed_items = [
-            i for i in review_items
-            if i.reason is ManualReviewQueueReason.AI_PARSE_FAILED
+            i for i in review_items if i.reason is ManualReviewQueueReason.AI_PARSE_FAILED
         ]
         assert len(parse_failed_items) == summary.pass_through
 
@@ -172,44 +188,46 @@ class TestClassifyUploadUnit:
         project, upload_id = self._setup(store, pt_tiny_csv)
         provider = StaticFakeProvider(raw_text=_pt_low_confidence())
         summary = classify_upload(
-            store, project=project, upload_id=upload_id,
-            methodology=Methodology.PROTEIN_TRACKER, ai_provider=provider
+            store,
+            project=project,
+            upload_id=upload_id,
+            methodology=Methodology.PROTEIN_TRACKER,
+            ai_provider=provider,
         )
         assert summary.ai_attempted == summary.pass_through
         assert summary.ai_review == summary.pass_through
         assert summary.ai_accepted == 0
         review_items = store.list_review_items_for_project(project.id)
         low_conf_items = [
-            i for i in review_items
-            if i.reason is ManualReviewQueueReason.LOW_CONFIDENCE
+            i for i in review_items if i.reason is ManualReviewQueueReason.LOW_CONFIDENCE
         ]
         assert len(low_conf_items) == summary.pass_through
 
-    def test_rule_collision_bypasses_ai(
-        self, store: InMemoryStore, pt_tiny_csv: bytes
-    ) -> None:
+    def test_rule_collision_bypasses_ai(self, store: InMemoryStore, pt_tiny_csv: bytes) -> None:
         """Collision products go directly to RULE_COLLISION review, not AI."""
         project, upload_id = self._setup(store, pt_tiny_csv)
         provider = StaticFakeProvider(raw_text=_pt_response())
         summary = classify_upload(
-            store, project=project, upload_id=upload_id,
-            methodology=Methodology.PROTEIN_TRACKER, ai_provider=provider
+            store,
+            project=project,
+            upload_id=upload_id,
+            methodology=Methodology.PROTEIN_TRACKER,
+            ai_provider=provider,
         )
         # ai_attempted covers only pass_through, not collisions
         assert summary.ai_attempted == summary.pass_through
         review_items = store.list_review_items_for_project(project.id)
         collision_items = [
-            i for i in review_items
-            if i.reason is ManualReviewQueueReason.RULE_COLLISION
+            i for i in review_items if i.reason is ManualReviewQueueReason.RULE_COLLISION
         ]
         assert len(collision_items) == summary.rule_collision
 
-    def test_total_products_consistent(
-        self, store: InMemoryStore, pt_tiny_csv: bytes
-    ) -> None:
+    def test_total_products_consistent(self, store: InMemoryStore, pt_tiny_csv: bytes) -> None:
         project, upload_id = self._setup(store, pt_tiny_csv)
         summary = classify_upload(
-            store, project=project, upload_id=upload_id,
+            store,
+            project=project,
+            upload_id=upload_id,
             methodology=Methodology.PROTEIN_TRACKER,
         )
         total = summary.matched + summary.pass_through + summary.rule_collision
@@ -219,6 +237,7 @@ class TestClassifyUploadUnit:
 # ---------------------------------------------------------------------------
 # HTTP integration: classify job endpoint returns AI counts
 # ---------------------------------------------------------------------------
+
 
 class TestClassifyJobAICounts:
     def test_job_result_includes_ai_counts_when_disabled(
@@ -268,6 +287,7 @@ class TestClassifyJobAICounts:
         from uuid import UUID
 
         from altera_api.domain.common import Methodology
+
         summary = classify_upload(
             store,
             project=project,
@@ -284,10 +304,9 @@ class TestClassifyJobAICounts:
 # Privacy: forbidden fields never reach the AI
 # ---------------------------------------------------------------------------
 
+
 class TestAIPrivacy:
-    def test_from_product_excludes_commercial_fields(
-        self, store: InMemoryStore
-    ) -> None:
+    def test_from_product_excludes_commercial_fields(self, store: InMemoryStore) -> None:
         """ClassifierPromptInput.from_product() never copies forbidden fields."""
         now = datetime(2026, 1, 1, tzinfo=UTC)
         product = NormalizedProduct(
@@ -323,8 +342,13 @@ class TestAIPrivacy:
 
         # Explicitly verify the most sensitive fields are absent
         for forbidden in (
-            "items_purchased", "items_sold", "weight_per_item_kg",
-            "protein_pct", "protein_g_per_100g", "revenue", "margin",
+            "items_purchased",
+            "items_sold",
+            "weight_per_item_kg",
+            "protein_pct",
+            "protein_g_per_100g",
+            "revenue",
+            "margin",
         ):
             assert forbidden not in payload, f"{forbidden!r} leaked into prompt payload"
 

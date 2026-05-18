@@ -6,6 +6,7 @@ installations without the package can still load the rest of the module.
 Privacy contract: ``assert_payload_allowed`` is called before the HTTP
 request so no forbidden field can leave the process.
 """
+
 from __future__ import annotations
 
 import json

@@ -12,6 +12,7 @@ Covers:
 - no commercial fields (items_purchased, revenue, etc.) in response
 - pure assign_priority function covers all queue reasons
 """
+
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
@@ -22,6 +23,7 @@ from altera_api.review.priority import assign_priority, priority_weight
 # ---------------------------------------------------------------------------
 # Unit tests — pure priority logic
 # ---------------------------------------------------------------------------
+
 
 class TestAssignPriority:
     def test_contradiction_detected_is_critical(self) -> None:
@@ -125,6 +127,7 @@ def _list_review(client: TestClient, project_id: str, **params: str) -> list[dic
 # Priority in API responses
 # ---------------------------------------------------------------------------
 
+
 class TestPriorityInResponse:
     def test_priority_fields_present(self, client: TestClient) -> None:
         pid = _create_project(client)
@@ -162,8 +165,12 @@ class TestPriorityInResponse:
         items = _list_review(client, pid)
         assert len(items) >= 1
         forbidden = {
-            "items_purchased", "items_sold", "weight_per_item_kg",
-            "revenue", "margin", "supplier_terms",
+            "items_purchased",
+            "items_sold",
+            "weight_per_item_kg",
+            "revenue",
+            "margin",
+            "supplier_terms",
         }
         for item in items:
             for field in forbidden:
@@ -173,6 +180,7 @@ class TestPriorityInResponse:
 # ---------------------------------------------------------------------------
 # Filter by priority_level
 # ---------------------------------------------------------------------------
+
 
 class TestPriorityFilter:
     def test_filter_low_returns_only_low(self, client: TestClient) -> None:
@@ -215,11 +223,12 @@ class TestPriorityFilter:
 # Sort by priority
 # ---------------------------------------------------------------------------
 
+
 class TestPrioritySort:
     def test_sort_priority_puts_critical_first(self, client: TestClient) -> None:
         pid = _create_project(client)
-        _upload_and_classify(client, pid, _PASS_THROUGH_CSV)      # low
-        _upload_and_classify(client, pid, _CONTRADICTION_CSV)      # critical
+        _upload_and_classify(client, pid, _PASS_THROUGH_CSV)  # low
+        _upload_and_classify(client, pid, _CONTRADICTION_CSV)  # critical
         items = _list_review(client, pid, sort="priority")
         assert len(items) >= 2
         priority_order = [i["priority_level"] for i in items]

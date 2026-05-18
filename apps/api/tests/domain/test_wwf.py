@@ -58,9 +58,7 @@ class TestWWFProductClassificationCrossFieldRules:
             updated_at=now,
         )
 
-    def test_fg1_requires_fg1_subgroup(
-        self, product_id: UUID, now: datetime
-    ) -> None:
+    def test_fg1_requires_fg1_subgroup(self, product_id: UUID, now: datetime) -> None:
         base = self._base(product_id, now)
         with pytest.raises(PydanticValidationError):
             WWFProductClassification(**base)
@@ -71,9 +69,7 @@ class TestWWFProductClassificationCrossFieldRules:
         c = WWFProductClassification(**base)
         assert c.fg1_subgroup is WWFFG1Subgroup.RED_MEAT
 
-    def test_fg2_requires_fg2_subgroup(
-        self, product_id: UUID, now: datetime
-    ) -> None:
+    def test_fg2_requires_fg2_subgroup(self, product_id: UUID, now: datetime) -> None:
         base = self._base(product_id, now)
         base["wwf_food_group"] = WWFFoodGroup.FG2
         with pytest.raises(PydanticValidationError):
@@ -95,18 +91,14 @@ class TestWWFProductClassificationCrossFieldRules:
         c = WWFProductClassification(**base)
         assert c.fg5_grain_kind is WWFFG5GrainKind.WHOLE_GRAIN
 
-    def test_subgroup_for_wrong_food_group_rejected(
-        self, product_id: UUID, now: datetime
-    ) -> None:
+    def test_subgroup_for_wrong_food_group_rejected(self, product_id: UUID, now: datetime) -> None:
         base = self._base(product_id, now)
         base["wwf_food_group"] = WWFFoodGroup.FG4
         base["fg1_subgroup"] = WWFFG1Subgroup.RED_MEAT
         with pytest.raises(PydanticValidationError):
             WWFProductClassification(**base)
 
-    def test_composite_requires_step1_bucket(
-        self, product_id: UUID, now: datetime
-    ) -> None:
+    def test_composite_requires_step1_bucket(self, product_id: UUID, now: datetime) -> None:
         base = self._base(product_id, now)
         base["fg1_subgroup"] = WWFFG1Subgroup.RED_MEAT
         base["wwf_is_composite"] = True
@@ -125,9 +117,7 @@ class TestWWFProductClassificationCrossFieldRules:
         with pytest.raises(PydanticValidationError):
             WWFProductClassification(**base)
 
-    def test_system_state_has_no_subgroups(
-        self, product_id: UUID, now: datetime
-    ) -> None:
+    def test_system_state_has_no_subgroups(self, product_id: UUID, now: datetime) -> None:
         base = self._base(product_id, now)
         base["wwf_food_group"] = WWFFoodGroup.OUT_OF_SCOPE
         base["fg1_subgroup"] = WWFFG1Subgroup.RED_MEAT
@@ -224,17 +214,13 @@ class TestWWFCalculationRow:
         r = WWFCalculationRow(**base)
         assert r.wwf_composite_step1_bucket is WWFCompositeStep1Bucket.MEAT_BASED
 
-    def test_composite_without_bucket_rejected(
-        self, run_id: UUID, product_id: UUID
-    ) -> None:
+    def test_composite_without_bucket_rejected(self, run_id: UUID, product_id: UUID) -> None:
         base = self._base(run_id, product_id)
         base["wwf_is_composite"] = True
         with pytest.raises(PydanticValidationError):
             WWFCalculationRow(**base)
 
-    def test_in_scope_must_match_food_group(
-        self, run_id: UUID, product_id: UUID
-    ) -> None:
+    def test_in_scope_must_match_food_group(self, run_id: UUID, product_id: UUID) -> None:
         base = self._base(run_id, product_id)
         base["wwf_food_group"] = WWFFoodGroup.OUT_OF_SCOPE
         base["in_scope"] = True

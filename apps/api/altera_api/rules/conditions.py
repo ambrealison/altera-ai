@@ -3,6 +3,7 @@
 Pure functions over a ``ConditionContext`` — easy to unit test, no
 hidden state.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -80,13 +81,11 @@ def match_condition_node(node: ConditionNode, ctx: ConditionContext) -> bool:
     # Leaf forms
     if node.product_name_contains is not None:
         return any(
-            _name_or_category_contains(needle.lower(), ctx)
-            for needle in node.product_name_contains
+            _name_or_category_contains(needle.lower(), ctx) for needle in node.product_name_contains
         )
     if node.ingredients_contains is not None:
         return any(
-            needle.lower() in ctx.ingredients_text_lower
-            for needle in node.ingredients_contains
+            needle.lower() in ctx.ingredients_text_lower for needle in node.ingredients_contains
         )
     if node.brand_in is not None:
         return any(b.lower() == ctx.brand_lower for b in node.brand_in)

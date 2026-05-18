@@ -5,6 +5,7 @@ SHA-256 checksum generation, duplicate detection, validation-report
 persistence, status transitions, ingestion idempotency, storage path
 format, and cross-tenant access denial.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -22,6 +23,7 @@ from altera_api.storage.service import StorageService
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _create_project(client: TestClient, methodology: str = "protein_tracker") -> str:
     r = client.post(
@@ -48,6 +50,7 @@ def _pt_minimal_csv() -> bytes:
 # ---------------------------------------------------------------------------
 # Unit tests for validate_upload()
 # ---------------------------------------------------------------------------
+
 
 class TestValidateUpload:
     def test_csv_accepted(self) -> None:
@@ -83,21 +86,18 @@ class TestValidateUpload:
         assert validate_upload("data.csv", b"a", content_type="text/csv") == []
 
     def test_content_type_rejected(self) -> None:
-        errors = validate_upload(
-            "data.csv", b"a", content_type="application/pdf"
-        )
+        errors = validate_upload("data.csv", b"a", content_type="application/pdf")
         assert any("content-type" in e for e in errors)
 
     def test_content_type_with_charset_accepted(self) -> None:
         # charset qualifier must be stripped before comparison
-        assert validate_upload(
-            "data.csv", b"a", content_type="text/csv; charset=utf-8"
-        ) == []
+        assert validate_upload("data.csv", b"a", content_type="text/csv; charset=utf-8") == []
 
 
 # ---------------------------------------------------------------------------
 # SHA-256 checksum
 # ---------------------------------------------------------------------------
+
 
 class TestChecksum:
     def test_compute_sha256_matches_stdlib(self) -> None:
@@ -117,6 +117,7 @@ class TestChecksum:
 # API-level upload status transitions
 # ---------------------------------------------------------------------------
 
+
 class TestUploadStatusTransitions:
     def test_valid_csv_reaches_ready_for_classification(
         self, client: TestClient, pt_tiny_csv: bytes
@@ -130,9 +131,7 @@ class TestUploadStatusTransitions:
         body = r.json()
         assert body["status"] == UploadStatus.READY_FOR_CLASSIFICATION
 
-    def test_invalid_csv_reaches_validation_failed(
-        self, client: TestClient
-    ) -> None:
+    def test_invalid_csv_reaches_validation_failed(self, client: TestClient) -> None:
         """CSV that has blocking validation errors → VALIDATION_FAILED."""
         pid = _create_project(client)
         bad_csv = b"external_product_id,product_name,weight_per_item_kg\nP1,Soup,not-a-number\n"
@@ -166,10 +165,9 @@ class TestUploadStatusTransitions:
 # File metadata on the response
 # ---------------------------------------------------------------------------
 
+
 class TestUploadMetadata:
-    def test_checksum_populated(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_checksum_populated(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         r = client.post(
             f"/api/v1/projects/{pid}/uploads",
@@ -178,9 +176,7 @@ class TestUploadMetadata:
         body = r.json()
         assert body["checksum_sha256"] == compute_sha256(pt_tiny_csv)
 
-    def test_file_size_populated(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_file_size_populated(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         r = client.post(
             f"/api/v1/projects/{pid}/uploads",
@@ -188,9 +184,7 @@ class TestUploadMetadata:
         )
         assert r.json()["file_size_bytes"] == len(pt_tiny_csv)
 
-    def test_timestamps_populated_on_success(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_timestamps_populated_on_success(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         r = client.post(
             f"/api/v1/projects/{pid}/uploads",
@@ -202,9 +196,7 @@ class TestUploadMetadata:
         assert body["ingestion_started_at"] is not None
         assert body["ingestion_completed_at"] is not None
 
-    def test_ingestion_timestamps_absent_on_failure(
-        self, client: TestClient
-    ) -> None:
+    def test_ingestion_timestamps_absent_on_failure(self, client: TestClient) -> None:
         pid = _create_project(client)
         bad_csv = b"external_product_id,product_name,weight_per_item_kg\nP1,Soup,bad\n"
         r = client.post(
@@ -219,6 +211,7 @@ class TestUploadMetadata:
 # ---------------------------------------------------------------------------
 # Validation report persistence
 # ---------------------------------------------------------------------------
+
 
 class TestValidationReportPersistence:
     def test_report_retrievable_via_get_upload(
@@ -249,9 +242,7 @@ class TestValidationReportPersistence:
         assert body["errors"]
         assert body["errors"][0]["row_number"] == 1
 
-    def test_get_upload_404_for_wrong_project(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_get_upload_404_for_wrong_project(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         pid = _create_project(client)
         upload_id = client.post(
             f"/api/v1/projects/{pid}/uploads",
@@ -265,6 +256,7 @@ class TestValidationReportPersistence:
 # ---------------------------------------------------------------------------
 # Duplicate detection
 # ---------------------------------------------------------------------------
+
 
 class TestDuplicateDetection:
     def test_duplicate_flagged_on_second_upload(
@@ -281,9 +273,7 @@ class TestDuplicateDetection:
         ).json()
         assert second["duplicate_of"] == first["id"]
 
-    def test_duplicate_not_blocked(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> None:
+    def test_duplicate_not_blocked(self, client: TestClient, pt_tiny_csv: bytes) -> None:
         """Duplicate is a warning, not a rejection."""
         pid = _create_project(client)
         client.post(
@@ -316,6 +306,7 @@ class TestDuplicateDetection:
 # Ingestion idempotency
 # ---------------------------------------------------------------------------
 
+
 class TestIngestionIdempotency:
     def test_classifying_twice_does_not_duplicate_products(
         self, client: TestClient, pt_tiny_csv: bytes
@@ -346,22 +337,23 @@ class TestIngestionIdempotency:
 # Storage path format
 # ---------------------------------------------------------------------------
 
+
 class TestStoragePath:
     def test_storage_path_includes_projects_and_raw(self) -> None:
         import uuid
+
         svc = StorageService.__new__(StorageService)  # no supabase client needed
         org = uuid.UUID("00000000-0000-0000-0000-000000000001")
         proj = uuid.UUID("00000000-0000-0000-0000-000000000002")
         upload = uuid.UUID("00000000-0000-0000-0000-000000000003")
         path = svc.storage_path(org, proj, upload, "data.csv")
-        assert path == (
-            f"organisations/{org}/projects/{proj}/uploads/{upload}/raw/data.csv"
-        )
+        assert path == (f"organisations/{org}/projects/{proj}/uploads/{upload}/raw/data.csv")
 
 
 # ---------------------------------------------------------------------------
 # Cross-tenant upload isolation
 # ---------------------------------------------------------------------------
+
 
 class TestCrossTenantUploadAccess:
     def test_client_cannot_access_other_org_upload(

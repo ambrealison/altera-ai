@@ -1,4 +1,5 @@
 """Smoke tests for the API skeleton."""
+
 from __future__ import annotations
 
 from fastapi.testclient import TestClient

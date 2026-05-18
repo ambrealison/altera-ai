@@ -3,6 +3,7 @@
 Structural (duck-typed) so both ``StorageService`` and ``FakeStorageService``
 satisfy it without inheriting from a common base class.
 """
+
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
@@ -15,9 +16,7 @@ class StorageProtocol(Protocol):
 
     def download(self, storage_path: str) -> bytes: ...
 
-    def upload_export(
-        self, storage_path: str, content: bytes, filename: str
-    ) -> None: ...
+    def upload_export(self, storage_path: str, content: bytes, filename: str) -> None: ...
 
     def export_storage_path(
         self,

@@ -13,6 +13,7 @@ For each `tests/fixtures/pt/*.csv` we:
 This is the byte-identical reproducibility test described in
 ``docs/development/testing.md``.
 """
+
 from __future__ import annotations
 
 import json
@@ -64,8 +65,7 @@ def _classifications_from_expected(
     products: list[NormalizedProduct], expected: dict
 ) -> dict[UUID, ProteinTrackerProductClassification]:
     group_by_external: dict[str, ProteinTrackerGroup] = {
-        row["external_product_id"]: ProteinTrackerGroup(row["pt_group"])
-        for row in expected["rows"]
+        row["external_product_id"]: ProteinTrackerGroup(row["pt_group"]) for row in expected["rows"]
     }
     return {
         p.id: ProteinTrackerProductClassification(

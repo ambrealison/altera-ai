@@ -19,9 +19,7 @@ from altera_api.review.workflow import claim_item
 
 
 class TestLockQueries:
-    def test_no_lock_not_expired(
-        self, pt_item_in_queue: ManualReviewItem, now: datetime
-    ) -> None:
+    def test_no_lock_not_expired(self, pt_item_in_queue: ManualReviewItem, now: datetime) -> None:
         assert is_lock_expired(pt_item_in_queue, now=now) is False
 
     def test_unexpired_lock(
@@ -96,14 +94,10 @@ class TestClaim:
     ) -> None:
         claimed = claim_item(pt_item_in_queue, reviewer_user_id=reviewer_a, now=now)
         # Same reviewer still works
-        same = claim_item(
-            claimed, reviewer_user_id=reviewer_a, now=now + timedelta(minutes=5)
-        )
+        same = claim_item(claimed, reviewer_user_id=reviewer_a, now=now + timedelta(minutes=5))
         assert same.soft_lock_user_id == reviewer_a
         # After 15 minutes, B can claim
-        later = claim_item(
-            claimed, reviewer_user_id=reviewer_b, now=now + SOFT_LOCK_DURATION
-        )
+        later = claim_item(claimed, reviewer_user_id=reviewer_b, now=now + SOFT_LOCK_DURATION)
         assert later.soft_lock_user_id == reviewer_b
 
     def test_cannot_claim_terminal(
@@ -112,8 +106,6 @@ class TestClaim:
         reviewer_a: UUID,
         now: datetime,
     ) -> None:
-        terminated = pt_item_in_queue.model_copy(
-            update={"status": ManualReviewStatus.ACCEPTED}
-        )
+        terminated = pt_item_in_queue.model_copy(update={"status": ManualReviewStatus.ACCEPTED})
         with pytest.raises(IllegalTransitionError):
             claim_item(terminated, reviewer_user_id=reviewer_a, now=now)

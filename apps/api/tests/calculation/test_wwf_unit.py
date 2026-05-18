@@ -4,6 +4,7 @@ Each scenario uses tiny inputs whose expected weights / shares can be
 re-derived on paper. These tests pin the formulas in
 docs/calculation/wwf-calculation.md.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -570,9 +571,7 @@ class TestOutOfScopeAndUnknown:
                 fg1_subgroup=WWFFG1Subgroup.LEGUMES,
                 now=now,
             ),
-            water.id: _classification(
-                water.id, food_group=WWFFoodGroup.OUT_OF_SCOPE, now=now
-            ),
+            water.id: _classification(water.id, food_group=WWFFoodGroup.OUT_OF_SCOPE, now=now),
         }
         result = calculate_wwf_run(
             [in_scope, water],
@@ -607,7 +606,10 @@ class TestVersionsAndMissingClassification:
         )
         cls = {
             p.id: _classification(
-                p.id, food_group=WWFFoodGroup.FG5, fg5_grain_kind=WWFFG5GrainKind.WHOLE_GRAIN, now=now
+                p.id,
+                food_group=WWFFoodGroup.FG5,
+                fg5_grain_kind=WWFFG5GrainKind.WHOLE_GRAIN,
+                now=now,
             )
         }
         result = calculate_wwf_run(

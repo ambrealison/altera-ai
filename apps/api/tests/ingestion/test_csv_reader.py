@@ -39,10 +39,7 @@ def test_strips_utf8_bom() -> None:
 
 
 def test_handles_quoted_commas() -> None:
-    data = (
-        b'product_name,ingredients_text\n'
-        b'"Lentil Soup","red lentils, water, salt"\n'
-    )
+    data = b'product_name,ingredients_text\n"Lentil Soup","red lentils, water, salt"\n'
     table = read_table_bytes(data)
     assert table.rows[0]["ingredients_text"] == "red lentils, water, salt"
 

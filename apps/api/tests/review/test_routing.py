@@ -61,9 +61,7 @@ def _wwf_classification(now: datetime, product_id: UUID) -> WWFProductClassifica
 
 
 class TestRoutePT:
-    def test_rule_collision_routed(
-        self, pt_product_id: UUID, now: datetime
-    ) -> None:
+    def test_rule_collision_routed(self, pt_product_id: UUID, now: datetime) -> None:
         verdict = PTRuleCollision(
             product_id=pt_product_id,
             conflicting_rule_ids=("r.a", "r.b"),
@@ -78,9 +76,7 @@ class TestRoutePT:
         assert item.status is ManualReviewStatus.IN_QUEUE
         assert item.methodology is Methodology.PROTEIN_TRACKER
 
-    def test_low_confidence_routed(
-        self, pt_product_id: UUID, now: datetime
-    ) -> None:
+    def test_low_confidence_routed(self, pt_product_id: UUID, now: datetime) -> None:
         ai = AINeedsReviewLowConfidence(
             classification=_pt_classification(now, pt_product_id),
             raw_text="{}",
@@ -91,9 +87,7 @@ class TestRoutePT:
         assert item.reason is ManualReviewQueueReason.LOW_CONFIDENCE
         assert item.product_id == pt_product_id
 
-    def test_parse_failed_routed(
-        self, pt_product_id: UUID, now: datetime
-    ) -> None:
+    def test_parse_failed_routed(self, pt_product_id: UUID, now: datetime) -> None:
         ai = AINeedsReviewParseFailed(
             product_id=pt_product_id,
             methodology=Methodology.PROTEIN_TRACKER,
@@ -129,9 +123,7 @@ class TestRoutePT:
         )
         assert route_pt_verdict(ai_verdict=accepted, now=now) is None
 
-    def test_provider_error_not_routed(
-        self, pt_product_id: UUID, now: datetime
-    ) -> None:
+    def test_provider_error_not_routed(self, pt_product_id: UUID, now: datetime) -> None:
         err = AIProviderError(
             product_id=pt_product_id,
             methodology=Methodology.PROTEIN_TRACKER,
@@ -141,9 +133,7 @@ class TestRoutePT:
 
 
 class TestRouteWWF:
-    def test_rule_collision_routed(
-        self, wwf_product_id: UUID, now: datetime
-    ) -> None:
+    def test_rule_collision_routed(self, wwf_product_id: UUID, now: datetime) -> None:
         verdict = WWFRuleCollision(
             product_id=wwf_product_id,
             conflicting_rule_ids=("a", "b"),
@@ -153,9 +143,7 @@ class TestRouteWWF:
         assert item.reason is ManualReviewQueueReason.RULE_COLLISION
         assert item.methodology is Methodology.WWF
 
-    def test_low_confidence_routed(
-        self, wwf_product_id: UUID, now: datetime
-    ) -> None:
+    def test_low_confidence_routed(self, wwf_product_id: UUID, now: datetime) -> None:
         ai = AINeedsReviewLowConfidence(
             classification=_wwf_classification(now, wwf_product_id),
             raw_text="{}",

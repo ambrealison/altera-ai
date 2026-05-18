@@ -5,6 +5,7 @@
 * :func:`get_project` — project lookup scoped to the caller's visible orgs.
 * :func:`current_user_id` — thin auth-context helper.
 """
+
 from __future__ import annotations
 
 from uuid import UUID

@@ -11,6 +11,7 @@ Per docs/data/input-formats.md:
 The reader returns raw header list and an iterator of header-keyed
 rows. It does no semantic validation — that is the parser's job.
 """
+
 from __future__ import annotations
 
 import csv
@@ -48,9 +49,7 @@ def read_table_bytes(data: bytes, *, config: CSVReadConfig | None = None) -> Par
     """
     cfg = config or CSVReadConfig()
     if len(data) > cfg.max_bytes:
-        raise CSVReadError(
-            f"file is {len(data)} bytes, exceeds limit {cfg.max_bytes}"
-        )
+        raise CSVReadError(f"file is {len(data)} bytes, exceeds limit {cfg.max_bytes}")
     try:
         text = data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
@@ -73,9 +72,7 @@ def read_table_bytes(data: bytes, *, config: CSVReadConfig | None = None) -> Par
     rows: list[dict[str, str]] = []
     for row_idx, raw_row in enumerate(reader, start=2):  # data rows are 2-indexed in CSV terms
         if len(rows) >= cfg.max_rows:
-            raise CSVReadError(
-                f"file exceeds row limit {cfg.max_rows} at line {row_idx}"
-            )
+            raise CSVReadError(f"file exceeds row limit {cfg.max_rows} at line {row_idx}")
         # Tolerate short/long rows: pad with "" or truncate.
         padded = list(raw_row) + [""] * max(0, len(headers) - len(raw_row))
         padded = padded[: len(headers)]

@@ -8,6 +8,7 @@ A note on WWF's unit: kilogrammes of product weight as sold, **not**
 protein. The plant/animal split and the 50/50 default are PT concepts
 and never apply here.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -171,7 +172,9 @@ class WWFProductClassification(DomainBase):
         if self.wwf_food_group in required:
             field_name, value = required[self.wwf_food_group]
             if value is None:
-                raise ValueError(f"{field_name} is required when wwf_food_group={self.wwf_food_group.value}.")
+                raise ValueError(
+                    f"{field_name} is required when wwf_food_group={self.wwf_food_group.value}."
+                )
         # Forbidden-when rules — subgroups must be null when their parent food
         # group is not the current one.
         forbidden = {
@@ -191,13 +194,9 @@ class WWFProductClassification(DomainBase):
     @model_validator(mode="after")
     def _composite_bucket_required(self) -> Self:
         if self.wwf_is_composite and self.composite_step1_bucket is None:
-            raise ValueError(
-                "composite_step1_bucket is required when wwf_is_composite=true."
-            )
+            raise ValueError("composite_step1_bucket is required when wwf_is_composite=true.")
         if not self.wwf_is_composite and self.composite_step1_bucket is not None:
-            raise ValueError(
-                "composite_step1_bucket must be null when wwf_is_composite=false."
-            )
+            raise ValueError("composite_step1_bucket must be null when wwf_is_composite=false.")
         return self
 
     @model_validator(mode="after")
@@ -310,13 +309,9 @@ class WWFCalculationRow(DomainBase):
     @model_validator(mode="after")
     def _composite_bucket_iff_composite(self) -> Self:
         if self.wwf_is_composite and self.wwf_composite_step1_bucket is None:
-            raise ValueError(
-                "wwf_composite_step1_bucket is required when wwf_is_composite=true."
-            )
+            raise ValueError("wwf_composite_step1_bucket is required when wwf_is_composite=true.")
         if not self.wwf_is_composite and self.wwf_composite_step1_bucket is not None:
-            raise ValueError(
-                "wwf_composite_step1_bucket must be null when wwf_is_composite=false."
-            )
+            raise ValueError("wwf_composite_step1_bucket must be null when wwf_is_composite=false.")
         return self
 
     @model_validator(mode="after")
@@ -333,7 +328,9 @@ class WWFFoodGroupAggregate(DomainBase):
     weight_kg: Quantity
     weight_kg_dairy_equiv: Quantity | None = None
     share_pct: Decimal = Field(ge=Decimal("0"), le=Decimal("100"))
-    phd_reference_share_pct: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("100"))
+    phd_reference_share_pct: Decimal | None = Field(
+        default=None, ge=Decimal("0"), le=Decimal("100")
+    )
 
 
 class WWFCalculationSummary(DomainBase):

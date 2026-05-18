@@ -13,6 +13,7 @@ Covers:
 - client user cannot claim/release/refresh/assign (403)
 - terminal items cannot be assigned (400)
 """
+
 from __future__ import annotations
 
 from uuid import UUID, uuid4
@@ -44,6 +45,7 @@ _CSV = (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _altera_ctx(role: AlteraRole = AlteraRole.ALTERA_ADMIN) -> AuthContext:
     """Build a fresh ALTERA_INTERNAL context with a random user_id per call."""
@@ -111,10 +113,9 @@ def _setup(client: TestClient) -> tuple[str, str]:
 # Lock field defaults
 # ---------------------------------------------------------------------------
 
+
 class TestLockFieldsDefault:
-    def test_lock_fields_present_and_default_unlocked(
-        self, client: TestClient
-    ) -> None:
+    def test_lock_fields_present_and_default_unlocked(self, client: TestClient) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid)
         items = _get_review_items(client, pid)
@@ -133,17 +134,14 @@ class TestLockFieldsDefault:
 # Claim
 # ---------------------------------------------------------------------------
 
+
 class TestClaim:
-    def test_claim_sets_reviewing_and_locked_by_me(
-        self, client: TestClient
-    ) -> None:
+    def test_claim_sets_reviewing_and_locked_by_me(self, client: TestClient) -> None:
         pid, product_id = _setup(client)
         ctx = _altera_ctx(AlteraRole.ALTERA_REVIEWER)
         app.dependency_overrides[authed_user] = lambda: ctx
         try:
-            r = client.post(
-                f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/claim"
-            )
+            r = client.post(f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/claim")
             assert r.status_code == 200, r.text
             body = r.json()
             assert body["status"] == "reviewing"
@@ -153,9 +151,7 @@ class TestClaim:
         finally:
             app.dependency_overrides.pop(authed_user, None)
 
-    def test_claim_conflict_when_another_holds_lock(
-        self, client: TestClient
-    ) -> None:
+    def test_claim_conflict_when_another_holds_lock(self, client: TestClient) -> None:
         pid, product_id = _setup(client)
         ctx_a = _altera_ctx(AlteraRole.ALTERA_REVIEWER)
         ctx_b = _altera_ctx(AlteraRole.ALTERA_REVIEWER)
@@ -163,16 +159,12 @@ class TestClaim:
         # ctx_a claims
         app.dependency_overrides[authed_user] = lambda: ctx_a
         try:
-            r = client.post(
-                f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/claim"
-            )
+            r = client.post(f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/claim")
             assert r.status_code == 200, r.text
 
             # ctx_b cannot claim while ctx_a holds the lock
             app.dependency_overrides[authed_user] = lambda: ctx_b
-            r2 = client.post(
-                f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/claim"
-            )
+            r2 = client.post(f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/claim")
             assert r2.status_code == 409, r2.text
         finally:
             app.dependency_overrides.pop(authed_user, None)
@@ -184,9 +176,7 @@ class TestClaim:
         ctx = _client_ctx(UUID(proj["organisation_id"]))
         app.dependency_overrides[authed_user] = lambda: ctx
         try:
-            r = client.post(
-                f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/claim"
-            )
+            r = client.post(f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/claim")
             assert r.status_code == 403, r.text
         finally:
             app.dependency_overrides.pop(authed_user, None)
@@ -196,6 +186,7 @@ class TestClaim:
 # Release
 # ---------------------------------------------------------------------------
 
+
 class TestRelease:
     def test_release_reverts_to_in_queue(self, client: TestClient) -> None:
         pid, product_id = _setup(client)
@@ -203,16 +194,12 @@ class TestRelease:
         app.dependency_overrides[authed_user] = lambda: ctx
         try:
             # Claim first
-            r = client.post(
-                f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/claim"
-            )
+            r = client.post(f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/claim")
             assert r.status_code == 200
             assert r.json()["status"] == "reviewing"
 
             # Release
-            r2 = client.post(
-                f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/release"
-            )
+            r2 = client.post(f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/release")
             assert r2.status_code == 200, r2.text
             body = r2.json()
             assert body["status"] == "in_queue"
@@ -227,9 +214,7 @@ class TestRelease:
         ctx = _client_ctx(UUID(proj["organisation_id"]))
         app.dependency_overrides[authed_user] = lambda: ctx
         try:
-            r = client.post(
-                f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/release"
-            )
+            r = client.post(f"/api/v1/projects/{pid}/review/{product_id}/protein_tracker/release")
             assert r.status_code == 403, r.text
         finally:
             app.dependency_overrides.pop(authed_user, None)
@@ -238,6 +223,7 @@ class TestRelease:
 # ---------------------------------------------------------------------------
 # Refresh lock
 # ---------------------------------------------------------------------------
+
 
 class TestRefreshLock:
     def test_refresh_extends_expiry(self, client: TestClient) -> None:
@@ -277,6 +263,7 @@ class TestRefreshLock:
 # ---------------------------------------------------------------------------
 # Assign
 # ---------------------------------------------------------------------------
+
 
 class TestAssign:
     def test_reviewer_can_self_assign(self, client: TestClient) -> None:

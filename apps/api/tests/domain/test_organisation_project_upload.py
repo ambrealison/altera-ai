@@ -87,11 +87,15 @@ class TestProject:
             created_at=now,
         )
 
-    def test_creates_with_both_methodologies(self, org_id: UUID, user_id: UUID, now: datetime) -> None:
+    def test_creates_with_both_methodologies(
+        self, org_id: UUID, user_id: UUID, now: datetime
+    ) -> None:
         p = Project(**self._base(org_id, user_id, now))
         assert Methodology.PROTEIN_TRACKER in p.methodologies_enabled
 
-    def test_rejects_empty_methodology_set(self, org_id: UUID, user_id: UUID, now: datetime) -> None:
+    def test_rejects_empty_methodology_set(
+        self, org_id: UUID, user_id: UUID, now: datetime
+    ) -> None:
         base = self._base(org_id, user_id, now)
         base["methodologies_enabled"] = frozenset()
         with pytest.raises(PydanticValidationError):
@@ -106,7 +110,9 @@ class TestProject:
         with pytest.raises(PydanticValidationError):
             Project(**base)
 
-    def test_pinned_pt_requires_pt_enabled(self, org_id: UUID, user_id: UUID, now: datetime) -> None:
+    def test_pinned_pt_requires_pt_enabled(
+        self, org_id: UUID, user_id: UUID, now: datetime
+    ) -> None:
         base = self._base(org_id, user_id, now)
         base["methodologies_enabled"] = frozenset({Methodology.WWF})
         base["pinned_pt_version"] = "1.0.0"
@@ -128,9 +134,7 @@ class TestProject:
         p = Project(**self._base(org_id, user_id, now))
         assert p.project_status is ProjectStatus.CREATED
 
-    def test_project_status_can_be_set(
-        self, org_id: UUID, user_id: UUID, now: datetime
-    ) -> None:
+    def test_project_status_can_be_set(self, org_id: UUID, user_id: UUID, now: datetime) -> None:
         base = self._base(org_id, user_id, now)
         base["project_status"] = ProjectStatus.CALCULATION
         p = Project(**base)

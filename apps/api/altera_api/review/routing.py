@@ -19,6 +19,7 @@ The routing rules:
 | AI classifier             | ``AIProviderError``       | — (transient; retry)  |
 | Analyst request           | (any)                     | ``requested``         |
 """
+
 from __future__ import annotations
 
 from datetime import datetime

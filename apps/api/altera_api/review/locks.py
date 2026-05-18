@@ -6,6 +6,7 @@ until the lock expires. The lock semantics are entirely query-based —
 no background timers, no cleanup jobs. Every state-changing call passes
 ``now`` so tests can drive the clock deterministically.
 """
+
 from __future__ import annotations
 
 from datetime import datetime

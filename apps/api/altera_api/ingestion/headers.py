@@ -5,6 +5,7 @@ whitespace, lowercase, convert internal whitespace and hyphens to
 underscores. This makes `"Items Purchased"`, `"items-purchased"`, and
 `"items_purchased"` all map to `items_purchased`.
 """
+
 from __future__ import annotations
 
 import re

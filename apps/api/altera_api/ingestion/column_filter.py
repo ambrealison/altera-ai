@@ -9,6 +9,7 @@ here.
 This filter runs *before* parsing into RawProduct, so types do not
 matter — the filter operates on column names only.
 """
+
 from __future__ import annotations
 
 import re

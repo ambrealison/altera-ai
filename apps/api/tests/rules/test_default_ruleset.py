@@ -5,6 +5,7 @@ classifications on a handful of canonical products. They are not
 exhaustive — the deterministic engine is allowed to pass-through, and
 the bundled rule set is intentionally narrow at this phase.
 """
+
 from __future__ import annotations
 
 from datetime import datetime

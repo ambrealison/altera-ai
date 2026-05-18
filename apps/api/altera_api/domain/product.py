@@ -8,6 +8,7 @@ field blocks attached.
 These models do not classify products; classification is a separate
 concern in `protein_tracker.py` / `wwf.py`.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -136,7 +137,10 @@ class NormalizedProduct(DomainBase):
             raise ValueError("protein_tracker is enabled but pt_fields is missing.")
         if Methodology.WWF in self.methodologies_enabled and self.wwf_fields is None:
             raise ValueError("wwf is enabled but wwf_fields is missing.")
-        if Methodology.PROTEIN_TRACKER not in self.methodologies_enabled and self.pt_fields is not None:
+        if (
+            Methodology.PROTEIN_TRACKER not in self.methodologies_enabled
+            and self.pt_fields is not None
+        ):
             raise ValueError("pt_fields is present but protein_tracker is not enabled.")
         if Methodology.WWF not in self.methodologies_enabled and self.wwf_fields is not None:
             raise ValueError("wwf_fields is present but wwf is not enabled.")

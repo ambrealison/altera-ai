@@ -8,6 +8,7 @@ interface and the error contract.
 Providers must not maintain mutable state between calls; the engine
 above them treats each ``classify`` call as a pure function.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

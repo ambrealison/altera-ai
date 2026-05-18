@@ -1,4 +1,5 @@
 """End-to-end ingestion tests, including against Phase 2 fixtures."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -111,6 +112,7 @@ def test_pt_unit_conversion_fixture_g_and_lb_normalised(
     ].weight_per_item_kg == __import__("decimal").Decimal("0.300")
     # 2 lb → 0.90718474 kg
     from decimal import Decimal
+
     assert by_id["U-PT-011"].weight_per_item_kg == Decimal("2.0") * Decimal("0.45359237")
 
 
@@ -142,10 +144,10 @@ def test_pipeline_aggregates_row_errors() -> None:
         b"external_product_id,product_name,weight_per_item_kg,weight_per_item_g,"
         b"items_purchased,protein_pct\n"
         b"P-OK,Lentil Soup,0.4,,1000,4.5\n"
-        b"P-MIX,Bad Row,0.4,400,500,5\n"          # mixed weight units
-        b"P-NEG,Bad Row,-1,,500,5\n"              # negative weight
-        b"P-PCT,Bad Row,0.4,,500,150\n"           # protein out of range
-        b",Missing ID,0.4,,500,5\n"               # missing external_product_id
+        b"P-MIX,Bad Row,0.4,400,500,5\n"  # mixed weight units
+        b"P-NEG,Bad Row,-1,,500,5\n"  # negative weight
+        b"P-PCT,Bad Row,0.4,,500,150\n"  # protein out of range
+        b",Missing ID,0.4,,500,5\n"  # missing external_product_id
     )
     result = ingest_csv_bytes(
         csv_bytes,

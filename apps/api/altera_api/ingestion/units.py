@@ -13,6 +13,7 @@ These helpers return ``(value | None, error_code | None)`` tuples.
 A returned `value` is always a `Decimal`; the caller is responsible for
 range checking it against the methodology bounds.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation

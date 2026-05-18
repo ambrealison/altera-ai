@@ -1,6 +1,7 @@
 """End-to-end happy path: create project → upload CSV → classify
 → review unknown items → run → export.
 """
+
 from __future__ import annotations
 
 import csv
@@ -53,9 +54,7 @@ def test_upload_drops_commercial_columns(client: TestClient) -> None:
     assert body["products_count"] == 1
 
 
-def test_classify_upload_routes_unknowns_to_review(
-    client: TestClient, pt_tiny_csv: bytes
-) -> None:
+def test_classify_upload_routes_unknowns_to_review(client: TestClient, pt_tiny_csv: bytes) -> None:
     pid = _create_project(client)
     upload = client.post(
         f"/api/v1/projects/{pid}/uploads",
@@ -74,9 +73,7 @@ def test_classify_upload_routes_unknowns_to_review(
     assert body["queued_for_review"] == body["pass_through"] + body["rule_collision"]
 
 
-def test_review_listing_includes_queue_items(
-    client: TestClient, pt_tiny_csv: bytes
-) -> None:
+def test_review_listing_includes_queue_items(client: TestClient, pt_tiny_csv: bytes) -> None:
     pid = _create_project(client)
     upload = client.post(
         f"/api/v1/projects/{pid}/uploads",
@@ -122,9 +119,7 @@ def test_reviewer_change_decision_promotes_classification(
     assert body["current_category"] == "plant_based_core"
 
 
-def test_full_pipeline_run_and_export(
-    client: TestClient, pt_tiny_csv: bytes
-) -> None:
+def test_full_pipeline_run_and_export(client: TestClient, pt_tiny_csv: bytes) -> None:
     pid = _create_project(client)
     upload = client.post(
         f"/api/v1/projects/{pid}/uploads",

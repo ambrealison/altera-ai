@@ -8,6 +8,7 @@ The calculators are pure — no I/O, no clock, no randomness. The
 orchestration layer above passes pre-classified products in and
 persists what the calculator returns.
 """
+
 from __future__ import annotations
 
 from altera_api.calculation.protein_tracker import (

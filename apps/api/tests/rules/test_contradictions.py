@@ -10,6 +10,7 @@ Covers _detect_contradictions() via the public classify_* entry points:
 - contradiction_notes tuple content verified
 - both PT and WWF engines detect the same contradictions
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -27,10 +28,9 @@ from altera_api.rules.loader import load_rules_from_dir
 # Vegan label + animal ingredient
 # ---------------------------------------------------------------------------
 
+
 class TestVeganLabelContradictions:
-    def test_vegan_label_whole_milk_is_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_vegan_label_whole_milk_is_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegan Protein Shake",
@@ -39,12 +39,11 @@ class TestVeganLabelContradictions:
         )
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
-        assert any("vegan label" in note and "whole milk" in note
-                   for note in verdict.contradiction_notes)
+        assert any(
+            "vegan label" in note and "whole milk" in note for note in verdict.contradiction_notes
+        )
 
-    def test_vegan_label_whey_is_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_vegan_label_whey_is_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegan Protein Bar",
@@ -55,9 +54,7 @@ class TestVeganLabelContradictions:
         assert isinstance(verdict, PTContradiction)
         assert any("vegan" in note for note in verdict.contradiction_notes)
 
-    def test_vegan_label_egg_white_is_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_vegan_label_egg_white_is_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegan Meringue Mix",
@@ -68,9 +65,7 @@ class TestVeganLabelContradictions:
         assert isinstance(verdict, PTContradiction)
         assert any("vegan" in note for note in verdict.contradiction_notes)
 
-    def test_vegan_label_gelatin_is_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_vegan_label_gelatin_is_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegan Gummy Bears",
@@ -80,9 +75,7 @@ class TestVeganLabelContradictions:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
 
-    def test_vegan_label_honey_is_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_vegan_label_honey_is_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegan Cereal Bar",
@@ -92,9 +85,7 @@ class TestVeganLabelContradictions:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
 
-    def test_vegan_label_casein_is_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_vegan_label_casein_is_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegan Slow Release Protein",
@@ -104,9 +95,7 @@ class TestVeganLabelContradictions:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
 
-    def test_wwf_vegan_label_whey_is_contradiction(
-        self, make_wwf_product, now: datetime
-    ) -> None:
+    def test_wwf_vegan_label_whey_is_contradiction(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_wwf_product(
             name="Vegan Protein Powder",
@@ -121,6 +110,7 @@ class TestVeganLabelContradictions:
 # ---------------------------------------------------------------------------
 # Vegan label + animal retailer category
 # ---------------------------------------------------------------------------
+
 
 class TestVeganRetailerCategoryContradictions:
     def test_vegan_label_meat_category_is_contradiction(
@@ -192,10 +182,9 @@ class TestVeganRetailerCategoryContradictions:
 # Vegetarian label + meat ingredient
 # ---------------------------------------------------------------------------
 
+
 class TestVegetarianLabelContradictions:
-    def test_vegetarian_label_beef_is_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_vegetarian_label_beef_is_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegetarian Bolognese Sauce",
@@ -205,8 +194,7 @@ class TestVegetarianLabelContradictions:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
         assert any(
-            "vegetarian label" in note and "beef" in note
-            for note in verdict.contradiction_notes
+            "vegetarian label" in note and "beef" in note for note in verdict.contradiction_notes
         )
 
     def test_vegetarian_label_chicken_is_contradiction(
@@ -221,9 +209,7 @@ class TestVegetarianLabelContradictions:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
 
-    def test_vegetarian_label_pork_is_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_vegetarian_label_pork_is_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegetarian Pizza",
@@ -257,9 +243,7 @@ class TestVegetarianLabelContradictions:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
 
-    def test_wwf_vegetarian_beef_is_contradiction(
-        self, make_wwf_product, now: datetime
-    ) -> None:
+    def test_wwf_vegetarian_beef_is_contradiction(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_wwf_product(
             name="Vegetarian Ready Meal",
@@ -274,10 +258,9 @@ class TestVegetarianLabelContradictions:
 # Plant-based name/label + dairy/whey ingredient
 # ---------------------------------------------------------------------------
 
+
 class TestPlantBasedClaimContradictions:
-    def test_plant_based_name_whey_is_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_plant_based_name_whey_is_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Plant-Based Protein Bar",
@@ -286,13 +269,10 @@ class TestPlantBasedClaimContradictions:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
         assert any(
-            "plant-based claim" in note and "whey" in note
-            for note in verdict.contradiction_notes
+            "plant-based claim" in note and "whey" in note for note in verdict.contradiction_notes
         )
 
-    def test_plant_based_name_casein_is_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_plant_based_name_casein_is_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Plant Based Protein Shake",
@@ -312,9 +292,7 @@ class TestPlantBasedClaimContradictions:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
 
-    def test_plant_based_label_whey_is_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_plant_based_label_whey_is_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="High Protein Bar",
@@ -324,9 +302,7 @@ class TestPlantBasedClaimContradictions:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
 
-    def test_wwf_plant_based_whey_is_contradiction(
-        self, make_wwf_product, now: datetime
-    ) -> None:
+    def test_wwf_plant_based_whey_is_contradiction(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_wwf_product(
             name="Plant-Based Recovery Shake",
@@ -340,14 +316,16 @@ class TestPlantBasedClaimContradictions:
 # Out-of-scope product signals
 # ---------------------------------------------------------------------------
 
+
 class TestOutOfScopeSignals:
     def test_dog_food_is_oos(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(name="Premium Dog Food Chicken & Rice 400g")
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
-        assert any("out-of-scope" in note and "dog food" in note
-                   for note in verdict.contradiction_notes)
+        assert any(
+            "out-of-scope" in note and "dog food" in note for note in verdict.contradiction_notes
+        )
 
     def test_cat_food_is_oos(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
@@ -355,9 +333,7 @@ class TestOutOfScopeSignals:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
 
-    def test_cat_food_in_category_is_oos(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_cat_food_in_category_is_oos(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Felix Wet Food",
@@ -406,10 +382,9 @@ class TestOutOfScopeSignals:
 # No contradiction — genuine vegan / vegetarian products pass through
 # ---------------------------------------------------------------------------
 
+
 class TestNoFalsePositives:
-    def test_genuine_vegan_product_no_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_genuine_vegan_product_no_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegan Oat Milk",
@@ -443,9 +418,7 @@ class TestNoFalsePositives:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert not isinstance(verdict, PTContradiction)
 
-    def test_vegan_tofu_no_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_vegan_tofu_no_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Organic Silken Tofu",
@@ -455,18 +428,14 @@ class TestNoFalsePositives:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert not isinstance(verdict, PTContradiction)
 
-    def test_no_label_no_contradiction(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_no_label_no_contradiction(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Chicken Breast Fillets 500g",
             ingredients_text="Chicken breast",
         )
         # No vegan/vegetarian label → no contradiction possible from those checks
-        assert not isinstance(
-            classify_protein_tracker(product, rs.pt, now=now), PTContradiction
-        )
+        assert not isinstance(classify_protein_tracker(product, rs.pt, now=now), PTContradiction)
 
     def test_genuine_vegan_in_grocery_category_no_contradiction(
         self, make_pt_product, now: datetime
@@ -481,9 +450,7 @@ class TestNoFalsePositives:
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert not isinstance(verdict, PTContradiction)
 
-    def test_wwf_genuine_vegan_no_contradiction(
-        self, make_wwf_product, now: datetime
-    ) -> None:
+    def test_wwf_genuine_vegan_no_contradiction(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_wwf_product(
             name="Vegan Almond Milk",
@@ -498,10 +465,9 @@ class TestNoFalsePositives:
 # contradiction_notes content and tuple structure
 # ---------------------------------------------------------------------------
 
+
 class TestContradictionNotesContent:
-    def test_notes_is_non_empty_tuple(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_notes_is_non_empty_tuple(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegan Protein Shake",
@@ -513,9 +479,7 @@ class TestContradictionNotesContent:
         assert isinstance(verdict.contradiction_notes, tuple)
         assert len(verdict.contradiction_notes) >= 1
 
-    def test_notes_are_strings(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_notes_are_strings(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegan Bar",
@@ -548,18 +512,14 @@ class TestContradictionNotesContent:
         # However 'fresh meat' IS in _ANIMAL_RETAILER_CATEGORIES so we should get at least one note.)
         assert len(verdict.contradiction_notes) >= 1
 
-    def test_oos_note_contains_signal_keyword(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_oos_note_contains_signal_keyword(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(name="Whiskas Cat Food Tuna 400g")
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTContradiction)
         assert any("cat food" in note for note in verdict.contradiction_notes)
 
-    def test_product_id_matches(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_product_id_matches(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Vegan Gummy Bears",
@@ -575,6 +535,7 @@ class TestContradictionNotesContent:
 # ---------------------------------------------------------------------------
 # Contradiction bypasses rule matching (no PTMatched even if a rule would fire)
 # ---------------------------------------------------------------------------
+
 
 class TestContradictionBypassesRules:
     def test_vegan_milk_contradicts_before_plant_rule_fires(
@@ -592,9 +553,7 @@ class TestContradictionBypassesRules:
         # Contradiction check runs before rule matching → PTContradiction, not PTMatched
         assert isinstance(verdict, PTContradiction)
 
-    def test_oos_product_never_matched(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_oos_product_never_matched(self, make_pt_product, now: datetime) -> None:
         """A dog food product whose name contains 'chicken' would match
         a chicken rule — but OOS detection must fire first."""
         rs = load_rules_from_dir()

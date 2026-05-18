@@ -121,7 +121,9 @@ class TestWWFProductFields:
 
 
 class TestNormalizedProduct:
-    def _base(self, product_id: UUID, upload_id: UUID, project_id: UUID, org_id: UUID, now: datetime) -> dict:
+    def _base(
+        self, product_id: UUID, upload_id: UUID, project_id: UUID, org_id: UUID, now: datetime
+    ) -> dict:
         return dict(
             id=product_id,
             upload_id=upload_id,
@@ -208,9 +210,7 @@ class TestValidationReport:
             ValidationError(row_number=3, code="bad_protein", message="bad"),
             ValidationError(row_number=3, code="bad_unit", message="bad"),
         )
-        warnings = (
-            ValidationWarning(row_number=2, code="rounded", message="rounded"),
-        )
+        warnings = (ValidationWarning(row_number=2, code="rounded", message="rounded"),)
         rep = ValidationReport(upload_id=upload_id, total_rows=10, errors=errors, warnings=warnings)
         assert rep.error_count == 3
         assert rep.warning_count == 1

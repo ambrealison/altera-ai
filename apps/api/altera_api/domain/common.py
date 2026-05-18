@@ -1,4 +1,5 @@
 """Common types, enums, and the strict domain base model."""
+
 from __future__ import annotations
 
 from decimal import Decimal

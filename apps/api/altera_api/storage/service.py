@@ -4,6 +4,7 @@ Provides two operations used by the upload flow:
 - ``generate_upload_url`` — returns a signed upload URL the browser can PUT to directly.
 - ``download`` — downloads an object and returns its bytes (used by the ingest endpoint).
 """
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -39,10 +40,7 @@ class StorageService:
 
     def generate_upload_url(self, storage_path: str, expires_in: int = 300) -> str:
         """Return a signed URL the client can upload a file to."""
-        result = (
-            self._client.storage.from_(self.BUCKET)
-            .create_signed_upload_url(storage_path)
-        )
+        result = self._client.storage.from_(self.BUCKET).create_signed_upload_url(storage_path)
         # supabase-py returns {"signedUrl": "...", "token": "...", "path": "..."}
         return result["signedUrl"]
 

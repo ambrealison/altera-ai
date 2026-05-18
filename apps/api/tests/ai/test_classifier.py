@@ -1,4 +1,5 @@
 """End-to-end orchestrator tests covering each verdict branch."""
+
 from __future__ import annotations
 
 import json
@@ -89,23 +90,15 @@ class TestBelowThreshold:
         # The classification still exists.
         assert verdict.classification.confidence == Decimal("0.5")
 
-    def test_custom_threshold_above(
-        self, pt_product: NormalizedProduct, now: datetime
-    ) -> None:
+    def test_custom_threshold_above(self, pt_product: NormalizedProduct, now: datetime) -> None:
         provider = StaticFakeProvider(raw_text=_pt_response(confidence=0.5))
-        verdict = classify_pt(
-            pt_product, provider, now=now, threshold=Decimal("0.3")
-        )
+        verdict = classify_pt(pt_product, provider, now=now, threshold=Decimal("0.3"))
         assert isinstance(verdict, AIAccepted)
 
 
 class TestParseFailureRetry:
-    def test_retry_then_success(
-        self, pt_product: NormalizedProduct, now: datetime
-    ) -> None:
-        provider = EventuallyValidFakeProvider(
-            valid_text=_pt_response(), invalid_calls=1
-        )
+    def test_retry_then_success(self, pt_product: NormalizedProduct, now: datetime) -> None:
+        provider = EventuallyValidFakeProvider(valid_text=_pt_response(), invalid_calls=1)
         verdict = classify_pt(pt_product, provider, now=now)
         assert isinstance(verdict, AIAccepted)
         assert verdict.parse_failures == 1
@@ -131,9 +124,7 @@ class TestParseFailureRetry:
 
 
 class TestProviderError:
-    def test_surfaces_provider_error(
-        self, pt_product: NormalizedProduct, now: datetime
-    ) -> None:
+    def test_surfaces_provider_error(self, pt_product: NormalizedProduct, now: datetime) -> None:
         provider = RaisingFakeProvider(message="simulated 502")
         verdict = classify_pt(pt_product, provider, now=now)
         assert isinstance(verdict, AIProviderError)
@@ -152,9 +143,7 @@ class TestProviderError:
 
 
 class TestKeywordIntegration:
-    def test_keyword_driven_pt(
-        self, pt_product: NormalizedProduct, now: datetime
-    ) -> None:
+    def test_keyword_driven_pt(self, pt_product: NormalizedProduct, now: datetime) -> None:
         provider = KeywordFakeProvider(
             rules={
                 "Mystery": _pt_response(group="composite_products", confidence=0.85),

@@ -4,6 +4,7 @@ Bind a different backend in tests or future production config:
 
     app.dependency_overrides[get_worker] = lambda: CeleryRunner()
 """
+
 from __future__ import annotations
 
 from altera_api.jobs.runner import SyncDevRunner, WorkerBackend

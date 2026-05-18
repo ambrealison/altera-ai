@@ -2,6 +2,7 @@
 
 Bytes → (`ValidationReport`, tuple of `NormalizedProduct`, dropped columns).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

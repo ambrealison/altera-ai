@@ -82,9 +82,7 @@ class TestAcceptPT:
         reviewer_a: UUID,
         now: datetime,
     ) -> None:
-        terminated = pt_item_in_queue.model_copy(
-            update={"status": ManualReviewStatus.ACCEPTED}
-        )
+        terminated = pt_item_in_queue.model_copy(update={"status": ManualReviewStatus.ACCEPTED})
         with pytest.raises(IllegalTransitionError):
             accept_pt_item(
                 terminated,

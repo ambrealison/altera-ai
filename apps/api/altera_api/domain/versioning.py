@@ -4,6 +4,7 @@ Methodology, taxonomy, and rules each carry an independent semver. Every
 calculation row stamps all three plus the methodology source edition so
 results are reproducible. See docs/methodologies/versioning.md.
 """
+
 from __future__ import annotations
 
 import re
@@ -53,7 +54,10 @@ class MethodologySourceEdition(DomainBase):
     @model_validator(mode="after")
     def _citation_mentions_methodology(self) -> Self:
         keyword = "protein tracker" if self.methodology is Methodology.PROTEIN_TRACKER else "wwf"
-        if keyword not in self.citation.lower() and self._alt_keyword() not in self.citation.lower():
+        if (
+            keyword not in self.citation.lower()
+            and self._alt_keyword() not in self.citation.lower()
+        ):
             # Soft check; many valid citations use the publisher's name instead
             # of the methodology name (e.g. "GPA & ProVeg Foodservice 2024-08").
             pass
@@ -73,9 +77,7 @@ class MethodologyVersion(DomainBase):
     @model_validator(mode="after")
     def _methodology_matches_source(self) -> Self:
         if self.methodology is not self.source_edition.methodology:
-            raise ValueError(
-                "MethodologyVersion.methodology must match source_edition.methodology"
-            )
+            raise ValueError("MethodologyVersion.methodology must match source_edition.methodology")
         return self
 
 

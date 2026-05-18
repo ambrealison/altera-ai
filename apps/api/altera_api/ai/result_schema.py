@@ -12,6 +12,7 @@ The WWF contract uses two separate fields (``wwf_fg2_kind`` and
 ``WWFFG2Subgroup``. The result schema mirrors the LLM contract; a
 ``to_classification()`` adapter maps to the domain shape.
 """
+
 from __future__ import annotations
 
 import json
@@ -144,8 +145,7 @@ class WWFClassifierResult(_ResultBase):
             name, value = required[self.wwf_food_group]
             if value is None:
                 raise ValueError(
-                    f"{name} is required when wwf_food_group="
-                    f"{self.wwf_food_group.value}."
+                    f"{name} is required when wwf_food_group={self.wwf_food_group.value}."
                 )
         return self
 
@@ -160,18 +160,14 @@ class WWFClassifierResult(_ResultBase):
         )
         for name, value, parent in pairs:
             if value is not None and self.wwf_food_group is not parent:
-                raise ValueError(
-                    f"{name} must be null when wwf_food_group != {parent.value}."
-                )
+                raise ValueError(f"{name} must be null when wwf_food_group != {parent.value}.")
         return self
 
     @model_validator(mode="after")
     def _fg2_dairy_class_consistency(self) -> Self:
         if self.wwf_fg2_kind is WWFFG2Kind.DAIRY_ANIMAL:
             if self.wwf_fg2_dairy_class is None:
-                raise ValueError(
-                    "wwf_fg2_dairy_class is required when wwf_fg2_kind=dairy_animal."
-                )
+                raise ValueError("wwf_fg2_dairy_class is required when wwf_fg2_kind=dairy_animal.")
         elif self.wwf_fg2_dairy_class is not None:
             raise ValueError(
                 "wwf_fg2_dairy_class must be null when wwf_fg2_kind is not dairy_animal."
@@ -181,13 +177,9 @@ class WWFClassifierResult(_ResultBase):
     @model_validator(mode="after")
     def _composite_bucket_consistency(self) -> Self:
         if self.wwf_is_composite and self.wwf_composite_step1_bucket is None:
-            raise ValueError(
-                "wwf_composite_step1_bucket is required when wwf_is_composite=true."
-            )
+            raise ValueError("wwf_composite_step1_bucket is required when wwf_is_composite=true.")
         if not self.wwf_is_composite and self.wwf_composite_step1_bucket is not None:
-            raise ValueError(
-                "wwf_composite_step1_bucket must be null when wwf_is_composite=false."
-            )
+            raise ValueError("wwf_composite_step1_bucket must be null when wwf_is_composite=false.")
         return self
 
     @model_validator(mode="after")
@@ -206,9 +198,7 @@ class WWFClassifierResult(_ResultBase):
                     "system states (out_of_scope, unknown) must have no subgroup fields."
                 )
             if self.wwf_is_composite:
-                raise ValueError(
-                    "wwf_is_composite must be false for system states."
-                )
+                raise ValueError("wwf_is_composite must be false for system states.")
         return self
 
     def _fg2_subgroup(self) -> WWFFG2Subgroup | None:

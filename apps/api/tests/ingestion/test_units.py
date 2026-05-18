@@ -39,9 +39,7 @@ class TestWeight:
         assert normalise_weight_kg({"weight_per_item_kg": ""}) == (None, None)
 
     def test_mixed_units_rejected(self) -> None:
-        v, err = normalise_weight_kg(
-            {"weight_per_item_kg": "0.4", "weight_per_item_g": "400"}
-        )
+        v, err = normalise_weight_kg({"weight_per_item_kg": "0.4", "weight_per_item_g": "400"})
         assert v is None
         assert err == "mixed_weight_units"
 
@@ -74,9 +72,7 @@ class TestProtein:
 
     def test_g_per_100ml_with_density(self) -> None:
         # 3.4 g protein per 100ml, milk density ~1.03 g/ml → 3.4/1.03 ≈ 3.30097
-        v, err = normalise_protein_pct(
-            {"protein_g_per_100ml": "3.4", "density_g_per_ml": "1.03"}
-        )
+        v, err = normalise_protein_pct({"protein_g_per_100ml": "3.4", "density_g_per_ml": "1.03"})
         assert err is None
         assert v is not None
         assert v == Decimal("3.4") / Decimal("1.03")
@@ -86,9 +82,7 @@ class TestProtein:
         assert err == "missing_density"
 
     def test_g_per_serving_with_serving_g(self) -> None:
-        v, err = normalise_protein_pct(
-            {"protein_g_per_serving": "20", "serving_g": "100"}
-        )
+        v, err = normalise_protein_pct({"protein_g_per_serving": "20", "serving_g": "100"})
         assert err is None
         assert v == Decimal("20") / Decimal("100") * Decimal("100")
 
@@ -107,9 +101,7 @@ class TestProtein:
         assert err == "protein_out_of_range"
 
     def test_mixed_sources_rejected(self) -> None:
-        v, err = normalise_protein_pct(
-            {"protein_pct": "10", "protein_g_per_100g": "11"}
-        )
+        v, err = normalise_protein_pct({"protein_pct": "10", "protein_g_per_100g": "11"})
         assert err == "mixed_protein_inputs"
 
     def test_missing_returns_none_none(self) -> None:

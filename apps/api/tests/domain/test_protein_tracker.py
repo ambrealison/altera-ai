@@ -73,9 +73,7 @@ class TestProteinTrackerProductClassification:
         )
         assert c.rule_id == "pt.pulses.lentils"
 
-    def test_ai_requires_prompt_version_and_model(
-        self, product_id: UUID, now: datetime
-    ) -> None:
+    def test_ai_requires_prompt_version_and_model(self, product_id: UUID, now: datetime) -> None:
         with pytest.raises(PydanticValidationError):
             ProteinTrackerProductClassification(
                 product_id=product_id,
@@ -87,9 +85,7 @@ class TestProteinTrackerProductClassification:
                 updated_at=now,
             )
 
-    def test_manual_review_requires_reviewer(
-        self, product_id: UUID, now: datetime
-    ) -> None:
+    def test_manual_review_requires_reviewer(self, product_id: UUID, now: datetime) -> None:
         with pytest.raises(PydanticValidationError):
             ProteinTrackerProductClassification(
                 product_id=product_id,
@@ -99,9 +95,7 @@ class TestProteinTrackerProductClassification:
                 updated_at=now,
             )
 
-    def test_invalid_pt_group_string_rejected(
-        self, product_id: UUID, now: datetime
-    ) -> None:
+    def test_invalid_pt_group_string_rejected(self, product_id: UUID, now: datetime) -> None:
         with pytest.raises(PydanticValidationError):
             ProteinTrackerProductClassification(
                 product_id=product_id,
@@ -189,9 +183,7 @@ class TestProteinTrackerCalculationRow:
                 **_VER,
             )
 
-    def test_out_of_scope_must_have_zero_protein(
-        self, run_id: UUID, product_id: UUID
-    ) -> None:
+    def test_out_of_scope_must_have_zero_protein(self, run_id: UUID, product_id: UUID) -> None:
         with pytest.raises(PydanticValidationError):
             ProteinTrackerCalculationRow(
                 run_id=run_id,

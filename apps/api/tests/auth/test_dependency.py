@@ -1,4 +1,5 @@
 """Unit-level tests for the auth dependency."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -46,9 +47,7 @@ class TestNoAuthConfigured:
             "different-secret-also-32-bytes-long!!!!!",
             algorithm="HS256",
         )
-        r = client.get(
-            "/api/v1/me", headers={"Authorization": f"Bearer {wrong_secret_token}"}
-        )
+        r = client.get("/api/v1/me", headers={"Authorization": f"Bearer {wrong_secret_token}"})
         assert r.status_code == 401
 
     def test_expired_token_rejected(
@@ -70,9 +69,7 @@ class TestNoAuthConfigured:
         assert r.status_code == 401
         assert "expired" in r.json()["detail"].lower()
 
-    def test_token_without_secret_configured_rejected(
-        self, client: TestClient
-    ) -> None:
+    def test_token_without_secret_configured_rejected(self, client: TestClient) -> None:
         # SUPABASE_JWT_SECRET not set → can't verify any token → 401.
         token = jwt.encode(
             {
@@ -171,9 +168,7 @@ class TestDevFallback:
         # fallback enabled.
         monkeypatch.setenv("ALTERA_DEV_AUTH_ENABLED", "true")
         monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
-        r = client.get(
-            "/api/v1/me", headers={"Authorization": "Bearer not-a-real-token"}
-        )
+        r = client.get("/api/v1/me", headers={"Authorization": "Bearer not-a-real-token"})
         assert r.status_code == 401
 
     def test_dev_fallback_explicitly_disabled(

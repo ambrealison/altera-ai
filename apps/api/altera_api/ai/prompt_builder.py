@@ -13,6 +13,7 @@ format. The product-card section is validated by the outbound-payload
 guard (:mod:`altera_api.ai.policy`) before any HTTP request leaves the
 process.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

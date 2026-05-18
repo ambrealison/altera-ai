@@ -14,6 +14,7 @@ Covers:
 - max batch size enforced
 - response shape: action, requested_count, updated_count, decision_ids
 """
+
 from __future__ import annotations
 
 from uuid import UUID, uuid4
@@ -29,6 +30,7 @@ from altera_api.domain.common import ClientRole, OrganisationType, Role
 # ---------------------------------------------------------------------------
 # CSV fixture
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def multi_product_csv() -> bytes:
@@ -47,6 +49,7 @@ def multi_product_csv() -> bytes:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _create_project(client: TestClient, methodology: str = "protein_tracker") -> str:
     r = client.post(
@@ -100,10 +103,9 @@ def _client_ctx(org_id: UUID) -> AuthContext:
 # Response shape
 # ---------------------------------------------------------------------------
 
+
 class TestResponseShape:
-    def test_bulk_accept_response_shape(
-        self, client: TestClient, multi_product_csv: bytes
-    ) -> None:
+    def test_bulk_accept_response_shape(self, client: TestClient, multi_product_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, multi_product_csv)
         ids = _get_review_product_ids(client, pid)
@@ -132,6 +134,7 @@ class TestResponseShape:
 # Bulk accept
 # ---------------------------------------------------------------------------
 
+
 class TestBulkAccept:
     def test_bulk_accept_removes_items_from_queue(
         self, client: TestClient, multi_product_csv: bytes
@@ -155,9 +158,7 @@ class TestBulkAccept:
         for accepted_id in ids[:2]:
             assert accepted_id not in remaining
 
-    def test_bulk_accept_all_items(
-        self, client: TestClient, multi_product_csv: bytes
-    ) -> None:
+    def test_bulk_accept_all_items(self, client: TestClient, multi_product_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, multi_product_csv)
         ids = _get_review_product_ids(client, pid)
@@ -223,6 +224,7 @@ class TestBulkAccept:
 # Bulk defer
 # ---------------------------------------------------------------------------
 
+
 class TestBulkDefer:
     def test_bulk_defer_keeps_items_in_queue_as_deferred(
         self, client: TestClient, multi_product_csv: bytes
@@ -254,6 +256,7 @@ class TestBulkDefer:
 # ---------------------------------------------------------------------------
 # Bulk change PT group
 # ---------------------------------------------------------------------------
+
 
 class TestBulkChangePtGroup:
     def test_bulk_change_pt_group_updates_classification(
@@ -335,6 +338,7 @@ class TestBulkChangePtGroup:
 # Validation — all-or-nothing
 # ---------------------------------------------------------------------------
 
+
 class TestValidation:
     def test_invalid_product_id_rejects_whole_batch(
         self, client: TestClient, multi_product_csv: bytes
@@ -359,9 +363,7 @@ class TestValidation:
         remaining = _get_review_product_ids(client, pid)
         assert ids[0] in remaining
 
-    def test_terminal_items_rejected(
-        self, client: TestClient, multi_product_csv: bytes
-    ) -> None:
+    def test_terminal_items_rejected(self, client: TestClient, multi_product_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, multi_product_csv)
         ids = _get_review_product_ids(client, pid)
@@ -390,9 +392,7 @@ class TestValidation:
         # fails with "not found" (which is still a 400 all-or-nothing failure).
         assert r.status_code == 400
 
-    def test_max_batch_size_enforced(
-        self, client: TestClient, multi_product_csv: bytes
-    ) -> None:
+    def test_max_batch_size_enforced(self, client: TestClient, multi_product_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, multi_product_csv)
 
@@ -407,9 +407,7 @@ class TestValidation:
         )
         assert r.status_code == 422  # Pydantic max_length validation
 
-    def test_empty_product_ids_rejected(
-        self, client: TestClient, multi_product_csv: bytes
-    ) -> None:
+    def test_empty_product_ids_rejected(self, client: TestClient, multi_product_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, multi_product_csv)
 
@@ -427,6 +425,7 @@ class TestValidation:
 # ---------------------------------------------------------------------------
 # Permissions
 # ---------------------------------------------------------------------------
+
 
 class TestPermissions:
     def test_client_user_cannot_bulk_review(

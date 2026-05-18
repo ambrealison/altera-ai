@@ -9,6 +9,7 @@ The per-request JWT-scoped ``get_data_store`` dependency lives in
 ``altera_api.api.dependencies`` to avoid a circular import (auth
 dependency imports get_store; get_data_store needs auth dependency).
 """
+
 from __future__ import annotations
 
 from altera_api.persistence.factory import get_repository

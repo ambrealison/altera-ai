@@ -5,6 +5,7 @@ category to all of them, provided every selected item is for the same
 methodology. Each item still receives an individual
 ``ManualReviewDecision`` for the audit trail.
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -43,9 +44,7 @@ class BulkChangeRequestWWF:
     reason: str | None = None
 
 
-def _assert_single_methodology(
-    items: Sequence[ManualReviewItem], expected: Methodology
-) -> None:
+def _assert_single_methodology(items: Sequence[ManualReviewItem], expected: Methodology) -> None:
     for item in items:
         if item.methodology is not expected:
             raise MethodologyMismatchError(

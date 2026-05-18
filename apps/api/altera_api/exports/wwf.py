@@ -1,4 +1,5 @@
 """WWF exporters (CSV / JSON / Markdown)."""
+
 from __future__ import annotations
 
 import csv
@@ -81,9 +82,7 @@ def _ingredients_to_inline_json(
                 if ing.fg1_subgroup is not None
                 else (ing.fg2_subgroup.value if ing.fg2_subgroup is not None else None)
             ),
-            "ingredient_weight_kg_per_item": format_decimal(
-                ing.ingredient_weight_kg_per_item
-            ),
+            "ingredient_weight_kg_per_item": format_decimal(ing.ingredient_weight_kg_per_item),
         }
         for ing in ingredients
     ]
@@ -126,9 +125,7 @@ def render_wwf_csv(ctx: WWFExportContext) -> bytes:
                 row.wwf_food_group.value,
                 row.wwf_subgroup_label or "",
                 "true" if row.wwf_is_composite else "false",
-                row.wwf_composite_step1_bucket.value
-                if row.wwf_composite_step1_bucket
-                else "",
+                row.wwf_composite_step1_bucket.value if row.wwf_composite_step1_bucket else "",
                 format_decimal(weights.get(row.product_id)),  # type: ignore[arg-type]
                 format_decimal(items_sold.get(row.product_id)),  # type: ignore[arg-type]
                 format_decimal(row.weight_kg),
@@ -162,9 +159,7 @@ def render_wwf_json(ctx: WWFExportContext) -> str:
     }
 
     composite_share = (
-        format_decimal(
-            (s.composites_total_weight_kg * 100) / s.total_sales_weight_in_scope_kg
-        )
+        format_decimal((s.composites_total_weight_kg * 100) / s.total_sales_weight_in_scope_kg)
         if s.total_sales_weight_in_scope_kg > 0
         else None
     )
@@ -185,17 +180,13 @@ def render_wwf_json(ctx: WWFExportContext) -> str:
                 "brand": product.brand if product else None,
                 "is_own_brand": product.is_own_brand if product else None,
                 "retail_channel": (
-                    product.retail_channel.value
-                    if product and product.retail_channel
-                    else None
+                    product.retail_channel.value if product and product.retail_channel else None
                 ),
                 "wwf_food_group": row.wwf_food_group.value,
                 "wwf_subgroup": row.wwf_subgroup_label,
                 "wwf_is_composite": row.wwf_is_composite,
                 "wwf_composite_step1_bucket": (
-                    row.wwf_composite_step1_bucket.value
-                    if row.wwf_composite_step1_bucket
-                    else None
+                    row.wwf_composite_step1_bucket.value if row.wwf_composite_step1_bucket else None
                 ),
                 "in_scope": row.in_scope,
                 "weight_per_item_kg": format_decimal(weights.get(row.product_id)) or None,
@@ -206,12 +197,8 @@ def render_wwf_json(ctx: WWFExportContext) -> str:
                     [
                         {
                             "food_group": ing.food_group.value,
-                            "fg1_subgroup": (
-                                ing.fg1_subgroup.value if ing.fg1_subgroup else None
-                            ),
-                            "fg2_subgroup": (
-                                ing.fg2_subgroup.value if ing.fg2_subgroup else None
-                            ),
+                            "fg1_subgroup": (ing.fg1_subgroup.value if ing.fg1_subgroup else None),
+                            "fg2_subgroup": (ing.fg2_subgroup.value if ing.fg2_subgroup else None),
                             "ingredient_weight_kg_per_item": format_decimal(
                                 ing.ingredient_weight_kg_per_item
                             ),
@@ -334,9 +321,7 @@ def render_wwf_markdown(ctx: WWFExportContext) -> str:
         "see docs/methodologies/wwf.md._"
     )
     parts.append("")
-    parts.append(
-        f"- Plant-attributed weight: {format_decimal(s.whole_diet_plant_weight_kg)} kg"
-    )
+    parts.append(f"- Plant-attributed weight: {format_decimal(s.whole_diet_plant_weight_kg)} kg")
     parts.append(
         f"- Animal-attributed weight (with FG2 dairy equivalents): "
         f"{format_decimal(s.whole_diet_animal_weight_kg)} kg"
@@ -345,7 +330,9 @@ def render_wwf_markdown(ctx: WWFExportContext) -> str:
 
     parts.append("## Data quality")
     parts.append("")
-    parts.append(f"- Total in-scope sales weight: {format_decimal(s.total_sales_weight_in_scope_kg)} kg")
+    parts.append(
+        f"- Total in-scope sales weight: {format_decimal(s.total_sales_weight_in_scope_kg)} kg"
+    )
     parts.append(f"- Out-of-scope rows: {s.out_of_scope_count}")
     parts.append(f"- Unknown rows: {s.unknown_count}")
     parts.append("")

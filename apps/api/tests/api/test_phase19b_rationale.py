@@ -9,6 +9,7 @@ Covers:
 - rationale_notes empty for pass-through (requested) items
 - no commercial fields exposed
 """
+
 from __future__ import annotations
 
 import pytest
@@ -17,6 +18,7 @@ from fastapi.testclient import TestClient
 # ---------------------------------------------------------------------------
 # CSV fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def contradiction_csv() -> bytes:
@@ -59,6 +61,7 @@ def passthrough_csv() -> bytes:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _create_project(client: TestClient, methodology: str = "protein_tracker") -> str:
     r = client.post(
         "/api/v1/projects",
@@ -94,10 +97,9 @@ def _upload_and_classify(
 # Source field
 # ---------------------------------------------------------------------------
 
+
 class TestSourceField:
-    def test_source_present_in_response(
-        self, client: TestClient, passthrough_csv: bytes
-    ) -> None:
+    def test_source_present_in_response(self, client: TestClient, passthrough_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, passthrough_csv)
         items = client.get(f"/api/v1/projects/{pid}/review").json()
@@ -105,9 +107,7 @@ class TestSourceField:
         for item in items:
             assert "source" in item
 
-    def test_deterministic_source_value(
-        self, client: TestClient, passthrough_csv: bytes
-    ) -> None:
+    def test_deterministic_source_value(self, client: TestClient, passthrough_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, passthrough_csv)
         items = client.get(f"/api/v1/projects/{pid}/review").json()
@@ -143,6 +143,7 @@ class TestSourceField:
 # Rationale notes — contradiction
 # ---------------------------------------------------------------------------
 
+
 class TestContradictionRationale:
     def test_contradiction_item_is_queued(
         self, client: TestClient, contradiction_csv: bytes
@@ -150,9 +151,7 @@ class TestContradictionRationale:
         pid = _create_project(client)
         _upload_and_classify(client, pid, contradiction_csv)
         items = client.get(f"/api/v1/projects/{pid}/review").json()
-        contradiction_items = [
-            i for i in items if i["reason"] == "contradiction_detected"
-        ]
+        contradiction_items = [i for i in items if i["reason"] == "contradiction_detected"]
         assert len(contradiction_items) >= 1
 
     def test_contradiction_rationale_notes_non_empty(
@@ -161,14 +160,10 @@ class TestContradictionRationale:
         pid = _create_project(client)
         _upload_and_classify(client, pid, contradiction_csv)
         items = client.get(f"/api/v1/projects/{pid}/review").json()
-        contradiction_items = [
-            i for i in items if i["reason"] == "contradiction_detected"
-        ]
+        contradiction_items = [i for i in items if i["reason"] == "contradiction_detected"]
         assert len(contradiction_items) >= 1
         for item in contradiction_items:
-            assert len(item["rationale_notes"]) > 0, (
-                "contradiction items must have rationale_notes"
-            )
+            assert len(item["rationale_notes"]) > 0, "contradiction items must have rationale_notes"
 
     def test_contradiction_note_mentions_vegan_and_category(
         self, client: TestClient, contradiction_csv: bytes
@@ -176,9 +171,7 @@ class TestContradictionRationale:
         pid = _create_project(client)
         _upload_and_classify(client, pid, contradiction_csv)
         items = client.get(f"/api/v1/projects/{pid}/review").json()
-        contradiction_items = [
-            i for i in items if i["reason"] == "contradiction_detected"
-        ]
+        contradiction_items = [i for i in items if i["reason"] == "contradiction_detected"]
         assert len(contradiction_items) >= 1
         notes_text = " ".join(
             " ".join(item["rationale_notes"]) for item in contradiction_items
@@ -190,10 +183,9 @@ class TestContradictionRationale:
 # Rationale notes — rule collision
 # ---------------------------------------------------------------------------
 
+
 class TestRuleCollisionRationale:
-    def test_collision_item_is_queued(
-        self, client: TestClient, collision_csv: bytes
-    ) -> None:
+    def test_collision_item_is_queued(self, client: TestClient, collision_csv: bytes) -> None:
         pid = _create_project(client)
         _upload_and_classify(client, pid, collision_csv)
         items = client.get(f"/api/v1/projects/{pid}/review").json()
@@ -210,13 +202,9 @@ class TestRuleCollisionRationale:
         assert len(collision_items) >= 1
         for item in collision_items:
             notes = item["rationale_notes"]
-            assert len(notes) >= 2, (
-                "rule_collision must expose at least two conflicting rule IDs"
-            )
+            assert len(notes) >= 2, "rule_collision must expose at least two conflicting rule IDs"
             # Rule IDs use dot-notation
-            assert all("." in note for note in notes), (
-                f"rule IDs should be dot-separated: {notes}"
-            )
+            assert all("." in note for note in notes), f"rule IDs should be dot-separated: {notes}"
 
     def test_collision_notes_include_known_rule_ids(
         self, client: TestClient, collision_csv: bytes
@@ -236,6 +224,7 @@ class TestRuleCollisionRationale:
 # Rationale notes — pass-through / requested
 # ---------------------------------------------------------------------------
 
+
 class TestPassthroughRationale:
     def test_passthrough_rationale_notes_empty(
         self, client: TestClient, passthrough_csv: bytes
@@ -254,6 +243,7 @@ class TestPassthroughRationale:
 # No commercial fields
 # ---------------------------------------------------------------------------
 
+
 class TestNoCommercialFields:
     def test_rationale_fields_present_no_commercial_fields(
         self, client: TestClient, contradiction_csv: bytes
@@ -262,10 +252,20 @@ class TestNoCommercialFields:
         _upload_and_classify(client, pid, contradiction_csv)
         items = client.get(f"/api/v1/projects/{pid}/review").json()
         assert len(items) > 0
-        required_rationale = {"source", "rule_id", "ai_model", "ai_prompt_version", "rationale_notes"}
+        required_rationale = {
+            "source",
+            "rule_id",
+            "ai_model",
+            "ai_prompt_version",
+            "rationale_notes",
+        }
         forbidden_commercial = {
-            "items_purchased", "items_sold", "weight_per_item_kg",
-            "revenue", "margin", "supplier_terms",
+            "items_purchased",
+            "items_sold",
+            "weight_per_item_kg",
+            "revenue",
+            "margin",
+            "supplier_terms",
         }
         for item in items:
             for field in required_rationale:

@@ -5,6 +5,7 @@ and produces a ``RawProduct`` plus zero or more validation entries.
 The parser is methodology-agnostic — methodology requirements are the
 normalizer's job.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -178,9 +179,16 @@ def parse_row(
         items_sold = Decimal(int(items_sold))
 
     # --- Per-product PT split (composite extension) ---
-    plant_protein_pct, _ = _decimal_or_error(row.get("plant_protein_pct"), errors, row_number, "plant_protein_pct")
-    animal_protein_pct, _ = _decimal_or_error(row.get("animal_protein_pct"), errors, row_number, "animal_protein_pct")
-    for value, field in ((plant_protein_pct, "plant_protein_pct"), (animal_protein_pct, "animal_protein_pct")):
+    plant_protein_pct, _ = _decimal_or_error(
+        row.get("plant_protein_pct"), errors, row_number, "plant_protein_pct"
+    )
+    animal_protein_pct, _ = _decimal_or_error(
+        row.get("animal_protein_pct"), errors, row_number, "animal_protein_pct"
+    )
+    for value, field in (
+        (plant_protein_pct, "plant_protein_pct"),
+        (animal_protein_pct, "animal_protein_pct"),
+    ):
         if value is not None and (value < 0 or value > Decimal("100")):
             errors.append(
                 ValidationError(

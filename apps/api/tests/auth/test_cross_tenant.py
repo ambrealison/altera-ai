@@ -1,4 +1,5 @@
 """Cross-tenant isolation: a user in org A cannot see/touch org B's data."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -29,12 +30,8 @@ def two_tenants(store: InMemoryStore) -> tuple[UUID, UUID, UUID, UUID]:
     org_b = UUID("22222222-2222-2222-2222-222222222222")
     user_a = UUID("00000000-0000-0000-0000-000000000a01")
     user_b = UUID("00000000-0000-0000-0000-000000000a02")
-    store.organisations[org_a] = Organisation(
-        id=org_a, name="Org A", slug="org-a", created_at=now
-    )
-    store.organisations[org_b] = Organisation(
-        id=org_b, name="Org B", slug="org-b", created_at=now
-    )
+    store.organisations[org_a] = Organisation(id=org_a, name="Org A", slug="org-a", created_at=now)
+    store.organisations[org_b] = Organisation(id=org_b, name="Org B", slug="org-b", created_at=now)
     store.users[user_a] = UserProfile(
         user_id=user_a,
         organisation_id=org_a,

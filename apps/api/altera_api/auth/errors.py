@@ -1,4 +1,5 @@
 """Auth-specific exceptions surfaced as HTTP 401/403."""
+
 from __future__ import annotations
 
 

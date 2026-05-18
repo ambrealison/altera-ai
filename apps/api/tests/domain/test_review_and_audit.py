@@ -29,9 +29,7 @@ class TestManualReviewItem:
         )
         assert item.soft_lock_user_id is None
 
-    def test_reviewing_requires_soft_lock(
-        self, product_id: UUID, now: datetime
-    ) -> None:
+    def test_reviewing_requires_soft_lock(self, product_id: UUID, now: datetime) -> None:
         with pytest.raises(PydanticValidationError):
             ManualReviewItem(
                 product_id=product_id,
@@ -92,9 +90,7 @@ class TestManualReviewItem:
             assert s.is_terminal
         assert not ManualReviewStatus.IN_QUEUE.is_terminal
 
-    def test_owner_type_defaults_to_altera_internal(
-        self, product_id: UUID, now: datetime
-    ) -> None:
+    def test_owner_type_defaults_to_altera_internal(self, product_id: UUID, now: datetime) -> None:
         item = ManualReviewItem(
             product_id=product_id,
             methodology=Methodology.PROTEIN_TRACKER,
@@ -177,9 +173,7 @@ class TestAuditEvent:
                 created_at=now,
             )
 
-    def test_user_event_with_actor_ok(
-        self, org_id: UUID, user_id: UUID, now: datetime
-    ) -> None:
+    def test_user_event_with_actor_ok(self, org_id: UUID, user_id: UUID, now: datetime) -> None:
         e = AuditEvent(**self._base(org_id, user_id, now))
         assert e.action is AuditEventType.PROJECT_CREATED
 
@@ -196,9 +190,7 @@ class TestAuditEvent:
                 created_at=now,
             )
 
-    def test_commercial_data_block_requires_field_name(
-        self, org_id: UUID, now: datetime
-    ) -> None:
+    def test_commercial_data_block_requires_field_name(self, org_id: UUID, now: datetime) -> None:
         with pytest.raises(PydanticValidationError):
             AuditEvent(
                 id=UUID("00000000-0000-0000-0000-00000000ee04"),
@@ -209,9 +201,7 @@ class TestAuditEvent:
                 created_at=now,
             )
 
-    def test_commercial_data_block_with_field_name_ok(
-        self, org_id: UUID, now: datetime
-    ) -> None:
+    def test_commercial_data_block_with_field_name_ok(self, org_id: UUID, now: datetime) -> None:
         e = AuditEvent(
             id=UUID("00000000-0000-0000-0000-00000000ee05"),
             organisation_id=org_id,

@@ -11,6 +11,7 @@ To swap to async workers:
 None of those require changes to routes or tasks — only the
 ``get_worker`` dependency binding changes.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable

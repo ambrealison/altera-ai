@@ -8,6 +8,7 @@ For projects using asymmetric signing (RS256 with JWKS), swap the
 ``decode`` call below for ``PyJWKClient`` — the rest of the layer
 doesn't change.
 """
+
 from __future__ import annotations
 
 from typing import Any

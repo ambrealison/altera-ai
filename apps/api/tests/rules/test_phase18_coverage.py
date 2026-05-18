@@ -9,6 +9,7 @@ Covers the new product categories added in Phase 18:
 - AI invoked when pass-through (PTPassThrough)
 - Methodology separation (PT verdict ≠ WWF verdict for same product)
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -35,6 +36,7 @@ from altera_api.rules.loader import load_rules_from_dir
 # ---------------------------------------------------------------------------
 # PT — animal_core expansions
 # ---------------------------------------------------------------------------
+
 
 class TestPTAnimalCoreExpanded:
     def test_chorizo_is_animal_core(self, make_pt_product, now: datetime) -> None:
@@ -105,6 +107,7 @@ class TestPTAnimalCoreExpanded:
 # PT — plant_based_core expansions
 # ---------------------------------------------------------------------------
 
+
 class TestPTPlantCoreExpanded:
     def test_tofu_is_plant_based_core(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
@@ -127,22 +130,16 @@ class TestPTPlantCoreExpanded:
         assert isinstance(verdict, PTMatched)
         assert verdict.classification.pt_group is ProteinTrackerGroup.PLANT_BASED_CORE
 
-    def test_pea_protein_bar_is_plant_based_core(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_pea_protein_bar_is_plant_based_core(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(name="Pea Protein Bar Salted Caramel", labels=("vegan",))
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTMatched)
         assert verdict.classification.pt_group is ProteinTrackerGroup.PLANT_BASED_CORE
 
-    def test_plant_protein_bar_is_plant_based_core(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_plant_protein_bar_is_plant_based_core(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
-        product = make_pt_product(
-            name="Plant Protein Bar Chocolate Peanut", labels=("vegan",)
-        )
+        product = make_pt_product(name="Plant Protein Bar Chocolate Peanut", labels=("vegan",))
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         assert isinstance(verdict, PTMatched)
         assert verdict.classification.pt_group is ProteinTrackerGroup.PLANT_BASED_CORE
@@ -154,9 +151,7 @@ class TestPTPlantCoreExpanded:
         assert isinstance(verdict, PTMatched)
         assert verdict.classification.pt_group is ProteinTrackerGroup.PLANT_BASED_CORE
 
-    def test_french_lentilles_is_plant_based_core(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_french_lentilles_is_plant_based_core(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(name="Lentilles Vertes du Puy 500g", language="fr")
         verdict = classify_protein_tracker(product, rs.pt, now=now)
@@ -175,6 +170,7 @@ class TestPTPlantCoreExpanded:
 # PT — plant_based_non_core expansions
 # ---------------------------------------------------------------------------
 
+
 class TestPTPlantNonCoreExpanded:
     def test_oat_cream_is_plant_non_core(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
@@ -190,9 +186,7 @@ class TestPTPlantNonCoreExpanded:
         assert isinstance(verdict, PTMatched)
         assert verdict.classification.pt_group is ProteinTrackerGroup.PLANT_BASED_NON_CORE
 
-    def test_coconut_yoghurt_is_plant_non_core(
-        self, make_pt_product, now: datetime
-    ) -> None:
+    def test_coconut_yoghurt_is_plant_non_core(self, make_pt_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_pt_product(
             name="Coconut Yoghurt Natural 400g", labels=("vegan", "dairy_free")
@@ -212,6 +206,7 @@ class TestPTPlantNonCoreExpanded:
 # ---------------------------------------------------------------------------
 # PT — composite_products expansions
 # ---------------------------------------------------------------------------
+
 
 class TestPTCompositesExpanded:
     def test_pizza_is_composite(self, make_pt_product, now: datetime) -> None:
@@ -236,6 +231,7 @@ class TestPTCompositesExpanded:
         # "chicken" fires poultry (animal_core) AND "salad" fires protein_salads (composite)
         # → both categories fire → routed to manual review as a collision
         from altera_api.rules.engine import PTRuleCollision
+
         assert isinstance(verdict, PTRuleCollision)
 
     def test_burger_is_composite(self, make_pt_product, now: datetime) -> None:
@@ -274,6 +270,7 @@ class TestPTCompositesExpanded:
         )
         verdict = classify_protein_tracker(product, rs.pt, now=now)
         from altera_api.rules.engine import PTContradiction
+
         assert isinstance(verdict, PTContradiction)
 
 
@@ -281,10 +278,9 @@ class TestPTCompositesExpanded:
 # WWF — FG1 expansions
 # ---------------------------------------------------------------------------
 
+
 class TestWWFFG1Expanded:
-    def test_processed_meat_is_fg1_processed(
-        self, make_wwf_product, now: datetime
-    ) -> None:
+    def test_processed_meat_is_fg1_processed(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_wwf_product(name="Chorizo Slices 150g")
         verdict = classify_wwf(product, rs.wwf, now=now)
@@ -292,9 +288,7 @@ class TestWWFFG1Expanded:
         assert verdict.classification.wwf_food_group is WWFFoodGroup.FG1
         assert verdict.classification.fg1_subgroup is WWFFG1Subgroup.PROCESSED_MEATS_ALTERNATIVES
 
-    def test_meat_alternative_is_fg1_meat_alt(
-        self, make_wwf_product, now: datetime
-    ) -> None:
+    def test_meat_alternative_is_fg1_meat_alt(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_wwf_product(name="Veggie Burger Patties 2 Pack", labels=("vegan",))
         verdict = classify_wwf(product, rs.wwf, now=now)
@@ -310,9 +304,7 @@ class TestWWFFG1Expanded:
         assert verdict.classification.wwf_food_group is WWFFoodGroup.FG1
         assert verdict.classification.fg1_subgroup is WWFFG1Subgroup.LEGUMES
 
-    def test_mycoprotein_is_fg1_alt_protein(
-        self, make_wwf_product, now: datetime
-    ) -> None:
+    def test_mycoprotein_is_fg1_alt_protein(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_wwf_product(name="Quorn Pieces 350g")
         verdict = classify_wwf(product, rs.wwf, now=now)
@@ -324,6 +316,7 @@ class TestWWFFG1Expanded:
 # ---------------------------------------------------------------------------
 # WWF — FG3 fat expansions
 # ---------------------------------------------------------------------------
+
 
 class TestWWFFG3Expanded:
     def test_lard_is_fg3_animal_fat(self, make_wwf_product, now: datetime) -> None:
@@ -346,6 +339,7 @@ class TestWWFFG3Expanded:
 # ---------------------------------------------------------------------------
 # WWF — FG4 fruit/veg expansions
 # ---------------------------------------------------------------------------
+
 
 class TestWWFFG4Expanded:
     def test_broccoli_is_fg4(self, make_wwf_product, now: datetime) -> None:
@@ -373,6 +367,7 @@ class TestWWFFG4Expanded:
 # ---------------------------------------------------------------------------
 # WWF — FG5 grain expansions
 # ---------------------------------------------------------------------------
+
 
 class TestWWFFG5Expanded:
     def test_oats_are_fg5_whole_grain(self, make_wwf_product, now: datetime) -> None:
@@ -404,6 +399,7 @@ class TestWWFFG5Expanded:
 # WWF — FG6 starchy veg
 # ---------------------------------------------------------------------------
 
+
 class TestWWFFG6StarchyVeg:
     def test_potato_is_fg6(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
@@ -431,6 +427,7 @@ class TestWWFFG6StarchyVeg:
 # WWF — FG7 snack expansions
 # ---------------------------------------------------------------------------
 
+
 class TestWWFFG7Expanded:
     def test_crisps_are_fg7_plant_snack(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
@@ -440,9 +437,7 @@ class TestWWFFG7Expanded:
         assert verdict.classification.wwf_food_group is WWFFoodGroup.FG7
         assert verdict.classification.fg7_snack_kind is WWFFG7SnackKind.PLANT_BASED_SNACK
 
-    def test_milk_chocolate_is_fg7_animal_snack(
-        self, make_wwf_product, now: datetime
-    ) -> None:
+    def test_milk_chocolate_is_fg7_animal_snack(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_wwf_product(name="Milk Chocolate Bar 100g")
         verdict = classify_wwf(product, rs.wwf, now=now)
@@ -450,9 +445,7 @@ class TestWWFFG7Expanded:
         assert verdict.classification.wwf_food_group is WWFFoodGroup.FG7
         assert verdict.classification.fg7_snack_kind is WWFFG7SnackKind.ANIMAL_BASED_SNACK
 
-    def test_dark_chocolate_is_fg7_plant_snack(
-        self, make_wwf_product, now: datetime
-    ) -> None:
+    def test_dark_chocolate_is_fg7_plant_snack(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_wwf_product(name="Dark Chocolate 85% 100g", labels=("vegan",))
         verdict = classify_wwf(product, rs.wwf, now=now)
@@ -460,9 +453,7 @@ class TestWWFFG7Expanded:
         assert verdict.classification.wwf_food_group is WWFFoodGroup.FG7
         assert verdict.classification.fg7_snack_kind is WWFFG7SnackKind.PLANT_BASED_SNACK
 
-    def test_beef_jerky_is_fg7_animal_snack(
-        self, make_wwf_product, now: datetime
-    ) -> None:
+    def test_beef_jerky_is_fg7_animal_snack(self, make_wwf_product, now: datetime) -> None:
         rs = load_rules_from_dir()
         product = make_wwf_product(name="Beef Jerky 60g")
         verdict = classify_wwf(product, rs.wwf, now=now)
@@ -475,10 +466,9 @@ class TestWWFFG7Expanded:
 # Methodology separation: same product → different PT and WWF verdicts
 # ---------------------------------------------------------------------------
 
+
 class TestMethodologySeparation:
-    def test_beef_mince_pt_vs_wwf(
-        self, make_pt_product, make_wwf_product, now: datetime
-    ) -> None:
+    def test_beef_mince_pt_vs_wwf(self, make_pt_product, make_wwf_product, now: datetime) -> None:
         """Beef mince maps to animal_core (PT) and FG1/red_meat (WWF) independently."""
         rs = load_rules_from_dir()
         pt_p = make_pt_product(name="Beef Mince 500g")
@@ -491,9 +481,7 @@ class TestMethodologySeparation:
         assert wwf_v.classification.wwf_food_group is WWFFoodGroup.FG1
         assert wwf_v.classification.fg1_subgroup is WWFFG1Subgroup.RED_MEAT
 
-    def test_oat_milk_pt_vs_wwf(
-        self, make_pt_product, make_wwf_product, now: datetime
-    ) -> None:
+    def test_oat_milk_pt_vs_wwf(self, make_pt_product, make_wwf_product, now: datetime) -> None:
         """Oat milk → plant_non_core (PT) and FG2/dairy_alt_plant (WWF)."""
         rs = load_rules_from_dir()
         pt_v = classify_protein_tracker(make_pt_product(name="Oat Milk 1L"), rs.pt, now=now)
@@ -508,11 +496,7 @@ class TestMethodologySeparation:
     ) -> None:
         """An unknown product is pass-through for both methodologies."""
         rs = load_rules_from_dir()
-        pt_v = classify_protein_tracker(
-            make_pt_product(name="Artisan Sauce 350ml"), rs.pt, now=now
-        )
-        wwf_v = classify_wwf(
-            make_wwf_product(name="Artisan Sauce 350ml"), rs.wwf, now=now
-        )
+        pt_v = classify_protein_tracker(make_pt_product(name="Artisan Sauce 350ml"), rs.pt, now=now)
+        wwf_v = classify_wwf(make_wwf_product(name="Artisan Sauce 350ml"), rs.wwf, now=now)
         assert isinstance(pt_v, PTPassThrough)
         assert isinstance(wwf_v, WWFPassThrough)

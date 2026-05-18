@@ -6,6 +6,7 @@ way a new field can appear in a prompt — and any such addition must
 also be reflected in ``ALLOWED_PROMPT_FIELDS`` and the AI-inputs
 policy docs.
 """
+
 from __future__ import annotations
 
 from typing import Self

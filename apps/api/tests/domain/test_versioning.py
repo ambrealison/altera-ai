@@ -57,9 +57,7 @@ class TestMethodologySourceEdition:
 
     def test_rejects_year_out_of_range(self) -> None:
         with pytest.raises(PydanticValidationError):
-            MethodologySourceEdition(
-                methodology=Methodology.WWF, citation="WWF 1999", year=1999
-            )
+            MethodologySourceEdition(methodology=Methodology.WWF, citation="WWF 1999", year=1999)
 
 
 class TestMethodologyVersion:

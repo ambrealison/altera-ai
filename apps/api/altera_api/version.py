@@ -4,6 +4,7 @@ Phase is a deliberate, hand-rolled label rather than a derived value. It
 moves forward each time a new layer of functionality lands and is asserted
 by the /version endpoint and by tests.
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel

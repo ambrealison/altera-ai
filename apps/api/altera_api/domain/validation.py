@@ -5,6 +5,7 @@ becoming a `NormalizedProduct`. `ValidationWarning` is a row-level
 concern that does not block. `ValidationReport` aggregates both, per
 upload.
 """
+
 from __future__ import annotations
 
 from enum import StrEnum

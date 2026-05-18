@@ -16,6 +16,7 @@ result schemas, the provider abstraction, deterministic fakes, and the
 high-level orchestrator with retry. The real OpenAI provider lives in a
 later phase.
 """
+
 from __future__ import annotations
 
 from altera_api.ai.classifier import (

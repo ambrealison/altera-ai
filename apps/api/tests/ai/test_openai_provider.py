@@ -4,6 +4,7 @@ The openai package is lazy-imported inside ``OpenAIProvider.classify``.
 These tests inject a fake module via ``sys.modules`` to avoid needing
 the real package installed.
 """
+
 from __future__ import annotations
 
 import json
@@ -55,12 +56,14 @@ def _inject_openai(fake_module: MagicMock):
 
 class TestOpenAIProvider:
     def test_returns_provider_response_on_success(self) -> None:
-        raw = json.dumps({
-            "methodology": "protein_tracker",
-            "pt_group": "plant_based_core",
-            "confidence": 0.9,
-            "rationale": "soy product",
-        })
+        raw = json.dumps(
+            {
+                "methodology": "protein_tracker",
+                "pt_group": "plant_based_core",
+                "confidence": 0.9,
+                "rationale": "soy product",
+            }
+        )
         prompt = _make_prompt()
         fake = _make_fake_openai(raw)
 

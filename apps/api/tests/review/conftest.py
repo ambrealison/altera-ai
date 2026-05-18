@@ -1,4 +1,5 @@
 """Shared fixtures for review-workflow tests."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -91,9 +92,7 @@ def pt_current_animal_core(
 
 
 @pytest.fixture
-def wwf_current_fg1_red_meat(
-    wwf_product_id: UUID, now: datetime
-) -> WWFProductClassification:
+def wwf_current_fg1_red_meat(wwf_product_id: UUID, now: datetime) -> WWFProductClassification:
     return WWFProductClassification(
         product_id=wwf_product_id,
         wwf_food_group=WWFFoodGroup.FG1,

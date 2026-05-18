@@ -1,4 +1,5 @@
 """End-to-end PT export tests against the Phase 2 fixtures."""
+
 from __future__ import annotations
 
 import csv
@@ -67,8 +68,7 @@ def _build_context(
     products = list(ingest.products)
 
     group_by_external = {
-        row["external_product_id"]: ProteinTrackerGroup(row["pt_group"])
-        for row in expected["rows"]
+        row["external_product_id"]: ProteinTrackerGroup(row["pt_group"]) for row in expected["rows"]
     }
     classifications: dict[UUID, ProteinTrackerProductClassification] = {
         p.id: ProteinTrackerProductClassification(
@@ -119,14 +119,10 @@ def _build_context(
         },
         pt_validation_status=PTValidationStatus.DRAFT,
         protein_sources={
-            p.id: p.pt_fields.protein_source
-            for p in products
-            if p.pt_fields is not None
+            p.id: p.pt_fields.protein_source for p in products if p.pt_fields is not None
         },
         items_purchased={
-            p.id: p.pt_fields.items_purchased
-            for p in products
-            if p.pt_fields is not None
+            p.id: p.pt_fields.items_purchased for p in products if p.pt_fields is not None
         },
         weights_per_item={p.id: p.weight_per_item_kg for p in products},
     )
@@ -169,9 +165,7 @@ class TestPTCSV:
         assert rows[0]["methodology_source_edition"] == _VERSIONS.methodology_source_edition
 
         # Row count matches.
-        expected = json.loads(
-            (fixture_root / "pt" / f"{fixture_name}.expected.json").read_text()
-        )
+        expected = json.loads((fixture_root / "pt" / f"{fixture_name}.expected.json").read_text())
         assert len(rows) == len(expected["rows"])
 
         # Per-row volume_kg and protein_kg match expected.
@@ -340,9 +334,7 @@ class TestPTMarkdown:
     ) -> None:
         # Empty-row case: build a context with no products → null shares.
         ctx = PTExportContext(
-            run=RunMetadata(
-                run_id=run_id, project_slug="empty", started_at=now, finished_at=now
-            ),
+            run=RunMetadata(run_id=run_id, project_slug="empty", started_at=now, finished_at=now),
             summary=calculate_pt_run(
                 [],
                 {},

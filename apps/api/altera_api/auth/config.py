@@ -4,6 +4,7 @@ We re-read the environment on every ``get_auth_settings()`` call (no
 caching). Tests use ``monkeypatch.setenv(...)`` and the next request
 picks the new values up — no need to bust a cache or restart workers.
 """
+
 from __future__ import annotations
 
 from uuid import UUID

@@ -5,6 +5,7 @@ manual review, calculation, and exports are stitched together. The
 HTTP routes are deliberately thin — they parse requests, call into the
 orchestrator, and serialise responses.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -241,11 +242,7 @@ def ingest_upload(
 
     # Duplicate detection — same checksum in the same project (warn, don't block)
     existing = store.find_upload_by_checksum(project.id, checksum)
-    duplicate_of = (
-        existing.id
-        if existing is not None and existing.id != the_upload_id
-        else None
-    )
+    duplicate_of = existing.id if existing is not None and existing.id != the_upload_id else None
 
     # Run the parsing + validation + normalisation pipeline
     validation_start = datetime.now(UTC)
@@ -261,9 +258,7 @@ def ingest_upload(
 
     is_invalid = result.read_error is not None or result.report.is_blocking
     terminal_status = (
-        UploadStatus.VALIDATION_FAILED
-        if is_invalid
-        else UploadStatus.READY_FOR_CLASSIFICATION
+        UploadStatus.VALIDATION_FAILED if is_invalid else UploadStatus.READY_FOR_CLASSIFICATION
     )
     ingestion_start = None if is_invalid else validation_end
     ingestion_end = None if is_invalid else datetime.now(UTC)
@@ -298,9 +293,7 @@ def ingest_upload(
     for product in result.products:
         store.add_product(product)
 
-    store.set_upload_validation_report(
-        the_upload_id, result.report, duplicate_of=duplicate_of
-    )
+    store.set_upload_validation_report(the_upload_id, result.report, duplicate_of=duplicate_of)
 
     return IngestSummary(
         upload=upload,
@@ -324,9 +317,7 @@ def classify_upload(
     ai_provider: ClassifierProvider | None = None,
 ) -> ClassifySummary:
     if methodology not in project.methodologies_enabled:
-        raise ValueError(
-            f"methodology {methodology.value} is not enabled on project {project.id}"
-        )
+        raise ValueError(f"methodology {methodology.value} is not enabled on project {project.id}")
     upload_record = store.get_upload(upload_id)
     if upload_record is None:
         raise LookupError("upload not found")
@@ -347,14 +338,20 @@ def classify_upload(
                 matched += 1
             elif isinstance(verdict, PTRuleCollision):
                 _queue_unknown_pt(
-                    store, product, ManualReviewQueueReason.RULE_COLLISION, now,
+                    store,
+                    product,
+                    ManualReviewQueueReason.RULE_COLLISION,
+                    now,
                     notes=verdict.conflicting_rule_ids,
                 )
                 collision += 1
                 queued += 1
             elif isinstance(verdict, PTContradiction):
                 _queue_unknown_pt(
-                    store, product, ManualReviewQueueReason.CONTRADICTION_DETECTED, now,
+                    store,
+                    product,
+                    ManualReviewQueueReason.CONTRADICTION_DETECTED,
+                    now,
                     notes=verdict.contradiction_notes,
                 )
                 contradiction += 1
@@ -371,18 +368,25 @@ def classify_upload(
                     elif isinstance(ai_v, AINeedsReviewLowConfidence):
                         store.upsert_pt_classification(ai_v.classification)
                         _enqueue_review_item(
-                            store, product.id, methodology,
-                            ManualReviewQueueReason.LOW_CONFIDENCE, now,
+                            store,
+                            product.id,
+                            methodology,
+                            ManualReviewQueueReason.LOW_CONFIDENCE,
+                            now,
                         )
                         ai_review += 1
                         queued += 1
                     elif isinstance(ai_v, AINeedsReviewParseFailed):
-                        _queue_unknown_pt(store, product, ManualReviewQueueReason.AI_PARSE_FAILED, now)
+                        _queue_unknown_pt(
+                            store, product, ManualReviewQueueReason.AI_PARSE_FAILED, now
+                        )
                         ai_review += 1
                         ai_failed += 1
                         queued += 1
                     elif isinstance(ai_v, AIProviderError):
-                        _queue_unknown_pt(store, product, ManualReviewQueueReason.AI_PROVIDER_ERROR, now)
+                        _queue_unknown_pt(
+                            store, product, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+                        )
                         ai_review += 1
                         ai_failed += 1
                         queued += 1
@@ -397,14 +401,20 @@ def classify_upload(
                 matched += 1
             elif isinstance(verdict_w, WWFRuleCollision):
                 _queue_unknown_wwf(
-                    store, product, ManualReviewQueueReason.RULE_COLLISION, now,
+                    store,
+                    product,
+                    ManualReviewQueueReason.RULE_COLLISION,
+                    now,
                     notes=verdict_w.conflicting_rule_ids,
                 )
                 collision += 1
                 queued += 1
             elif isinstance(verdict_w, WWFContradiction):
                 _queue_unknown_wwf(
-                    store, product, ManualReviewQueueReason.CONTRADICTION_DETECTED, now,
+                    store,
+                    product,
+                    ManualReviewQueueReason.CONTRADICTION_DETECTED,
+                    now,
                     notes=verdict_w.contradiction_notes,
                 )
                 contradiction += 1
@@ -421,18 +431,25 @@ def classify_upload(
                     elif isinstance(ai_v_w, AINeedsReviewLowConfidence):
                         store.upsert_wwf_classification(ai_v_w.classification)
                         _enqueue_review_item(
-                            store, product.id, methodology,
-                            ManualReviewQueueReason.LOW_CONFIDENCE, now,
+                            store,
+                            product.id,
+                            methodology,
+                            ManualReviewQueueReason.LOW_CONFIDENCE,
+                            now,
                         )
                         ai_review += 1
                         queued += 1
                     elif isinstance(ai_v_w, AINeedsReviewParseFailed):
-                        _queue_unknown_wwf(store, product, ManualReviewQueueReason.AI_PARSE_FAILED, now)
+                        _queue_unknown_wwf(
+                            store, product, ManualReviewQueueReason.AI_PARSE_FAILED, now
+                        )
                         ai_review += 1
                         ai_failed += 1
                         queued += 1
                     elif isinstance(ai_v_w, AIProviderError):
-                        _queue_unknown_wwf(store, product, ManualReviewQueueReason.AI_PROVIDER_ERROR, now)
+                        _queue_unknown_wwf(
+                            store, product, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+                        )
                         ai_review += 1
                         ai_failed += 1
                         queued += 1
@@ -700,9 +717,7 @@ def submit_decision(
             )
             store.upsert_pt_classification(outcome.pt_classification)  # type: ignore[arg-type]
         else:
-            outcome = defer_item(
-                claimed, reviewer_user_id=reviewer_user_id, reason=reason, now=now
-            )
+            outcome = defer_item(claimed, reviewer_user_id=reviewer_user_id, reason=reason, now=now)
     else:
         current_w = store.get_wwf_classification(product_id)
         if decision == "accepted":
@@ -729,9 +744,7 @@ def submit_decision(
             )
             store.upsert_wwf_classification(outcome.wwf_classification)  # type: ignore[arg-type]
         else:
-            outcome = defer_item(
-                claimed, reviewer_user_id=reviewer_user_id, reason=reason, now=now
-            )
+            outcome = defer_item(claimed, reviewer_user_id=reviewer_user_id, reason=reason, now=now)
 
     if outcome.item.status is ManualReviewStatus.DEFERRED:
         store.upsert_review_item(outcome.item)
@@ -739,7 +752,9 @@ def submit_decision(
         store.remove_review_item(product_id, methodology)
 
     return _review_view_for(
-        store, product_id=product_id, methodology=methodology,
+        store,
+        product_id=product_id,
+        methodology=methodology,
         viewer_user_id=reviewer_user_id,
     )
 
@@ -782,11 +797,19 @@ def _review_view_for(
         else:
             category = None
     _now = datetime.now(UTC)
-    lock_kw = _lock_fields(item, store, viewer_user_id, _now) if item else {
-        "locked_by_user_id": None, "locked_by_email": None,
-        "locked_at": None, "lock_expires_at": None, "lock_status": "unlocked",
-        "assigned_to_user_id": None, "assigned_to_email": None,
-    }
+    lock_kw = (
+        _lock_fields(item, store, viewer_user_id, _now)
+        if item
+        else {
+            "locked_by_user_id": None,
+            "locked_by_email": None,
+            "locked_at": None,
+            "lock_expires_at": None,
+            "lock_status": "unlocked",
+            "assigned_to_user_id": None,
+            "assigned_to_email": None,
+        }
+    )
     return ReviewItemView(
         product_id=product.id,
         external_product_id=product.external_product_id,
@@ -833,7 +856,9 @@ def claim_review_item(
         raise ValueError(str(exc)) from exc
     store.upsert_review_item(updated)
     return _review_view_for(
-        store, product_id=product_id, methodology=methodology,
+        store,
+        product_id=product_id,
+        methodology=methodology,
         viewer_user_id=reviewer_user_id,
     )
 
@@ -859,7 +884,9 @@ def release_review_item(
         raise ValueError(str(exc)) from exc
     store.upsert_review_item(updated)
     return _review_view_for(
-        store, product_id=product_id, methodology=methodology,
+        store,
+        product_id=product_id,
+        methodology=methodology,
         viewer_user_id=reviewer_user_id,
     )
 
@@ -885,7 +912,9 @@ def refresh_review_lock(
         raise ValueError(str(exc)) from exc
     store.upsert_review_item(updated)
     return _review_view_for(
-        store, product_id=product_id, methodology=methodology,
+        store,
+        product_id=product_id,
+        methodology=methodology,
         viewer_user_id=reviewer_user_id,
     )
 
@@ -918,7 +947,9 @@ def assign_review_item(
     updated = item.model_copy(update={"assigned_to_user_id": assign_to_user_id})
     store.upsert_review_item(updated)
     return _review_view_for(
-        store, product_id=product_id, methodology=methodology,
+        store,
+        product_id=product_id,
+        methodology=methodology,
         viewer_user_id=assigner_user_id,
     )
 
@@ -1093,9 +1124,7 @@ def bulk_submit_decision(
             + ("…" if len(missing) > 5 else "")
         )
     if wrong_methodology:
-        errors.append(
-            f"{len(wrong_methodology)} item(s) have wrong methodology."
-        )
+        errors.append(f"{len(wrong_methodology)} item(s) have wrong methodology.")
     if terminal_ids:
         errors.append(
             f"{len(terminal_ids)} item(s) are already in a terminal state "
@@ -1119,30 +1148,37 @@ def bulk_submit_decision(
                 current_pt = store.get_pt_classification(item.product_id)
                 assert current_pt is not None
                 outcome = accept_pt_item(
-                    claimed, current=current_pt,
-                    reviewer_user_id=reviewer_user_id, reason=reason, now=now,
+                    claimed,
+                    current=current_pt,
+                    reviewer_user_id=reviewer_user_id,
+                    reason=reason,
+                    now=now,
                 )
                 store.upsert_pt_classification(outcome.pt_classification)  # type: ignore[arg-type]
             else:
                 current_wwf = store.get_wwf_classification(item.product_id)
                 assert current_wwf is not None
                 outcome = accept_wwf_item(
-                    claimed, current=current_wwf,
-                    reviewer_user_id=reviewer_user_id, reason=reason, now=now,
+                    claimed,
+                    current=current_wwf,
+                    reviewer_user_id=reviewer_user_id,
+                    reason=reason,
+                    now=now,
                 )
                 store.upsert_wwf_classification(outcome.wwf_classification)  # type: ignore[arg-type]
 
         elif action == "bulk_defer":
-            outcome = defer_item(
-                claimed, reviewer_user_id=reviewer_user_id, reason=reason, now=now
-            )
+            outcome = defer_item(claimed, reviewer_user_id=reviewer_user_id, reason=reason, now=now)
 
         else:  # bulk_change_pt_group
             current_pt = store.get_pt_classification(item.product_id)
             outcome = change_pt_item(
-                claimed, current=current_pt,
+                claimed,
+                current=current_pt,
                 to_group=target_pt_group,  # type: ignore[possibly-undefined]
-                reviewer_user_id=reviewer_user_id, reason=reason, now=now,
+                reviewer_user_id=reviewer_user_id,
+                reason=reason,
+                now=now,
             )
             store.upsert_pt_classification(outcome.pt_classification)  # type: ignore[arg-type]
 
@@ -1242,17 +1278,13 @@ def run_calculation(
     triggered_by: UUID,
 ) -> RunRecord:
     if methodology not in project.methodologies_enabled:
-        raise ValueError(
-            f"methodology {methodology.value} is not enabled on project {project.id}"
-        )
+        raise ValueError(f"methodology {methodology.value} is not enabled on project {project.id}")
     products = store.list_products_for_project(project.id)
     started_at = datetime.now(UTC)
 
     if methodology is Methodology.PROTEIN_TRACKER:
         classifications = {
-            p.id: c
-            for p in products
-            if (c := store.get_pt_classification(p.id)) is not None
+            p.id: c for p in products if (c := store.get_pt_classification(p.id)) is not None
         }
         pt_result = calculate_pt_run(
             products,
@@ -1267,9 +1299,7 @@ def run_calculation(
         rows_count = len(pt_result.rows)
     else:
         classifications_w = {
-            p.id: c
-            for p in products
-            if (c := store.get_wwf_classification(p.id)) is not None
+            p.id: c for p in products if (c := store.get_wwf_classification(p.id)) is not None
         }
         wwf_ingredients = store.get_wwf_ingredients_by_project(project.id)
         wwf_result = calculate_wwf_run(
@@ -1350,9 +1380,7 @@ def render_export(
 
     if record.methodology is Methodology.PROTEIN_TRACKER:
         summary = ProteinTrackerCalculationSummary.model_validate(record.summary_payload)
-        rows = tuple(
-            ProteinTrackerCalculationRow.model_validate(r) for r in record.rows_payload
-        )
+        rows = tuple(ProteinTrackerCalculationRow.model_validate(r) for r in record.rows_payload)
         classifications_meta = {
             p.id: _classification_meta_for_pt(c)
             for p in products
@@ -1365,12 +1393,8 @@ def render_export(
             products=product_master,
             classifications=classifications_meta,
             pt_validation_status=project.pt_validation_status,
-            protein_sources={
-                p.id: p.pt_fields.protein_source for p in products if p.pt_fields
-            },
-            items_purchased={
-                p.id: p.pt_fields.items_purchased for p in products if p.pt_fields
-            },
+            protein_sources={p.id: p.pt_fields.protein_source for p in products if p.pt_fields},
+            items_purchased={p.id: p.pt_fields.items_purchased for p in products if p.pt_fields},
             weights_per_item={p.id: p.weight_per_item_kg for p in products},
         )
         if fmt == "csv":

@@ -1,4 +1,5 @@
 """Shared export helpers — contexts, decimal formatting, file naming."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

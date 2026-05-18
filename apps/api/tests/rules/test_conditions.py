@@ -64,25 +64,21 @@ class TestLeafConditions:
 
     def test_taxonomy_node_exact_only(self) -> None:
         ctx = _ctx(taxonomy_node="food.pulses.lentils")
-        assert match_condition_node(
-            ConditionNode(taxonomy_node="food.pulses.lentils"), ctx
-        )
+        assert match_condition_node(ConditionNode(taxonomy_node="food.pulses.lentils"), ctx)
         assert not match_condition_node(ConditionNode(taxonomy_node="food.pulses"), ctx)
 
     def test_ingredients_contains(self) -> None:
         node = ConditionNode(ingredients_contains=("red lentil",))
         assert match_condition_node(node, _ctx())
-        assert not match_condition_node(
-            ConditionNode(ingredients_contains=("beef",)), _ctx()
-        )
+        assert not match_condition_node(ConditionNode(ingredients_contains=("beef",)), _ctx())
 
 
 class TestGroups:
     def test_any_of(self) -> None:
         node = ConditionNode(
             any_of=(
-                ConditionNode(product_name_contains=("beef",)),       # no
-                ConditionNode(product_name_contains=("lentil",)),     # yes
+                ConditionNode(product_name_contains=("beef",)),  # no
+                ConditionNode(product_name_contains=("lentil",)),  # yes
             )
         )
         assert match_condition_node(node, _ctx())

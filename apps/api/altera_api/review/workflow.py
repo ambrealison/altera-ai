@@ -10,6 +10,7 @@ Every state-changing helper returns a frozen :class:`ReviewOutcome`:
 The helpers are pure functions: no mutation, no side effects, no I/O.
 The orchestrator above this layer persists what they return.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -62,8 +63,7 @@ def _require_submittable(
         )
     if is_lock_held_by_other(item, reviewer_user_id=reviewer_user_id, now=now):
         raise SoftLockHeldError(
-            f"item is locked by user {item.soft_lock_user_id} until "
-            f"{item.soft_lock_expires_at!s}."
+            f"item is locked by user {item.soft_lock_user_id} until {item.soft_lock_expires_at!s}."
         )
 
 
@@ -102,13 +102,10 @@ def claim_item(
     from any terminal state.
     """
     if item.status.is_terminal:
-        raise IllegalTransitionError(
-            f"cannot claim a terminal item (status={item.status.value})."
-        )
+        raise IllegalTransitionError(f"cannot claim a terminal item (status={item.status.value}).")
     if is_lock_held_by_other(item, reviewer_user_id=reviewer_user_id, now=now):
         raise SoftLockHeldError(
-            f"item is locked by user {item.soft_lock_user_id} until "
-            f"{item.soft_lock_expires_at!s}."
+            f"item is locked by user {item.soft_lock_user_id} until {item.soft_lock_expires_at!s}."
         )
     return item.model_copy(
         update={
@@ -190,15 +187,13 @@ def change_pt_item(
         )
     if not to_group.is_methodology_group:
         raise IllegalTransitionError(
-            "manual reviewers cannot set system states (out_of_scope/unknown) as a "
-            "category."
+            "manual reviewers cannot set system states (out_of_scope/unknown) as a category."
         )
     _require_submittable(item, reviewer_user_id=reviewer_user_id, now=now)
 
     if current is not None and current.pt_group is to_group:
         raise IllegalTransitionError(
-            "change requires a different category; use accept_pt_item to keep "
-            "the existing one."
+            "change requires a different category; use accept_pt_item to keep the existing one."
         )
 
     new_classification = ProteinTrackerProductClassification(
@@ -240,9 +235,7 @@ def accept_wwf_item(
     now: datetime,
 ) -> ReviewOutcome:
     if item.methodology is not Methodology.WWF:
-        raise IllegalTransitionError(
-            f"item methodology is {item.methodology.value}; expected wwf."
-        )
+        raise IllegalTransitionError(f"item methodology is {item.methodology.value}; expected wwf.")
     _require_submittable(item, reviewer_user_id=reviewer_user_id, now=now)
 
     new_classification = WWFProductClassification(
@@ -299,9 +292,7 @@ def change_wwf_item(
     and ``confidence`` to 1.0 — the caller doesn't have to remember.
     """
     if item.methodology is not Methodology.WWF:
-        raise IllegalTransitionError(
-            f"item methodology is {item.methodology.value}; expected wwf."
-        )
+        raise IllegalTransitionError(f"item methodology is {item.methodology.value}; expected wwf.")
     if not target.wwf_food_group.is_methodology_group:
         raise IllegalTransitionError(
             "manual reviewers cannot set system states (out_of_scope/unknown)."
@@ -310,8 +301,7 @@ def change_wwf_item(
 
     if current is not None and _wwf_categories_equal(current, target):
         raise IllegalTransitionError(
-            "change requires a different category; use accept_wwf_item to keep "
-            "the existing one."
+            "change requires a different category; use accept_wwf_item to keep the existing one."
         )
 
     new_classification = target.model_copy(
@@ -346,9 +336,7 @@ def change_wwf_item(
     )
 
 
-def _wwf_categories_equal(
-    a: WWFProductClassification, b: WWFProductClassification
-) -> bool:
+def _wwf_categories_equal(a: WWFProductClassification, b: WWFProductClassification) -> bool:
     keys = (
         "wwf_food_group",
         "wwf_is_composite",
@@ -416,8 +404,7 @@ def release_item(
         )
     if is_lock_held_by_other(item, reviewer_user_id=reviewer_user_id, now=now):
         raise SoftLockHeldError(
-            f"item is locked by user {item.soft_lock_user_id}; "
-            "only that reviewer can release it."
+            f"item is locked by user {item.soft_lock_user_id}; only that reviewer can release it."
         )
     return item.model_copy(
         update={
@@ -444,16 +431,10 @@ def refresh_lock(
             f"cannot refresh lock on a terminal item (status={item.status.value})."
         )
     if item.soft_lock_user_id != reviewer_user_id:
-        raise SoftLockHeldError(
-            "only the current lock holder can refresh the lock."
-        )
+        raise SoftLockHeldError("only the current lock holder can refresh the lock.")
     if is_lock_expired(item, now=now):
-        raise SoftLockHeldError(
-            "lock has expired; re-claim the item to start reviewing."
-        )
-    return item.model_copy(
-        update={"soft_lock_expires_at": now + SOFT_LOCK_DURATION}
-    )
+        raise SoftLockHeldError("lock has expired; re-claim the item to start reviewing.")
+    return item.model_copy(update={"soft_lock_expires_at": now + SOFT_LOCK_DURATION})
 
 
 def reopen_after_defer(
@@ -470,9 +451,7 @@ def reopen_after_defer(
     caller-chosen reason (``REQUESTED`` by default).
     """
     if deferred.status is not ManualReviewStatus.DEFERRED:
-        raise IllegalTransitionError(
-            "reopen_after_defer requires an item in the DEFERRED state."
-        )
+        raise IllegalTransitionError("reopen_after_defer requires an item in the DEFERRED state.")
     # Use a helper to compute "expired now" cheaply; if the lock is somehow
     # still recorded, surface that as a defensive guard.
     if deferred.soft_lock_user_id is not None and not is_lock_expired(deferred, now=now):

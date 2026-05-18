@@ -14,6 +14,7 @@ docs/classification/json-validation.md:
   orchestrator surfaces them as ``AIProviderError``. The concrete
   provider may apply its own short backoff before bubbling.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -88,10 +89,7 @@ class AIProviderError:
 
 
 AIVerdict: TypeAlias = (
-    AIAccepted
-    | AINeedsReviewLowConfidence
-    | AINeedsReviewParseFailed
-    | AIProviderError
+    AIAccepted | AINeedsReviewLowConfidence | AINeedsReviewParseFailed | AIProviderError
 )
 
 
@@ -108,9 +106,7 @@ def _classify(
     prompt_version: str,
 ) -> AIVerdict:
     prompt_input = ClassifierPromptInput.from_product(product)
-    prompt = build_classifier_prompt(
-        prompt_input, methodology, prompt_version=prompt_version
-    )
+    prompt = build_classifier_prompt(prompt_input, methodology, prompt_version=prompt_version)
 
     first_error: str | None = None
     for attempt in (1, 2):

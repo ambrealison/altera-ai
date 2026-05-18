@@ -1,4 +1,5 @@
 """Protein Tracker exporters (CSV / JSON / Markdown)."""
+
 from __future__ import annotations
 
 import csv
@@ -152,10 +153,8 @@ def render_pt_json(ctx: PTExportContext) -> str:
                 "brand": product.brand if product else None,
                 "pt_group": row.pt_group.value,
                 "in_scope": row.in_scope,
-                "weight_per_item_kg": format_decimal(weights.get(row.product_id))
-                or None,  # type: ignore[arg-type]
-                "items_purchased": format_decimal(items_purchased.get(row.product_id))
-                or None,  # type: ignore[arg-type]
+                "weight_per_item_kg": format_decimal(weights.get(row.product_id)) or None,  # type: ignore[arg-type]
+                "items_purchased": format_decimal(items_purchased.get(row.product_id)) or None,  # type: ignore[arg-type]
                 "volume_kg": format_decimal(row.volume_kg),
                 "protein_pct": format_decimal(row.protein_pct),
                 "protein_source": (
@@ -254,7 +253,9 @@ def render_pt_markdown(ctx: PTExportContext) -> str:
             f"- **Animal-source protein:** {format_decimal(s.animal_protein_kg)} kg "
             f"({format_decimal(s.animal_share_pct)} %)"
         )
-        parts.append(f"- **Total in-scope protein:** {format_decimal(s.total_in_scope_protein_kg)} kg")
+        parts.append(
+            f"- **Total in-scope protein:** {format_decimal(s.total_in_scope_protein_kg)} kg"
+        )
     parts.append("")
 
     parts.append("## Four-group breakdown")

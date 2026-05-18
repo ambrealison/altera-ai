@@ -9,6 +9,7 @@ calculation module (Phase 9) will read inputs and produce
 `ProteinTrackerCalculationRow` and `ProteinTrackerCalculationSummary`
 instances.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -101,9 +102,7 @@ class ProteinTrackerProductClassification(DomainBase):
                     raise ValueError("reviewer_user_id must be null when source=ai.")
             case ClassificationSource.MANUAL_REVIEW:
                 if self.reviewer_user_id is None:
-                    raise ValueError(
-                        "reviewer_user_id is required when source=manual_review."
-                    )
+                    raise ValueError("reviewer_user_id is required when source=manual_review.")
         return self
 
 
@@ -150,8 +149,7 @@ class ProteinTrackerCalculationRow(DomainBase):
                 )
             if self.pt_group is not ProteinTrackerGroup.COMPOSITE_PRODUCTS:
                 raise ValueError(
-                    "used_per_product_split=true only applies to pt_group="
-                    "composite_products."
+                    "used_per_product_split=true only applies to pt_group=composite_products."
                 )
         else:
             if self.plant_protein_kg is not None or self.animal_protein_kg is not None:
@@ -200,7 +198,9 @@ class ProteinTrackerCalculationSummary(DomainBase):
     @model_validator(mode="after")
     def _methodology_fixed(self) -> Self:
         if self.methodology is not Methodology.PROTEIN_TRACKER:
-            raise ValueError("ProteinTrackerCalculationSummary.methodology must be protein_tracker.")
+            raise ValueError(
+                "ProteinTrackerCalculationSummary.methodology must be protein_tracker."
+            )
         return self
 
     @model_validator(mode="after")
@@ -208,13 +208,9 @@ class ProteinTrackerCalculationSummary(DomainBase):
         both_none = self.plant_share_pct is None and self.animal_share_pct is None
         both_set = self.plant_share_pct is not None and self.animal_share_pct is not None
         if not (both_none or both_set):
-            raise ValueError(
-                "plant_share_pct and animal_share_pct must be both null or both set."
-            )
+            raise ValueError("plant_share_pct and animal_share_pct must be both null or both set.")
         if both_none and self.total_in_scope_protein_kg != Decimal("0"):
-            raise ValueError(
-                "Shares can only be null when total_in_scope_protein_kg is 0."
-            )
+            raise ValueError("Shares can only be null when total_in_scope_protein_kg is 0.")
         return self
 
     @model_validator(mode="after")

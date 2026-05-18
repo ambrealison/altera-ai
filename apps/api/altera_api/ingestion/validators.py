@@ -3,6 +3,7 @@
 These checks run *before* the CSV parsing pipeline so we can reject
 obviously bad files early and set the right terminal status.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -13,13 +14,15 @@ MAX_UPLOAD_BYTES: int = 50 * 1024 * 1024  # 50 MB
 ALLOWED_EXTENSIONS: frozenset[str] = frozenset({"csv", "tsv", "txt"})
 
 #: MIME types accepted at the upload boundary.
-ALLOWED_CONTENT_TYPES: frozenset[str] = frozenset({
-    "text/csv",
-    "text/plain",
-    "text/tab-separated-values",
-    "application/csv",
-    "application/octet-stream",
-})
+ALLOWED_CONTENT_TYPES: frozenset[str] = frozenset(
+    {
+        "text/csv",
+        "text/plain",
+        "text/tab-separated-values",
+        "application/csv",
+        "application/octet-stream",
+    }
+)
 
 
 def validate_upload(

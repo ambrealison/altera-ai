@@ -8,6 +8,7 @@ of every test in this directory so the existing Phase 12 flows
 Tests that exercise real Supabase JWT verification live under
 ``tests/auth/`` and configure their environment explicitly.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator

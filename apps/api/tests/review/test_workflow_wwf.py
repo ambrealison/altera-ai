@@ -26,9 +26,7 @@ from altera_api.review.workflow import (
 )
 
 
-def _target_fg2_cheese(
-    product_id: UUID, now: datetime
-) -> WWFProductClassification:
+def _target_fg2_cheese(product_id: UUID, now: datetime) -> WWFProductClassification:
     """Reviewer-proposed target — source/confidence will be overridden."""
     return WWFProductClassification(
         product_id=product_id,

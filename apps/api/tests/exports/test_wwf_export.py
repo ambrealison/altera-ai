@@ -1,4 +1,5 @@
 """End-to-end WWF export tests against the Phase 2 fixtures."""
+
 from __future__ import annotations
 
 import csv
@@ -85,9 +86,7 @@ def _build_context(
     with_step2_ingredients: bool = False,
 ) -> WWFExportContext:
     csv_path = fixture_root / "wwf" / f"{fixture_name}.csv"
-    expected = json.loads(
-        (fixture_root / "wwf" / f"{fixture_name}.expected.json").read_text()
-    )
+    expected = json.loads((fixture_root / "wwf" / f"{fixture_name}.expected.json").read_text())
 
     ingest = ingest_csv_bytes(
         csv_path.read_bytes(),
@@ -109,9 +108,7 @@ def _build_context(
 
     ingredients = None
     if with_step2_ingredients:
-        raw = json.loads(
-            (fixture_root / "wwf" / "wwf_step2_ingredients.json").read_text()
-        )
+        raw = json.loads((fixture_root / "wwf" / "wwf_step2_ingredients.json").read_text())
         ingredients = {}
         uid = 1
         for ext, entry in raw.items():
@@ -127,12 +124,8 @@ def _build_context(
                         id=UUID(f"00000000-0000-0000-0000-{uid:012d}"),
                         parent_product_id=parent,
                         food_group=fg,
-                        fg1_subgroup=(
-                            _FG1_SUBGROUP.get(sub) if fg is WWFFoodGroup.FG1 else None
-                        ),
-                        fg2_subgroup=(
-                            _FG2_SUBGROUP.get(sub) if fg is WWFFoodGroup.FG2 else None
-                        ),
+                        fg1_subgroup=(_FG1_SUBGROUP.get(sub) if fg is WWFFoodGroup.FG1 else None),
+                        fg2_subgroup=(_FG2_SUBGROUP.get(sub) if fg is WWFFoodGroup.FG2 else None),
                         ingredient_weight_kg_per_item=Decimal(
                             str(ing["ingredient_weight_kg_per_item"])
                         ),
@@ -213,9 +206,7 @@ class TestWWFCSV:
         assert data.startswith(b"\xef\xbb\xbf")
         reader = csv.DictReader(io.StringIO(data.decode("utf-8-sig")))
         rows = list(reader)
-        expected = json.loads(
-            (fixture_root / "wwf" / f"{fixture_name}.expected.json").read_text()
-        )
+        expected = json.loads((fixture_root / "wwf" / f"{fixture_name}.expected.json").read_text())
         assert len(rows) == len(expected["rows"])
         by_external = {r["external_product_id"]: r for r in rows}
         for expected_row in expected["rows"]:

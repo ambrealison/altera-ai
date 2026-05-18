@@ -8,6 +8,7 @@ verdict.
 
 See docs/classification/deterministic-rules.md for the canonical spec.
 """
+
 from __future__ import annotations
 
 from altera_api.rules.conditions import ConditionContext, match_condition_node

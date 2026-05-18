@@ -46,9 +46,7 @@ def _pt_current(product_idx: int, now: datetime) -> ProteinTrackerProductClassif
 
 
 class TestBulkPT:
-    def test_applies_same_category_to_each(
-        self, reviewer_a: UUID, now: datetime
-    ) -> None:
+    def test_applies_same_category_to_each(self, reviewer_a: UUID, now: datetime) -> None:
         items = tuple(_pt_item(i, now) for i in range(1, 4))
         currents = {_pt_current(i, now).product_id: _pt_current(i, now) for i in range(1, 4)}
         req = BulkChangeRequestPT(
@@ -66,9 +64,7 @@ class TestBulkPT:
             assert o.decision.to_category == "composite_products"
             assert o.decision.reason == "all ready meals"
 
-    def test_each_item_gets_individual_decision(
-        self, reviewer_a: UUID, now: datetime
-    ) -> None:
+    def test_each_item_gets_individual_decision(self, reviewer_a: UUID, now: datetime) -> None:
         items = tuple(_pt_item(i, now) for i in (5, 6))
         req = BulkChangeRequestPT(
             items=items,
@@ -78,9 +74,7 @@ class TestBulkPT:
         decision_ids = {o.decision.id for o in outcomes}
         assert len(decision_ids) == 2  # distinct ids
 
-    def test_mixed_methodology_rejected(
-        self, reviewer_a: UUID, now: datetime
-    ) -> None:
+    def test_mixed_methodology_rejected(self, reviewer_a: UUID, now: datetime) -> None:
         bad = ManualReviewItem(
             product_id=UUID("00000000-0000-0000-0000-000000000099"),
             methodology=Methodology.WWF,
@@ -95,9 +89,7 @@ class TestBulkPT:
         with pytest.raises(MethodologyMismatchError):
             bulk_change_pt(req, reviewer_user_id=reviewer_a, now=now)
 
-    def test_no_currents_supplied_works(
-        self, reviewer_a: UUID, now: datetime
-    ) -> None:
+    def test_no_currents_supplied_works(self, reviewer_a: UUID, now: datetime) -> None:
         # When current_by_product is None, from_category on each decision is None.
         req = BulkChangeRequestPT(
             items=(_pt_item(1, now), _pt_item(2, now)),

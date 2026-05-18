@@ -1,4 +1,5 @@
 """Upload model + upload lifecycle status."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -31,13 +32,15 @@ class UploadStatus(StrEnum):
 
 
 #: Statuses where we expect row_count to be populated (processing completed).
-_ROW_COUNT_REQUIRED = frozenset({
-    UploadStatus.VALIDATION_COMPLETED,
-    UploadStatus.INGESTION_COMPLETED,
-    UploadStatus.READY_FOR_CLASSIFICATION,
-    UploadStatus.VALID,
-    UploadStatus.INVALID,
-})
+_ROW_COUNT_REQUIRED = frozenset(
+    {
+        UploadStatus.VALIDATION_COMPLETED,
+        UploadStatus.INGESTION_COMPLETED,
+        UploadStatus.READY_FOR_CLASSIFICATION,
+        UploadStatus.VALID,
+        UploadStatus.INVALID,
+    }
+)
 
 
 class Upload(DomainBase):

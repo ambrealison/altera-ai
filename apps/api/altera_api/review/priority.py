@@ -6,6 +6,7 @@ are accessed, making it safe to expose to Altera reviewers.
 ``assign_priority`` is a pure function: given a queue reason it returns
 a ``(priority_level, priority_reasons)`` pair.
 """
+
 from __future__ import annotations
 
 from altera_api.domain.review import ManualReviewPriority, ManualReviewQueueReason

@@ -5,6 +5,7 @@ layer (later phase) will mirror the same filter shape as SQL ``WHERE``
 clauses against ``review_queue``; keeping the predicates as pure
 Python here lets the orchestration tests run without a DB.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable

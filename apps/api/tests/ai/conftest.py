@@ -1,4 +1,5 @@
 """Shared fixtures for AI-classifier tests."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

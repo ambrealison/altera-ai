@@ -1,4 +1,5 @@
 """FastAPI dependency that returns a ``StorageService`` (or ``None`` in dev mode)."""
+
 from __future__ import annotations
 
 from pydantic_settings import BaseSettings

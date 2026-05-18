@@ -5,6 +5,7 @@ top-level list of rule documents. The loader returns a typed
 ``RuleSet`` keyed by methodology, with rules sorted by ``(priority, id)``
 for deterministic application.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

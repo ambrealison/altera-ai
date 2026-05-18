@@ -20,6 +20,7 @@ For each ``(product, methodology)`` the engine returns one of:
 The engine never produces a confidence in (0, 1). It is `1.0` on a
 match, undefined on pass-through.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
@@ -123,53 +124,125 @@ Verdict: TypeAlias = PTVerdict | WWFVerdict
 # Ingredient keywords that strongly indicate animal origin.
 # Checked when a product carries a 'vegan' label.
 # Kept narrow to avoid false positives (e.g. "coconut butter" → not checked).
-_VEGAN_CONTRADICTING_INGREDIENTS: frozenset[str] = frozenset({
-    "whole milk", "skimmed milk", "semi-skimmed milk",
-    "cow's milk", "cows milk", "full fat milk",
-    "milk powder", "dried milk", "condensed milk", "evaporated milk",
-    "lactose", "whey protein", "whey", "casein", "caseinate", "lactalbumin",
-    "egg white", "egg yolk", "whole egg", "dried egg", "egg powder",
-    "honey",
-    "gelatin", "gelatine",
-    "lard", "tallow", "suet",
-    "anchovies", "anchovy",
-    "fish sauce",
-})
+_VEGAN_CONTRADICTING_INGREDIENTS: frozenset[str] = frozenset(
+    {
+        "whole milk",
+        "skimmed milk",
+        "semi-skimmed milk",
+        "cow's milk",
+        "cows milk",
+        "full fat milk",
+        "milk powder",
+        "dried milk",
+        "condensed milk",
+        "evaporated milk",
+        "lactose",
+        "whey protein",
+        "whey",
+        "casein",
+        "caseinate",
+        "lactalbumin",
+        "egg white",
+        "egg yolk",
+        "whole egg",
+        "dried egg",
+        "egg powder",
+        "honey",
+        "gelatin",
+        "gelatine",
+        "lard",
+        "tallow",
+        "suet",
+        "anchovies",
+        "anchovy",
+        "fish sauce",
+    }
+)
 
 # Ingredient keywords indicating meat or fish.
 # Checked when a product carries a 'vegetarian' label.
-_VEGETARIAN_CONTRADICTING_INGREDIENTS: frozenset[str] = frozenset({
-    "beef", "pork", "chicken", "turkey", "duck", "goose",
-    "veal", "lamb", "venison", "rabbit",
-    "bacon", "ham", "salami", "pepperoni", "chorizo",
-    "gelatin", "gelatine",
-    "lard", "tallow", "suet",
-    "fish sauce", "anchovies", "anchovy",
-})
+_VEGETARIAN_CONTRADICTING_INGREDIENTS: frozenset[str] = frozenset(
+    {
+        "beef",
+        "pork",
+        "chicken",
+        "turkey",
+        "duck",
+        "goose",
+        "veal",
+        "lamb",
+        "venison",
+        "rabbit",
+        "bacon",
+        "ham",
+        "salami",
+        "pepperoni",
+        "chorizo",
+        "gelatin",
+        "gelatine",
+        "lard",
+        "tallow",
+        "suet",
+        "fish sauce",
+        "anchovies",
+        "anchovy",
+    }
+)
 
 # Ingredients contradicting a 'plant-based' name or label claim.
-_PLANT_BASED_CONTRADICTING_INGREDIENTS: frozenset[str] = frozenset({
-    "whey protein", "whey", "casein", "caseinate", "milk protein",
-})
+_PLANT_BASED_CONTRADICTING_INGREDIENTS: frozenset[str] = frozenset(
+    {
+        "whey protein",
+        "whey",
+        "casein",
+        "caseinate",
+        "milk protein",
+    }
+)
 
 # Retailer category keywords that indicate animal products —
 # used to detect "vegan label + animal retailer category".
-_ANIMAL_RETAILER_CATEGORIES: frozenset[str] = frozenset({
-    "meat", "poultry", "red meat", "fresh meat",
-    "fish", "seafood", "fresh fish",
-    "charcuterie", "deli meat",
-})
+_ANIMAL_RETAILER_CATEGORIES: frozenset[str] = frozenset(
+    {
+        "meat",
+        "poultry",
+        "red meat",
+        "fresh meat",
+        "fish",
+        "seafood",
+        "fresh fish",
+        "charcuterie",
+        "deli meat",
+    }
+)
 
 # Product name / retailer-category signals for obvious out-of-scope items.
 # These products should not consume AI tokens.
-_OUT_OF_SCOPE_SIGNALS: frozenset[str] = frozenset({
-    "pet food", "cat food", "dog food", "dog treat", "cat treat",
-    "bird food", "fish food", "hamster food", "rabbit food",
-    "baby formula", "infant formula", "follow-on formula",
-    "nappy", "nappies", "diaper",
-    "laundry", "washing powder", "dishwasher tablet",
-    "cigarette", "tobacco", "e-cigarette",
-})
+_OUT_OF_SCOPE_SIGNALS: frozenset[str] = frozenset(
+    {
+        "pet food",
+        "cat food",
+        "dog food",
+        "dog treat",
+        "cat treat",
+        "bird food",
+        "fish food",
+        "hamster food",
+        "rabbit food",
+        "baby formula",
+        "infant formula",
+        "follow-on formula",
+        "nappy",
+        "nappies",
+        "diaper",
+        "laundry",
+        "washing powder",
+        "dishwasher tablet",
+        "cigarette",
+        "tobacco",
+        "e-cigarette",
+    }
+)
 
 
 def _detect_contradictions(ctx: ConditionContext) -> tuple[str, ...]:
@@ -195,8 +268,7 @@ def _detect_contradictions(ctx: ConditionContext) -> tuple[str, ...]:
                 ):
                     continue
                 notes.append(
-                    f"vegan label + animal retailer category "
-                    f"({ctx.retailer_category_lower!r})"
+                    f"vegan label + animal retailer category ({ctx.retailer_category_lower!r})"
                 )
                 break
 
@@ -217,16 +289,12 @@ def _detect_contradictions(ctx: ConditionContext) -> tuple[str, ...]:
     if is_plant_based_claim:
         for ingredient in _PLANT_BASED_CONTRADICTING_INGREDIENTS:
             if ingredient in ctx.ingredients_text_lower:
-                notes.append(
-                    f"plant-based claim + '{ingredient}' in ingredients"
-                )
+                notes.append(f"plant-based claim + '{ingredient}' in ingredients")
                 break
 
     # --- Obvious out-of-scope / non-food product signals ---
     combined = (
-        f"{ctx.product_name_lower} "
-        f"{ctx.retailer_category_lower} "
-        f"{ctx.retailer_subcategory_lower}"
+        f"{ctx.product_name_lower} {ctx.retailer_category_lower} {ctx.retailer_subcategory_lower}"
     )
     for signal in _OUT_OF_SCOPE_SIGNALS:
         if signal in combined:

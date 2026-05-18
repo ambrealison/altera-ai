@@ -6,6 +6,7 @@ the right handler, mark succeeded/failed, emit audit events.
 Handlers only use the store, the storage service, and the job payload
 — no HTTP context. This keeps them runnable in any worker process.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -31,6 +32,7 @@ from altera_api.storage.protocol import StorageProtocol
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
 def execute_job(
     job: Job,
     store: StoreProtocol,
@@ -48,11 +50,13 @@ def execute_job(
         _audit(store, completed, AuditEventType.JOB_SUCCEEDED)
         return completed
     except Exception as exc:
-        failed = running.model_copy(update={
-            "status": JobStatus.FAILED,
-            "failed_at": datetime.now(UTC),
-            "error_message": f"{type(exc).__name__}: {exc}",
-        })
+        failed = running.model_copy(
+            update={
+                "status": JobStatus.FAILED,
+                "failed_at": datetime.now(UTC),
+                "error_message": f"{type(exc).__name__}: {exc}",
+            }
+        )
         store.update_job(failed)
         _audit(store, failed, AuditEventType.JOB_FAILED)
         return failed
@@ -61,6 +65,7 @@ def execute_job(
 # ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
+
 
 def _dispatch(job: Job, store: StoreProtocol, storage: StorageProtocol | None) -> Job:
     handlers = {
@@ -79,6 +84,7 @@ def _dispatch(job: Job, store: StoreProtocol, storage: StorageProtocol | None) -
 # ---------------------------------------------------------------------------
 # File resolution helper
 # ---------------------------------------------------------------------------
+
 
 def _resolve_file(
     job: Job,
@@ -107,6 +113,7 @@ def _resolve_file(
 
     if "file_bytes_b64" in job.payload:
         import base64
+
         return base64.b64decode(job.payload["file_bytes_b64"]), filename, rec
 
     raise RuntimeError(
@@ -119,9 +126,8 @@ def _resolve_file(
 # Handlers
 # ---------------------------------------------------------------------------
 
-def _handle_validate_upload(
-    job: Job, store: StoreProtocol, storage: StorageProtocol | None
-) -> Job:
+
+def _handle_validate_upload(job: Job, store: StoreProtocol, storage: StorageProtocol | None) -> Job:
     """Pre-flight file validation.
 
     Payload keys:
@@ -137,9 +143,7 @@ def _handle_validate_upload(
     return _succeed(job, {"errors": errors, "is_valid": not errors})
 
 
-def _handle_ingest_upload(
-    job: Job, store: StoreProtocol, storage: StorageProtocol | None
-) -> Job:
+def _handle_ingest_upload(job: Job, store: StoreProtocol, storage: StorageProtocol | None) -> Job:
     """Full ingestion pipeline (parse + validate + normalise + persist).
 
     Payload keys:
@@ -156,9 +160,7 @@ def _handle_ingest_upload(
     # Use the storage_path from the upload record when available; fall back
     # to the payload value (could be None → ingest_upload uses in_memory sentinel).
     resolved_storage_path: str | None = (
-        rec.upload.storage_path
-        if rec is not None
-        else job.payload.get("storage_path")
+        rec.upload.storage_path if rec is not None else job.payload.get("storage_path")
     )
 
     summary = ingest_upload(
@@ -183,9 +185,7 @@ def _handle_ingest_upload(
     )
 
 
-def _handle_classify_upload(
-    job: Job, store: StoreProtocol, storage: StorageProtocol | None
-) -> Job:
+def _handle_classify_upload(job: Job, store: StoreProtocol, storage: StorageProtocol | None) -> Job:
     """Deterministic rules + optional AI classification for one upload.
 
     Payload keys:
@@ -210,12 +210,7 @@ def _handle_classify_upload(
         methodology=methodology,
         ai_provider=ai_provider,
     )
-    total = (
-        summary.matched
-        + summary.pass_through
-        + summary.rule_collision
-        + summary.contradictions
-    )
+    total = summary.matched + summary.pass_through + summary.rule_collision + summary.contradictions
     return _succeed(
         job,
         {
@@ -234,9 +229,7 @@ def _handle_classify_upload(
     )
 
 
-def _handle_run_calculation(
-    job: Job, store: StoreProtocol, storage: StorageProtocol | None
-) -> Job:
+def _handle_run_calculation(job: Job, store: StoreProtocol, storage: StorageProtocol | None) -> Job:
     """Execute the calculation pipeline and persist a RunRecord.
 
     Payload keys:
@@ -258,9 +251,7 @@ def _handle_run_calculation(
     )
 
 
-def _handle_generate_export(
-    job: Job, store: StoreProtocol, storage: StorageProtocol | None
-) -> Job:
+def _handle_generate_export(job: Job, store: StoreProtocol, storage: StorageProtocol | None) -> Job:
     """Render a run export (CSV / JSON / Markdown).
 
     When *storage* is configured the rendered bytes are persisted to the
@@ -314,6 +305,7 @@ def _handle_generate_export(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _succeed(
     job: Job,

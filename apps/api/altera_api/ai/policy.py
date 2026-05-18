@@ -10,6 +10,7 @@ prompt builder, the ``products`` table itself) should already prevent
 this from firing. If this guard ever fires in production, that is a
 code bug, not a transient error.
 """
+
 from __future__ import annotations
 
 from typing import Any

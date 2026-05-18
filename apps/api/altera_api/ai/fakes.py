@@ -3,6 +3,7 @@
 These never make HTTP calls. They are the test-side counterpart to the
 real (OpenAI / Anthropic / …) providers that land in a later phase.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator

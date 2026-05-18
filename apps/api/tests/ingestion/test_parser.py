@@ -27,9 +27,7 @@ def test_parses_minimal_row(upload_id: UUID) -> None:
 
 
 def test_missing_external_id_emits_error(upload_id: UUID) -> None:
-    raw, errors, _ = parse_row(
-        _row(external_product_id=""), upload_id=upload_id, row_number=1
-    )
+    raw, errors, _ = parse_row(_row(external_product_id=""), upload_id=upload_id, row_number=1)
     assert raw is None
     assert any(e.code == "missing_required" and e.field == "external_product_id" for e in errors)
 
@@ -50,9 +48,7 @@ def test_invalid_weight_unit_combo(upload_id: UUID) -> None:
 
 
 def test_protein_energy_rejected(upload_id: UUID) -> None:
-    raw, errors, _ = parse_row(
-        _row(protein_kj="300"), upload_id=upload_id, row_number=3
-    )
+    raw, errors, _ = parse_row(_row(protein_kj="300"), upload_id=upload_id, row_number=3)
     assert raw is None
     assert any(e.code == "energy_not_protein" for e in errors)
 
@@ -70,17 +66,13 @@ def test_truncates_non_integer_count_with_warning(upload_id: UUID) -> None:
 
 
 def test_invalid_retail_channel(upload_id: UUID) -> None:
-    raw, errors, _ = parse_row(
-        _row(retail_channel="online"), upload_id=upload_id, row_number=5
-    )
+    raw, errors, _ = parse_row(_row(retail_channel="online"), upload_id=upload_id, row_number=5)
     assert raw is None
     assert any(e.code == "invalid_enum" and e.field == "retail_channel" for e in errors)
 
 
 def test_valid_retail_channel(upload_id: UUID) -> None:
-    raw, errors, _ = parse_row(
-        _row(retail_channel="fresh"), upload_id=upload_id, row_number=6
-    )
+    raw, errors, _ = parse_row(_row(retail_channel="fresh"), upload_id=upload_id, row_number=6)
     assert errors == ()
     assert raw is not None
     assert raw.retail_channel is RetailChannel.FRESH
@@ -98,17 +90,13 @@ def test_parses_protein_source(upload_id: UUID) -> None:
 
 
 def test_negative_items_purchased_rejected(upload_id: UUID) -> None:
-    raw, errors, _ = parse_row(
-        _row(items_purchased="-5"), upload_id=upload_id, row_number=8
-    )
+    raw, errors, _ = parse_row(_row(items_purchased="-5"), upload_id=upload_id, row_number=8)
     assert raw is None
     assert any(e.code == "invalid_range" and e.field == "items_purchased" for e in errors)
 
 
 def test_invalid_language_pattern_caught_by_pydantic(upload_id: UUID) -> None:
-    raw, errors, _ = parse_row(
-        _row(language="english"), upload_id=upload_id, row_number=9
-    )
+    raw, errors, _ = parse_row(_row(language="english"), upload_id=upload_id, row_number=9)
     assert raw is None
     assert errors  # exact code depends on pydantic; any error is fine here
 

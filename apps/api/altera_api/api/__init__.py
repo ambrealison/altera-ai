@@ -8,6 +8,7 @@ HTTP routes, request/response shapes, and orchestrator remain.
 There is **no authentication** in Phase 12 — a stub user/org is wired
 in via :func:`current_user`. Auth lands with Supabase Auth in Phase 13.
 """
+
 from __future__ import annotations
 
 from altera_api.api.dependencies import get_store

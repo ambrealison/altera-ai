@@ -31,8 +31,20 @@ def _item(
 
 def test_filter_by_methodology(now: datetime) -> None:
     items = [
-        _item(1, methodology=Methodology.PROTEIN_TRACKER, status=ManualReviewStatus.IN_QUEUE, reason=ManualReviewQueueReason.LOW_CONFIDENCE, queued_at=now),
-        _item(2, methodology=Methodology.WWF, status=ManualReviewStatus.IN_QUEUE, reason=ManualReviewQueueReason.LOW_CONFIDENCE, queued_at=now),
+        _item(
+            1,
+            methodology=Methodology.PROTEIN_TRACKER,
+            status=ManualReviewStatus.IN_QUEUE,
+            reason=ManualReviewQueueReason.LOW_CONFIDENCE,
+            queued_at=now,
+        ),
+        _item(
+            2,
+            methodology=Methodology.WWF,
+            status=ManualReviewStatus.IN_QUEUE,
+            reason=ManualReviewQueueReason.LOW_CONFIDENCE,
+            queued_at=now,
+        ),
     ]
     pts = filter_queue(items, methodology=Methodology.PROTEIN_TRACKER)
     assert len(pts) == 1 and pts[0].methodology is Methodology.PROTEIN_TRACKER
@@ -40,9 +52,27 @@ def test_filter_by_methodology(now: datetime) -> None:
 
 def test_filter_by_reason_and_status(now: datetime) -> None:
     items = [
-        _item(1, methodology=Methodology.PROTEIN_TRACKER, status=ManualReviewStatus.IN_QUEUE, reason=ManualReviewQueueReason.LOW_CONFIDENCE, queued_at=now),
-        _item(2, methodology=Methodology.PROTEIN_TRACKER, status=ManualReviewStatus.IN_QUEUE, reason=ManualReviewQueueReason.RULE_COLLISION, queued_at=now),
-        _item(3, methodology=Methodology.PROTEIN_TRACKER, status=ManualReviewStatus.ACCEPTED, reason=ManualReviewQueueReason.LOW_CONFIDENCE, queued_at=now),
+        _item(
+            1,
+            methodology=Methodology.PROTEIN_TRACKER,
+            status=ManualReviewStatus.IN_QUEUE,
+            reason=ManualReviewQueueReason.LOW_CONFIDENCE,
+            queued_at=now,
+        ),
+        _item(
+            2,
+            methodology=Methodology.PROTEIN_TRACKER,
+            status=ManualReviewStatus.IN_QUEUE,
+            reason=ManualReviewQueueReason.RULE_COLLISION,
+            queued_at=now,
+        ),
+        _item(
+            3,
+            methodology=Methodology.PROTEIN_TRACKER,
+            status=ManualReviewStatus.ACCEPTED,
+            reason=ManualReviewQueueReason.LOW_CONFIDENCE,
+            queued_at=now,
+        ),
     ]
     out = filter_queue(
         items,
@@ -55,7 +85,13 @@ def test_filter_by_reason_and_status(now: datetime) -> None:
 
 def test_filter_no_filters_returns_all(now: datetime) -> None:
     items = [
-        _item(i, methodology=Methodology.WWF, status=ManualReviewStatus.IN_QUEUE, reason=ManualReviewQueueReason.LOW_CONFIDENCE, queued_at=now)
+        _item(
+            i,
+            methodology=Methodology.WWF,
+            status=ManualReviewStatus.IN_QUEUE,
+            reason=ManualReviewQueueReason.LOW_CONFIDENCE,
+            queued_at=now,
+        )
         for i in range(3)
     ]
     assert len(filter_queue(items)) == 3
@@ -63,9 +99,27 @@ def test_filter_no_filters_returns_all(now: datetime) -> None:
 
 def test_sort_oldest_first(now: datetime) -> None:
     items = [
-        _item(1, methodology=Methodology.WWF, status=ManualReviewStatus.IN_QUEUE, reason=ManualReviewQueueReason.LOW_CONFIDENCE, queued_at=now),
-        _item(2, methodology=Methodology.WWF, status=ManualReviewStatus.IN_QUEUE, reason=ManualReviewQueueReason.LOW_CONFIDENCE, queued_at=now - timedelta(hours=1)),
-        _item(3, methodology=Methodology.WWF, status=ManualReviewStatus.IN_QUEUE, reason=ManualReviewQueueReason.LOW_CONFIDENCE, queued_at=now - timedelta(hours=2)),
+        _item(
+            1,
+            methodology=Methodology.WWF,
+            status=ManualReviewStatus.IN_QUEUE,
+            reason=ManualReviewQueueReason.LOW_CONFIDENCE,
+            queued_at=now,
+        ),
+        _item(
+            2,
+            methodology=Methodology.WWF,
+            status=ManualReviewStatus.IN_QUEUE,
+            reason=ManualReviewQueueReason.LOW_CONFIDENCE,
+            queued_at=now - timedelta(hours=1),
+        ),
+        _item(
+            3,
+            methodology=Methodology.WWF,
+            status=ManualReviewStatus.IN_QUEUE,
+            reason=ManualReviewQueueReason.LOW_CONFIDENCE,
+            queued_at=now - timedelta(hours=2),
+        ),
     ]
     out = sort_queue_by_age(items, oldest_first=True)
     assert [i.product_id.int & 0xF for i in out] == [3, 2, 1]

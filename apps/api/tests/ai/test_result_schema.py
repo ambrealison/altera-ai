@@ -73,30 +73,22 @@ class TestPTParsing:
 
     def test_rejects_unknown_pt_group(self) -> None:
         with pytest.raises(ResultParseError, match="schema validation"):
-            parse_classifier_response(
-                _pt(pt_group="bogus"), Methodology.PROTEIN_TRACKER
-            )
+            parse_classifier_response(_pt(pt_group="bogus"), Methodology.PROTEIN_TRACKER)
 
     def test_rejects_confidence_out_of_range(self) -> None:
         with pytest.raises(ResultParseError):
-            parse_classifier_response(
-                _pt(confidence=1.5), Methodology.PROTEIN_TRACKER
-            )
+            parse_classifier_response(_pt(confidence=1.5), Methodology.PROTEIN_TRACKER)
 
     def test_rationale_truncation_rejected(self) -> None:
         with pytest.raises(ResultParseError):
-            parse_classifier_response(
-                _pt(rationale="x" * 500), Methodology.PROTEIN_TRACKER
-            )
+            parse_classifier_response(_pt(rationale="x" * 500), Methodology.PROTEIN_TRACKER)
 
 
 class TestPTToClassification:
     def test_to_classification(self) -> None:
         now = datetime(2026, 5, 15)
         product_id = UUID("00000000-0000-0000-0000-000000000001")
-        result = parse_classifier_response(
-            _pt(confidence=0.91), Methodology.PROTEIN_TRACKER
-        )
+        result = parse_classifier_response(_pt(confidence=0.91), Methodology.PROTEIN_TRACKER)
         assert isinstance(result, PTClassifierResult)
         c = result.to_classification(
             product_id=product_id,

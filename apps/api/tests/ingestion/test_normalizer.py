@@ -25,9 +25,7 @@ def _raw_full(upload_id: UUID) -> RawProduct:
     )
 
 
-def test_pt_only_happy_path(
-    upload_id: UUID, project_id: UUID, org_id: UUID, now: datetime
-) -> None:
+def test_pt_only_happy_path(upload_id: UUID, project_id: UUID, org_id: UUID, now: datetime) -> None:
     raw = _raw_full(upload_id)
     product, errors = normalize_product(
         raw,

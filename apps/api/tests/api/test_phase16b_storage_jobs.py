@@ -9,6 +9,7 @@ Covers:
 - generate_export job persists to StorageService and creates ExportRecord
 - generate_export job succeeds without StorageService (no ExportRecord)
 """
+
 from __future__ import annotations
 
 import base64
@@ -30,6 +31,7 @@ from altera_api.storage.fake import FakeStorageService
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _create_project(client: TestClient, methodology: str = "protein_tracker") -> str:
     r = client.post(
@@ -67,6 +69,7 @@ def _add_storage_upload(
 ) -> str:
     """Add a stub Upload with a real (non-in_memory) storage_path directly to the store."""
     from uuid import UUID as _UUID
+
     upload_id = uuid4()
     upload = Upload(
         id=upload_id,
@@ -85,6 +88,7 @@ def _add_storage_upload(
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def fake_storage() -> FakeStorageService:
@@ -109,6 +113,7 @@ def client_with_storage(
 # ---------------------------------------------------------------------------
 # validate_upload job — storage-first
 # ---------------------------------------------------------------------------
+
 
 class TestValidateUploadJobStorage:
     def test_validate_uses_storage_path(
@@ -183,7 +188,9 @@ class TestValidateUploadJobStorage:
         """Upload has real storage_path but no StorageService → job fails."""
         pid = _create_project(client)
         project = next(p for p in store.list_projects() if str(p.id) == pid)
-        storage_path = f"organisations/{project.organisation_id}/projects/{project.id}/uploads/x/raw/data.csv"
+        storage_path = (
+            f"organisations/{project.organisation_id}/projects/{project.id}/uploads/x/raw/data.csv"
+        )
         uid = _add_storage_upload(store, pid, str(project.organisation_id), storage_path)
 
         # client fixture has no storage service override → None
@@ -194,12 +201,15 @@ class TestValidateUploadJobStorage:
         assert r.status_code == 202, r.text
         body = r.json()
         assert body["status"] == JobStatus.FAILED
-        assert "StorageService" in body["error_message"] or "storage" in body["error_message"].lower()
+        assert (
+            "StorageService" in body["error_message"] or "storage" in body["error_message"].lower()
+        )
 
 
 # ---------------------------------------------------------------------------
 # ingest_upload job — storage-first
 # ---------------------------------------------------------------------------
+
 
 class TestIngestUploadJobStorage:
     def test_ingest_uses_storage_path(
@@ -256,10 +266,9 @@ class TestIngestUploadJobStorage:
 # generate_export job — storage persistence
 # ---------------------------------------------------------------------------
 
+
 class TestExportJobStorage:
-    def _run_full_pipeline(
-        self, client: TestClient, pt_tiny_csv: bytes
-    ) -> tuple[str, str]:
+    def _run_full_pipeline(self, client: TestClient, pt_tiny_csv: bytes) -> tuple[str, str]:
         """Returns (project_id, run_id) after classify + approve all + calculate."""
         pid = _create_project(client)
         uid = client.post(
@@ -305,6 +314,7 @@ class TestExportJobStorage:
 
         # ExportRecord should exist in store
         from uuid import UUID as _UUID
+
         export_id = result["export_id"]
         record = store.get_export_record(_UUID(export_id))
         assert record is not None
@@ -335,6 +345,7 @@ class TestExportJobStorage:
         assert "export_id" not in result
         # Also no ExportRecord in store
         from uuid import UUID as _UUID
+
         assert store.get_exports_for_run(_UUID(run_id)) == []
 
     def test_export_result_contains_size(

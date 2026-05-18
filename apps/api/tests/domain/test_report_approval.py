@@ -1,4 +1,5 @@
 """Tests for report approval domain helpers."""
+
 from __future__ import annotations
 
 import pytest
@@ -83,9 +84,7 @@ class TestCanClientDownload:
         "status",
         [ReportApprovalStatus.DRAFT, ReportApprovalStatus.REJECTED],
     )
-    def test_non_approved_report_is_not_downloadable(
-        self, status: ReportApprovalStatus
-    ) -> None:
+    def test_non_approved_report_is_not_downloadable(self, status: ReportApprovalStatus) -> None:
         assert can_client_download(status) is False
 
     def test_assert_passes_for_approved(self) -> None:

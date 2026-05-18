@@ -15,6 +15,7 @@ All arithmetic uses ``Decimal`` quantised to 8 decimal places. Rounding
 for display is the report layer's job; the calculator preserves
 8-dp precision throughout.
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
