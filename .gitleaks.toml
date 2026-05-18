@@ -11,6 +11,19 @@
 
 title = "Altera AI secret scanner"
 
+# Path-level allowlist for files that are always git-ignored and never committed.
+# These paths contain generated/local-only values (Next.js build keys, local dev
+# env files) that are not real secrets.  This is intentionally narrow — do NOT
+# add any tracked files here (e.g. .env.example, *.sql, *.py).
+[allowlist]
+paths = [
+  '''apps/web/\.next/''',
+  '''\.env\.local''',
+  '''\.env\.test\.local''',
+  '''\.env\.development\.local''',
+  '''\.env\.production\.local''',
+]
+
 [extend]
 useDefault = true
 

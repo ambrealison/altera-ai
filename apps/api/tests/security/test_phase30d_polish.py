@@ -4,7 +4,7 @@ Covers:
 - Malformed X-Forwarded-For from a trusted proxy falls back to peer IP
 - OrderedDict LRU: most-recently-used bucket is NOT evicted under cap pressure
 - OrderedDict LRU: least-recently-used bucket IS evicted under cap pressure
-- Gitleaks config has no file-level path allowlist (no global .env.example exemption)
+- Gitleaks config: global [allowlist] must not contain tracked source files
 """
 
 from __future__ import annotations
@@ -133,26 +133,38 @@ class TestOrderedDictEviction:
 
 
 class TestGitleaksConfig:
-    def test_no_global_path_allowlist(self) -> None:
-        """The top-level [allowlist] section must not exempt .env.example files.
+    def test_no_tracked_files_in_global_path_allowlist(self) -> None:
+        """The top-level [allowlist] paths must not include tracked source files.
 
-        A global paths allowlist disables ALL rules for the listed files — the
-        exact files where a leaked key was committed.  Only per-rule allowlists
-        (under [[rules]]) are permitted.
+        Allowlisting a tracked file (e.g. .env.example, *.py, *.sql) disables
+        ALL rules for that file — the original bug that let a real key slip past
+        scanning.  The section may exist for gitignored build artifacts only
+        (e.g. .next/, .env.local).
         """
         config_path = REPO_ROOT / ".gitleaks.toml"
         assert config_path.exists(), ".gitleaks.toml must exist at repo root"
         content = config_path.read_text(encoding="utf-8")
 
-        # Look for a bare [allowlist] section (not nested under [rules]).
-        # A nested rules.allowlist looks like "[rules.allowlist]" or
-        # "  [rules.allowlist]" — we only care about the top-level one.
-        bare_allowlist = re.search(r"^\[allowlist\]", content, re.MULTILINE)
-        assert bare_allowlist is None, (
-            ".gitleaks.toml must not contain a top-level [allowlist] section — "
-            "it would exempt entire files from all secret scanning rules.  "
-            "Use per-rule [rules.allowlist] sections instead."
+        # If there is no top-level [allowlist] section, nothing to check.
+        if not re.search(r"^\[allowlist\]", content, re.MULTILINE):
+            return
+
+        # Extract the body of the [allowlist] section (stop at next top-level section).
+        m = re.search(
+            r"^\[allowlist\](.*?)(?=^\[(?!allowlist\b)|\Z)",
+            content,
+            re.MULTILINE | re.DOTALL,
         )
+        allowlist_body = m.group(1) if m else ""
+
+        # These patterns must never appear — they are tracked committed files.
+        forbidden = [".env.example", "apps/api/", "apps/web/src/", ".py", ".sql"]
+        for pattern in forbidden:
+            assert pattern not in allowlist_body, (
+                f".gitleaks.toml [allowlist] must not include tracked source files "
+                f"(found: {pattern!r}).  Only gitignored build artifacts and "
+                f"local-only paths (e.g. .next/, .env.local) are permitted."
+            )
 
     def test_env_example_paths_not_in_any_allowlist(self) -> None:
         """No allowlist block should list .env.example as a path to skip."""
