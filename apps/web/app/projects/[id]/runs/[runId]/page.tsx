@@ -43,7 +43,7 @@ export default function RunDetail() {
   const refreshExports = useCallback(async () => {
     if (!id || !runId) return;
     try {
-      setExports(await api.listExports(id, runId));
+      setExports((await api.listExports(id, runId)).items);
     } catch {
       // non-fatal
     }
@@ -56,7 +56,7 @@ export default function RunDetail() {
       .then(([r, exps]) => {
         if (!active) return;
         setRun(r);
-        setExports(exps);
+        setExports(exps.items);
       })
       .catch((e: Error) => {
         if (active) setError(e.message);

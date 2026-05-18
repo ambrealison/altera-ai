@@ -227,7 +227,7 @@ def test_altera_sees_draft_recommendations(http: TestClient, store: InMemoryStor
         http.post(f"/api/v1/projects/{project.id}/runs/{run.id}/recommendations/generate")
         list_resp = http.get(f"/api/v1/projects/{project.id}/runs/{run.id}/recommendations")
         assert list_resp.status_code == 200
-        data = list_resp.json()
+        data = list_resp.json()["items"]
         statuses = {r["status"] for r in data}
         assert "draft" in statuses
     finally:
@@ -252,7 +252,7 @@ def test_client_cannot_see_draft(http: TestClient, store: InMemoryStore) -> None
     try:
         list_resp = http.get(f"/api/v1/projects/{project.id}/runs/{run.id}/recommendations")
         assert list_resp.status_code == 200
-        assert list_resp.json() == []
+        assert list_resp.json()["items"] == []
     finally:
         app.dependency_overrides.pop(authed_user, None)
 
@@ -275,7 +275,7 @@ def test_client_sees_proposed_and_accepted(http: TestClient, store: InMemoryStor
     try:
         list_resp = http.get(f"/api/v1/projects/{project.id}/runs/{run.id}/recommendations")
         assert list_resp.status_code == 200
-        data = list_resp.json()
+        data = list_resp.json()["items"]
         assert len(data) == 1
         assert data[0]["id"] == rec_id
         assert data[0]["status"] == "proposed"

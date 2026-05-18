@@ -662,7 +662,7 @@ export function createApi(accessToken: string | null) {
   return {
     me: () => request<CurrentUser>("/api/v1/me", { method: "GET" }, accessToken),
     listProjects: () =>
-      request<Project[]>("/api/v1/projects", { method: "GET" }, accessToken),
+      request<Page<Project>>("/api/v1/projects", { method: "GET" }, accessToken),
     getProject: (id: string) =>
       request<Project>(`/api/v1/projects/${id}`, { method: "GET" }, accessToken),
     createProject: (body: {
@@ -677,7 +677,7 @@ export function createApi(accessToken: string | null) {
       ),
 
     listUploads: (projectId: string) =>
-      request<UploadResult[]>(
+      request<Page<UploadResult>>(
         `/api/v1/projects/${projectId}/uploads`,
         { method: "GET" },
         accessToken,
@@ -794,7 +794,7 @@ export function createApi(accessToken: string | null) {
         accessToken,
       ),
     listRuns: (projectId: string) =>
-      request<Run[]>(
+      request<Page<Run>>(
         `/api/v1/projects/${projectId}/runs`,
         { method: "GET" },
         accessToken,
@@ -839,7 +839,7 @@ export function createApi(accessToken: string | null) {
     },
 
     listExports: (projectId: string, runId: string) =>
-      request<ExportRecord[]>(
+      request<Page<ExportRecord>>(
         `/api/v1/projects/${projectId}/runs/${runId}/exports`,
         { method: "GET" },
         accessToken,
@@ -935,7 +935,7 @@ export function createApi(accessToken: string | null) {
     // -----------------------------------------------------------------------
 
     listRecommendations: (projectId: string, runId: string) =>
-      request<PersistedRecommendation[]>(
+      request<Page<PersistedRecommendation>>(
         `/api/v1/projects/${projectId}/runs/${runId}/recommendations`,
         { method: "GET" },
         accessToken,
@@ -981,7 +981,7 @@ export function createApi(accessToken: string | null) {
     // -----------------------------------------------------------------------
 
     listScenarios: (projectId: string) =>
-      request<ScenarioResponse[]>(
+      request<Page<ScenarioResponse>>(
         `/api/v1/projects/${projectId}/scenarios`,
         { method: "GET" },
         accessToken,

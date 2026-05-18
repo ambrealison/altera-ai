@@ -23,7 +23,7 @@ def test_create_then_list_project(client: TestClient) -> None:
 
     lst = client.get("/api/v1/projects")
     assert lst.status_code == 200
-    items = lst.json()
+    items = lst.json()["items"]
     assert len(items) == 1
     assert items[0]["id"] == project_id
 

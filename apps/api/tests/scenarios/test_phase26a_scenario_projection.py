@@ -503,7 +503,7 @@ def test_api_list_scenarios(http: TestClient, store: InMemoryStore) -> None:
         )
         resp = http.get(f"/api/v1/projects/{project.id}/scenarios")
         assert resp.status_code == 200
-        assert len(resp.json()) == 2
+        assert len(resp.json()["items"]) == 2
     finally:
         app.dependency_overrides.pop(authed_user, None)
 
@@ -541,7 +541,7 @@ def test_api_run_scenario(http: TestClient, store: InMemoryStore) -> None:
         assert Decimal(pt["projected_plant_protein_kg"]) > Decimal(pt["base_plant_protein_kg"])
 
         # Status promoted to active
-        scenarios = http.get(f"/api/v1/projects/{project.id}/scenarios").json()
+        scenarios = http.get(f"/api/v1/projects/{project.id}/scenarios").json()["items"]
         assert any(s["id"] == scenario_id and s["status"] == "active" for s in scenarios)
     finally:
         app.dependency_overrides.pop(authed_user, None)
@@ -628,7 +628,7 @@ def test_api_client_only_sees_active_scenarios(http: TestClient, store: InMemory
         # Client sees empty list (scenario is draft)
         resp = http.get(f"/api/v1/projects/{project.id}/scenarios")
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert resp.json()["items"] == []
     finally:
         app.dependency_overrides.pop(authed_user, None)
 

@@ -91,7 +91,7 @@ def test_user_cannot_see_other_org_projects_in_list(
 
     r = client.get("/api/v1/projects", headers=_auth(token_a))
     assert r.status_code == 200
-    items = r.json()
+    items = r.json()["items"]
     assert {p["name"] for p in items} == {"A's project"}
 
 
@@ -242,7 +242,7 @@ def test_auto_provisioned_new_user_does_not_inherit_other_orgs(
     r = client.get("/api/v1/projects", headers=_auth(token_new))
     assert r.status_code == 200
     # Newcomer landed on demo org, not Org A.
-    for entry in r.json():
+    for entry in r.json()["items"]:
         assert UUID(entry["organisation_id"]) != org_a
     # And cannot see A's project.
     r = client.get(f"/api/v1/projects/{a_project}", headers=_auth(token_new))

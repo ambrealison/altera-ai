@@ -154,15 +154,16 @@ def create_project(
     return _project_response(store, project)
 
 
-@api_router.get("/projects", response_model=list[ProjectResponse])
+@api_router.get("/projects", response_model=Page[ProjectResponse])
 def list_projects_route(
+    pagination: Annotated[PaginationParams, Depends()],
     auth: AuthContext = Depends(authed_user),
     store: StoreProtocol = Depends(get_data_store),
-) -> list[ProjectResponse]:
+) -> Page[ProjectResponse]:
     projects = store.list_projects()
     if not auth.is_altera_internal:
         projects = [p for p in projects if p.organisation_id == auth.organisation_id]
-    return [_project_response(store, p) for p in projects]
+    return paginate([_project_response(store, p) for p in projects], pagination)
 
 
 @api_router.get("/projects/{project_id}", response_model=ProjectResponse)
@@ -271,13 +272,14 @@ async def upload_csv(
 
 @api_router.get(
     "/projects/{project_id}/uploads",
-    response_model=list[UploadResponse],
+    response_model=Page[UploadResponse],
 )
 def list_uploads_route(
+    pagination: Annotated[PaginationParams, Depends()],
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
-) -> list[UploadResponse]:
-    return [
+) -> Page[UploadResponse]:
+    items = [
         UploadResponse(
             id=rec.upload.id,
             project_id=rec.upload.project_id,
@@ -294,6 +296,7 @@ def list_uploads_route(
         )
         for rec in store.list_uploads_for_project(project.id)
     ]
+    return paginate(items, pagination)
 
 
 @api_router.get(
@@ -879,13 +882,14 @@ def create_run(
 
 @api_router.get(
     "/projects/{project_id}/runs",
-    response_model=list[RunResponse],
+    response_model=Page[RunResponse],
 )
 def list_runs_route(
+    pagination: Annotated[PaginationParams, Depends()],
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
-) -> list[RunResponse]:
-    return [
+) -> Page[RunResponse]:
+    items = [
         RunResponse(
             id=rec.id,
             project_id=rec.project_id,
@@ -897,6 +901,7 @@ def list_runs_route(
         )
         for rec in store.list_runs_for_project(project.id)
     ]
+    return paginate(items, pagination)
 
 
 @api_router.get(
@@ -1080,19 +1085,21 @@ def export_run_route(
 
 @api_router.get(
     "/projects/{project_id}/runs/{run_id}/exports",
-    response_model=list[ExportRecordResponse],
+    response_model=Page[ExportRecordResponse],
 )
 def list_exports_route(
     run_id: UUID,
+    pagination: Annotated[PaginationParams, Depends()],
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
     auth: Annotated[AuthContext, Depends(authed_user)],
-) -> list[ExportRecordResponse]:
+) -> Page[ExportRecordResponse]:
     exports = store.get_exports_for_run(run_id)
     # Clients only see approved/delivered exports; Altera sees all.
     if not auth.is_altera_internal:
         exports = [e for e in exports if e.approval_status in _CLIENT_VISIBLE_STATUSES]
-    return [_to_export_response(e) for e in exports if e.run_id == run_id]
+    items = [_to_export_response(e) for e in exports if e.run_id == run_id]
+    return paginate(items, pagination)
 
 
 @api_router.post(
@@ -1340,14 +1347,15 @@ _CLIENT_VISIBLE_REC_STATUSES = {"proposed", "accepted"}
 
 @api_router.get(
     "/projects/{project_id}/runs/{run_id}/recommendations",
-    response_model=list[RecommendationResponse],
+    response_model=Page[RecommendationResponse],
 )
 def list_recommendations_route(
     run_id: UUID,
+    pagination: Annotated[PaginationParams, Depends()],
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
     auth: Annotated[AuthContext, Depends(authed_user)],
-) -> list[RecommendationResponse]:
+) -> Page[RecommendationResponse]:
     """List persisted recommendations for a run.
 
     Altera users see all statuses; clients see only proposed and accepted.
@@ -1361,7 +1369,7 @@ def list_recommendations_route(
     if not auth.is_altera_internal:
         recs = [r for r in recs if r.status in _CLIENT_VISIBLE_REC_STATUSES]
 
-    return [_rec_response(r) for r in recs]
+    return paginate([_rec_response(r) for r in recs], pagination)
 
 
 @api_router.post(
@@ -1771,13 +1779,14 @@ def create_scenario_route(
 
 @api_router.get(
     "/projects/{project_id}/scenarios",
-    response_model=list[ScenarioResponse],
+    response_model=Page[ScenarioResponse],
 )
 def list_scenarios_route(
+    pagination: Annotated[PaginationParams, Depends()],
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
     auth: Annotated[AuthContext, Depends(authed_user)],
-) -> list[ScenarioResponse]:
+) -> Page[ScenarioResponse]:
     """List scenarios for a project.
 
     Altera sees all statuses. Clients see only active scenarios.
@@ -1785,7 +1794,7 @@ def list_scenarios_route(
     scenarios = store.list_scenarios_for_project(project.id)
     if not auth.is_altera_internal:
         scenarios = [s for s in scenarios if s.status == ScenarioStatus.ACTIVE.value]
-    return [_scenario_response(store, s) for s in scenarios]
+    return paginate([_scenario_response(store, s) for s in scenarios], pagination)
 
 
 @api_router.get(

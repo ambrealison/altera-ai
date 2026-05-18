@@ -20,7 +20,7 @@ export default function ProjectsPage() {
     api
       .listProjects()
       .then((r) => {
-        if (active) setProjects(r);
+        if (active) setProjects(r.items);
       })
       .catch((e: Error) => {
         if (active) setError(e.message);

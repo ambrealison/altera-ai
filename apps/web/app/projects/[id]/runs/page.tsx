@@ -30,7 +30,7 @@ export default function RunsPage() {
         api.listRuns(projectId),
         api.getProject(projectId),
       ]);
-      setRuns(list);
+      setRuns(list.items);
       setEnabled(project.methodologies_enabled);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");

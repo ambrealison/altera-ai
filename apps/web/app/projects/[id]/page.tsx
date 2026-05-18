@@ -25,8 +25,8 @@ export default function ProjectDetail() {
       .then(([p, u, r]) => {
         if (!active) return;
         setProject(p);
-        setUploads(u);
-        setRuns(r);
+        setUploads(u.items);
+        setRuns(r.items);
       })
       .catch((e: Error) => {
         if (active) setError(e.message);

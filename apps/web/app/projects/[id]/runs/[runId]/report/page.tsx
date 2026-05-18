@@ -1003,7 +1003,7 @@ function ScenariosCard({
 
   useEffect(() => {
     api.listScenarios(projectId)
-      .then((list) => setScenarios(list))
+      .then((list) => setScenarios(list.items))
       .catch(() => setScenarios([]))
       .finally(() => setLoading(false));
   }, [api, projectId]);

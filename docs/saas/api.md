@@ -22,13 +22,16 @@ added without restructuring.
 
 ## Error responses
 
-All 4xx responses carry a standard JSON envelope:
+All 4xx responses carry a standard JSON envelope. FastAPI wraps the error
+object under a `"detail"` key:
 
 ```json
 {
-  "error_code": "not_found",
-  "message": "project abc not found",
-  "details": null
+  "detail": {
+    "error_code": "not_found",
+    "message": "project abc not found",
+    "details": null
+  }
 }
 ```
 
@@ -63,15 +66,14 @@ All 4xx responses carry a standard JSON envelope:
 
 ## Role rules
 
-| Role                       | Org type        | Can do                                                  |
-|----------------------------|-----------------|---------------------------------------------------------|
-| `client_viewer`            | `gms_client`    | Read own org's approved/delivered reports               |
-| `client_analyst`           | `gms_client`    | Above + upload CSVs                                     |
-| `client_owner`             | `gms_client`    | Above + manage members                                  |
-| `altera_analyst`           | `altera`        | Read all orgs, classify, trigger runs                   |
-| `altera_reviewer`          | `altera`        | Above + manual review queue                             |
-| `altera_methodology_lead`  | `altera`        | Above + approve/reject/propose/accept exports and recs  |
-| `altera_admin`             | `altera`        | All of the above + deliver exports, create projects     |
+| Role                       | Org type        | Can do                                                         |
+|----------------------------|-----------------|----------------------------------------------------------------|
+| `client_viewer`            | `gms_client`    | Read own org's approved/delivered reports                      |
+| `client_admin`             | `gms_client`    | Above + upload CSVs, create projects                           |
+| `client_owner`             | `gms_client`    | Above + manage members                                         |
+| `altera_analyst`           | `altera`        | Read all orgs, classify, trigger runs, create projects         |
+| `altera_methodology_lead`  | `altera`        | Above (except create projects) + approve/reject/deliver exports and recs |
+| `altera_admin`             | `altera`        | All of the above + create projects, deliver exports            |
 
 Cross-org access: Altera-internal roles can read any org's resources.
 Client users get `404` (not `403`) for another org's resources to avoid
@@ -99,21 +101,31 @@ parameters and return a `Page` envelope:
 | `limit`   | 50      | 200 | Maximum items to return       |
 | `offset`  | 0       | —   | Items to skip before returning |
 
-Endpoints that return a `Page` envelope today:
+Endpoints that return a `Page` envelope:
 
+- `GET /api/v1/projects`
+- `GET /api/v1/projects/{project_id}/uploads`
+- `GET /api/v1/projects/{project_id}/runs`
+- `GET /api/v1/projects/{project_id}/runs/{run_id}/exports`
+- `GET /api/v1/projects/{project_id}/runs/{run_id}/recommendations`
+- `GET /api/v1/projects/{project_id}/scenarios`
 - `GET /api/v1/projects/{project_id}/review`
 - `GET /api/v1/projects/{project_id}/jobs`
 
 ## Resources
 
 ### Projects
-- `GET /api/v1/projects` — list projects visible to the caller.
-- `POST /api/v1/projects` — create project (analyst, admin, owner only).
+- `GET /api/v1/projects` — list projects visible to the caller. Returns
+  `Page[Project]`. Client users see only their own org's projects.
+- `POST /api/v1/projects` — create project (`client_admin`, `client_owner`,
+  `altera_analyst`, `altera_admin` only).
 - `GET /api/v1/projects/{id}` — read project. Client users receive 404
   for projects belonging to another org.
 
 ### Uploads
 - `POST /api/v1/projects/{id}/uploads` — prepare a CSV upload.
+- `GET /api/v1/projects/{id}/uploads` — list uploads for project. Returns
+  `Page[Upload]`.
 - `GET /api/v1/projects/{id}/uploads/{upload_id}` — upload status.
 
 ### Classification
@@ -127,10 +139,12 @@ Endpoints that return a `Page` envelope today:
 
 ### Runs
 - `POST /api/v1/projects/{id}/runs` — trigger a calculation.
-- `GET /api/v1/projects/{id}/runs` — list runs.
+- `GET /api/v1/projects/{id}/runs` — list runs. Returns `Page[Run]`.
 - `GET /api/v1/projects/{id}/runs/{run_id}` — run detail.
 
 ### Exports and report approval
+- `GET /api/v1/projects/{id}/runs/{run_id}/exports` — list exports. Returns
+  `Page[ExportRecord]`. Client users see only `approved` and `delivered` exports.
 - `GET /api/v1/projects/{id}/runs/{run_id}/report` — structured
   `ReportDocument`. Client users get 403 if no approved/delivered export
   exists.
@@ -147,8 +161,8 @@ Endpoints that return a `Page` envelope today:
   exists.
 
 ### Recommendations
-- `GET /api/v1/projects/{id}/runs/{run_id}/recommendations`
-  — clients see only `proposed` and `accepted` status.
+- `GET /api/v1/projects/{id}/runs/{run_id}/recommendations` — returns
+  `Page[Recommendation]`. Clients see only `proposed` and `accepted` status.
 - `POST /api/v1/projects/{id}/runs/{run_id}/recommendations/generate`
   — Altera-internal only.
 - `POST /api/v1/recommendations/{id}/propose` — methodology lead/admin.
@@ -158,7 +172,8 @@ Endpoints that return a `Page` envelope today:
 
 ### Scenarios
 - `POST /api/v1/projects/{id}/scenarios` — Altera-internal only.
-- `GET /api/v1/projects/{id}/scenarios` — clients see active scenarios only.
+- `GET /api/v1/projects/{id}/scenarios` — returns `Page[Scenario]`. Clients
+  see only active scenarios; Altera sees all statuses.
 - `POST /api/v1/scenarios/{id}/run` — Altera-internal only.
 - `GET /api/v1/scenarios/{id}/result`
 

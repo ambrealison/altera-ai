@@ -203,7 +203,7 @@ class TestAlteraCrossOrgVisibility:
         altera_token = _token(mint_token, altera_user)
         r = client.get("/api/v1/projects", headers={"Authorization": f"Bearer {altera_token}"})
         assert r.status_code == 200
-        ids = [p["id"] for p in r.json()]
+        ids = [p["id"] for p in r.json()["items"]]
         assert project_id in ids
 
     def test_client_cannot_see_other_client_projects(
@@ -238,7 +238,7 @@ class TestAlteraCrossOrgVisibility:
         token_b = _token(mint_token, user_b)
         r = client.get("/api/v1/projects", headers={"Authorization": f"Bearer {token_b}"})
         assert r.status_code == 200
-        ids = [p["id"] for p in r.json()]
+        ids = [p["id"] for p in r.json()["items"]]
         assert project_id not in ids
 
         # user_b gets 404 on direct fetch

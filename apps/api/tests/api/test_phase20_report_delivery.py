@@ -519,7 +519,7 @@ class TestExportListFiltering:
             app.dependency_overrides.pop(authed_user, None)
 
         assert r.status_code == 200, r.text
-        statuses = {e["approval_status"] for e in r.json()}
+        statuses = {e["approval_status"] for e in r.json()["items"]}
         assert statuses == {"draft", "under_review", "approved", "rejected", "delivered"}
 
     def test_client_sees_only_approved_and_delivered(
@@ -540,7 +540,7 @@ class TestExportListFiltering:
             app.dependency_overrides.pop(authed_user, None)
 
         assert r.status_code == 200, r.text
-        statuses = {e["approval_status"] for e in r.json()}
+        statuses = {e["approval_status"] for e in r.json()["items"]}
         assert statuses == {"approved", "delivered"}
         assert "draft" not in statuses
         assert "under_review" not in statuses
@@ -562,7 +562,7 @@ class TestExportListFiltering:
             app.dependency_overrides.pop(authed_user, None)
 
         assert r.status_code == 200, r.text
-        item = r.json()[0]
+        item = r.json()["items"][0]
         for field in (
             "approved_by",
             "approved_at",
@@ -636,7 +636,7 @@ class TestClientDownloadTracking:
             app.dependency_overrides.pop(authed_user, None)
 
         assert r.status_code == 200
-        item = r.json()[0]
+        item = r.json()["items"][0]
         # The raw Supabase storage_path must not appear in the list response
         assert "storage_path" not in item
 
