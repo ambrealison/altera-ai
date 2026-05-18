@@ -35,6 +35,7 @@ from altera_api.domain.report import (
 from altera_api.domain.review import ManualReviewItem, ManualReviewStatus
 from altera_api.domain.wwf import WWFCalculationSummary
 from altera_api.exports.common import format_decimal
+from altera_api.exports.coverage import build_coverage_section
 from altera_api.persistence.protocol import StoreProtocol
 
 # ---------------------------------------------------------------------------
@@ -263,10 +264,13 @@ def build_report_document(
         export_id=str(export.id) if export else None,
     )
 
+    coverage = build_coverage_section(store, run, project)
+
     return ReportDocument(
         meta=meta,
         executive_summary=exec_summary,
         pt_section=pt,
         wwf_section=wwf,
         review_summary=rev_summary,
+        coverage=coverage,
     )

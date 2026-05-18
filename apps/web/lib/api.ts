@@ -382,12 +382,51 @@ export interface ReportMeta {
   export_id: string | null;
 }
 
+// Phase 22 — data coverage and uncertainty
+export interface CoverageSection {
+  // Upload / validation tier
+  uploaded_rows: number | null;
+  valid_rows: number | null;
+  invalid_rows: number | null;
+  warning_count: number | null;
+  error_count: number | null;
+  // Product tier
+  products_total: number;
+  products_classified: number;
+  products_unknown: number;
+  products_out_of_scope: number;
+  products_sent_to_review: number;
+  products_reviewed_by_altera: number;
+  products_ai_classified: number;
+  products_rule_classified: number;
+  products_manual_classified: number;
+  products_with_missing_weight: number;
+  products_with_missing_protein: number | null;
+  products_with_missing_category: number;
+  products_with_missing_ingredients: number | null;
+  // Percentages
+  valid_row_share_pct: string | null;
+  classified_product_share_pct: string | null;
+  ai_classified_share_pct: string | null;
+  manual_review_share_pct: string | null;
+  unknown_product_share_pct: string | null;
+  missing_weight_share_pct: string | null;
+  missing_protein_share_pct: string | null;
+  // Uncertainty
+  uncertainty_level: "low" | "medium" | "high";
+  uncertainty_rationale: string;
+  // Caveats
+  caveats: string[];
+  review_completion_note: string;
+}
+
 export interface ReportDocument {
   meta: ReportMeta;
   executive_summary: string;
   pt_section: PTReportSection | null;
   wwf_section: WWFReportSection | null;
   review_summary: ReviewSummary;
+  coverage: CoverageSection;
 }
 
 async function request<T>(

@@ -7,6 +7,7 @@ import { Button, Card, CardHeader, Pill, Stat } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import {
   createApi,
+  type CoverageSection,
   type PTReportSection,
   type ReportDocument,
   type WWFReportSection,
@@ -82,7 +83,7 @@ export default function ReportPage() {
 
   if (!report) return <div className="text-sm text-gray-500">Loading…</div>;
 
-  const { meta, executive_summary, pt_section, wwf_section, review_summary } = report;
+  const { meta, executive_summary, pt_section, wwf_section, review_summary, coverage } = report;
   const statusTone = STATUS_TONE[meta.approval_status] ?? "neutral";
 
   return (
@@ -180,6 +181,83 @@ export default function ReportPage() {
               {review_summary.top_reasons.map((r) => r.replace(/_/g, " ")).join(", ")}
             </div>
           )}
+        </Card>
+      )}
+
+      {/* Data coverage and uncertainty */}
+      <CoverageSectionCard coverage={coverage} />
+    </div>
+  );
+}
+
+const UNCERTAINTY_TONE: Record<string, "ok" | "warn" | "error"> = {
+  low: "ok",
+  medium: "warn",
+  high: "error",
+};
+
+function CoverageSectionCard({ coverage: c }: { coverage: CoverageSection }) {
+  const tone = UNCERTAINTY_TONE[c.uncertainty_level] ?? "neutral";
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="flex items-center justify-between">
+          <CardHeader
+            title="Data coverage"
+            subtitle="Upload validation and product classification coverage."
+          />
+          <Pill tone={tone}>{c.uncertainty_level} uncertainty</Pill>
+        </div>
+        <p className="mt-3 text-sm text-gray-600">{c.uncertainty_rationale}</p>
+
+        {c.uploaded_rows != null && (
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Stat label="Uploaded rows" value={String(c.uploaded_rows)} />
+            <Stat label="Valid rows" value={c.valid_rows != null ? `${c.valid_rows} (${c.valid_row_share_pct ?? "—"}%)` : "—"} />
+            <Stat label="Errors" value={String(c.error_count ?? 0)} />
+            <Stat label="Warnings" value={String(c.warning_count ?? 0)} />
+          </div>
+        )}
+
+        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Stat label="Total products" value={String(c.products_total)} />
+          <Stat label="Classified" value={c.classified_product_share_pct != null ? `${c.products_classified} (${c.classified_product_share_pct}%)` : String(c.products_classified)} />
+          <Stat label="Unknown" value={c.unknown_product_share_pct != null ? `${c.products_unknown} (${c.unknown_product_share_pct}%)` : String(c.products_unknown)} />
+          <Stat label="Out of scope" value={String(c.products_out_of_scope)} />
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Stat label="Rule-classified" value={String(c.products_rule_classified)} />
+          <Stat label="AI-classified" value={c.ai_classified_share_pct != null ? `${c.products_ai_classified} (${c.ai_classified_share_pct}%)` : String(c.products_ai_classified)} />
+          <Stat label="Manual review" value={String(c.products_manual_classified)} />
+          <Stat label="Sent to review" value={c.manual_review_share_pct != null ? `${c.products_sent_to_review} (${c.manual_review_share_pct}%)` : String(c.products_sent_to_review)} />
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Stat label="Missing weight" value={c.missing_weight_share_pct != null ? `${c.products_with_missing_weight} (${c.missing_weight_share_pct}%)` : String(c.products_with_missing_weight)} />
+          {c.products_with_missing_protein != null && (
+            <Stat label="Missing protein %" value={c.missing_protein_share_pct != null ? `${c.products_with_missing_protein} (${c.missing_protein_share_pct}%)` : String(c.products_with_missing_protein)} />
+          )}
+          <Stat label="Missing category" value={String(c.products_with_missing_category)} />
+          {c.products_with_missing_ingredients != null && (
+            <Stat label="Missing ingredients" value={String(c.products_with_missing_ingredients)} />
+          )}
+        </div>
+
+        <div className="mt-4 text-sm text-gray-500">{c.review_completion_note}</div>
+      </Card>
+
+      {c.caveats.length > 0 && (
+        <Card>
+          <CardHeader title="Methodology caveats" />
+          <ul className="mt-3 space-y-2">
+            {c.caveats.map((caveat, i) => (
+              <li key={i} className="flex gap-2 text-sm text-gray-700">
+                <span className="mt-0.5 text-gray-400">·</span>
+                <span>{caveat}</span>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
     </div>

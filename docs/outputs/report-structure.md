@@ -144,13 +144,73 @@ arithmetic and units differ.
   "review_summary": {
     "total_reviewed": 12, "accepted": 8, "changed": 3,
     "deferred": 1, "pending": 2, "top_reasons": ["low_confidence"]
-  }
+  },
+  "coverage": { ... }   // see Phase 22 below
 }
 ```
 
 The executive summary is **deterministic** — no LLM is called; the text
 is assembled from a fixed template per methodology, incorporating the
 headline metric, methodology version, and approval phrase.
+
+## Data coverage and uncertainty (Phase 22)
+
+The `coverage` field in `ReportDocument` carries upload validation
+metrics, product-tier counts, percentages, a deterministic uncertainty
+label, methodology-specific caveats, and a review completion note.
+
+### Uncertainty labels
+
+Labels are computed deterministically from the coverage metrics — no
+LLM is involved.
+
+| Level    | Triggered by                                                                  |
+|----------|-------------------------------------------------------------------------------|
+| `high`   | Any blocking upload error; unknown product share ≥ 10%; pending review ≥ 5% of total |
+| `medium` | AI-classified share ≥ 30%; missing label protein % ≥ 10% (PT only); missing weight ≥ 10%; any pending review items |
+| `low`    | None of the above                                                             |
+
+### `CoverageSection` shape
+
+```json
+{
+  "uploaded_rows": 500,
+  "valid_rows": 498,
+  "invalid_rows": 2,
+  "warning_count": 3,
+  "error_count": 2,
+  "products_total": 120,
+  "products_classified": 110,
+  "products_unknown": 5,
+  "products_out_of_scope": 5,
+  "products_sent_to_review": 8,
+  "products_reviewed_by_altera": 6,
+  "products_ai_classified": 30,
+  "products_rule_classified": 80,
+  "products_manual_classified": 6,
+  "products_with_missing_weight": 4,
+  "products_with_missing_protein": 2,
+  "products_with_missing_category": 1,
+  "products_with_missing_ingredients": 10,
+  "valid_row_share_pct": "99.60",
+  "classified_product_share_pct": "91.67",
+  "ai_classified_share_pct": "25.00",
+  "manual_review_share_pct": "6.67",
+  "unknown_product_share_pct": "4.17",
+  "missing_weight_share_pct": "3.33",
+  "missing_protein_share_pct": "1.67",
+  "uncertainty_level": "low",
+  "uncertainty_rationale": "Most products were classified deterministically ...",
+  "caveats": [
+    "50/50 default protein split applied to all 5 composite product row(s)."
+  ],
+  "review_completion_note": "6 of 8 manual review item(s) resolved; 2 still pending."
+}
+```
+
+Fields that are methodology-specific (`products_with_missing_protein`,
+`missing_protein_share_pct`) are `null` for WWF runs.
+Percentages are `null` when the denominator is zero.
 
 ## What is never shown
 

@@ -129,6 +129,56 @@ class ReportMeta(BaseModel):
     export_id: str | None
 
 
+class CoverageSection(BaseModel):
+    """Data coverage, uncertainty, and caveats for one run (Phase 22).
+
+    All counts refer to the products present in this run's rows_payload.
+    Metrics that are not available for this methodology are ``None``.
+    Percentages are strings (matching the Decimal formatting convention
+    used elsewhere in report models) or ``None`` when the denominator is
+    zero or the metric is unavailable.
+    """
+
+    # Upload / validation tier
+    uploaded_rows: int | None
+    valid_rows: int | None
+    invalid_rows: int | None
+    warning_count: int | None
+    error_count: int | None
+
+    # Product tier
+    products_total: int
+    products_classified: int
+    products_unknown: int
+    products_out_of_scope: int
+    products_sent_to_review: int
+    products_reviewed_by_altera: int
+    products_ai_classified: int
+    products_rule_classified: int
+    products_manual_classified: int
+    products_with_missing_weight: int
+    products_with_missing_protein: int | None  # PT only
+    products_with_missing_category: int
+    products_with_missing_ingredients: int | None
+
+    # Percentages
+    valid_row_share_pct: str | None
+    classified_product_share_pct: str | None
+    ai_classified_share_pct: str | None
+    manual_review_share_pct: str | None
+    unknown_product_share_pct: str | None
+    missing_weight_share_pct: str | None
+    missing_protein_share_pct: str | None  # PT only
+
+    # Uncertainty
+    uncertainty_level: str  # "low" | "medium" | "high"
+    uncertainty_rationale: str
+
+    # Caveats and review completion
+    caveats: list[str]
+    review_completion_note: str
+
+
 class ReportDocument(BaseModel):
     """Full client-facing report for one run.
 
@@ -141,3 +191,4 @@ class ReportDocument(BaseModel):
     pt_section: PTReportSection | None
     wwf_section: WWFReportSection | None
     review_summary: ReviewSummary
+    coverage: CoverageSection

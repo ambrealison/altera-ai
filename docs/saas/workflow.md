@@ -252,6 +252,13 @@ The report page shows:
 3. **Classification sources** — deterministic / AI / manual review counts.
 4. **Manual review summary** — Altera-only; total reviewed, by status,
    top queue reasons.
+5. **Data coverage and uncertainty** (Phase 22) — upload validation
+   metrics, product-tier counts, missing-data flags, and a deterministic
+   uncertainty label (`low` / `medium` / `high`). The label is computed
+   from thresholds documented in
+   [../outputs/report-structure.md](../outputs/report-structure.md).
+   Methodology-specific caveats (e.g. 50/50 composite protein split,
+   WWF dairy equivalents) are listed below the metrics.
 
 ## 13. Closing out
 

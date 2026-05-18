@@ -27,6 +27,7 @@ from altera_api.exports.common import (
     export_filename,
     format_decimal,
 )
+from altera_api.exports.coverage import build_coverage_section
 from altera_api.exports.protein_tracker import (
     PTExportContext,
     render_pt_csv,
@@ -47,6 +48,7 @@ __all__ = [
     "PTExportContext",
     "RunMetadata",
     "WWFExportContext",
+    "build_coverage_section",
     "build_report_document",
     "export_filename",
     "format_decimal",
