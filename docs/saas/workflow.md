@@ -261,7 +261,7 @@ The report page shows:
    WWF dairy equivalents, enrichment disclosures) are listed below the
    metrics.
 
-## Nutrition enrichment pipeline (Phase 23A)
+## Nutrition enrichment pipeline (Phase 23A/23B)
 
 When a PT upload includes products without a retailer-provided
 `protein_pct`, the assessor (`enrichment/assessor.py`) flags them as
@@ -271,26 +271,57 @@ value is supplied.
 
 Enrichment sources in priority order:
 
-| Priority | Source | Available |
-|----------|--------|-----------|
-| 0 | `retailer_provided` — taken directly from the upload | Yes (not an enrichment step; recorded automatically) |
-| 1 | `manual_altera` — analyst override entered via the review UI | Yes |
-| 2 | `category_average` — average for the product's PT group | Yes |
-| 3 | `open_food_facts` — Open Food Facts public database | Planned |
-| 4 | `ciqual` — ANSES CIQUAL French food composition table | Planned |
-| 5 | `oqali` — OQALI Observatory (France) | Planned |
-| 6 | `nevo` — Dutch NEVO table | Planned |
+| Priority | Source | Available | API endpoint |
+|----------|--------|-----------|-------------|
+| 0 | `retailer_provided` — taken directly from the upload | Yes | — (automatic) |
+| 1 | `manual_altera` — analyst override entered via the review UI | Yes | `POST .../enrichments/manual` |
+| 2 | `category_average` — PT group average from static YAML table | Yes | `POST .../enrichments/category-average` |
+| 3 | `open_food_facts` — Open Food Facts public database | Planned | — |
+| 4 | `ciqual` — ANSES CIQUAL French food composition table | Planned | — |
+| 5 | `oqali` — OQALI Observatory (France) | Planned | — |
+| 6 | `nevo` — Dutch NEVO table | Planned | — |
 
 External databases (priorities 3–6) are registered in
 `enrichment/registry.py` but `is_available=False` — no outbound API
-calls are made in Phase 23A.
+calls are made.
+
+### Manual enrichment workflow
+
+1. Analyst identifies a product with `status=NEEDED` via the enrichment list endpoint.
+2. Analyst calls `POST /projects/{id}/products/{pid}/enrichments/manual` with `enriched_value`, `confidence`, and `rationale`.
+3. A `NutritionEnrichmentRecord` with `source=manual_altera`, `status=ENRICHED` is stored.
+4. The coverage section immediately reflects the enrichment in its caveats on the next report generation.
+
+Rules:
+- Only Altera internal users can call this endpoint (403 for clients).
+- Rejected if the product already has a retailer-provided `protein_pct` (409 conflict).
+- `enriched_value` must be in [0, 100] (422 if outside range).
+
+### Category-average enrichment workflow
+
+1. Analyst calls `POST /projects/{id}/products/{pid}/enrichments/category-average`.
+2. The endpoint looks up the product's PT classification to determine its group.
+3. The static YAML table is consulted for that group's average protein %.
+4. A `NutritionEnrichmentRecord` with `source=category_average`, `status=ENRICHED`, and `confidence≤0.60` is stored.
+
+Rules:
+- Altera-only (403 for clients).
+- Requires an existing PT classification (422 if missing).
+- `out_of_scope` and `unknown` groups have no average — returns 404.
+- Rejected if the product already has a retailer-provided `protein_pct` (409 conflict).
+
+### Calculation usage policy
 
 Enrichment records are stored separately from the normalised product;
-retailer-provided values are never overwritten. The calculation engine
-uses only `NormalizedProduct.pt_fields.protein_pct` — enrichment
-records in the store are invisible to `calculate_pt_run`.
+retailer-provided values are **never overwritten**. The calculation engine
+uses only `NormalizedProduct.pt_fields.protein_pct` — enrichment records
+in the store are completely invisible to `calculate_pt_run`.
 
-The coverage section discloses enrichment via two optional caveats;
+Applying enriched values to the calculation is planned for Phase 23C via
+an explicit `use_enriched_nutrition` flag. Until then enrichment is for
+data quality tracking and coverage disclosure only.
+
+The coverage section discloses enrichment per-source via optional caveats;
 see [../outputs/report-structure.md](../outputs/report-structure.md)
 for the exact wording.
 

@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from altera_api.persistence.protocol import StoreProtocol
 
 from altera_api.domain.common import ClassificationSource, Methodology
-from altera_api.domain.enrichment import NutritionEnrichmentStatus
+from altera_api.domain.enrichment import NutritionEnrichmentSource, NutritionEnrichmentStatus
 from altera_api.domain.project import Project
 from altera_api.domain.protein_tracker import ProteinTrackerCalculationSummary
 from altera_api.domain.report import CoverageSection
@@ -209,10 +209,11 @@ def _wwf_caveats(s: WWFCalculationSummary) -> list[str]:
 
 
 def _enrichment_caveats(store: StoreProtocol, project_id: UUID) -> list[str]:
-    """Disclose enrichment usage and gaps for PT runs (Phase 23A).
+    """Disclose enrichment usage and gaps for PT runs (Phase 23A/23B).
 
     Returns caveats only when enrichment records exist for the project.
     Products with retailer-provided protein data produce no caveats.
+    Phase 23B adds per-source breakdown for manual and category-average.
     """
     try:
         enrichment_records = store.list_enrichment_records_for_project(project_id)
@@ -220,26 +221,56 @@ def _enrichment_caveats(store: StoreProtocol, project_id: UUID) -> list[str]:
         # Store does not yet implement enrichment methods — safe no-op.
         return []
 
-    needed = sum(
+    protein_records = [r for r in enrichment_records if r.nutrient == "protein_pct"]
+
+    needed = sum(1 for r in protein_records if r.status is NutritionEnrichmentStatus.NEEDED)
+    manual_enriched = sum(
         1
-        for r in enrichment_records
-        if r.nutrient == "protein_pct" and r.status is NutritionEnrichmentStatus.NEEDED
+        for r in protein_records
+        if r.status is NutritionEnrichmentStatus.ENRICHED
+        and r.source is NutritionEnrichmentSource.MANUAL_ALTERA
     )
-    enriched = sum(
+    category_enriched = sum(
         1
-        for r in enrichment_records
-        if r.nutrient == "protein_pct" and r.status is NutritionEnrichmentStatus.ENRICHED
+        for r in protein_records
+        if r.status is NutritionEnrichmentStatus.ENRICHED
+        and r.source is NutritionEnrichmentSource.CATEGORY_AVERAGE
     )
+    other_enriched = sum(
+        1
+        for r in protein_records
+        if r.status is NutritionEnrichmentStatus.ENRICHED
+        and r.source not in (
+            NutritionEnrichmentSource.MANUAL_ALTERA,
+            NutritionEnrichmentSource.CATEGORY_AVERAGE,
+        )
+    )
+
     caveats: list[str] = []
     if needed > 0:
         caveats.append(
             f"{needed} product(s) are missing label protein %; "
             "enrichment from an external or manual source is recommended."
         )
-    if enriched > 0:
+    if manual_enriched > 0:
         caveats.append(
-            f"{enriched} product(s) used enriched protein % values "
-            "(not from retailer labels). Enrichment source recorded per product."
+            f"{manual_enriched} product(s) used manually-entered protein % values "
+            "(Altera methodology team override). "
+            "Enriched values are stored separately from retailer labels and are "
+            "not yet applied to the calculation."
+        )
+    if category_enriched > 0:
+        caveats.append(
+            f"{category_enriched} product(s) used category-average protein % values "
+            "as a statistical fallback (confidence ≤ 0.60). "
+            "Enriched values are stored separately from retailer labels and are "
+            "not yet applied to the calculation."
+        )
+    if other_enriched > 0:
+        caveats.append(
+            f"{other_enriched} product(s) used enriched protein % values "
+            "(not from retailer labels). Enrichment source recorded per product. "
+            "Enriched values are stored separately and are not yet applied to the calculation."
         )
     return caveats
 

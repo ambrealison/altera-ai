@@ -1608,3 +1608,217 @@ def list_jobs_route(
         jobs = [j for j in jobs if j.job_type is job_type]
     jobs.sort(key=lambda j: j.created_at, reverse=True)
     return [_job_response(j) for j in jobs]
+
+
+# ---------------------------------------------------------------------------
+# Nutrition enrichment (Phase 23B)
+# ---------------------------------------------------------------------------
+
+
+class EnrichmentRecordResponse(BaseModel):
+    product_id: UUID
+    nutrient: str
+    original_value: str | None
+    enriched_value: str | None
+    unit: str
+    source: str
+    confidence: str | None
+    status: str
+    rationale: str
+    created_at: str
+    created_by: UUID | None
+
+
+class ManualEnrichmentRequest(BaseModel):
+    enriched_value: float = Field(ge=0, le=100)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    rationale: str = Field(min_length=1)
+
+
+def _enrichment_response(r: object) -> EnrichmentRecordResponse:
+    from altera_api.domain.enrichment import NutritionEnrichmentRecord
+
+    assert isinstance(r, NutritionEnrichmentRecord)
+    return EnrichmentRecordResponse(
+        product_id=r.product_id,
+        nutrient=r.nutrient,
+        original_value=str(r.original_value) if r.original_value is not None else None,
+        enriched_value=str(r.enriched_value) if r.enriched_value is not None else None,
+        unit=r.unit,
+        source=r.source.value,
+        confidence=str(r.confidence) if r.confidence is not None else None,
+        status=r.status.value,
+        rationale=r.rationale,
+        created_at=r.created_at.isoformat(),
+        created_by=r.created_by,
+    )
+
+
+def _resolve_pt_product(
+    project_id: UUID,
+    product_id: UUID,
+    store: StoreProtocol,
+) -> object:
+    """Return the NormalizedProduct or raise 404/422."""
+    from altera_api.domain.common import Methodology
+    from altera_api.domain.product import NormalizedProduct
+
+    product = store.get_product(product_id)
+    if product is None or product.project_id != project_id:
+        raise HTTPException(status_code=404, detail="product not found")
+    assert isinstance(product, NormalizedProduct)
+    if Methodology.PROTEIN_TRACKER not in product.methodologies_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="product does not have Protein Tracker enabled",
+        )
+    return product
+
+
+@api_router.get(
+    "/projects/{project_id}/products/{product_id}/enrichments",
+    response_model=list[EnrichmentRecordResponse],
+)
+def list_enrichments_route(
+    product_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> list[EnrichmentRecordResponse]:
+    """List all enrichment records for a product. Altera-only."""
+    if not auth.is_altera_internal:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+    _resolve_pt_product(project.id, product_id, store)
+    records = store.get_enrichment_records_for_product(product_id)
+    records.sort(key=lambda r: r.created_at)
+    return [_enrichment_response(r) for r in records]
+
+
+@api_router.post(
+    "/projects/{project_id}/products/{product_id}/enrichments/manual",
+    response_model=EnrichmentRecordResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_manual_enrichment_route(
+    product_id: UUID,
+    body: ManualEnrichmentRequest,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> EnrichmentRecordResponse:
+    """Create a manual protein enrichment record. Altera-only.
+
+    Rejected if the product already has a retailer-provided protein_pct —
+    enrichment is only for products with missing label data.
+    """
+    from decimal import Decimal as D
+
+    from altera_api.domain.enrichment import (
+        NutritionEnrichmentRecord,
+        NutritionEnrichmentSource,
+        NutritionEnrichmentStatus,
+    )
+    from altera_api.domain.product import NormalizedProduct
+
+    if not auth.is_altera_internal:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+
+    product = _resolve_pt_product(project.id, product_id, store)
+    assert isinstance(product, NormalizedProduct)
+
+    if product.pt_fields is not None and product.pt_fields.protein_pct is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "product already has a retailer-provided protein_pct; "
+                "manual enrichment is only allowed for products with missing label data"
+            ),
+        )
+
+    now = datetime.now(UTC)
+    original_value = (
+        product.pt_fields.protein_pct if product.pt_fields is not None else None
+    )
+    confidence = D(str(body.confidence)) if body.confidence is not None else None
+
+    record = NutritionEnrichmentRecord(
+        product_id=product_id,
+        nutrient="protein_pct",
+        original_value=original_value,
+        enriched_value=D(str(body.enriched_value)),
+        unit="g_per_100g",
+        source=NutritionEnrichmentSource.MANUAL_ALTERA,
+        confidence=confidence,
+        status=NutritionEnrichmentStatus.ENRICHED,
+        rationale=body.rationale,
+        created_at=now,
+        created_by=auth.user_id,
+    )
+    store.add_enrichment_record(record)
+    return _enrichment_response(record)
+
+
+@api_router.post(
+    "/projects/{project_id}/products/{product_id}/enrichments/category-average",
+    response_model=EnrichmentRecordResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def apply_category_average_enrichment_route(
+    product_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> EnrichmentRecordResponse:
+    """Apply the category-average protein value for a product. Altera-only.
+
+    Requires the product to have a PT classification so the correct
+    group average can be selected. Rejected if the product already has
+    a retailer-provided protein_pct, or if its PT group has no average
+    in the static table (out_of_scope, unknown).
+    """
+    from altera_api.domain.product import NormalizedProduct
+    from altera_api.enrichment.providers.category_average import CategoryAverageProvider
+
+    if not auth.is_altera_internal:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+
+    product = _resolve_pt_product(project.id, product_id, store)
+    assert isinstance(product, NormalizedProduct)
+
+    if product.pt_fields is not None and product.pt_fields.protein_pct is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "product already has a retailer-provided protein_pct; "
+                "category-average enrichment is only allowed for products with missing label data"
+            ),
+        )
+
+    classification = store.get_pt_classification(product_id)
+    if classification is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="product has no PT classification; classify before enriching",
+        )
+
+    now = datetime.now(UTC)
+    provider = CategoryAverageProvider()
+    record = provider.enrich_by_group(
+        product_id,
+        classification.pt_group,
+        "protein_pct",
+        now=now,
+        created_by=auth.user_id,
+    )
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"no category average available for pt_group={classification.pt_group.value}; "
+                "only plant_based_core, plant_based_non_core, composite_products, and "
+                "animal_core groups have averages"
+            ),
+        )
+
+    store.add_enrichment_record(record)
+    return _enrichment_response(record)

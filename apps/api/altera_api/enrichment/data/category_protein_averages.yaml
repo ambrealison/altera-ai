@@ -1,0 +1,55 @@
+# Category-average protein values for Protein Tracker groups.
+#
+# These values are used as a statistical fallback when a product's
+# label protein_pct is absent and no other enrichment source has data.
+#
+# All values are in g_per_100g (grams of protein per 100g of product).
+# Confidence of 0.60 reflects the broad category granularity — individual
+# products may deviate significantly from these averages.
+#
+# Source: Altera internal reference estimates.
+# Update periodically as more product-level data accrues.
+# DO NOT use for out_of_scope or unknown groups; those have no entry here.
+---
+- pt_group: plant_based_core
+  nutrient: protein_pct
+  value: "15.00"
+  unit: g_per_100g
+  confidence: "0.60"
+  rationale: >-
+    Category average for plant-based core products (legumes, soy-based products,
+    tofu, tempeh, seitan, edamame, quorn). Based on Altera internal reference data.
+    Individual products may vary significantly; retailer-provided values should be
+    used whenever available.
+
+- pt_group: plant_based_non_core
+  nutrient: protein_pct
+  value: "12.00"
+  unit: g_per_100g
+  confidence: "0.60"
+  rationale: >-
+    Category average for plant-based non-core products (nuts, seeds, plant-based
+    dairy alternatives, seaweed). Based on Altera internal reference data.
+    Individual products may vary significantly; retailer-provided values should be
+    used whenever available.
+
+- pt_group: composite_products
+  nutrient: protein_pct
+  value: "10.00"
+  unit: g_per_100g
+  confidence: "0.50"
+  rationale: >-
+    Category average for composite products (mixed animal and plant ingredients,
+    e.g. ready meals, sandwiches). Confidence is lower than other groups due to
+    high composition diversity. Based on Altera internal reference data.
+    Retailer-provided values should be used whenever available.
+
+- pt_group: animal_core
+  nutrient: protein_pct
+  value: "18.00"
+  unit: g_per_100g
+  confidence: "0.60"
+  rationale: >-
+    Category average for animal-core products (meat, poultry, fish, eggs, dairy).
+    Based on Altera internal reference data. Individual products may vary
+    significantly; retailer-provided values should be used whenever available.

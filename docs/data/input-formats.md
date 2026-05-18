@@ -48,7 +48,7 @@ order does not matter.
 | Column                       | Required | Purpose                                  |
 |------------------------------|:--------:|------------------------------------------|
 | `items_purchased`            |    x     | Items purchased over the reporting period |
-| `protein_pct`                |          | % protein by mass (g per 100g). Optional from Phase 23A — products without a value are flagged for enrichment and excluded from protein totals until a value is supplied. |
+| `protein_pct`                |          | % protein by mass (g per 100g). Optional — products without a value are flagged for enrichment and excluded from protein totals until a value is supplied via the manual or category-average enrichment API (Phase 23B). |
 | `protein_source`             |          | `label` or `reference_db`; defaults to `reference_db` if missing |
 | `plant_protein_pct`          |          | Enables per-product composite split extension |
 | `animal_protein_pct`         |          | Enables per-product composite split extension |

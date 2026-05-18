@@ -212,17 +212,29 @@ Fields that are methodology-specific (`products_with_missing_protein`,
 `missing_protein_share_pct`) are `null` for WWF runs.
 Percentages are `null` when the denominator is zero.
 
-### Enrichment caveats (Phase 23A)
+### Enrichment caveats (Phase 23A/23B)
 
 When enrichment records exist for the project the `caveats` list in PT
-coverage sections will include one or both of:
+coverage sections may include any of:
 
-- **NEEDED**: `"N product(s) are missing label protein %; enrichment from an external or manual source is recommended."` — products that have no `protein_pct` and no enrichment value applied; they are excluded from protein totals.
-- **ENRICHED**: `"N product(s) used enriched protein % values (not from retailer labels). Enrichment source recorded per product."` — products whose protein value came from an enrichment record rather than the retailer label.
+- **NEEDED**: `"N product(s) are missing label protein %; enrichment from an external or manual source is recommended."` — products with no `protein_pct` and no enrichment value applied; excluded from protein totals.
+- **MANUAL**: `"N product(s) used manually-entered protein % values (Altera methodology team override). Enriched values are stored separately from retailer labels and are not yet applied to the calculation."` — manual_altera enrichment records.
+- **CATEGORY_AVERAGE**: `"N product(s) used category-average protein % values as a statistical fallback (confidence ≤ 0.60). Enriched values are stored separately from retailer labels and are not yet applied to the calculation."` — category_average enrichment records.
+- **OTHER**: a generic note for other enrichment sources.
 
-These caveats are deterministic and source-agnostic; the enrichment
-source for each individual product is stored in
-`NutritionEnrichmentRecord.source`.
+All enrichment caveats include the phrase `"not yet applied to the calculation"` to make clear that `calculate_pt_run` reads only the retailer-provided `pt_fields.protein_pct` and not the enrichment records.
+
+The enrichment source for each individual product is stored in `NutritionEnrichmentRecord.source`.
+
+#### Calculation usage policy
+
+Enriched protein values are **not** used in Protein Tracker calculations by default.
+The calculation engine reads `NormalizedProduct.pt_fields.protein_pct` (the retailer
+value). Enrichment records in the store are completely invisible to `calculate_pt_run`.
+
+Applying enriched values to the calculation is planned for Phase 23C via an explicit
+`use_enriched_nutrition` flag on the run request. Until that flag exists, enrichment
+is for data quality tracking and disclosure only.
 
 ## What is never shown
 
