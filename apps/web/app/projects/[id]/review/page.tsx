@@ -6,6 +6,7 @@ import {
   createApi,
   PT_GROUP_OPTIONS,
   WWF_FOOD_GROUP_OPTIONS,
+  type BulkReviewAction,
   type DecisionType,
   type ManualReviewReason,
   type ManualReviewStatus,
@@ -52,6 +53,12 @@ export default function ReviewPage() {
   const [filterSearch, setFilterSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<"oldest" | "newest">("oldest");
 
+  // Bulk selection — only used by Altera staff
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkPtGroup, setBulkPtGroup] = useState<string>(PT_GROUP_OPTIONS[0]);
+
   const refresh = useCallback(async () => {
     const filters: ReviewFilters = {};
     if (filterMethodology) filters.methodology = filterMethodology;
@@ -61,10 +68,34 @@ export default function ReviewPage() {
     if (sortOrder !== "oldest") filters.sort = sortOrder;
     try {
       setItems(await api.listReview(projectId, filters));
+      setSelected(new Set()); // clear selection on refresh
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     }
   }, [api, projectId, filterMethodology, filterStatus, filterReason, filterSearch, sortOrder]);
+
+  const handleBulkAction = useCallback(
+    async (action: BulkReviewAction) => {
+      if (selected.size === 0 || !items) return;
+      const methodology = filterMethodology || (items[0]?.methodology ?? "protein_tracker");
+      setBulkBusy(true);
+      setBulkError(null);
+      try {
+        await api.bulkAction(projectId, {
+          action,
+          methodology: methodology as Methodology,
+          product_ids: Array.from(selected),
+          to_pt_group: action === "bulk_change_pt_group" ? bulkPtGroup : undefined,
+        });
+        await refresh();
+      } catch (e) {
+        setBulkError(e instanceof Error ? e.message : "Bulk action failed");
+      } finally {
+        setBulkBusy(false);
+      }
+    },
+    [api, projectId, selected, items, filterMethodology, bulkPtGroup, refresh],
+  );
 
   useEffect(() => {
     refresh();
@@ -194,6 +225,71 @@ export default function ReviewPage() {
         </div>
       ) : isAltera ? (
         <div className="mt-6 space-y-3">
+          {/* Bulk selection toolbar */}
+          <div className="flex flex-wrap items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+            <label className="flex items-center gap-1.5 cursor-pointer text-gray-700">
+              <input
+                type="checkbox"
+                checked={selected.size === items.length && items.length > 0}
+                ref={(el) => {
+                  if (el) el.indeterminate = selected.size > 0 && selected.size < items.length;
+                }}
+                onChange={(e) =>
+                  setSelected(e.target.checked ? new Set(items.map((i) => i.product_id)) : new Set())
+                }
+              />
+              <span>
+                {selected.size > 0 ? `${selected.size} selected` : "Select all"}
+              </span>
+            </label>
+
+            {selected.size > 0 && (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleBulkAction("bulk_accept")}
+                  disabled={bulkBusy}
+                >
+                  Accept {selected.size}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleBulkAction("bulk_defer")}
+                  disabled={bulkBusy}
+                >
+                  Defer {selected.size}
+                </Button>
+                {(!filterMethodology || filterMethodology === "protein_tracker") && (
+                  <span className="flex items-center gap-1.5">
+                    <select
+                      value={bulkPtGroup}
+                      onChange={(e) => setBulkPtGroup(e.target.value)}
+                      className="rounded border border-gray-300 px-2 py-1 text-sm"
+                      disabled={bulkBusy}
+                    >
+                      {PT_GROUP_OPTIONS.map((g) => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleBulkAction("bulk_change_pt_group")}
+                      disabled={bulkBusy}
+                    >
+                      Change PT group
+                    </Button>
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+
+          {bulkError && (
+            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              {bulkError}
+            </div>
+          )}
+
           {items.map((item) => (
             <ReviewRow
               key={`${item.product_id}-${item.methodology}`}
@@ -201,6 +297,14 @@ export default function ReviewPage() {
               projectId={projectId}
               accessToken={accessToken}
               onAfter={refresh}
+              selected={selected.has(item.product_id)}
+              onToggleSelect={(id) =>
+                setSelected((prev) => {
+                  const next = new Set(prev);
+                  next.has(id) ? next.delete(id) : next.add(id);
+                  return next;
+                })
+              }
             />
           ))}
         </div>
@@ -220,11 +324,15 @@ function ReviewRow({
   projectId,
   accessToken,
   onAfter,
+  selected = false,
+  onToggleSelect,
 }: {
   item: ReviewItem;
   projectId: string;
   accessToken: string | null;
   onAfter: () => void;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [choice, setChoice] = useState<string>(() => defaultChoice(item.methodology));
@@ -256,86 +364,98 @@ function ReviewRow({
 
   return (
     <Card>
-      <CardHeader
-        title={item.product_name}
-        subtitle={`${item.external_product_id}${item.brand ? " · " + item.brand : ""}`}
-        action={<Pill tone="warn">{item.reason}</Pill>}
-      />
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-        <Pill tone="brand">{item.methodology}</Pill>
-        <Pill tone={item.status === "in_queue" ? "neutral" : "ok"}>{item.status}</Pill>
-        <span className="text-xs text-gray-500">
-          current: {item.current_category ?? "—"}
-        </span>
-        {item.confidence !== null && (
-          <span className="text-xs text-gray-400">
-            confidence: {(item.confidence * 100).toFixed(0)}%
-          </span>
+      <div className="flex items-start gap-3">
+        {onToggleSelect && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(item.product_id)}
+            className="mt-1 shrink-0"
+          />
         )}
-      </div>
-      {/* Rationale section — source metadata + notes */}
-      <div className="mt-2 space-y-1 text-xs text-gray-500">
-        {item.source && (
-          <div className="flex flex-wrap gap-3">
-            <span>source: <span className="font-medium text-gray-700">{item.source}</span></span>
-            {item.rule_id && (
-              <span>rule: <span className="font-mono text-gray-600">{item.rule_id}</span></span>
-            )}
-            {item.ai_model && (
-              <span>model: <span className="font-mono text-gray-600">{item.ai_model}</span></span>
-            )}
-            {item.ai_prompt_version && (
-              <span>prompt: <span className="font-mono text-gray-600">{item.ai_prompt_version}</span></span>
+        <div className="min-w-0 flex-1">
+          <CardHeader
+            title={item.product_name}
+            subtitle={`${item.external_product_id}${item.brand ? " · " + item.brand : ""}`}
+            action={<Pill tone="warn">{item.reason}</Pill>}
+          />
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+            <Pill tone="brand">{item.methodology}</Pill>
+            <Pill tone={item.status === "in_queue" ? "neutral" : "ok"}>{item.status}</Pill>
+            <span className="text-xs text-gray-500">
+              current: {item.current_category ?? "—"}
+            </span>
+            {item.confidence !== null && (
+              <span className="text-xs text-gray-400">
+                confidence: {(item.confidence * 100).toFixed(0)}%
+              </span>
             )}
           </div>
-        )}
-        {item.rationale_notes.length > 0 && (
-          <ul className="mt-1 list-disc pl-4 space-y-0.5 text-amber-700">
-            {item.rationale_notes.map((note, i) => (
-              <li key={i}>{note}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="mt-4 flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          <div className="text-xs font-medium text-gray-700">Change to</div>
-          <select
-            value={choice}
-            onChange={(e) => setChoice(e.target.value)}
-            className="mt-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-          >
-            {options.map((o) => (
-              <option key={o} value={o}>{o}</option>
-            ))}
-          </select>
-        </label>
-        <label className="grow text-sm">
-          <div className="text-xs font-medium text-gray-700">Reason (optional)</div>
-          <input
-            type="text"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-          />
-        </label>
-      </div>
-      <div className="mt-4 flex gap-2">
-        <Button onClick={() => submit("changed")} disabled={busy}>
-          {busy ? "Saving…" : "Change to selected"}
-        </Button>
-        <Button variant="secondary" onClick={() => submit("accepted")} disabled={busy}>
-          Accept current
-        </Button>
-        <Button variant="ghost" onClick={() => submit("deferred")} disabled={busy}>
-          Defer
-        </Button>
-      </div>
-      {err && (
-        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
-          {err}
+          {/* Rationale section — source metadata + notes */}
+          <div className="mt-2 space-y-1 text-xs text-gray-500">
+            {item.source && (
+              <div className="flex flex-wrap gap-3">
+                <span>source: <span className="font-medium text-gray-700">{item.source}</span></span>
+                {item.rule_id && (
+                  <span>rule: <span className="font-mono text-gray-600">{item.rule_id}</span></span>
+                )}
+                {item.ai_model && (
+                  <span>model: <span className="font-mono text-gray-600">{item.ai_model}</span></span>
+                )}
+                {item.ai_prompt_version && (
+                  <span>prompt: <span className="font-mono text-gray-600">{item.ai_prompt_version}</span></span>
+                )}
+              </div>
+            )}
+            {item.rationale_notes.length > 0 && (
+              <ul className="mt-1 list-disc pl-4 space-y-0.5 text-amber-700">
+                {item.rationale_notes.map((note, i) => (
+                  <li key={i}>{note}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <div className="text-xs font-medium text-gray-700">Change to</div>
+              <select
+                value={choice}
+                onChange={(e) => setChoice(e.target.value)}
+                className="mt-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                {options.map((o) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grow text-sm">
+              <div className="text-xs font-medium text-gray-700">Reason (optional)</div>
+              <input
+                type="text"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
+            </label>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button onClick={() => submit("changed")} disabled={busy}>
+              {busy ? "Saving…" : "Change to selected"}
+            </Button>
+            <Button variant="secondary" onClick={() => submit("accepted")} disabled={busy}>
+              Accept current
+            </Button>
+            <Button variant="ghost" onClick={() => submit("deferred")} disabled={busy}>
+              Defer
+            </Button>
+          </div>
+          {err && (
+            <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+              {err}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </Card>
   );
 }

@@ -17,7 +17,9 @@ from pydantic import BaseModel, Field
 
 from altera_api.api.dependencies import current_user_id, get_data_store, get_project
 from altera_api.api.orchestrator import (
+    BulkActionResult,
     IngestSummary,
+    bulk_submit_decision,
     classify_upload,
     create_upload_stub,
     ingest_upload,
@@ -574,6 +576,69 @@ def submit_decision_route(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _review_response(view)
+
+
+class BulkActionRequest(BaseModel):
+    action: Literal["bulk_accept", "bulk_defer", "bulk_change_pt_group"]
+    methodology: Methodology
+    product_ids: list[UUID] = Field(min_length=1, max_length=100)
+    to_pt_group: str | None = None
+    reason: str | None = None
+
+
+class BulkActionResponse(BaseModel):
+    action: str
+    requested_count: int
+    updated_count: int
+    decision_ids: list[UUID]
+
+
+def _bulk_response(r: BulkActionResult) -> BulkActionResponse:
+    return BulkActionResponse(
+        action=r.action,
+        requested_count=r.requested_count,
+        updated_count=r.updated_count,
+        decision_ids=list(r.decision_ids),
+    )
+
+
+@api_router.post(
+    "/projects/{project_id}/review/bulk-action",
+    response_model=BulkActionResponse,
+    status_code=200,
+)
+def bulk_action_route(
+    body: BulkActionRequest,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> BulkActionResponse:
+    """Apply a bulk review action across multiple products.
+
+    Only Altera reviewers may call this endpoint (403 for GMS/client users).
+    All items are validated before any state changes — the operation is
+    all-or-nothing. Returns 400 with a descriptive error if any item is
+    missing, already terminal, or belongs to a different organisation.
+    """
+    if not auth.can_review:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="only Altera staff can submit review decisions",
+        )
+    try:
+        result = bulk_submit_decision(
+            store,
+            project=project,
+            product_ids=body.product_ids,
+            methodology=body.methodology,
+            action=body.action,
+            reviewer_user_id=auth.user_id,
+            to_pt_group=body.to_pt_group,
+            reason=body.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _bulk_response(result)
 
 
 # ---------------------------------------------------------------------------

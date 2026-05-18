@@ -22,7 +22,7 @@ from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.product import NormalizedProduct
 from altera_api.domain.project import Project, PTValidationStatus
 from altera_api.domain.protein_tracker import ProteinTrackerProductClassification
-from altera_api.domain.review import ManualReviewItem
+from altera_api.domain.review import ManualReviewDecision, ManualReviewItem
 from altera_api.domain.upload import Upload
 from altera_api.domain.validation import ValidationReport
 from altera_api.domain.wwf import (
@@ -102,6 +102,7 @@ class InMemoryStore:
         self.pt_classifications: dict[UUID, ProteinTrackerProductClassification] = {}
         self.wwf_classifications: dict[UUID, WWFProductClassification] = {}
         self.review_queue: dict[UUID, ManualReviewItem] = {}
+        self.review_decisions: dict[UUID, ManualReviewDecision] = {}
         self.runs: dict[UUID, RunRecord] = {}
         self.export_records: dict[UUID, ExportRecord] = {}
         self.audit_events: list[AuditEvent] = []
@@ -271,6 +272,10 @@ class InMemoryStore:
         with self._lock:
             key = self._review_key(item.product_id, item.methodology)
             self.review_queue[key] = item
+
+    def add_review_decision(self, decision: ManualReviewDecision) -> None:
+        with self._lock:
+            self.review_decisions[decision.id] = decision
 
     def remove_review_item(self, product_id: UUID, methodology: Methodology) -> None:
         with self._lock:

@@ -768,6 +768,213 @@ def _review_view_for(
     )
 
 
+BULK_ACTION_MAX_ITEMS = 100
+
+
+@dataclass(frozen=True)
+class BulkActionResult:
+    action: str
+    requested_count: int
+    updated_count: int
+    decision_ids: tuple[UUID, ...]
+
+
+def bulk_submit_decision(
+    store: StoreProtocol,
+    *,
+    project: Project,
+    product_ids: list[UUID],
+    methodology: Methodology,
+    action: Literal["bulk_accept", "bulk_defer", "bulk_change_pt_group"],
+    reviewer_user_id: UUID,
+    to_pt_group: str | None = None,
+    reason: str | None = None,
+) -> BulkActionResult:
+    """Apply one action to multiple review items atomically.
+
+    Validates the entire batch before touching any state. Raises
+    ``ValueError`` for any validation failure so the caller returns 400
+    without partial updates.
+
+    Supported actions
+    -----------------
+    bulk_accept          Both PT and WWF — accepts the current classification.
+    bulk_defer           Both PT and WWF — defers without changing classification.
+    bulk_change_pt_group PT only — reassigns all items to ``to_pt_group``.
+                         WWF bulk change is not supported (requires a fully
+                         validated classification object per item); use single-
+                         item ``submit_decision`` instead.
+    """
+    from altera_api.domain.audit import AuditEvent, AuditEventType
+    from altera_api.review.workflow import (
+        accept_pt_item,
+        accept_wwf_item,
+        change_pt_item,
+        claim_item,
+        defer_item,
+    )
+
+    # --- batch-size guard ---
+    if len(product_ids) == 0:
+        raise ValueError("product_ids must not be empty.")
+    if len(product_ids) > BULK_ACTION_MAX_ITEMS:
+        raise ValueError(
+            f"batch size {len(product_ids)} exceeds the maximum of {BULK_ACTION_MAX_ITEMS}."
+        )
+
+    # --- methodology-action compatibility ---
+    if action == "bulk_change_pt_group":
+        if methodology is not Methodology.PROTEIN_TRACKER:
+            raise ValueError(
+                "bulk_change_pt_group is only supported for protein_tracker methodology."
+            )
+        if to_pt_group is None:
+            raise ValueError("to_pt_group is required for bulk_change_pt_group.")
+        try:
+            target_pt_group = ProteinTrackerGroup(to_pt_group)
+        except ValueError:
+            raise ValueError(f"invalid PT group: {to_pt_group!r}.") from None
+        if not target_pt_group.is_methodology_group:
+            raise ValueError(
+                "bulk_change_pt_group cannot set system states (out_of_scope/unknown)."
+            )
+
+    # --- validate all items exist and are submittable ---
+    now = datetime.now(UTC)
+    items: list[ManualReviewItem] = []
+    missing: list[UUID] = []
+    wrong_methodology: list[UUID] = []
+    terminal_ids: list[UUID] = []
+
+    for pid in product_ids:
+        product = store.get_product(pid)
+        if product is None or product.project_id != project.id:
+            missing.append(pid)
+            continue
+        item = store.get_review_item(pid, methodology)
+        if item is None:
+            missing.append(pid)
+            continue
+        if item.methodology is not methodology:
+            wrong_methodology.append(pid)
+            continue
+        if item.status.is_terminal:
+            terminal_ids.append(pid)
+            continue
+        items.append(item)
+
+    errors: list[str] = []
+    if missing:
+        errors.append(
+            f"{len(missing)} product(s) not found in this project's review queue "
+            f"for methodology {methodology.value}: "
+            + ", ".join(str(p) for p in missing[:5])
+            + ("…" if len(missing) > 5 else "")
+        )
+    if wrong_methodology:
+        errors.append(
+            f"{len(wrong_methodology)} item(s) have wrong methodology."
+        )
+    if terminal_ids:
+        errors.append(
+            f"{len(terminal_ids)} item(s) are already in a terminal state "
+            f"(accepted/changed/deferred) and cannot be actioned again."
+        )
+    if errors:
+        raise ValueError("; ".join(errors))
+
+    # --- apply all ---
+    decision_ids: list[UUID] = []
+    for item in items:
+        claimed = claim_item(item, reviewer_user_id=reviewer_user_id, now=now)
+
+        if action == "bulk_accept":
+            if methodology is Methodology.PROTEIN_TRACKER:
+                current_pt = store.get_pt_classification(item.product_id)
+                assert current_pt is not None
+                outcome = accept_pt_item(
+                    claimed, current=current_pt,
+                    reviewer_user_id=reviewer_user_id, reason=reason, now=now,
+                )
+                store.upsert_pt_classification(outcome.pt_classification)  # type: ignore[arg-type]
+            else:
+                current_wwf = store.get_wwf_classification(item.product_id)
+                assert current_wwf is not None
+                outcome = accept_wwf_item(
+                    claimed, current=current_wwf,
+                    reviewer_user_id=reviewer_user_id, reason=reason, now=now,
+                )
+                store.upsert_wwf_classification(outcome.wwf_classification)  # type: ignore[arg-type]
+
+        elif action == "bulk_defer":
+            outcome = defer_item(
+                claimed, reviewer_user_id=reviewer_user_id, reason=reason, now=now
+            )
+
+        else:  # bulk_change_pt_group
+            current_pt = store.get_pt_classification(item.product_id)
+            outcome = change_pt_item(
+                claimed, current=current_pt,
+                to_group=target_pt_group,  # type: ignore[possibly-undefined]
+                reviewer_user_id=reviewer_user_id, reason=reason, now=now,
+            )
+            store.upsert_pt_classification(outcome.pt_classification)  # type: ignore[arg-type]
+
+        # Persist item state
+        if outcome.item.status is ManualReviewStatus.DEFERRED:
+            store.upsert_review_item(outcome.item)
+        else:
+            store.remove_review_item(item.product_id, methodology)
+
+        # Persist the individual decision
+        store.add_review_decision(outcome.decision)
+        decision_ids.append(outcome.decision.id)
+
+        # Per-item audit event
+        store.append_audit(
+            AuditEvent(
+                id=uuid4(),
+                organisation_id=project.organisation_id,
+                actor_user_id=reviewer_user_id,
+                action=AuditEventType.REVIEW_DECISION_MADE,
+                target_table="review_items",
+                target_id=item.product_id,
+                metadata={
+                    "bulk": True,
+                    "decision": outcome.decision.decision.value,
+                    "methodology": methodology.value,
+                    "decision_id": str(outcome.decision.id),
+                },
+                created_at=now,
+            )
+        )
+
+    # Bulk-level audit event
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=project.organisation_id,
+            actor_user_id=reviewer_user_id,
+            action=AuditEventType.REVIEW_BULK_ACTION,
+            target_table="review_items",
+            metadata={
+                "action": action,
+                "methodology": methodology.value,
+                "count": len(items),
+                "decision_ids": [str(d) for d in decision_ids],
+            },
+            created_at=now,
+        )
+    )
+
+    return BulkActionResult(
+        action=action,
+        requested_count=len(product_ids),
+        updated_count=len(items),
+        decision_ids=tuple(decision_ids),
+    )
+
+
 def _build_wwf_target(
     product_id: UUID, food_group_str: str, *, now: datetime
 ) -> WWFProductClassification:

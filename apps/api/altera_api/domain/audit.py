@@ -60,6 +60,10 @@ class AuditEventType(StrEnum):
     JOB_RETRYING = "job.retrying"
     JOB_CANCELLED = "job.cancelled"
 
+    # Review decisions (Phase 19C)
+    REVIEW_DECISION_MADE = "review.decision_made"
+    REVIEW_BULK_ACTION = "review.bulk_action"
+
 
 _SYSTEM_EVENT_TYPES = frozenset(
     {

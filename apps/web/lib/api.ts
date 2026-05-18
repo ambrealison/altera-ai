@@ -152,6 +152,23 @@ export interface ReviewFilters {
   sort?: "oldest" | "newest";
 }
 
+export type BulkReviewAction = "bulk_accept" | "bulk_defer" | "bulk_change_pt_group";
+
+export interface BulkActionRequest {
+  action: BulkReviewAction;
+  methodology: Methodology;
+  product_ids: string[];
+  to_pt_group?: string;
+  reason?: string;
+}
+
+export interface BulkActionResponse {
+  action: string;
+  requested_count: number;
+  updated_count: number;
+  decision_ids: string[];
+}
+
 export interface Run {
   id: string;
   project_id: string;
@@ -379,6 +396,13 @@ export function createApi(accessToken: string | null) {
     ) =>
       request<ReviewItem>(
         `/api/v1/projects/${projectId}/review/${productId}/${methodology}/decision`,
+        { method: "POST", body: JSON.stringify(body) },
+        accessToken,
+      ),
+
+    bulkAction: (projectId: string, body: BulkActionRequest) =>
+      request<BulkActionResponse>(
+        `/api/v1/projects/${projectId}/review/bulk-action`,
         { method: "POST", body: JSON.stringify(body) },
         accessToken,
       ),

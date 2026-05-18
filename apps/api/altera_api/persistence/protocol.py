@@ -17,7 +17,7 @@ from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.product import NormalizedProduct
 from altera_api.domain.project import Project
 from altera_api.domain.protein_tracker import ProteinTrackerProductClassification
-from altera_api.domain.review import ManualReviewItem
+from altera_api.domain.review import ManualReviewDecision, ManualReviewItem
 from altera_api.domain.upload import Upload
 from altera_api.domain.validation import ValidationReport
 from altera_api.domain.wwf import WWFCompositeIngredient, WWFProductClassification
@@ -113,6 +113,7 @@ class StoreProtocol(Protocol):
     def list_review_items_for_project(
         self, project_id: UUID, *, methodology: Methodology | None = None
     ) -> list[ManualReviewItem]: ...
+    def add_review_decision(self, decision: ManualReviewDecision) -> None: ...
 
     # ------------------------------------------------------------------
     # Runs
