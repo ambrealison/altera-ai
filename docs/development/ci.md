@@ -116,7 +116,22 @@ WEB_BASE_URL=https://staging.altera-ai.com \
 | Cache | Key |
 |-------|-----|
 | uv | `uv-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}` |
-| pnpm store | managed by `pnpm/action-setup@v4` + `actions/setup-node@v4 cache: pnpm` |
+| pnpm store | managed by `pnpm/action-setup@v4` + `actions/setup-node@v4 cache: pnpm` (Node 22) |
+
+## Remote
+
+The canonical private remote is `https://github.com/ambrealison/altera-ai` (PRIVATE).
+Set up 2026-05-19 (Phase 31F). To clone:
+
+```bash
+git clone https://github.com/ambrealison/altera-ai.git
+```
+
+## Node version requirement
+
+The frontend job runs on **Node 22** (bumped from 20 in Phase 31F). `pnpm@11.1.2`
+requires Node ≥ 22.13 and will crash on Node 20 with `ERR_UNKNOWN_BUILTIN_MODULE:
+node:sqlite`. If updating pnpm, check the minimum Node version before bumping.
 
 ## Adding a new check
 
