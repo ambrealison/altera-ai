@@ -520,6 +520,86 @@ export interface ScenarioResultResponse {
   created_at: string;
 }
 
+// Phase 27A — run comparisons
+export interface PTGroupComparisonResponse {
+  pt_group: string;
+  baseline_protein_kg: string;
+  comparison_protein_kg: string;
+  delta_protein_kg: string;
+}
+
+export interface PTComparisonSummaryResponse {
+  baseline_reporting_period: string;
+  comparison_reporting_period: string;
+  baseline_methodology_version: string;
+  comparison_methodology_version: string;
+  baseline_taxonomy_version: string;
+  comparison_taxonomy_version: string;
+  baseline_rules_version: string;
+  comparison_rules_version: string;
+  baseline_plant_protein_kg: string;
+  baseline_animal_protein_kg: string;
+  baseline_total_protein_kg: string;
+  baseline_plant_share_pct: string | null;
+  baseline_animal_share_pct: string | null;
+  comparison_plant_protein_kg: string;
+  comparison_animal_protein_kg: string;
+  comparison_total_protein_kg: string;
+  comparison_plant_share_pct: string | null;
+  comparison_animal_share_pct: string | null;
+  delta_plant_protein_kg: string;
+  delta_animal_protein_kg: string;
+  delta_total_protein_kg: string;
+  delta_plant_share_pct: string | null;
+  delta_animal_share_pct: string | null;
+  direction: "improving" | "declining" | "stable";
+  per_group: PTGroupComparisonResponse[];
+}
+
+export interface WWFFoodGroupComparisonResponse {
+  food_group: string;
+  baseline_weight_kg: string;
+  comparison_weight_kg: string;
+  delta_weight_kg: string;
+  baseline_share_pct: string;
+  comparison_share_pct: string;
+  delta_share_pct: string;
+  phd_reference_share_pct: string | null;
+}
+
+export interface WWFComparisonSummaryResponse {
+  baseline_reporting_period: string;
+  comparison_reporting_period: string;
+  baseline_methodology_version: string;
+  comparison_methodology_version: string;
+  baseline_taxonomy_version: string;
+  comparison_taxonomy_version: string;
+  baseline_rules_version: string;
+  comparison_rules_version: string;
+  baseline_total_weight_kg: string;
+  comparison_total_weight_kg: string;
+  delta_total_weight_kg: string;
+  baseline_plant_weight_kg: string;
+  comparison_plant_weight_kg: string;
+  delta_plant_weight_kg: string;
+  baseline_animal_weight_kg: string;
+  comparison_animal_weight_kg: string;
+  delta_animal_weight_kg: string;
+  direction: "improving" | "declining" | "stable";
+  per_food_group: WWFFoodGroupComparisonResponse[];
+}
+
+export interface RunComparisonResponse {
+  baseline_run_id: string;
+  comparison_run_id: string;
+  project_id: string;
+  methodology: string;
+  pt_comparison: PTComparisonSummaryResponse | null;
+  wwf_comparison: WWFComparisonSummaryResponse | null;
+  warnings: string[];
+  created_at: string;
+}
+
 export interface ReportDocument {
   meta: ReportMeta;
   executive_summary: string;
@@ -931,6 +1011,21 @@ export function createApi(accessToken: string | null) {
     getScenarioResult: (scenarioId: string) =>
       request<ScenarioResultResponse>(
         `/api/v1/scenarios/${scenarioId}/result`,
+        { method: "GET" },
+        accessToken,
+      ),
+
+    // -----------------------------------------------------------------------
+    // Run comparisons (Phase 27A)
+    // -----------------------------------------------------------------------
+
+    getRunComparison: (
+      projectId: string,
+      baselineRunId: string,
+      comparisonRunId: string,
+    ) =>
+      request<RunComparisonResponse>(
+        `/api/v1/projects/${projectId}/comparisons?baseline_run_id=${baselineRunId}&comparison_run_id=${comparisonRunId}`,
         { method: "GET" },
         accessToken,
       ),

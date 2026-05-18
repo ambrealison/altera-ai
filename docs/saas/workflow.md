@@ -485,6 +485,25 @@ client report.
 See [../scenarios/overview.md](../scenarios/overview.md) for the full
 projection engine, operation taxonomy, and access control rules.
 
+## Run comparison (Phase 27A)
+
+After a project has two or more completed runs, any authorised user can compare
+them via `GET /projects/{id}/comparisons?baseline_run_id=&comparison_run_id=`.
+
+- Altera users can compare any two runs from the project.
+- Client users can compare only runs that each have an `approved` or
+  `delivered` export.
+- PT and WWF are compared independently; results are never merged.
+- Direction is computed from the change in plant-share percentage points (PT)
+  or plant weight fraction (WWF).
+- Version mismatches (methodology, taxonomy, rules) produce human-readable
+  warnings in `warnings[]`; they do not block the comparison.
+
+The **Runs** page shows a **Compare runs** card when ≥ 2 runs exist.
+
+See [../comparisons/overview.md](../comparisons/overview.md) for the full
+direction logic, response shape, and access control rules.
+
 ## AI classifier (Phase 17)
 
 The `classify_upload` job integrates an optional AI classifier between

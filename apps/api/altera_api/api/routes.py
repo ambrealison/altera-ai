@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from pydantic import BaseModel, Field
 
 from altera_api.api.dependencies import current_user_id, get_data_store, get_project
@@ -2742,3 +2742,251 @@ def list_wwf_ingredients_route(
         )
         for ing in ingredients
     ]
+
+
+# ---------------------------------------------------------------------------
+# Run comparisons (Phase 27A)
+# ---------------------------------------------------------------------------
+
+
+class PTGroupComparisonResponse(BaseModel):
+    pt_group: str
+    baseline_protein_kg: str
+    comparison_protein_kg: str
+    delta_protein_kg: str
+
+
+class PTComparisonSummaryResponse(BaseModel):
+    baseline_reporting_period: str
+    comparison_reporting_period: str
+    baseline_methodology_version: str
+    comparison_methodology_version: str
+    baseline_taxonomy_version: str
+    comparison_taxonomy_version: str
+    baseline_rules_version: str
+    comparison_rules_version: str
+    baseline_plant_protein_kg: str
+    baseline_animal_protein_kg: str
+    baseline_total_protein_kg: str
+    baseline_plant_share_pct: str | None
+    baseline_animal_share_pct: str | None
+    comparison_plant_protein_kg: str
+    comparison_animal_protein_kg: str
+    comparison_total_protein_kg: str
+    comparison_plant_share_pct: str | None
+    comparison_animal_share_pct: str | None
+    delta_plant_protein_kg: str
+    delta_animal_protein_kg: str
+    delta_total_protein_kg: str
+    delta_plant_share_pct: str | None
+    delta_animal_share_pct: str | None
+    direction: str
+    per_group: list[PTGroupComparisonResponse]
+
+
+class WWFFoodGroupComparisonResponse(BaseModel):
+    food_group: str
+    baseline_weight_kg: str
+    comparison_weight_kg: str
+    delta_weight_kg: str
+    baseline_share_pct: str
+    comparison_share_pct: str
+    delta_share_pct: str
+    phd_reference_share_pct: str | None
+
+
+class WWFComparisonSummaryResponse(BaseModel):
+    baseline_reporting_period: str
+    comparison_reporting_period: str
+    baseline_methodology_version: str
+    comparison_methodology_version: str
+    baseline_taxonomy_version: str
+    comparison_taxonomy_version: str
+    baseline_rules_version: str
+    comparison_rules_version: str
+    baseline_total_weight_kg: str
+    comparison_total_weight_kg: str
+    delta_total_weight_kg: str
+    baseline_plant_weight_kg: str
+    comparison_plant_weight_kg: str
+    delta_plant_weight_kg: str
+    baseline_animal_weight_kg: str
+    comparison_animal_weight_kg: str
+    delta_animal_weight_kg: str
+    direction: str
+    per_food_group: list[WWFFoodGroupComparisonResponse]
+
+
+class RunComparisonResponse(BaseModel):
+    baseline_run_id: UUID
+    comparison_run_id: UUID
+    project_id: UUID
+    methodology: str
+    pt_comparison: PTComparisonSummaryResponse | None
+    wwf_comparison: WWFComparisonSummaryResponse | None
+    warnings: list[str]
+    created_at: str
+
+
+def _comparison_response(result: object) -> RunComparisonResponse:
+    from altera_api.domain.comparison import RunComparisonResult
+
+    r: RunComparisonResult = result  # type: ignore[assignment]
+
+    pt_resp = None
+    if r.pt_comparison is not None:
+        p = r.pt_comparison
+        pt_resp = PTComparisonSummaryResponse(
+            baseline_reporting_period=p.baseline_reporting_period,
+            comparison_reporting_period=p.comparison_reporting_period,
+            baseline_methodology_version=p.baseline_methodology_version,
+            comparison_methodology_version=p.comparison_methodology_version,
+            baseline_taxonomy_version=p.baseline_taxonomy_version,
+            comparison_taxonomy_version=p.comparison_taxonomy_version,
+            baseline_rules_version=p.baseline_rules_version,
+            comparison_rules_version=p.comparison_rules_version,
+            baseline_plant_protein_kg=str(p.baseline_plant_protein_kg),
+            baseline_animal_protein_kg=str(p.baseline_animal_protein_kg),
+            baseline_total_protein_kg=str(p.baseline_total_protein_kg),
+            baseline_plant_share_pct=str(p.baseline_plant_share_pct) if p.baseline_plant_share_pct is not None else None,
+            baseline_animal_share_pct=str(p.baseline_animal_share_pct) if p.baseline_animal_share_pct is not None else None,
+            comparison_plant_protein_kg=str(p.comparison_plant_protein_kg),
+            comparison_animal_protein_kg=str(p.comparison_animal_protein_kg),
+            comparison_total_protein_kg=str(p.comparison_total_protein_kg),
+            comparison_plant_share_pct=str(p.comparison_plant_share_pct) if p.comparison_plant_share_pct is not None else None,
+            comparison_animal_share_pct=str(p.comparison_animal_share_pct) if p.comparison_animal_share_pct is not None else None,
+            delta_plant_protein_kg=str(p.delta_plant_protein_kg),
+            delta_animal_protein_kg=str(p.delta_animal_protein_kg),
+            delta_total_protein_kg=str(p.delta_total_protein_kg),
+            delta_plant_share_pct=str(p.delta_plant_share_pct) if p.delta_plant_share_pct is not None else None,
+            delta_animal_share_pct=str(p.delta_animal_share_pct) if p.delta_animal_share_pct is not None else None,
+            direction=p.direction,
+            per_group=[
+                PTGroupComparisonResponse(
+                    pt_group=g.pt_group,
+                    baseline_protein_kg=str(g.baseline_protein_kg),
+                    comparison_protein_kg=str(g.comparison_protein_kg),
+                    delta_protein_kg=str(g.delta_protein_kg),
+                )
+                for g in p.per_group
+            ],
+        )
+
+    wwf_resp = None
+    if r.wwf_comparison is not None:
+        w = r.wwf_comparison
+        wwf_resp = WWFComparisonSummaryResponse(
+            baseline_reporting_period=w.baseline_reporting_period,
+            comparison_reporting_period=w.comparison_reporting_period,
+            baseline_methodology_version=w.baseline_methodology_version,
+            comparison_methodology_version=w.comparison_methodology_version,
+            baseline_taxonomy_version=w.baseline_taxonomy_version,
+            comparison_taxonomy_version=w.comparison_taxonomy_version,
+            baseline_rules_version=w.baseline_rules_version,
+            comparison_rules_version=w.comparison_rules_version,
+            baseline_total_weight_kg=str(w.baseline_total_weight_kg),
+            comparison_total_weight_kg=str(w.comparison_total_weight_kg),
+            delta_total_weight_kg=str(w.delta_total_weight_kg),
+            baseline_plant_weight_kg=str(w.baseline_plant_weight_kg),
+            comparison_plant_weight_kg=str(w.comparison_plant_weight_kg),
+            delta_plant_weight_kg=str(w.delta_plant_weight_kg),
+            baseline_animal_weight_kg=str(w.baseline_animal_weight_kg),
+            comparison_animal_weight_kg=str(w.comparison_animal_weight_kg),
+            delta_animal_weight_kg=str(w.delta_animal_weight_kg),
+            direction=w.direction,
+            per_food_group=[
+                WWFFoodGroupComparisonResponse(
+                    food_group=fg.food_group,
+                    baseline_weight_kg=str(fg.baseline_weight_kg),
+                    comparison_weight_kg=str(fg.comparison_weight_kg),
+                    delta_weight_kg=str(fg.delta_weight_kg),
+                    baseline_share_pct=str(fg.baseline_share_pct),
+                    comparison_share_pct=str(fg.comparison_share_pct),
+                    delta_share_pct=str(fg.delta_share_pct),
+                    phd_reference_share_pct=str(fg.phd_reference_share_pct)
+                    if fg.phd_reference_share_pct is not None
+                    else None,
+                )
+                for fg in w.per_food_group
+            ],
+        )
+
+    return RunComparisonResponse(
+        baseline_run_id=r.baseline_run_id,
+        comparison_run_id=r.comparison_run_id,
+        project_id=r.project_id,
+        methodology=r.methodology,
+        pt_comparison=pt_resp,
+        wwf_comparison=wwf_resp,
+        warnings=r.warnings,
+        created_at=r.created_at.isoformat(),
+    )
+
+
+@api_router.get(
+    "/projects/{project_id}/comparisons",
+    response_model=RunComparisonResponse,
+)
+def get_run_comparison_route(
+    baseline_run_id: Annotated[UUID, Query(...)],
+    comparison_run_id: Annotated[UUID, Query(...)],
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> RunComparisonResponse:
+    """Compare two runs of the same methodology for a project.
+
+    Altera users can compare any two runs.
+    Client users require an approved or delivered export for each run.
+    Cross-organisation access is blocked by get_project (404 for clients).
+    """
+    if baseline_run_id == comparison_run_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="baseline_run_id and comparison_run_id must differ.",
+        )
+
+    base_run = store.get_run(baseline_run_id)
+    if base_run is None or base_run.project_id != project.id:
+        raise HTTPException(status_code=404, detail="baseline run not found")
+
+    comp_run = store.get_run(comparison_run_id)
+    if comp_run is None or comp_run.project_id != project.id:
+        raise HTTPException(status_code=404, detail="comparison run not found")
+
+    if base_run.methodology != comp_run.methodology:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Runs have different methodologies: "
+                f"{base_run.methodology.value!r} (baseline) vs "
+                f"{comp_run.methodology.value!r} (comparison). "
+                "Compare runs of the same methodology only."
+            ),
+        )
+
+    # Client users: both runs must have an approved or delivered export.
+    if not auth.is_altera_internal:
+        for run_obj, label in [(base_run, "baseline"), (comp_run, "comparison")]:
+            exports = store.get_exports_for_run(run_obj.id)
+            if not any(e.approval_status in _CLIENT_VISIBLE_STATUSES for e in exports):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        f"No approved export available for the {label} run. "
+                        "Run comparisons are only available once both reports "
+                        "have been approved or delivered."
+                    ),
+                )
+
+    from altera_api.comparisons.engine import build_run_comparison
+
+    try:
+        result = build_run_comparison(base_run, comp_run)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Could not compute comparison: {exc}",
+        ) from exc
+
+    return _comparison_response(result)
