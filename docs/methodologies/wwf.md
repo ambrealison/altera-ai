@@ -145,6 +145,37 @@ Branded composite products continue to be reported at the Composite
 Product Level (Step 1) until ingredient data becomes industry-
 available.
 
+#### Step 2 upload API (Phase 24A)
+
+The companion ingredient JSON is uploaded via:
+
+```
+POST /api/v1/projects/{project_id}/wwf-ingredients/upload
+Content-Type: multipart/form-data  (field name: "file")
+```
+
+The file must be uploaded **after** classification, because the validator
+checks that each product has a WWF classification and is marked composite.
+
+**Validation rules applied at upload time:**
+
+| Rule | Severity |
+|------|----------|
+| `external_product_id` must exist in the project | error |
+| Product must have WWF enabled | error |
+| Product must have a WWF classification (classify before upload) | error |
+| Product must be classified as composite (`wwf_is_composite=true`) | error |
+| Product must be own-brand (`is_own_brand=true`) | **warning** (ingredients not stored; product stays at Step 1) |
+| `food_group` must be FG1–FG6 (FG7 rejected) | error |
+| FG1 requires a valid `subgroup` | error |
+| FG2 requires a valid `subgroup` | error |
+| `ingredient_weight_kg_per_item` must be strictly positive | error |
+| Sum of ingredient weights > product weight | **warning** (storage allowed) |
+
+If there are no hard errors, the ingredients are stored and the response
+carries `"stored": true`.  A `GET /projects/{id}/products/{pid}/wwf-ingredients`
+endpoint retrieves stored ingredients per product.
+
 ### Healthy & Sustainable Diet Shift (optional, either step)
 
 In addition to the protein-transition view (FG1 + FG2), retailers may

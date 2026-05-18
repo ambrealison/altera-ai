@@ -90,6 +90,32 @@ The client UI never shows row-by-row validation errors as a wall of
 detail; it shows a summary count and "Altera is reviewing this." The
 detailed report goes to Altera staff.
 
+### WWF Step 2 ingredient upload (Phase 24A)
+
+For projects running the WWF methodology, the analyst may upload a
+companion **Step 2 ingredient JSON** after classification is complete.
+This applies only to own-brand composite products; branded composites
+continue to be reported at Step 1 (whole product weight) regardless of
+whether a Step 2 file is supplied.
+
+The upload endpoint validates:
+
+- Each `external_product_id` exists in the project, has WWF enabled,
+  and has been classified as a composite.
+- Branded composites produce a warning; their ingredients are not stored.
+- Food groups FG1–FG6 accepted; FG7 rejected (not decomposed at
+  ingredient level).
+- FG1 and FG2 entries require a valid subgroup.
+- Ingredient weights must be strictly positive; sum exceeding the parent
+  product weight produces a warning but does not block storage.
+
+If validation passes (no errors, warnings allowed), ingredients are
+stored and used by the WWF calculation engine in place of the whole
+product weight for own-brand composites at Step 2.
+
+The upload page shows this section automatically after a successful WWF
+classification.
+
 ## 4. Validation (Altera-internal, automated)
 
 The project transitions `uploaded → validation`:
@@ -261,7 +287,7 @@ The report page shows:
    WWF dairy equivalents, enrichment disclosures) are listed below the
    metrics.
 
-## Nutrition enrichment pipeline (Phase 23A/23B)
+## Nutrition enrichment pipeline (Phase 23A/23B/23C)
 
 When a PT upload includes products without a retailer-provided
 `protein_pct`, the assessor (`enrichment/assessor.py`) flags them as
@@ -310,16 +336,30 @@ Rules:
 - `out_of_scope` and `unknown` groups have no average — returns 404.
 - Rejected if the product already has a retailer-provided `protein_pct` (409 conflict).
 
-### Calculation usage policy
+### Calculation usage policy (Phase 23C)
 
 Enrichment records are stored separately from the normalised product;
-retailer-provided values are **never overwritten**. The calculation engine
-uses only `NormalizedProduct.pt_fields.protein_pct` — enrichment records
-in the store are completely invisible to `calculate_pt_run`.
+retailer-provided values are **never overwritten**. By default the calculation
+engine uses only `NormalizedProduct.pt_fields.protein_pct`.
 
-Applying enriched values to the calculation is planned for Phase 23C via
-an explicit `use_enriched_nutrition` flag. Until then enrichment is for
-data quality tracking and coverage disclosure only.
+**Phase 23C** adds an explicit opt-in flag `use_enriched_nutrition: bool = false`
+on `POST /projects/{id}/runs` and on the `enqueue_calculate` job request.
+When set to `true` (Altera internal users only; 403 for clients):
+
+1. The orchestrator queries stored enrichment records for every product that
+   is missing `protein_pct`.
+2. The best ENRICHED record is selected by priority: `manual_altera` (0) >
+   `category_average` (1). FAILED/NEEDED/NEEDS_MANUAL_REVIEW records are ignored.
+3. A `{product_id: (protein_pct, source)}` lookup is passed to `calculate_pt_run`.
+4. The formula is identical regardless of source; only the origin of `protein_pct` differs.
+5. The run summary records per-source usage counts
+   (`enriched_nutrition_used_count`, `manual_enrichment_used_count`,
+   `category_average_used_count`, `missing_protein_after_enrichment_count`).
+6. Coverage caveats switch to run-mode, disclosing what was actually used
+   "in this calculation" rather than "not yet applied".
+
+The `RunRecord` stores `use_enriched_nutrition` alongside the summary payload for
+downstream audit and re-rendering.
 
 The coverage section discloses enrichment per-source via optional caveats;
 see [../outputs/report-structure.md](../outputs/report-structure.md)

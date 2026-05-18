@@ -48,7 +48,7 @@ order does not matter.
 | Column                       | Required | Purpose                                  |
 |------------------------------|:--------:|------------------------------------------|
 | `items_purchased`            |    x     | Items purchased over the reporting period |
-| `protein_pct`                |          | % protein by mass (g per 100g). Optional — products without a value are flagged for enrichment and excluded from protein totals until a value is supplied via the manual or category-average enrichment API (Phase 23B). |
+| `protein_pct`                |          | % protein by mass (g per 100g). Optional — products without a value are flagged for enrichment and excluded from protein totals unless a value is supplied via the manual or category-average enrichment API (Phase 23B) and the run is triggered with `use_enriched_nutrition=true` (Phase 23C, Altera-only). |
 | `protein_source`             |          | `label` or `reference_db`; defaults to `reference_db` if missing |
 | `plant_protein_pct`          |          | Enables per-product composite split extension |
 | `animal_protein_pct`         |          | Enables per-product composite split extension |
@@ -95,6 +95,11 @@ unreported residual, e.g. water).
 
 Step 2 data is accepted only for `is_own_brand=true` products, per
 the methodology.
+
+The file is uploaded via `POST /api/v1/projects/{id}/wwf-ingredients/upload`
+(multipart, field name `file`). Classification must have run before upload.
+See [../methodologies/wwf.md](../methodologies/wwf.md) for the full list of
+validation rules and response shape.
 
 ## Disallowed columns
 

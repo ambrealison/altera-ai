@@ -11,6 +11,7 @@ import {
   type JobResult,
   type Methodology,
   type UploadResult,
+  type WWFStep2UploadResult,
 } from "@/lib/api";
 
 function formatBytes(bytes: number): string {
@@ -97,6 +98,12 @@ export default function UploadPage() {
   const [busyLabel, setBusyLabel] = useState("Uploading…");
   const [classifyBusy, setClassifyBusy] = useState<Methodology | null>(null);
   const [classifyJob, setClassifyJob] = useState<Job | null>(null);
+  const [lastClassifiedMethodology, setLastClassifiedMethodology] = useState<Methodology | null>(null);
+
+  const [wwfStep2File, setWwfStep2File] = useState<File | null>(null);
+  const [wwfStep2Result, setWwfStep2Result] = useState<WWFStep2UploadResult | null>(null);
+  const [wwfStep2Busy, setWwfStep2Busy] = useState(false);
+  const [wwfStep2Error, setWwfStep2Error] = useState<string | null>(null);
 
   async function onUpload(e: React.FormEvent) {
     e.preventDefault();
@@ -148,6 +155,7 @@ export default function UploadPage() {
           ? await api.pollJob(job.job_id)
           : job;
       setClassifyJob(finalJob);
+      setLastClassifiedMethodology(m);
       if (finalJob.status === "failed") {
         setError(finalJob.error_message ?? "Classification failed");
       }
@@ -155,6 +163,22 @@ export default function UploadPage() {
       setError(e instanceof Error ? e.message : "Classification failed");
     } finally {
       setClassifyBusy(null);
+    }
+  }
+
+  async function onWwfStep2Upload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!wwfStep2File) return;
+    setWwfStep2Busy(true);
+    setWwfStep2Error(null);
+    setWwfStep2Result(null);
+    try {
+      const r = await api.uploadWwfStep2(projectId, wwfStep2File);
+      setWwfStep2Result(r);
+    } catch (err) {
+      setWwfStep2Error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setWwfStep2Busy(false);
     }
   }
 
@@ -304,6 +328,111 @@ export default function UploadPage() {
                   <ClassifyResultSummary result={classifyJob.result} />
                 )}
               </>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {classifyJob?.status === "succeeded" && lastClassifiedMethodology === "wwf" && (
+        <div className="mt-6">
+          <Card>
+            <CardHeader
+              title="4. Step 2 ingredient attribution (WWF)"
+              subtitle="Optional: upload a JSON file mapping own-brand composite products to their ingredients."
+            />
+            <p className="mt-3 text-sm text-gray-600">
+              Step 2 ingredient attribution applies to own-brand composite products only. Branded
+              composites are reported at Step 1 (whole product weight) and are not affected by this
+              file.
+            </p>
+            <form onSubmit={onWwfStep2Upload} className="mt-4 space-y-4">
+              <Field label="Ingredient JSON file">
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={(e) => setWwfStep2File(e.target.files?.[0] ?? null)}
+                  className="block w-full text-sm"
+                />
+                {wwfStep2File && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    {wwfStep2File.name} &mdash; {formatBytes(wwfStep2File.size)}
+                  </p>
+                )}
+              </Field>
+              <Button type="submit" disabled={!wwfStep2File || wwfStep2Busy} variant="secondary">
+                {wwfStep2Busy ? "Uploading…" : "Upload ingredients"}
+              </Button>
+            </form>
+            {wwfStep2Error && (
+              <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                {wwfStep2Error}
+              </div>
+            )}
+            {wwfStep2Result && (
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Pill tone={wwfStep2Result.stored ? "ok" : wwfStep2Result.error_count > 0 ? "error" : "warn"}>
+                    {wwfStep2Result.stored ? "stored" : "not stored"}
+                  </Pill>
+                  {wwfStep2Result.stored && (
+                    <span className="text-xs text-gray-500">
+                      Ingredients saved for {wwfStep2Result.valid_product_count} product
+                      {wwfStep2Result.valid_product_count !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">Products in file</div>
+                    <div className="mt-1 text-lg font-semibold">{wwfStep2Result.total_products_in_file}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">Valid</div>
+                    <div className="mt-1 text-lg font-semibold">{wwfStep2Result.valid_product_count}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">Errors</div>
+                    <div className="mt-1 text-lg font-semibold">{wwfStep2Result.error_count}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">Warnings</div>
+                    <div className="mt-1 text-lg font-semibold">{wwfStep2Result.warning_count}</div>
+                  </div>
+                </div>
+                {(wwfStep2Result.unknown_product_count > 0 || wwfStep2Result.branded_composite_count > 0) && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    {wwfStep2Result.unknown_product_count > 0 && (
+                      <div>{wwfStep2Result.unknown_product_count} product(s) not found in project.</div>
+                    )}
+                    {wwfStep2Result.branded_composite_count > 0 && (
+                      <div>
+                        {wwfStep2Result.branded_composite_count} branded composite(s) skipped (Step 1
+                        only).
+                      </div>
+                    )}
+                  </div>
+                )}
+                {wwfStep2Result.product_results.some((r) => r.errors.length > 0) && (
+                  <details>
+                    <summary className="cursor-pointer text-sm font-medium text-rose-700">
+                      Validation errors
+                    </summary>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-rose-800">
+                      {wwfStep2Result.product_results
+                        .flatMap((r) =>
+                          r.errors.map((e) => ({
+                            key: `${r.external_product_id}-${e.ingredient_index}-${e.field}`,
+                            text: `${r.external_product_id} [${e.field}]: ${e.message}`,
+                          })),
+                        )
+                        .slice(0, 20)
+                        .map((e) => (
+                          <li key={e.key}>{e.text}</li>
+                        ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
             )}
           </Card>
         </div>

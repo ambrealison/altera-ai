@@ -1842,3 +1842,179 @@ def apply_category_average_enrichment_route(
 
     store.add_enrichment_record(record)
     return _enrichment_response(record)
+
+
+# ---------------------------------------------------------------------------
+# WWF Step 2 ingredient upload (Phase 24A)
+# ---------------------------------------------------------------------------
+
+
+class WWFIngredientResponse(BaseModel):
+    product_id: UUID
+    food_group: str
+    fg1_subgroup: str | None
+    fg2_subgroup: str | None
+    ingredient_weight_kg_per_item: str
+
+
+class WWFIngredientRowErrorResponse(BaseModel):
+    ingredient_index: int
+    field: str
+    message: str
+
+
+class WWFIngredientProductResultResponse(BaseModel):
+    external_product_id: str
+    product_id: UUID | None
+    is_own_brand: bool | None
+    is_composite: bool | None
+    ingredient_count: int
+    valid_ingredient_count: int
+    total_attributed_weight_kg: str
+    product_weight_kg: str | None
+    residual_weight_kg: str | None
+    errors: list[WWFIngredientRowErrorResponse]
+    warnings: list[str]
+
+
+class WWFStep2UploadResponse(BaseModel):
+    total_products_in_file: int
+    valid_product_count: int
+    error_count: int
+    warning_count: int
+    unknown_product_count: int
+    branded_composite_count: int
+    stored: bool
+    product_results: list[WWFIngredientProductResultResponse]
+
+
+@api_router.post(
+    "/projects/{project_id}/wwf-ingredients/upload",
+    response_model=WWFStep2UploadResponse,
+)
+async def upload_wwf_step2_ingredients(
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+    file: Annotated[UploadFile, File(description="WWF Step 2 JSON companion file")],
+) -> WWFStep2UploadResponse:
+    """Upload and validate a WWF Step 2 ingredient file.
+
+    Accepts a JSON file keyed by ``external_product_id``. Valid own-brand
+    composite ingredients are stored immediately; validation errors are
+    returned in the response. Branded composites receive a warning and are
+    not stored.
+
+    Requires WWF to be enabled on the project. Accessible to project
+    members (GMS clients can upload for their own project).
+    """
+    from altera_api.domain.common import Methodology
+    from altera_api.ingestion.wwf_step2 import validate_wwf_step2_json
+
+    if Methodology.WWF not in project.methodologies_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="WWF methodology is not enabled on this project",
+        )
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="file is required")
+
+    payload = await file.read()
+    try:
+        import json as _json
+
+        raw = _json.loads(payload)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="file must be valid JSON") from exc
+
+    if not isinstance(raw, dict):
+        raise HTTPException(
+            status_code=400,
+            detail="JSON must be an object keyed by external_product_id",
+        )
+
+    products = store.list_products_for_project(project.id)
+    products_by_external_id = {p.external_product_id: p for p in products}
+    classifications = {
+        p.id: c
+        for p in products
+        if (c := store.get_wwf_classification(p.id)) is not None
+    }
+
+    result = validate_wwf_step2_json(
+        raw,
+        products_by_external_id=products_by_external_id,
+        classifications=classifications,
+    )
+
+    stored = False
+    if result.is_valid:
+        for product_id, ingredients in result.all_valid_ingredients:
+            store.upsert_wwf_ingredients_for_product(product_id, ingredients)
+        stored = True
+
+    return WWFStep2UploadResponse(
+        total_products_in_file=result.total_products_in_file,
+        valid_product_count=result.valid_product_count,
+        error_count=result.error_count,
+        warning_count=result.warning_count,
+        unknown_product_count=result.unknown_product_count,
+        branded_composite_count=result.branded_composite_count,
+        stored=stored,
+        product_results=[
+            WWFIngredientProductResultResponse(
+                external_product_id=pr.external_product_id,
+                product_id=pr.product_id,
+                is_own_brand=pr.is_own_brand,
+                is_composite=pr.is_composite,
+                ingredient_count=pr.ingredient_count,
+                valid_ingredient_count=pr.valid_ingredient_count,
+                total_attributed_weight_kg=str(pr.total_attributed_weight_kg),
+                product_weight_kg=(
+                    str(pr.product_weight_kg) if pr.product_weight_kg is not None else None
+                ),
+                residual_weight_kg=(
+                    str(pr.residual_weight_kg) if pr.residual_weight_kg is not None else None
+                ),
+                errors=[
+                    WWFIngredientRowErrorResponse(
+                        ingredient_index=e.ingredient_index,
+                        field=e.field,
+                        message=e.message,
+                    )
+                    for e in pr.errors
+                ],
+                warnings=list(pr.warnings),
+            )
+            for pr in result.product_results
+        ],
+    )
+
+
+@api_router.get(
+    "/projects/{project_id}/products/{product_id}/wwf-ingredients",
+    response_model=list[WWFIngredientResponse],
+)
+def list_wwf_ingredients_route(
+    product_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> list[WWFIngredientResponse]:
+    """List stored WWF Step 2 ingredients for a product."""
+    product = store.get_product(product_id)
+    if product is None or product.project_id != project.id:
+        raise HTTPException(status_code=404, detail="product not found")
+
+    ingredients = store.get_wwf_ingredients_for_product(product_id)
+    return [
+        WWFIngredientResponse(
+            product_id=ing.parent_product_id,
+            food_group=ing.food_group.value,
+            fg1_subgroup=ing.fg1_subgroup.value if ing.fg1_subgroup else None,
+            fg2_subgroup=ing.fg2_subgroup.value if ing.fg2_subgroup else None,
+            ingredient_weight_kg_per_item=str(ing.ingredient_weight_kg_per_item),
+        )
+        for ing in ingredients
+    ]

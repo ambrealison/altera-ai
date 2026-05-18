@@ -100,6 +100,16 @@ class StoreProtocol(Protocol):
         self, project_id: UUID
     ) -> dict[UUID, list[WWFCompositeIngredient]]: ...
 
+    def upsert_wwf_ingredients_for_product(
+        self, product_id: UUID, ingredients: list[WWFCompositeIngredient]
+    ) -> None: ...
+
+    def clear_wwf_ingredients_for_project(self, project_id: UUID) -> None: ...
+
+    def get_wwf_ingredients_for_product(
+        self, product_id: UUID
+    ) -> list[WWFCompositeIngredient]: ...
+
     # ------------------------------------------------------------------
     # Review queue
     # ------------------------------------------------------------------

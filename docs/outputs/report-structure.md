@@ -93,8 +93,9 @@ and the approval timestamp on any client-facing export.
 9. **Composite products.** Overall share of composite in total
    measured sales. Step 1 bucket breakdown: `meat_based`,
    `seafood_based`, `vegetarian`, `vegan`. If Step 2 own-brand data
-   is supplied, the same numbers re-stated after ingredient
-   attribution.
+   is supplied (uploaded via `POST /projects/{id}/wwf-ingredients/upload`,
+   Phase 24A), the same numbers re-stated after ingredient attribution.
+   Branded composites always appear at Step 1 only.
 10. **Whole-diet plant vs animal split.** A single percentage,
     presented as **context only** with a footnote that this number
     alone is not sufficient to monitor diet quality.
@@ -212,29 +213,38 @@ Fields that are methodology-specific (`products_with_missing_protein`,
 `missing_protein_share_pct`) are `null` for WWF runs.
 Percentages are `null` when the denominator is zero.
 
-### Enrichment caveats (Phase 23A/23B)
+### Enrichment caveats (Phase 23A/23B/23C)
 
-When enrichment records exist for the project the `caveats` list in PT
-coverage sections may include any of:
+The `caveats` list in PT coverage sections is dual-mode:
 
-- **NEEDED**: `"N product(s) are missing label protein %; enrichment from an external or manual source is recommended."` — products with no `protein_pct` and no enrichment value applied; excluded from protein totals.
-- **MANUAL**: `"N product(s) used manually-entered protein % values (Altera methodology team override). Enriched values are stored separately from retailer labels and are not yet applied to the calculation."` — manual_altera enrichment records.
-- **CATEGORY_AVERAGE**: `"N product(s) used category-average protein % values as a statistical fallback (confidence ≤ 0.60). Enriched values are stored separately from retailer labels and are not yet applied to the calculation."` — category_average enrichment records.
-- **OTHER**: a generic note for other enrichment sources.
+**Run-mode** (when `use_enriched_nutrition=true` was set on the run):
+Caveats reflect what was actually used in the calculation, taken from the run summary:
 
-All enrichment caveats include the phrase `"not yet applied to the calculation"` to make clear that `calculate_pt_run` reads only the retailer-provided `pt_fields.protein_pct` and not the enrichment records.
+- **MANUAL used**: `"N product(s) used manually-entered protein % values in this calculation (Altera methodology team override). Enriched values are not from retailer labels."`
+- **CATEGORY_AVERAGE used**: `"N product(s) used category-average protein % values in this calculation (statistical fallback, confidence ≤ 0.60). Enriched values are not from retailer labels."`
+- **MISSING**: `"N product(s) had missing protein % and no valid enrichment record; excluded from protein totals."`
+
+**Project-mode** (default, when `use_enriched_nutrition=false`):
+Caveats reflect the state of stored enrichment records for the project, signalling that enrichment is available but not yet applied:
+
+- **NEEDED**: `"N product(s) are missing label protein %; enrichment from an external or manual source is recommended."`
+- **MANUAL stored**: `"N product(s) have manually-entered protein % values (Altera methodology team override) not yet applied to this calculation."`
+- **CATEGORY_AVERAGE stored**: `"N product(s) have category-average protein % values (statistical fallback, confidence ≤ 0.60) not yet applied to this calculation."`
+- **OTHER stored**: a generic note for other enrichment sources.
 
 The enrichment source for each individual product is stored in `NutritionEnrichmentRecord.source`.
 
 #### Calculation usage policy
 
-Enriched protein values are **not** used in Protein Tracker calculations by default.
-The calculation engine reads `NormalizedProduct.pt_fields.protein_pct` (the retailer
-value). Enrichment records in the store are completely invisible to `calculate_pt_run`.
+Enriched protein values are **not** used in Protein Tracker calculations unless the run
+is triggered with `use_enriched_nutrition=true` (Altera internal users only, Phase 23C).
+When enabled, the orchestrator pre-resolves a `{product_id: (protein_pct, source)}`
+lookup from stored ENRICHED records before calling the pure `calculate_pt_run` function.
+Priority: `manual_altera` (0) > `category_average` (1). FAILED/NEEDED/NEEDS_MANUAL_REVIEW
+records are ignored. Retailer-provided `pt_fields.protein_pct` values are never overridden.
 
-Applying enriched values to the calculation is planned for Phase 23C via an explicit
-`use_enriched_nutrition` flag on the run request. Until that flag exists, enrichment
-is for data quality tracking and disclosure only.
+The formula is identical regardless of whether the protein_pct came from the retailer
+label or an enrichment record.
 
 ## What is never shown
 

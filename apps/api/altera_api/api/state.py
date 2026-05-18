@@ -450,6 +450,27 @@ class InMemoryStore:
             if product_id in self.products and self.products[product_id].project_id == project_id
         }
 
+    def upsert_wwf_ingredients_for_product(
+        self, product_id: UUID, ingredients: list[WWFCompositeIngredient]
+    ) -> None:
+        with self._lock:
+            self.wwf_ingredients[product_id] = list(ingredients)
+
+    def clear_wwf_ingredients_for_project(self, project_id: UUID) -> None:
+        with self._lock:
+            to_clear = [
+                pid
+                for pid, p in self.products.items()
+                if p.project_id == project_id
+            ]
+            for pid in to_clear:
+                self.wwf_ingredients.pop(pid, None)
+
+    def get_wwf_ingredients_for_product(
+        self, product_id: UUID
+    ) -> list[WWFCompositeIngredient]:
+        return list(self.wwf_ingredients.get(product_id, []))
+
     def get_user(self, user_id: UUID) -> UserProfile | None:
         return self.users.get(user_id)
 

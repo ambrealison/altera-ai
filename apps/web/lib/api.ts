@@ -708,6 +708,19 @@ export function createApi(accessToken: string | null) {
       );
     },
 
+    uploadWwfStep2: async (
+      projectId: string,
+      file: File,
+    ): Promise<WWFStep2UploadResult> => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return request<WWFStep2UploadResult>(
+        `/api/v1/projects/${projectId}/wwf-ingredients/upload`,
+        { method: "POST", body: fd },
+        accessToken,
+      );
+    },
+
     enqueueClassify: (projectId: string, uploadId: string, methodology: Methodology) =>
       request<Job>(
         `/api/v1/projects/${projectId}/uploads/${uploadId}/jobs/classify`,
@@ -763,3 +776,38 @@ export const WWF_FOOD_GROUP_OPTIONS: WWFFoodGroup[] = [
   "FG6",
   "FG7",
 ];
+
+// ---------------------------------------------------------------------------
+// WWF Step 2 ingredients (Phase 24A)
+// ---------------------------------------------------------------------------
+
+export interface WWFIngredientRowError {
+  ingredient_index: number;
+  field: string;
+  message: string;
+}
+
+export interface WWFIngredientProductResult {
+  external_product_id: string;
+  product_id: string | null;
+  is_own_brand: boolean | null;
+  is_composite: boolean | null;
+  ingredient_count: number;
+  valid_ingredient_count: number;
+  total_attributed_weight_kg: string;
+  product_weight_kg: string | null;
+  residual_weight_kg: string | null;
+  errors: WWFIngredientRowError[];
+  warnings: string[];
+}
+
+export interface WWFStep2UploadResult {
+  total_products_in_file: number;
+  valid_product_count: number;
+  error_count: number;
+  warning_count: number;
+  unknown_product_count: number;
+  branded_composite_count: number;
+  stored: boolean;
+  product_results: WWFIngredientProductResult[];
+}
