@@ -37,6 +37,7 @@ from altera_api.comparisons.engine import (
     compare_pt_runs,
     compare_wwf_runs,
 )
+from altera_api.domain.audit import AuditEventType
 from altera_api.domain.common import AlteraRole, ClientRole, Methodology, OrganisationType
 from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.project import Project
@@ -651,3 +652,30 @@ class TestRunComparisonAPI:
         body = resp.json()
         assert len(body["warnings"]) > 0
         assert any("methodology version" in w.lower() for w in body["warnings"])
+
+    def test_comparison_emits_audit_event(
+        self, store: InMemoryStore, http: TestClient
+    ) -> None:
+        """Successful comparison writes a COMPARISON_REQUESTED audit event."""
+        altera_org = _make_altera_org(store)
+        lead = _make_user(store, altera_org, AlteraRole.ALTERA_METHODOLOGY_LEAD)
+        project = _make_project(store, altera_org)
+        run_a = _make_pt_run(store, project)
+        run_b = _make_pt_run(store, project)
+
+        app.dependency_overrides[authed_user] = lambda: _auth_ctx(lead, altera_org)
+        resp = http.get(
+            f"/api/v1/projects/{project.id}/comparisons"
+            f"?baseline_run_id={run_a.id}&comparison_run_id={run_b.id}"
+        )
+        assert resp.status_code == 200, resp.text
+
+        events = [
+            e for e in store.audit_events if e.action == AuditEventType.COMPARISON_REQUESTED
+        ]
+        assert len(events) == 1
+        ev = events[0]
+        assert ev.actor_user_id == lead.user_id
+        assert str(ev.target_id) == str(run_a.id)
+        assert ev.metadata["baseline_run_id"] == str(run_a.id)
+        assert ev.metadata["comparison_run_id"] == str(run_b.id)

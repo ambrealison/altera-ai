@@ -30,6 +30,7 @@ from altera_api.api.state import InMemoryStore, RunRecord
 from altera_api.api.store_factory import get_store
 from altera_api.auth import authed_user
 from altera_api.auth.models import AuthContext, AuthProvider
+from altera_api.domain.audit import AuditEventType
 from altera_api.domain.common import AlteraRole, ClientRole, Methodology, OrganisationType
 from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.project import Project
@@ -770,5 +771,34 @@ def test_client_draft_scenario_still_blocked_by_status(
     try:
         resp = http.get(f"/api/v1/scenarios/{scenario_id}/result")
         assert resp.status_code == 403
+    finally:
+        app.dependency_overrides.pop(authed_user, None)
+
+
+def test_run_scenario_emits_audit_event(
+    http: TestClient, store: InMemoryStore
+) -> None:
+    """Running a scenario writes a SCENARIO_RUN audit event."""
+    altera_org = _make_altera_org(store)
+    lead = _make_user(store, altera_org, AlteraRole.ALTERA_METHODOLOGY_LEAD)
+    project = _make_project(store, altera_org)
+    run = _make_pt_run(store, project)
+
+    app.dependency_overrides[authed_user] = lambda: _auth_ctx(lead, altera_org)
+    try:
+        scenario_id = http.post(
+            f"/api/v1/projects/{project.id}/scenarios",
+            json={"name": "Audit test scenario", "base_run_id": str(run.id)},
+        ).json()["id"]
+
+        resp = http.post(f"/api/v1/scenarios/{scenario_id}/run")
+        assert resp.status_code == 200, resp.text
+
+        events = [e for e in store.audit_events if e.action == AuditEventType.SCENARIO_RUN]
+        assert len(events) == 1
+        ev = events[0]
+        assert ev.actor_user_id == lead.user_id
+        assert str(ev.target_id) == scenario_id
+        assert ev.metadata["base_run_id"] == str(run.id)
     finally:
         app.dependency_overrides.pop(authed_user, None)

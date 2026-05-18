@@ -77,6 +77,15 @@ class AuditEventType(StrEnum):
     RECOMMENDATION_DISMISSED = "recommendation.dismissed"
     RECOMMENDATION_ARCHIVED = "recommendation.archived"
 
+    # Scenario lifecycle (Phase 26A)
+    SCENARIO_RUN = "scenario.run"
+
+    # Comparison lifecycle (Phase 27A)
+    COMPARISON_REQUESTED = "comparison.requested"
+
+    # Nutrition enrichment lifecycle (Phase 23A)
+    ENRICHMENT_APPLIED = "enrichment.applied"
+
 
 _SYSTEM_EVENT_TYPES = frozenset(
     {

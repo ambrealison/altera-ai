@@ -1958,6 +1958,22 @@ def run_scenario_route(
         )
     )
 
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=scenario.organisation_id,
+            actor_user_id=auth.user_id,
+            action=AuditEventType.SCENARIO_RUN,
+            target_table="scenarios",
+            target_id=scenario_id,
+            metadata={
+                "base_run_id": str(scenario.base_run_id),
+                "operations_count": len(ops),
+            },
+            created_at=datetime.now(UTC),
+        )
+    )
+
     # Promote to active on first successful run
     if scenario.status == ScenarioStatus.DRAFT.value:
         store.update_scenario_status(scenario_id, status=ScenarioStatus.ACTIVE.value)
@@ -2462,6 +2478,18 @@ def create_manual_enrichment_route(
         created_by=auth.user_id,
     )
     store.add_enrichment_record(record)
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=project.organisation_id,
+            actor_user_id=auth.user_id,
+            action=AuditEventType.ENRICHMENT_APPLIED,
+            target_table="nutrition_enrichment_records",
+            target_id=product_id,
+            metadata={"nutrient": record.nutrient, "source": str(record.source)},
+            created_at=datetime.now(UTC),
+        )
+    )
     return _enrichment_response(record)
 
 
@@ -2528,6 +2556,18 @@ def apply_category_average_enrichment_route(
         )
 
     store.add_enrichment_record(record)
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=project.organisation_id,
+            actor_user_id=auth.user_id,
+            action=AuditEventType.ENRICHMENT_APPLIED,
+            target_table="nutrition_enrichment_records",
+            target_id=product_id,
+            metadata={"nutrient": record.nutrient, "source": str(record.source)},
+            created_at=datetime.now(UTC),
+        )
+    )
     return _enrichment_response(record)
 
 
@@ -2992,5 +3032,21 @@ def get_run_comparison_route(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Could not compute comparison: {exc}",
         ) from exc
+
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=project.organisation_id,
+            actor_user_id=auth.user_id,
+            action=AuditEventType.COMPARISON_REQUESTED,
+            target_table="runs",
+            target_id=baseline_run_id,
+            metadata={
+                "baseline_run_id": str(baseline_run_id),
+                "comparison_run_id": str(comparison_run_id),
+            },
+            created_at=datetime.now(UTC),
+        )
+    )
 
     return _comparison_response(result)

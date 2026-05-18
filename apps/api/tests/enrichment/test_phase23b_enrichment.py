@@ -31,6 +31,7 @@ from altera_api.api.store_factory import get_store
 from altera_api.auth.dependency import authed_user
 from altera_api.auth.models import AuthContext, AuthProvider
 from altera_api.calculation.protein_tracker import PTRunVersions, calculate_pt_run
+from altera_api.domain.audit import AuditEventType
 from altera_api.domain.common import (
     AlteraRole,
     ClassificationSource,
@@ -551,6 +552,68 @@ class TestCategoryAverageEnrichmentEndpoint:
                 "/enrichments/category-average"
             )
             assert r.status_code == 409
+        finally:
+            app.dependency_overrides.pop(authed_user, None)
+
+
+# ---------------------------------------------------------------------------
+# Audit event coverage (Phase 28A-3)
+# ---------------------------------------------------------------------------
+
+
+class TestEnrichmentAuditEvents:
+    def test_manual_enrichment_emits_audit_event(
+        self, client: TestClient, store: InMemoryStore
+    ) -> None:
+        """Creating a manual enrichment writes an ENRICHMENT_APPLIED audit event."""
+        org_id, project_id, product_id = _setup_project_and_product(store)
+        ctx = _altera_ctx(org_id)
+        app.dependency_overrides[authed_user] = lambda: ctx
+        try:
+            r = client.post(
+                f"/api/v1/projects/{project_id}/products/{product_id}/enrichments/manual",
+                json={"enriched_value": 14.5, "rationale": "Audit test."},
+            )
+            assert r.status_code == 201, r.text
+
+            events = [
+                e for e in store.audit_events if e.action == AuditEventType.ENRICHMENT_APPLIED
+            ]
+            assert len(events) == 1
+            ev = events[0]
+            assert ev.actor_user_id == ctx.user_id
+            assert str(ev.target_id) == str(product_id)
+            assert ev.metadata["source"] == "manual_altera"
+            assert ev.metadata["nutrient"] == "protein_pct"
+        finally:
+            app.dependency_overrides.pop(authed_user, None)
+
+    def test_category_average_enrichment_emits_audit_event(
+        self, client: TestClient, store: InMemoryStore
+    ) -> None:
+        """Applying category-average enrichment writes an ENRICHMENT_APPLIED audit event."""
+        org_id, project_id, product_id = _setup_project_and_product(store)
+        clf = _pt_classification(product_id, pt_group=ProteinTrackerGroup.PLANT_BASED_CORE)
+        store.upsert_pt_classification(clf)
+
+        ctx = _altera_ctx(org_id)
+        app.dependency_overrides[authed_user] = lambda: ctx
+        try:
+            r = client.post(
+                f"/api/v1/projects/{project_id}/products/{product_id}"
+                "/enrichments/category-average"
+            )
+            assert r.status_code == 201, r.text
+
+            events = [
+                e for e in store.audit_events if e.action == AuditEventType.ENRICHMENT_APPLIED
+            ]
+            assert len(events) == 1
+            ev = events[0]
+            assert ev.actor_user_id == ctx.user_id
+            assert str(ev.target_id) == str(product_id)
+            assert ev.metadata["source"] == "category_average"
+            assert ev.metadata["nutrient"] == "protein_pct"
         finally:
             app.dependency_overrides.pop(authed_user, None)
 
