@@ -657,3 +657,118 @@ def test_no_commercial_fields_in_scenario_result(http: TestClient, store: InMemo
             assert word not in text, f"Forbidden word '{word}' found in scenario result"
     finally:
         app.dependency_overrides.pop(authed_user, None)
+
+
+# ---------------------------------------------------------------------------
+# Cross-org scenario result access regression tests (Phase 28A-1 fix)
+# ---------------------------------------------------------------------------
+
+
+def _make_active_scenario(
+    http: TestClient,
+    store: InMemoryStore,
+    altera_org: Organisation,
+    lead: UserProfile,
+    project: object,
+    run: object,
+) -> str:
+    """Create and run a scenario as an Altera lead; return the scenario_id string."""
+    app.dependency_overrides[authed_user] = lambda: _auth_ctx(lead, altera_org)
+    scenario_id = http.post(
+        f"/api/v1/projects/{project.id}/scenarios",  # type: ignore[attr-defined]
+        json={"name": "S", "base_run_id": str(run.id)},  # type: ignore[attr-defined]
+    ).json()["id"]
+    http.post(f"/api/v1/scenarios/{scenario_id}/run")
+    return scenario_id
+
+
+def test_client_cannot_read_cross_org_active_scenario_result(
+    http: TestClient, store: InMemoryStore
+) -> None:
+    """Client from Org B must not read an active scenario that belongs to Org A."""
+    altera_org = _make_altera_org(store)
+    lead = _make_user(store, altera_org, AlteraRole.ALTERA_METHODOLOGY_LEAD)
+    org_a = _make_client_org(store)
+    project_a = _make_project(store, org_a)
+    run_a = _make_pt_run(store, project_a)
+
+    scenario_id = _make_active_scenario(http, store, altera_org, lead, project_a, run_a)
+
+    # Attacker: client from a completely different org
+    org_b = _make_client_org(store)
+    attacker = _make_user(store, org_b, ClientRole.CLIENT_VIEWER)
+    app.dependency_overrides[authed_user] = lambda: _auth_ctx(attacker, org_b)
+    try:
+        resp = http.get(f"/api/v1/scenarios/{scenario_id}/result")
+        assert resp.status_code == 404, f"expected 404, got {resp.status_code}: {resp.json()}"
+    finally:
+        app.dependency_overrides.pop(authed_user, None)
+
+
+def test_client_can_read_own_org_active_scenario_result(
+    http: TestClient, store: InMemoryStore
+) -> None:
+    """Client from the scenario's own org can read an active scenario result."""
+    altera_org = _make_altera_org(store)
+    lead = _make_user(store, altera_org, AlteraRole.ALTERA_METHODOLOGY_LEAD)
+    client_org = _make_client_org(store)
+    project = _make_project(store, client_org)
+    run = _make_pt_run(store, project)
+
+    scenario_id = _make_active_scenario(http, store, altera_org, lead, project, run)
+
+    viewer = _make_user(store, client_org, ClientRole.CLIENT_VIEWER)
+    app.dependency_overrides[authed_user] = lambda: _auth_ctx(viewer, client_org)
+    try:
+        resp = http.get(f"/api/v1/scenarios/{scenario_id}/result")
+        assert resp.status_code == 200
+        assert resp.json()["pt_projected"] is not None
+    finally:
+        app.dependency_overrides.pop(authed_user, None)
+
+
+def test_altera_internal_can_read_cross_org_scenario_result(
+    http: TestClient, store: InMemoryStore
+) -> None:
+    """Altera internal users may read scenario results across organisation boundaries."""
+    altera_org = _make_altera_org(store)
+    lead = _make_user(store, altera_org, AlteraRole.ALTERA_METHODOLOGY_LEAD)
+    other_client_org = _make_client_org(store)
+    project = _make_project(store, other_client_org)
+    run = _make_pt_run(store, project)
+
+    scenario_id = _make_active_scenario(http, store, altera_org, lead, project, run)
+
+    analyst = _make_user(store, altera_org, AlteraRole.ALTERA_ANALYST)
+    app.dependency_overrides[authed_user] = lambda: _auth_ctx(analyst, altera_org)
+    try:
+        resp = http.get(f"/api/v1/scenarios/{scenario_id}/result")
+        assert resp.status_code == 200
+    finally:
+        app.dependency_overrides.pop(authed_user, None)
+
+
+def test_client_draft_scenario_still_blocked_by_status(
+    http: TestClient, store: InMemoryStore
+) -> None:
+    """Client from the same org is still blocked by the draft-status check."""
+    altera_org = _make_altera_org(store)
+    lead = _make_user(store, altera_org, AlteraRole.ALTERA_METHODOLOGY_LEAD)
+    client_org = _make_client_org(store)
+    project = _make_project(store, client_org)
+    run = _make_pt_run(store, project)
+
+    # Create scenario but do NOT run it → stays draft
+    app.dependency_overrides[authed_user] = lambda: _auth_ctx(lead, altera_org)
+    scenario_id = http.post(
+        f"/api/v1/projects/{project.id}/scenarios",
+        json={"name": "draft", "base_run_id": str(run.id)},
+    ).json()["id"]
+
+    viewer = _make_user(store, client_org, ClientRole.CLIENT_VIEWER)
+    app.dependency_overrides[authed_user] = lambda: _auth_ctx(viewer, client_org)
+    try:
+        resp = http.get(f"/api/v1/scenarios/{scenario_id}/result")
+        assert resp.status_code == 403
+    finally:
+        app.dependency_overrides.pop(authed_user, None)

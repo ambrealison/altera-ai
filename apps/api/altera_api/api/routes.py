@@ -1979,6 +1979,10 @@ def get_scenario_result_route(
     if scenario is None:
         raise HTTPException(status_code=404, detail="scenario not found")
 
+    # Cross-org access: clients may only read their own org's scenarios
+    if not auth.is_altera_internal and scenario.organisation_id != auth.organisation_id:
+        raise HTTPException(status_code=404, detail="scenario not found")
+
     # Clients only see active scenarios
     if not auth.is_altera_internal and scenario.status != ScenarioStatus.ACTIVE.value:
         raise HTTPException(status_code=403, detail="scenario not yet active")
