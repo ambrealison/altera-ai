@@ -54,7 +54,7 @@ class FakeStorageService:
         return f"organisations/{organisation_id}/exports/{run_id}/{export_id}/{filename}"
 
     def generate_export_download_url(
-        self, storage_path: str, filename: str, expires_in: int = 3600
+        self, storage_path: str, filename: str, expires_in: int = 600
     ) -> str:
         return f"https://fake-storage.test/{storage_path}?download={filename}"
 

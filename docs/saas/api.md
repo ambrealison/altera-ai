@@ -203,14 +203,28 @@ version.
 - Repeating a request with the same key returns the original response.
 - Keys live for 24 hours.
 
+## Security headers
+
+Every API response carries the following security headers (set by
+`SecurityHeadersMiddleware`):
+
+| Header | Value |
+|---|---|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=()` |
+| `Cache-Control` | `no-store` (API paths only) |
+
 ## Rate limits
 
-> **TODO (Phase 29B):** Implement per-organisation token-bucket rate limiting
-> in middleware. Planned limits (subject to change):
+> **TODO (Phase 30B):** Implement per-organisation token-bucket rate
+> limiting in middleware. Planned limits (subject to change):
 >
-> - Reads: 200 req/min per org
-> - Writes: 60 req/min per org
-> - AI-triggering classification: 10 batches/min per org
+> - Auth endpoints: 20 req/min per IP
+> - Upload endpoints: 10 req/min per org
+> - AI-triggering classification: 5 batches/min per org
+> - Export download: 30 req/min per org
 >
 > Rate-limited responses will return `429 Too Many Requests` with a
 > `Retry-After` header.

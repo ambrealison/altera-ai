@@ -27,5 +27,5 @@ class StorageProtocol(Protocol):
     ) -> str: ...
 
     def generate_export_download_url(
-        self, storage_path: str, filename: str, expires_in: int = 3600
+        self, storage_path: str, filename: str, expires_in: int = 600
     ) -> str: ...

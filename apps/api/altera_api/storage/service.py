@@ -57,9 +57,13 @@ class StorageService:
         )
 
     def generate_export_download_url(
-        self, storage_path: str, filename: str, expires_in: int = 3600
+        self, storage_path: str, filename: str, expires_in: int = 600
     ) -> str:
-        """Return a signed download URL for an export file."""
+        """Return a signed download URL for an export file.
+
+        Default expiry is 600 seconds (10 minutes) — long enough for a
+        browser redirect but short enough to limit replay risk.
+        """
         result = self._client.storage.from_(self.EXPORT_BUCKET).create_signed_url(
             storage_path,
             expires_in,

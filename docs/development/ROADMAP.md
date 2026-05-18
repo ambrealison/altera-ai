@@ -9,7 +9,7 @@ The roadmap reflects the managed-service direction set in
 platform on behalf of grocery clients, owns the methodology review,
 and approves reports before client download.
 
-## Current status (verified 2026-05-18)
+## Current status (verified 2026-05-19)
 
 | Phase | Scope                                            | Status                                                                                                                            |
 |-------|--------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
@@ -47,18 +47,21 @@ and approves reports before client download.
 | 28A-4 | WWF Step 2 coverage caveats and disclosure            | **Done.** `_wwf_step2_caveats()` in `coverage.py` improved: (1) Step 2 caveat now shows denominator "X of Y own-brand composite product(s)" instead of just "X"; (2) new "own-brand Step 1 only" caveat when Y−X > 0; (3) branded composite caveat refactored into single-pass loop (no duplicate `get_wwf_classification` calls); (4) new FG3 missing-subgroup caveat when any stored Step 2 FG3 ingredient row has `fg3_subgroup=None`. Docs updated: `report-structure.md` (caveats table), `wwf.md` (Step 2 coverage disclosure section). 4 new tests (1198 total). |
 | 28A-5 | Production-readiness cleanup                          | **Done.** (1) ROADMAP stale section replaced (old section still referenced Phase 13B/13D ordering). (2) Org-lifecycle audit gap documented (no app-level provisioning endpoints; `ORG_CREATED`/`ORG_MEMBER_INVITED`/`ORG_ROLE_CHANGED` events defined but not yet emitted). (3) Auth predicates `can_create_scenario`, `can_apply_enrichment`, `can_generate_recommendations` added to `AuthContext` as semantic aliases for `is_altera_internal`; 7 route guards updated to use them. |
 | 28B   | Operational baseline for pilot readiness              | **Done.** (1) `altera_api/observability/` module: `logging.py` (`_JsonFormatter`, `_ContextFilter`, `configure_logging()`, `get_logger()`), `middleware.py` (`RequestLoggingMiddleware` — request_id, duration_ms, path logged; auth headers never logged), `sentry.py` (`init_sentry()` with `try: import sentry_sdk` optional pattern, `_before_send()` stripping auth headers). (2) `main.py` updated: lifespan context manager calling `configure_logging()` + `init_sentry()`; `RequestLoggingMiddleware` added. (3) `.env.example` updated with `LOG_LEVEL`, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`. (4) `docs/development/job-backend.md` created: `SyncDevRunner` rationale, pilot SLAs, Celery/RQ/Dramatiq swap-in guide, operational considerations. (5) 6 runbooks in `docs/development/runbooks/`: upload-failure, job-stuck, export-download-failure, rls-permission-denied, ai-classification-failure, report-delivery-issue. (6) `tests/integration/README.md` created. (7) `docs/development/deployment.md` observability section rewritten. (8) `apps/api/README.md` updated with observability config and layout. (9) Tests: `tests/observability/test_logging_middleware.py` (5 tests), `test_sentry.py` (7 tests), `test_rls_audit.py` (2 tests — RLS enabled + policy present on all 14 multi-tenant tables; no live DB required). |
+| 29A   | API hardening: error standardisation + pagination     | **Done.** `ErrorDetail` model + `raise_not_found/forbidden/conflict/bad_request/unprocessable` helpers in `altera_api/api/errors.py`. `Page[T]` envelope + `PaginationParams` + `paginate()` in `altera_api/api/pagination.py`. Review queue and jobs list endpoints paginated. 13 permission regression tests in `test_phase29a_permissions.py`. `docs/saas/api.md` rewritten with error shape, pagination, auth, role matrix. |
+| 29B   | API pagination extended + permission matrix           | **Done.** 6 additional list endpoints paginated: `GET /projects`, `/uploads`, `/runs`, `/exports`, `/recommendations`, `/scenarios`. Frontend `api.ts` types + all 7 `.items` unwrap call sites updated. 19-test permission matrix (`test_phase29b_permission_matrix.py`) covering role × action scenarios, org scoping, export visibility, pagination contract. `docs/saas/api.md` updated with all paginated endpoints and corrected role table. 1244 total tests. |
+| 30A   | Security hardening baseline                           | **Done.** (1) `SecurityHeadersMiddleware` in `altera_api/observability/security.py`: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, Cache-Control: no-store on API paths. (2) `main.py` wired to read `CORS_ALLOWED_ORIGINS` from env (comma-separated; default `http://localhost:3000`). (3) Export download URL default expiry reduced from 3600 → 600 s across `service.py`, `protocol.py`, `fake.py`. (4) Removed real OpenAI API key from root `.env.example`. (5) 20 new tests in `tests/security/test_phase30a_security.py`: headers, CORS config, secrets safety, signed URL expiry bounds, upload validation limits. (6) `docs/development/deployment.md` security section added: headers, CORS, secrets table, signed URL policy, rate-limiting TODO, dependency audit commands, pre-pilot checklist. (7) `apps/api/README.md` production security notes. 1264 total tests. |
 
 ## Roadmap
 
-All phases through 28B are complete (see status table above).
-The remaining roadmap runs from Phase 29 to pilot readiness.
+All phases through 30A are complete (see status table above).
+The remaining roadmap runs from Phase 30B to pilot readiness.
 
-**Recommended next phase: Phase 29** — the audit log UI is the highest
+**Recommended next phase: Phase 31** — the audit log UI is the highest
 leverage item for Altera-internal operators and is a hard requirement
 for the pilot sign-off (methodology leads need an immutable audit trail
 visible in the UI before any client report is delivered).
 
-### Phase 29 — Audit log UI
+### Phase 31 — Audit log UI
 
 - Internal UI surface for `audit_events`: who approved what and when,
   methodology version stamped on each decision, review decision history.
@@ -69,7 +72,15 @@ visible in the UI before any client report is delivered).
   endpoints — provisioning happens via Supabase Auth). These will be
   wired when org management endpoints are added.
 
-### Phase 30 — Methodology version pinning + replay
+### Phase 30B — Rate limiting
+
+- Per-organisation token-bucket rate limiting middleware.
+- Auth endpoints: 20 req/min per IP.
+- Upload endpoints: 10 req/min per org.
+- AI classification: 5 batches/min per org.
+- Export download: 30 req/min per org.
+
+### Phase 32 — Methodology version pinning + replay
 
 - Pin methodology, taxonomy, and rules versions per project at
   approval time.

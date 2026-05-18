@@ -79,6 +79,16 @@ All three Supabase env vars (`SUPABASE_URL`, `SUPABASE_JWT_SECRET`,
 `SUPABASE_SERVICE_ROLE_KEY`) must be present. Set
 `ALTERA_USE_IN_MEMORY_STORE=false` to enable Postgres persistence.
 
+Set `CORS_ALLOWED_ORIGINS` to the exact frontend URL(s). Never use `*`.
+
+```bash
+CORS_ALLOWED_ORIGINS=https://app.altera-ai.com
+```
+
+`SUPABASE_SERVICE_ROLE_KEY` is a backend-only secret. It must **never**
+appear in frontend environment variables or be committed to source
+control. Frontend Supabase access uses the publishable/anon key only.
+
 ## Observability configuration (Phase 28B)
 
 ### Structured logging

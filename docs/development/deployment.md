@@ -122,3 +122,97 @@ A bad release is rolled back by redeploying the prior image and, if a
 migration introduced a problem, applying its reverse migration. The
 rollback drill is documented separately in
 `docs/development/runbooks/` (to be added as the product matures).
+
+## Security
+
+### Security headers
+
+Phase 30A added a `SecurityHeadersMiddleware` that stamps the following
+headers on every HTTP response:
+
+| Header | Value |
+|---|---|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=()` |
+| `Cache-Control` | `no-store` (API paths only) |
+
+HSTS (`Strict-Transport-Security`) is intentionally **not** set in the
+application — configure it at the reverse proxy or CDN so the
+`includeSubDomains` and `preload` directives can be managed correctly.
+
+### CORS
+
+CORS is controlled by the `CORS_ALLOWED_ORIGINS` environment variable
+(comma-separated). In production set it to your exact frontend
+origin(s). The default (`http://localhost:3000`) is safe only for local
+development.
+
+```
+# Production example
+CORS_ALLOWED_ORIGINS=https://app.altera-ai.com
+```
+
+Never set `CORS_ALLOWED_ORIGINS=*` — this is incompatible with
+`allow_credentials=True` and will break browser requests.
+
+### Secrets management
+
+| Secret | Where it lives | Notes |
+|---|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | Backend env only | Never expose to frontend or commit to source |
+| `SUPABASE_JWT_SECRET` | Backend env only | Used to verify Supabase JWTs |
+| `OPENAI_API_KEY` | Backend env only | Never expose to frontend |
+| `SUPABASE_ANON_KEY` / `PUBLISHABLE_KEY` | Frontend (`NEXT_PUBLIC_*`) | Safe to expose — governed by Supabase RLS |
+
+The `.env.example` files are checked in CI for real-secret patterns. Do
+not add real values to example files.
+
+### Signed URLs
+
+- Upload signed URLs expire in **300 seconds** (5 minutes).
+- Export download signed URLs expire in **600 seconds** (10 minutes).
+  Override by passing `expires_in` to `generate_export_download_url()`.
+
+### Rate limiting
+
+> **TODO (Phase 30B+):** Implement per-organisation token-bucket rate
+> limiting. Planned limits:
+>
+> - Auth endpoints: 20 req/min per IP
+> - Upload endpoints: 10 req/min per org
+> - AI classification: 5 batches/min per org
+> - Export download: 30 req/min per org
+>
+> Rate-limited responses return `429 Too Many Requests` with
+> `Retry-After`.
+
+### Dependency audits
+
+Run before every pilot deployment:
+
+```bash
+# Backend Python packages
+uv run pip-audit          # or: pip install pip-audit && pip-audit
+
+# Frontend npm packages
+cd apps/web && npm audit
+```
+
+Enable GitHub Dependabot alerts on the repository to receive automated
+dependency vulnerability notifications.
+
+### Pre-pilot security checklist
+
+- [ ] `ALTERA_DEV_AUTH_ENABLED=false` in production
+- [ ] `CORS_ALLOWED_ORIGINS` set to production frontend URL only
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` stored in secret manager (not .env file)
+- [ ] Supabase RLS enabled on all tenant tables (verified by `tests/observability/test_rls_audit.py`)
+- [ ] `SENTRY_DSN` set and events are flowing
+- [ ] Export download URL expiry ≤ 600 s (verified by security tests)
+- [ ] `npm audit` shows no critical/high vulnerabilities
+- [ ] `pip-audit` shows no critical/high vulnerabilities
+- [ ] Reviewed Supabase Storage bucket policies (no public buckets for `uploads`/`exports`)
+- [ ] HSTS configured at reverse proxy with `includeSubDomains`
+- [ ] Security headers verified via browser DevTools or `curl -I`
