@@ -410,24 +410,26 @@ and pointing it at `apps/api/render.yaml`.
    cd apps/api && uv run pytest tests/observability/test_rls_audit.py -v
    ```
 
-### First Altera admin user (bootstrap gap)
+### First Altera admin user (bootstrap)
 
-There is currently no API endpoint to provision organisations or assign
-the first `altera_admin` role. Bootstrap is manual:
+Use the bootstrap script to provision the Altera organisation and first
+`altera_admin` — no manual SQL required. Full instructions:
+[`docs/development/runbooks/bootstrap-first-admin.md`](runbooks/bootstrap-first-admin.md)
 
-1. Create the user in the Supabase Auth dashboard or via `supabase auth user create`.
-2. Insert the organisation and membership rows directly in the Supabase SQL editor:
-   ```sql
-   -- Replace UUIDs and values as appropriate.
-   INSERT INTO organisations (id, name, organisation_type)
-   VALUES ('<uuid>', 'Altera AI', 'altera');
+Quick reference:
 
-   INSERT INTO memberships (user_id, organisation_id, role)
-   VALUES ('<auth-user-uuid>', '<org-uuid>', 'altera_admin');
+1. Create the Supabase Auth user (dashboard invite or Supabase CLI).
+2. Run the bootstrap script:
+   ```bash
+   cd apps/api
+   SUPABASE_URL=https://<ref>.supabase.co \
+   SUPABASE_SERVICE_ROLE_KEY=<key> \
+   uv run python scripts/bootstrap_altera_admin.py \
+       --user-id <auth-user-uuid> \
+       --email admin@altera-ai.com \
+       --confirm
    ```
-3. Verify login and `/api/v1/me` returns the expected role.
-
-This is a known gap — org management endpoints are planned for a later phase.
+3. Verify: log in and call `GET /api/v1/me` — expect `role=altera_admin`.
 
 ### Smoke test
 
@@ -451,7 +453,7 @@ Or trigger the GitHub Actions smoke test manually:
 - [ ] `supabase db push` applied to the staging project
 - [ ] Storage buckets `uploads` and `exports` created as **private**
 - [ ] Auth redirect URLs configured in Supabase
-- [ ] First Altera admin user bootstrapped (see above)
+- [ ] First Altera admin user bootstrapped (`scripts/bootstrap_altera_admin.py --confirm`)
 - [ ] `./scripts/staging_smoke.sh` passes
 - [ ] Login flow works end-to-end (Supabase Auth → JWT → API `/me`)
 - [ ] At least one test upload processed successfully

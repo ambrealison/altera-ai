@@ -237,6 +237,24 @@ altera_api/
     └── sentry.py             # init_sentry() — optional sentry-sdk integration
 ```
 
+## Bootstrap
+
+One-time setup to create the Altera organisation and first `altera_admin`
+in a staging or production environment:
+
+```bash
+# The Supabase Auth user must already exist before running this.
+SUPABASE_URL=https://<ref>.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=<key> \
+uv run python scripts/bootstrap_altera_admin.py \
+    --user-id <auth-user-uuid> \
+    --email admin@altera-ai.com \
+    --confirm
+```
+
+The script is idempotent. Full instructions and troubleshooting:
+[`docs/development/runbooks/bootstrap-first-admin.md`](../../docs/development/runbooks/bootstrap-first-admin.md)
+
 ## Setup
 
 ```bash
