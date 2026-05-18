@@ -466,6 +466,12 @@ class ReviewItemResponse(BaseModel):
     # confidence: 1.0 for deterministic matches, <1 for AI-classified items,
     # None when the item was never classified (e.g. parse-failed before AI ran).
     confidence: float | None
+    # Phase 19B — safe classification rationale (no commercial fields)
+    source: str | None = None
+    rule_id: str | None = None
+    ai_model: str | None = None
+    ai_prompt_version: str | None = None
+    rationale_notes: list[str] = []
     # Excluded intentionally: items_purchased, items_sold, weight_per_item_kg,
     # revenue, margin, supplier terms — all commercial fields.
 
@@ -492,6 +498,11 @@ def _review_response(v: object) -> ReviewItemResponse:
         queued_at=v.queued_at.isoformat(),
         current_category=v.current_category,
         confidence=float(v.confidence) if v.confidence is not None else None,
+        source=v.source.value if v.source is not None else None,
+        rule_id=v.rule_id,
+        ai_model=v.ai_model,
+        ai_prompt_version=v.ai_prompt_version,
+        rationale_notes=list(v.rationale_notes),
     )
 
 

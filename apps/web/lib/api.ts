@@ -135,6 +135,12 @@ export interface ReviewItem {
   queued_at: string;
   current_category: string | null;
   confidence: number | null;
+  // Phase 19B — safe classification rationale
+  source: "deterministic" | "ai" | "manual_review" | null;
+  rule_id: string | null;
+  ai_model: string | null;
+  ai_prompt_version: string | null;
+  rationale_notes: string[];
 }
 
 export interface ReviewFilters {

@@ -273,6 +273,30 @@ function ReviewRow({
           </span>
         )}
       </div>
+      {/* Rationale section — source metadata + notes */}
+      <div className="mt-2 space-y-1 text-xs text-gray-500">
+        {item.source && (
+          <div className="flex flex-wrap gap-3">
+            <span>source: <span className="font-medium text-gray-700">{item.source}</span></span>
+            {item.rule_id && (
+              <span>rule: <span className="font-mono text-gray-600">{item.rule_id}</span></span>
+            )}
+            {item.ai_model && (
+              <span>model: <span className="font-mono text-gray-600">{item.ai_model}</span></span>
+            )}
+            {item.ai_prompt_version && (
+              <span>prompt: <span className="font-mono text-gray-600">{item.ai_prompt_version}</span></span>
+            )}
+          </div>
+        )}
+        {item.rationale_notes.length > 0 && (
+          <ul className="mt-1 list-disc pl-4 space-y-0.5 text-amber-700">
+            {item.rationale_notes.map((note, i) => (
+              <li key={i}>{note}</li>
+            ))}
+          </ul>
+        )}
+      </div>
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <label className="text-sm">
           <div className="text-xs font-medium text-gray-700">Change to</div>

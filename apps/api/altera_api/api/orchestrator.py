@@ -149,11 +149,15 @@ class ReviewItemView:
     reason: ManualReviewQueueReason
     queued_at: datetime
     current_category: str | None
-    # Enriched fields added in Phase 19A
+    # Phase 19A
     upload_id: UUID | None = None
     confidence: Decimal | None = None
-    # TODO(phase-19b): ai_rationale — not stored on ManualReviewItem yet;
-    # requires persisting the AI response alongside the review item.
+    # Phase 19B — safe classification metadata (no commercial fields)
+    source: ClassificationSource | None = None
+    rule_id: str | None = None
+    ai_model: str | None = None
+    ai_prompt_version: str | None = None
+    rationale_notes: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -330,12 +334,16 @@ def classify_upload(
                 store.remove_review_item(product.id, methodology)
                 matched += 1
             elif isinstance(verdict, PTRuleCollision):
-                _queue_unknown_pt(store, product, ManualReviewQueueReason.RULE_COLLISION, now)
+                _queue_unknown_pt(
+                    store, product, ManualReviewQueueReason.RULE_COLLISION, now,
+                    notes=verdict.conflicting_rule_ids,
+                )
                 collision += 1
                 queued += 1
             elif isinstance(verdict, PTContradiction):
                 _queue_unknown_pt(
-                    store, product, ManualReviewQueueReason.CONTRADICTION_DETECTED, now
+                    store, product, ManualReviewQueueReason.CONTRADICTION_DETECTED, now,
+                    notes=verdict.contradiction_notes,
                 )
                 contradiction += 1
                 queued += 1
@@ -376,12 +384,16 @@ def classify_upload(
                 store.remove_review_item(product.id, methodology)
                 matched += 1
             elif isinstance(verdict_w, WWFRuleCollision):
-                _queue_unknown_wwf(store, product, ManualReviewQueueReason.RULE_COLLISION, now)
+                _queue_unknown_wwf(
+                    store, product, ManualReviewQueueReason.RULE_COLLISION, now,
+                    notes=verdict_w.conflicting_rule_ids,
+                )
                 collision += 1
                 queued += 1
             elif isinstance(verdict_w, WWFContradiction):
                 _queue_unknown_wwf(
-                    store, product, ManualReviewQueueReason.CONTRADICTION_DETECTED, now
+                    store, product, ManualReviewQueueReason.CONTRADICTION_DETECTED, now,
+                    notes=verdict_w.contradiction_notes,
                 )
                 contradiction += 1
                 queued += 1
@@ -435,6 +447,7 @@ def _queue_unknown_pt(
     product: NormalizedProduct,
     reason: ManualReviewQueueReason,
     now: datetime,
+    notes: tuple[str, ...] = (),
 ) -> None:
     # Place a provisional `unknown` classification so the reviewer has
     # something to start from. The reviewer can change it.
@@ -457,6 +470,7 @@ def _queue_unknown_pt(
             status=ManualReviewStatus.IN_QUEUE,
             reason=reason,
             queued_at=now,
+            rationale_notes=notes,
         )
     )
 
@@ -466,6 +480,7 @@ def _queue_unknown_wwf(
     product: NormalizedProduct,
     reason: ManualReviewQueueReason,
     now: datetime,
+    notes: tuple[str, ...] = (),
 ) -> None:
     if Methodology.WWF not in product.methodologies_enabled:
         return
@@ -487,6 +502,7 @@ def _queue_unknown_wwf(
             status=ManualReviewStatus.IN_QUEUE,
             reason=reason,
             queued_at=now,
+            rationale_notes=notes,
         )
     )
 
@@ -568,14 +584,28 @@ def list_review(
 
         current_category: str | None = None
         confidence: Decimal | None = None
+        source: ClassificationSource | None = None
+        rule_id: str | None = None
+        ai_model: str | None = None
+        ai_prompt_version: str | None = None
         if item.methodology is Methodology.PROTEIN_TRACKER:
             c = store.get_pt_classification(item.product_id)
-            current_category = c.pt_group.value if c else None
-            confidence = c.confidence if c else None
+            if c:
+                current_category = c.pt_group.value
+                confidence = c.confidence
+                source = c.source
+                rule_id = c.rule_id
+                ai_model = c.ai_model
+                ai_prompt_version = c.ai_prompt_version
         else:
             c = store.get_wwf_classification(item.product_id)
-            current_category = c.wwf_food_group.value if c else None
-            confidence = c.confidence if c else None
+            if c:
+                current_category = c.wwf_food_group.value
+                confidence = c.confidence
+                source = c.source
+                rule_id = c.rule_id
+                ai_model = c.ai_model
+                ai_prompt_version = c.ai_prompt_version
 
         out.append(
             ReviewItemView(
@@ -590,6 +620,11 @@ def list_review(
                 current_category=current_category,
                 upload_id=product.upload_id,
                 confidence=confidence,
+                source=source,
+                rule_id=rule_id,
+                ai_model=ai_model,
+                ai_prompt_version=ai_prompt_version,
+                rationale_notes=item.rationale_notes,
             )
         )
     return out
@@ -687,14 +722,32 @@ def _review_view_for(
     assert product is not None
     item = store.get_review_item(product_id, methodology)
     confidence: Decimal | None = None
+    source: ClassificationSource | None = None
+    rule_id: str | None = None
+    ai_model: str | None = None
+    ai_prompt_version: str | None = None
     if methodology is Methodology.PROTEIN_TRACKER:
         c = store.get_pt_classification(product_id)
-        category = c.pt_group.value if c else None
-        confidence = c.confidence if c else None
+        if c:
+            category: str | None = c.pt_group.value
+            confidence = c.confidence
+            source = c.source
+            rule_id = c.rule_id
+            ai_model = c.ai_model
+            ai_prompt_version = c.ai_prompt_version
+        else:
+            category = None
     else:
         c = store.get_wwf_classification(product_id)
-        category = c.wwf_food_group.value if c else None
-        confidence = c.confidence if c else None
+        if c:
+            category = c.wwf_food_group.value
+            confidence = c.confidence
+            source = c.source
+            rule_id = c.rule_id
+            ai_model = c.ai_model
+            ai_prompt_version = c.ai_prompt_version
+        else:
+            category = None
     return ReviewItemView(
         product_id=product.id,
         external_product_id=product.external_product_id,
@@ -707,6 +760,11 @@ def _review_view_for(
         current_category=category,
         upload_id=product.upload_id,
         confidence=confidence,
+        source=source,
+        rule_id=rule_id,
+        ai_model=ai_model,
+        ai_prompt_version=ai_prompt_version,
+        rationale_notes=item.rationale_notes if item else (),
     )
 
 

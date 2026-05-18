@@ -69,6 +69,10 @@ class ManualReviewItem(DomainBase):
     queued_at: datetime
     soft_lock_user_id: UUID | None = None
     soft_lock_expires_at: datetime | None = None
+    # Human-readable notes from the classifier that explain WHY this item is
+    # in the queue. Populated for contradiction_detected (contradiction notes)
+    # and rule_collision (conflicting rule IDs). Empty for other reasons.
+    rationale_notes: tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def _soft_lock_fields_paired(self) -> Self:
