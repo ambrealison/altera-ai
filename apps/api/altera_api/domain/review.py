@@ -73,6 +73,8 @@ class ManualReviewItem(DomainBase):
     # in the queue. Populated for contradiction_detected (contradiction notes)
     # and rule_collision (conflicting rule IDs). Empty for other reasons.
     rationale_notes: tuple[str, ...] = ()
+    # Phase 19D — assignment
+    assigned_to_user_id: UUID | None = None
 
     @model_validator(mode="after")
     def _soft_lock_fields_paired(self) -> Self:

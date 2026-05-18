@@ -339,7 +339,11 @@ function ReviewRow({
   const [reason, setReason] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
+  const lockedByOther = item.lock_status === "locked_by_other";
+  const lockedByMe = item.lock_status === "locked_by_me";
+
   async function submit(decision: DecisionType) {
+    if (lockedByOther) return;
     setBusy(true);
     setErr(null);
     try {
@@ -352,6 +356,32 @@ function ReviewRow({
       onAfter();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Decision failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleClaim() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await createApi(accessToken).claimItem(projectId, item.product_id, item.methodology);
+      onAfter();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Claim failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRelease() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await createApi(accessToken).releaseItem(projectId, item.product_id, item.methodology);
+      onAfter();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Release failed");
     } finally {
       setBusy(false);
     }
@@ -390,6 +420,24 @@ function ReviewRow({
                 confidence: {(item.confidence * 100).toFixed(0)}%
               </span>
             )}
+            {/* Lock badge */}
+            {lockedByOther && (
+              <Pill tone="warn">
+                Locked by {item.locked_by_email ?? "another reviewer"}
+              </Pill>
+            )}
+            {lockedByMe && (
+              <Pill tone="ok">Locked by you</Pill>
+            )}
+            {item.lock_status === "expired" && (
+              <Pill tone="neutral">Lock expired</Pill>
+            )}
+            {/* Assignment badge */}
+            {item.assigned_to_email && (
+              <span className="text-xs text-gray-500">
+                assigned: <span className="font-medium">{item.assigned_to_email}</span>
+              </span>
+            )}
           </div>
           {/* Rationale section — source metadata + notes */}
           <div className="mt-2 space-y-1 text-xs text-gray-500">
@@ -415,40 +463,60 @@ function ReviewRow({
               </ul>
             )}
           </div>
-          <div className="mt-4 flex flex-wrap items-end gap-3">
-            <label className="text-sm">
-              <div className="text-xs font-medium text-gray-700">Change to</div>
-              <select
-                value={choice}
-                onChange={(e) => setChoice(e.target.value)}
-                className="mt-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-              >
-                {options.map((o) => (
-                  <option key={o} value={o}>{o}</option>
-                ))}
-              </select>
-            </label>
-            <label className="grow text-sm">
-              <div className="text-xs font-medium text-gray-700">Reason (optional)</div>
-              <input
-                type="text"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-              />
-            </label>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <Button onClick={() => submit("changed")} disabled={busy}>
-              {busy ? "Saving…" : "Change to selected"}
-            </Button>
-            <Button variant="secondary" onClick={() => submit("accepted")} disabled={busy}>
-              Accept current
-            </Button>
-            <Button variant="ghost" onClick={() => submit("deferred")} disabled={busy}>
-              Defer
-            </Button>
-          </div>
+          {lockedByOther ? (
+            <p className="mt-4 text-xs text-gray-500">
+              This item is being reviewed by {item.locked_by_email ?? "another reviewer"}.
+              Decisions are disabled until the lock is released or expires.
+            </p>
+          ) : (
+            <>
+              <div className="mt-4 flex flex-wrap items-end gap-3">
+                <label className="text-sm">
+                  <div className="text-xs font-medium text-gray-700">Change to</div>
+                  <select
+                    value={choice}
+                    onChange={(e) => setChoice(e.target.value)}
+                    className="mt-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  >
+                    {options.map((o) => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grow text-sm">
+                  <div className="text-xs font-medium text-gray-700">Reason (optional)</div>
+                  <input
+                    type="text"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </label>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button onClick={() => submit("changed")} disabled={busy}>
+                  {busy ? "Saving…" : "Change to selected"}
+                </Button>
+                <Button variant="secondary" onClick={() => submit("accepted")} disabled={busy}>
+                  Accept current
+                </Button>
+                <Button variant="ghost" onClick={() => submit("deferred")} disabled={busy}>
+                  Defer
+                </Button>
+                {/* Lock controls */}
+                {!lockedByMe && !item.status.startsWith("accept") && !item.status.startsWith("change") && item.status !== "deferred" && (
+                  <Button variant="secondary" onClick={handleClaim} disabled={busy}>
+                    Claim
+                  </Button>
+                )}
+                {lockedByMe && (
+                  <Button variant="ghost" onClick={handleRelease} disabled={busy}>
+                    Release lock
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
           {err && (
             <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
               {err}

@@ -158,6 +158,14 @@ class ReviewItemView:
     ai_model: str | None = None
     ai_prompt_version: str | None = None
     rationale_notes: tuple[str, ...] = ()
+    # Phase 19D — lock and assignment fields
+    locked_by_user_id: UUID | None = None
+    locked_by_email: str | None = None
+    locked_at: datetime | None = None
+    lock_expires_at: datetime | None = None
+    lock_status: str = "unlocked"  # unlocked | locked_by_me | locked_by_other | expired
+    assigned_to_user_id: UUID | None = None
+    assigned_to_email: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -544,6 +552,7 @@ def list_review(
     upload_id: UUID | None = None,
     product_search: str | None = None,
     oldest_first: bool = True,
+    viewer_user_id: UUID | None = None,
 ) -> list[ReviewItemView]:
     """Return review items for a project with optional filtering and sorting.
 
@@ -560,6 +569,7 @@ def list_review(
     """
     from altera_api.review.queue import filter_queue, sort_queue_by_age
 
+    now = datetime.now(UTC)
     raw_items = store.list_review_items_for_project(project.id, methodology=methodology)
     filtered = filter_queue(raw_items, status=status, reason=reason)
     sorted_items = sort_queue_by_age(filtered, oldest_first=oldest_first)
@@ -625,6 +635,7 @@ def list_review(
                 ai_model=ai_model,
                 ai_prompt_version=ai_prompt_version,
                 rationale_notes=item.rationale_notes,
+                **_lock_fields(item, store, viewer_user_id, now),
             )
         )
     return out
@@ -709,7 +720,10 @@ def submit_decision(
     else:
         store.remove_review_item(product_id, methodology)
 
-    return _review_view_for(store, product_id=product_id, methodology=methodology)
+    return _review_view_for(
+        store, product_id=product_id, methodology=methodology,
+        viewer_user_id=reviewer_user_id,
+    )
 
 
 def _review_view_for(
@@ -717,6 +731,7 @@ def _review_view_for(
     *,
     product_id: UUID,
     methodology: Methodology,
+    viewer_user_id: UUID | None = None,
 ) -> ReviewItemView:
     product = store.get_product(product_id)
     assert product is not None
@@ -748,6 +763,12 @@ def _review_view_for(
             ai_prompt_version = c.ai_prompt_version
         else:
             category = None
+    _now = datetime.now(UTC)
+    lock_kw = _lock_fields(item, store, viewer_user_id, _now) if item else {
+        "locked_by_user_id": None, "locked_by_email": None,
+        "locked_at": None, "lock_expires_at": None, "lock_status": "unlocked",
+        "assigned_to_user_id": None, "assigned_to_email": None,
+    }
     return ReviewItemView(
         product_id=product.id,
         external_product_id=product.external_product_id,
@@ -756,7 +777,7 @@ def _review_view_for(
         methodology=methodology,
         status=item.status if item else ManualReviewStatus.ACCEPTED,
         reason=item.reason if item else ManualReviewQueueReason.REQUESTED,
-        queued_at=item.queued_at if item else datetime.now(UTC),
+        queued_at=item.queued_at if item else _now,
         current_category=category,
         upload_id=product.upload_id,
         confidence=confidence,
@@ -765,7 +786,170 @@ def _review_view_for(
         ai_model=ai_model,
         ai_prompt_version=ai_prompt_version,
         rationale_notes=item.rationale_notes if item else (),
+        **lock_kw,
     )
+
+
+# ---------------------------------------------------------------------------
+# Lock management and assignment
+# ---------------------------------------------------------------------------
+def claim_review_item(
+    store: StoreProtocol,
+    *,
+    project: Project,
+    product_id: UUID,
+    methodology: Methodology,
+    reviewer_user_id: UUID,
+) -> ReviewItemView:
+    from altera_api.review.errors import SoftLockHeldError
+    from altera_api.review.workflow import claim_item
+
+    item = store.get_review_item(product_id, methodology)
+    if item is None:
+        raise LookupError("review item not found")
+    now = datetime.now(UTC)
+    try:
+        updated = claim_item(item, reviewer_user_id=reviewer_user_id, now=now)
+    except SoftLockHeldError as exc:
+        raise ValueError(str(exc)) from exc
+    store.upsert_review_item(updated)
+    return _review_view_for(
+        store, product_id=product_id, methodology=methodology,
+        viewer_user_id=reviewer_user_id,
+    )
+
+
+def release_review_item(
+    store: StoreProtocol,
+    *,
+    project: Project,
+    product_id: UUID,
+    methodology: Methodology,
+    reviewer_user_id: UUID,
+) -> ReviewItemView:
+    from altera_api.review.errors import SoftLockHeldError
+    from altera_api.review.workflow import release_item
+
+    item = store.get_review_item(product_id, methodology)
+    if item is None:
+        raise LookupError("review item not found")
+    now = datetime.now(UTC)
+    try:
+        updated = release_item(item, reviewer_user_id=reviewer_user_id, now=now)
+    except SoftLockHeldError as exc:
+        raise ValueError(str(exc)) from exc
+    store.upsert_review_item(updated)
+    return _review_view_for(
+        store, product_id=product_id, methodology=methodology,
+        viewer_user_id=reviewer_user_id,
+    )
+
+
+def refresh_review_lock(
+    store: StoreProtocol,
+    *,
+    project: Project,
+    product_id: UUID,
+    methodology: Methodology,
+    reviewer_user_id: UUID,
+) -> ReviewItemView:
+    from altera_api.review.errors import SoftLockHeldError
+    from altera_api.review.workflow import refresh_lock
+
+    item = store.get_review_item(product_id, methodology)
+    if item is None:
+        raise LookupError("review item not found")
+    now = datetime.now(UTC)
+    try:
+        updated = refresh_lock(item, reviewer_user_id=reviewer_user_id, now=now)
+    except SoftLockHeldError as exc:
+        raise ValueError(str(exc)) from exc
+    store.upsert_review_item(updated)
+    return _review_view_for(
+        store, product_id=product_id, methodology=methodology,
+        viewer_user_id=reviewer_user_id,
+    )
+
+
+def assign_review_item(
+    store: StoreProtocol,
+    *,
+    project: Project,
+    product_id: UUID,
+    methodology: Methodology,
+    assigner_user_id: UUID,
+    assign_to_user_id: UUID,
+    auth_can_assign_others: bool,
+) -> ReviewItemView:
+    """Assign a review item to a reviewer.
+
+    Altera admins / methodology leads may assign to any user.
+    Regular Altera reviewers may only assign to themselves.
+    """
+    if not auth_can_assign_others and assign_to_user_id != assigner_user_id:
+        raise ValueError(
+            "only Altera admins and methodology leads can assign items to "
+            "other reviewers; use your own user_id to assign to yourself."
+        )
+    item = store.get_review_item(product_id, methodology)
+    if item is None:
+        raise LookupError("review item not found")
+    if item.status.is_terminal:
+        raise ValueError("cannot assign a terminal review item.")
+    updated = item.model_copy(update={"assigned_to_user_id": assign_to_user_id})
+    store.upsert_review_item(updated)
+    return _review_view_for(
+        store, product_id=product_id, methodology=methodology,
+        viewer_user_id=assigner_user_id,
+    )
+
+
+def _lock_status(
+    item: ManualReviewItem,
+    viewer_user_id: UUID | None,
+    now: datetime,
+) -> str:
+    from altera_api.review.locks import is_lock_expired
+
+    if item.soft_lock_user_id is None:
+        return "unlocked"
+    if is_lock_expired(item, now=now):
+        return "expired"
+    if viewer_user_id is not None and item.soft_lock_user_id == viewer_user_id:
+        return "locked_by_me"
+    return "locked_by_other"
+
+
+def _lock_fields(
+    item: ManualReviewItem,
+    store: StoreProtocol,
+    viewer_user_id: UUID | None,
+    now: datetime,
+) -> dict:
+    from altera_api.review.locks import SOFT_LOCK_DURATION
+
+    locked_by_email: str | None = None
+    locked_at: datetime | None = None
+    if item.soft_lock_user_id is not None:
+        profile = store.get_user(item.soft_lock_user_id)
+        locked_by_email = profile.email if profile else None
+        if item.soft_lock_expires_at is not None:
+            locked_at = item.soft_lock_expires_at - SOFT_LOCK_DURATION
+
+    assigned_email: str | None = None
+    if item.assigned_to_user_id is not None:
+        profile = store.get_user(item.assigned_to_user_id)
+        assigned_email = profile.email if profile else None
+
+    return {
+        "locked_by_user_id": item.soft_lock_user_id,
+        "locked_by_email": locked_by_email,
+        "locked_at": locked_at,
+        "lock_expires_at": item.soft_lock_expires_at,
+        "lock_status": _lock_status(item, viewer_user_id, now),
+        "assigned_to_user_id": item.assigned_to_user_id,
+        "assigned_to_email": assigned_email,
+    }
 
 
 BULK_ACTION_MAX_ITEMS = 100
@@ -863,6 +1047,15 @@ def bulk_submit_decision(
             continue
         items.append(item)
 
+    # Check for items locked by another active reviewer
+    from altera_api.review.locks import is_lock_held_by_other
+
+    locked_by_other_ids: list[UUID] = [
+        item.product_id
+        for item in items
+        if is_lock_held_by_other(item, reviewer_user_id=reviewer_user_id, now=now)
+    ]
+
     errors: list[str] = []
     if missing:
         errors.append(
@@ -879,6 +1072,11 @@ def bulk_submit_decision(
         errors.append(
             f"{len(terminal_ids)} item(s) are already in a terminal state "
             f"(accepted/changed/deferred) and cannot be actioned again."
+        )
+    if locked_by_other_ids:
+        errors.append(
+            f"{len(locked_by_other_ids)} item(s) are actively locked by another "
+            "reviewer and cannot be bulk-actioned."
         )
     if errors:
         raise ValueError("; ".join(errors))

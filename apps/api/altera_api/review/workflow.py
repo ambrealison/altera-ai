@@ -397,6 +397,65 @@ def defer_item(
     )
 
 
+def release_item(
+    item: ManualReviewItem,
+    *,
+    reviewer_user_id: UUID,
+    now: datetime,
+) -> ManualReviewItem:
+    """Release the soft lock held by *reviewer_user_id*.
+
+    Reverts the item to ``IN_QUEUE`` so other reviewers can claim it.
+    Only the current lock holder (or anyone if the lock has expired) may
+    release. Raises :class:`SoftLockHeldError` if another reviewer holds
+    an active lock.
+    """
+    if item.status.is_terminal:
+        raise IllegalTransitionError(
+            f"cannot release lock on a terminal item (status={item.status.value})."
+        )
+    if is_lock_held_by_other(item, reviewer_user_id=reviewer_user_id, now=now):
+        raise SoftLockHeldError(
+            f"item is locked by user {item.soft_lock_user_id}; "
+            "only that reviewer can release it."
+        )
+    return item.model_copy(
+        update={
+            "status": ManualReviewStatus.IN_QUEUE,
+            "soft_lock_user_id": None,
+            "soft_lock_expires_at": None,
+        }
+    )
+
+
+def refresh_lock(
+    item: ManualReviewItem,
+    *,
+    reviewer_user_id: UUID,
+    now: datetime,
+) -> ManualReviewItem:
+    """Extend the soft lock held by *reviewer_user_id* by :data:`SOFT_LOCK_DURATION`.
+
+    Only the current lock holder may refresh. If the lock is expired the
+    caller must re-claim via :func:`claim_item` instead.
+    """
+    if item.status.is_terminal:
+        raise IllegalTransitionError(
+            f"cannot refresh lock on a terminal item (status={item.status.value})."
+        )
+    if item.soft_lock_user_id != reviewer_user_id:
+        raise SoftLockHeldError(
+            "only the current lock holder can refresh the lock."
+        )
+    if is_lock_expired(item, now=now):
+        raise SoftLockHeldError(
+            "lock has expired; re-claim the item to start reviewing."
+        )
+    return item.model_copy(
+        update={"soft_lock_expires_at": now + SOFT_LOCK_DURATION}
+    )
+
+
 def reopen_after_defer(
     deferred: ManualReviewItem,
     *,

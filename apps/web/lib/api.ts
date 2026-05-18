@@ -141,6 +141,14 @@ export interface ReviewItem {
   ai_model: string | null;
   ai_prompt_version: string | null;
   rationale_notes: string[];
+  // Phase 19D — lock and assignment
+  locked_by_user_id: string | null;
+  locked_by_email: string | null;
+  locked_at: string | null;
+  lock_expires_at: string | null;
+  lock_status: "unlocked" | "locked_by_me" | "locked_by_other" | "expired";
+  assigned_to_user_id: string | null;
+  assigned_to_email: string | null;
 }
 
 export interface ReviewFilters {
@@ -404,6 +412,34 @@ export function createApi(accessToken: string | null) {
       request<BulkActionResponse>(
         `/api/v1/projects/${projectId}/review/bulk-action`,
         { method: "POST", body: JSON.stringify(body) },
+        accessToken,
+      ),
+
+    claimItem: (projectId: string, productId: string, methodology: Methodology) =>
+      request<ReviewItem>(
+        `/api/v1/projects/${projectId}/review/${productId}/${methodology}/claim`,
+        { method: "POST" },
+        accessToken,
+      ),
+
+    releaseItem: (projectId: string, productId: string, methodology: Methodology) =>
+      request<ReviewItem>(
+        `/api/v1/projects/${projectId}/review/${productId}/${methodology}/release`,
+        { method: "POST" },
+        accessToken,
+      ),
+
+    refreshLock: (projectId: string, productId: string, methodology: Methodology) =>
+      request<ReviewItem>(
+        `/api/v1/projects/${projectId}/review/${productId}/${methodology}/refresh-lock`,
+        { method: "POST" },
+        accessToken,
+      ),
+
+    assignItem: (projectId: string, productId: string, methodology: Methodology, assignToUserId: string) =>
+      request<ReviewItem>(
+        `/api/v1/projects/${projectId}/review/${productId}/${methodology}/assign`,
+        { method: "POST", body: JSON.stringify({ assign_to_user_id: assignToUserId }) },
         accessToken,
       ),
 

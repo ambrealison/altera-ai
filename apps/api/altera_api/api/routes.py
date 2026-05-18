@@ -19,11 +19,15 @@ from altera_api.api.dependencies import current_user_id, get_data_store, get_pro
 from altera_api.api.orchestrator import (
     BulkActionResult,
     IngestSummary,
+    assign_review_item,
     bulk_submit_decision,
+    claim_review_item,
     classify_upload,
     create_upload_stub,
     ingest_upload,
     list_review,
+    refresh_review_lock,
+    release_review_item,
     render_export,
     run_calculation,
     submit_decision,
@@ -474,6 +478,14 @@ class ReviewItemResponse(BaseModel):
     ai_model: str | None = None
     ai_prompt_version: str | None = None
     rationale_notes: list[str] = []
+    # Phase 19D — lock and assignment (no commercial fields)
+    locked_by_user_id: UUID | None = None
+    locked_by_email: str | None = None
+    locked_at: str | None = None
+    lock_expires_at: str | None = None
+    lock_status: str = "unlocked"
+    assigned_to_user_id: UUID | None = None
+    assigned_to_email: str | None = None
     # Excluded intentionally: items_purchased, items_sold, weight_per_item_kg,
     # revenue, margin, supplier terms — all commercial fields.
 
@@ -505,6 +517,13 @@ def _review_response(v: object) -> ReviewItemResponse:
         ai_model=v.ai_model,
         ai_prompt_version=v.ai_prompt_version,
         rationale_notes=list(v.rationale_notes),
+        locked_by_user_id=v.locked_by_user_id,
+        locked_by_email=v.locked_by_email,
+        locked_at=v.locked_at.isoformat() if v.locked_at is not None else None,
+        lock_expires_at=v.lock_expires_at.isoformat() if v.lock_expires_at is not None else None,
+        lock_status=v.lock_status,
+        assigned_to_user_id=v.assigned_to_user_id,
+        assigned_to_email=v.assigned_to_email,
     )
 
 
@@ -515,6 +534,7 @@ def _review_response(v: object) -> ReviewItemResponse:
 def list_review_route(
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
     methodology: Methodology | None = None,
     status: ManualReviewStatus | None = None,
     reason: ManualReviewQueueReason | None = None,
@@ -539,6 +559,7 @@ def list_review_route(
         upload_id=upload_id,
         product_search=product_search,
         oldest_first=(sort == "oldest"),
+        viewer_user_id=auth.user_id if auth.can_review else None,
     )
     return [_review_response(v) for v in views]
 
@@ -570,6 +591,113 @@ def submit_decision_route(
             reviewer_user_id=user_id,
             to_category=body.to_category,
             reason=body.reason,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _review_response(view)
+
+
+class AssignRequest(BaseModel):
+    assign_to_user_id: UUID
+
+
+@api_router.post(
+    "/projects/{project_id}/review/{product_id}/{methodology}/claim",
+    response_model=ReviewItemResponse,
+)
+def claim_item_route(
+    product_id: UUID,
+    methodology: Methodology,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ReviewItemResponse:
+    if not auth.can_review:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only Altera staff can claim review items")
+    try:
+        view = claim_review_item(
+            store, project=project, product_id=product_id,
+            methodology=methodology, reviewer_user_id=auth.user_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _review_response(view)
+
+
+@api_router.post(
+    "/projects/{project_id}/review/{product_id}/{methodology}/release",
+    response_model=ReviewItemResponse,
+)
+def release_item_route(
+    product_id: UUID,
+    methodology: Methodology,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ReviewItemResponse:
+    if not auth.can_review:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only Altera staff can release review items")
+    try:
+        view = release_review_item(
+            store, project=project, product_id=product_id,
+            methodology=methodology, reviewer_user_id=auth.user_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _review_response(view)
+
+
+@api_router.post(
+    "/projects/{project_id}/review/{product_id}/{methodology}/refresh-lock",
+    response_model=ReviewItemResponse,
+)
+def refresh_lock_route(
+    product_id: UUID,
+    methodology: Methodology,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ReviewItemResponse:
+    if not auth.can_review:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only Altera staff can refresh review locks")
+    try:
+        view = refresh_review_lock(
+            store, project=project, product_id=product_id,
+            methodology=methodology, reviewer_user_id=auth.user_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _review_response(view)
+
+
+@api_router.post(
+    "/projects/{project_id}/review/{product_id}/{methodology}/assign",
+    response_model=ReviewItemResponse,
+)
+def assign_item_route(
+    product_id: UUID,
+    methodology: Methodology,
+    body: AssignRequest,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ReviewItemResponse:
+    if not auth.can_review:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only Altera staff can assign review items")
+    try:
+        view = assign_review_item(
+            store, project=project, product_id=product_id,
+            methodology=methodology, assigner_user_id=auth.user_id,
+            assign_to_user_id=body.assign_to_user_id,
+            auth_can_assign_others=auth.can_approve_report,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
