@@ -218,13 +218,32 @@ Every API response carries the following security headers (set by
 
 ## Rate limits
 
-> **TODO (Phase 30B):** Implement per-organisation token-bucket rate
-> limiting in middleware. Planned limits (subject to change):
->
-> - Auth endpoints: 20 req/min per IP
-> - Upload endpoints: 10 req/min per org
-> - AI-triggering classification: 5 batches/min per org
-> - Export download: 30 req/min per org
->
-> Rate-limited responses will return `429 Too Many Requests` with a
-> `Retry-After` header.
+Phase 30B added an in-memory sliding-window rate limiter (disabled by default).
+Enable with `RATE_LIMIT_ENABLED=true`.
+
+| Group    | Default (req/min) | Env override                        | Matched routes                                         |
+|----------|-------------------|-------------------------------------|--------------------------------------------------------|
+| uploads  | 20                | `RATE_LIMIT_UPLOADS_PER_MINUTE`     | `POST …/uploads/prepare`, `…/ingest`, `…/wwf-ingredients/upload` |
+| classify | 10                | `RATE_LIMIT_CLASSIFY_PER_MINUTE`    | `POST …/classify`, `…/jobs/classify`                   |
+| exports  | 30                | `RATE_LIMIT_EXPORTS_PER_MINUTE`     | `GET …/export`, `POST …/jobs/export`                   |
+| default  | 200               | `RATE_LIMIT_DEFAULT_PER_MINUTE`     | all other routes                                       |
+
+Requests are keyed by authenticated user (`sub` from JWT) when an
+`Authorization: Bearer` header is present, or by client IP otherwise.
+
+Rate-limited responses return `429 Too Many Requests` with a `Retry-After`
+header and a structured error body:
+
+```json
+{
+  "detail": {
+    "error_code": "rate_limited",
+    "message": "Too many requests. Please slow down.",
+    "details": { "retry_after_seconds": 42 }
+  }
+}
+```
+
+> **Production note:** The in-memory limiter is single-process only. For
+> multi-process deployments, replace it with a Redis-backed implementation
+> or push rate limiting to the API gateway / CDN layer.

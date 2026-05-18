@@ -27,6 +27,7 @@ from altera_api.observability import (
     configure_logging,
     init_sentry,
 )
+from altera_api.ratelimit import RateLimitMiddleware
 from altera_api.version import VersionInfo, get_version_info
 
 
@@ -70,11 +71,13 @@ def create_app() -> FastAPI:
 
     # Middleware is applied in reverse-declaration order (last added = outermost
     # wrapper).  Declaration order here:
-    #   1. SecurityHeadersMiddleware — added first → runs last (innermost); stamps
-    #      security headers on every outgoing response.
-    #   2. CORSMiddleware — handles preflight and attaches CORS headers.
-    #   3. RequestLoggingMiddleware — added last → runs first (outermost); logs
-    #      every request, including OPTIONS preflights.
+    #   1. RateLimitMiddleware  — added first → innermost; 429 responses are
+    #      still wrapped by SecurityHeadersMiddleware so headers are stamped.
+    #   2. SecurityHeadersMiddleware — stamps security headers on every response
+    #      including 429s from RateLimitMiddleware.
+    #   3. CORSMiddleware — handles preflight and attaches CORS headers.
+    #   4. RequestLoggingMiddleware — added last → outermost; logs every request.
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CORSMiddleware,

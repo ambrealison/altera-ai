@@ -114,6 +114,25 @@ SENTRY_TRACES_SAMPLE_RATE=0.05  # 0.0–1.0, default 0.05
 
 Leave `SENTRY_DSN` empty (or unset) to disable Sentry entirely — no `sentry-sdk` installation required.
 
+## Rate limiting configuration (Phase 30B)
+
+Disabled by default. Enable for single-process deployments:
+
+```bash
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_UPLOADS_PER_MINUTE=20    # POST .../uploads/prepare, .../ingest, .../wwf-ingredients/upload
+RATE_LIMIT_CLASSIFY_PER_MINUTE=10   # POST .../classify, .../jobs/classify
+RATE_LIMIT_EXPORTS_PER_MINUTE=30    # GET .../export, POST .../jobs/export
+RATE_LIMIT_DEFAULT_PER_MINUTE=200   # all other routes
+```
+
+Requests are keyed by JWT `sub` claim when authenticated, or by client IP
+otherwise. 429 responses include `Retry-After` and a structured
+`error_code: rate_limited` body.
+
+The in-memory limiter is single-process only. For multi-process production
+deployments, use a Redis-backed implementation or API gateway rate limiting.
+
 ## AI classifier configuration
 
 The classifier is disabled by default. To enable it:

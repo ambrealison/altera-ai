@@ -50,11 +50,12 @@ and approves reports before client download.
 | 29A   | API hardening: error standardisation + pagination     | **Done.** `ErrorDetail` model + `raise_not_found/forbidden/conflict/bad_request/unprocessable` helpers in `altera_api/api/errors.py`. `Page[T]` envelope + `PaginationParams` + `paginate()` in `altera_api/api/pagination.py`. Review queue and jobs list endpoints paginated. 13 permission regression tests in `test_phase29a_permissions.py`. `docs/saas/api.md` rewritten with error shape, pagination, auth, role matrix. |
 | 29B   | API pagination extended + permission matrix           | **Done.** 6 additional list endpoints paginated: `GET /projects`, `/uploads`, `/runs`, `/exports`, `/recommendations`, `/scenarios`. Frontend `api.ts` types + all 7 `.items` unwrap call sites updated. 19-test permission matrix (`test_phase29b_permission_matrix.py`) covering role × action scenarios, org scoping, export visibility, pagination contract. `docs/saas/api.md` updated with all paginated endpoints and corrected role table. 1244 total tests. |
 | 30A   | Security hardening baseline                           | **Done.** (1) `SecurityHeadersMiddleware` in `altera_api/observability/security.py`: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, Cache-Control: no-store on API paths. (2) `main.py` wired to read `CORS_ALLOWED_ORIGINS` from env (comma-separated; default `http://localhost:3000`). (3) Export download URL default expiry reduced from 3600 → 600 s across `service.py`, `protocol.py`, `fake.py`. (4) Removed real OpenAI API key from root `.env.example`. (5) 20 new tests in `tests/security/test_phase30a_security.py`: headers, CORS config, secrets safety, signed URL expiry bounds, upload validation limits. (6) `docs/development/deployment.md` security section added: headers, CORS, secrets table, signed URL policy, rate-limiting TODO, dependency audit commands, pre-pilot checklist. (7) `apps/api/README.md` production security notes. 1264 total tests. |
+| 30B   | Rate limiting baseline                                | **Done.** In-memory sliding-window rate limiter in `altera_api/ratelimit.py`. Disabled by default (`RATE_LIMIT_ENABLED=false`). Four route groups with configurable per-minute limits via env vars: `uploads` (20), `classify` (10), `exports` (30), `default` (200). Keys by JWT `sub` (base64-decoded, no verification) or client IP fallback. `RateLimitMiddleware` inserted as innermost middleware so `SecurityHeadersMiddleware` stamps all 429 responses. 429 body: `{"detail": {"error_code": "rate_limited", "message": "...", "details": {"retry_after_seconds": N}}}` + `Retry-After` header. 26 new tests in `tests/security/test_phase30b_ratelimit.py` (route group, key extraction, disabled-by-default, blocking, response shape, bucket isolation). 1290 total tests. |
 
 ## Roadmap
 
-All phases through 30A are complete (see status table above).
-The remaining roadmap runs from Phase 30B to pilot readiness.
+All phases through 30B are complete (see status table above).
+The remaining roadmap runs from Phase 31 to pilot readiness.
 
 **Recommended next phase: Phase 31** — the audit log UI is the highest
 leverage item for Altera-internal operators and is a hard requirement
@@ -71,14 +72,6 @@ visible in the UI before any client report is delivered).
   events are defined but not yet emitted (no app-level org management
   endpoints — provisioning happens via Supabase Auth). These will be
   wired when org management endpoints are added.
-
-### Phase 30B — Rate limiting
-
-- Per-organisation token-bucket rate limiting middleware.
-- Auth endpoints: 20 req/min per IP.
-- Upload endpoints: 10 req/min per org.
-- AI classification: 5 batches/min per org.
-- Export download: 30 req/min per org.
 
 ### Phase 32 — Methodology version pinning + replay
 

@@ -177,16 +177,24 @@ not add real values to example files.
 
 ### Rate limiting
 
-> **TODO (Phase 30B+):** Implement per-organisation token-bucket rate
-> limiting. Planned limits:
->
-> - Auth endpoints: 20 req/min per IP
-> - Upload endpoints: 10 req/min per org
-> - AI classification: 5 batches/min per org
-> - Export download: 30 req/min per org
->
-> Rate-limited responses return `429 Too Many Requests` with
-> `Retry-After`.
+Phase 30B added an in-memory sliding-window rate limiter. It is disabled by
+default (`RATE_LIMIT_ENABLED=false`). When enabled, requests are keyed by
+authenticated user (`sub` from JWT) or client IP.
+
+| Group    | Default (req/min) | Env var                             |
+|----------|-------------------|-------------------------------------|
+| uploads  | 20                | `RATE_LIMIT_UPLOADS_PER_MINUTE`     |
+| classify | 10                | `RATE_LIMIT_CLASSIFY_PER_MINUTE`    |
+| exports  | 30                | `RATE_LIMIT_EXPORTS_PER_MINUTE`     |
+| default  | 200               | `RATE_LIMIT_DEFAULT_PER_MINUTE`     |
+
+Rate-limited responses return `429 Too Many Requests` with a `Retry-After`
+header and a structured `error_code: rate_limited` body.
+
+**Production note:** The in-memory limiter is single-process only. For
+multi-process or multi-instance deployments, replace `altera_api/ratelimit.py`
+with a Redis-backed implementation or delegate rate limiting to the reverse
+proxy / API gateway.
 
 ### Dependency audits
 
