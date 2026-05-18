@@ -12,16 +12,28 @@ wired in via :mod:`altera_api.api.dependencies`.
 
 from __future__ import annotations
 
+import os
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from altera_api.api import api_router
+from altera_api.observability import RequestLoggingMiddleware, configure_logging, init_sentry
 from altera_api.version import VersionInfo, get_version_info
 
 
 class HealthResponse(BaseModel):
     status: str
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    configure_logging(level=os.getenv("LOG_LEVEL", "INFO"))
+    init_sentry()
+    yield
 
 
 def create_app() -> FastAPI:
@@ -33,8 +45,12 @@ def create_app() -> FastAPI:
             "Implements the Protein Tracker (GPA & ProVeg) and WWF Planet-Based "
             "Diets Retailer methodologies as strictly separate pipelines."
         ),
+        lifespan=_lifespan,
     )
 
+    # RequestLoggingMiddleware must be added before CORSMiddleware so it
+    # wraps every request (including preflight OPTIONS).
+    app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:3000"],

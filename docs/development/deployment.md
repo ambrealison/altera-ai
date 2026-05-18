@@ -57,17 +57,58 @@ equivalent for the backend).
 
 ## Observability
 
-MVP observability is intentionally minimal:
+Phase 28B introduced a structured observability baseline:
 
-- Application logs go to the host's log stream (Fly, Render, or
-  CloudWatch as appropriate).
-- A health endpoint at `/healthz` reports DB connectivity and
-  configuration sanity.
-- A high-severity audit event (`commercial_data_block`) triggers an
-  alert through whatever channel the deployment chooses (PagerDuty,
-  Slack webhook, email).
+### Structured logging
 
-Detailed metrics and tracing are deferred past MVP.
+All log output is JSON to stdout. Each line carries:
+
+| Field | Description |
+|---|---|
+| `ts` | ISO-8601 timestamp |
+| `level` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+| `logger` | Python module name |
+| `msg` | Log message |
+| `request_id` | UUID assigned per HTTP request (echoed in `X-Request-ID` response header) |
+| `org_id` | Organisation UUID (when authenticated) |
+| `user_id` | User UUID (when authenticated) |
+| `method` / `path` / `status` / `duration_ms` | Request fields on `request.complete` lines |
+
+Log level is controlled by the `LOG_LEVEL` environment variable (default: `INFO`).
+
+Sensitive headers (`Authorization`, `Cookie`) and request bodies are never logged.
+
+### Sentry integration (optional)
+
+Set `SENTRY_DSN` to enable Sentry error tracking. If the variable is absent, Sentry is disabled with no runtime cost. The `sentry-sdk` package is an optional dependency; install it separately: `pip install sentry-sdk`.
+
+| Variable | Default | Description |
+|---|---|---|
+| `SENTRY_DSN` | _(empty)_ | DSN from the Sentry project settings. Empty = disabled. |
+| `SENTRY_ENVIRONMENT` | `production` | Environment tag on events (`staging`, `production`). |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.05` | Fraction of transactions captured for performance tracing. |
+
+The `before_send` hook strips `Authorization` and `Cookie` headers before any event reaches Sentry.
+
+### Runbooks
+
+Operational runbooks for common failure scenarios live in
+`docs/development/runbooks/`. Current runbooks:
+
+- [upload-failure.md](runbooks/upload-failure.md)
+- [job-stuck.md](runbooks/job-stuck.md)
+- [export-download-failure.md](runbooks/export-download-failure.md)
+- [rls-permission-denied.md](runbooks/rls-permission-denied.md)
+- [ai-classification-failure.md](runbooks/ai-classification-failure.md)
+- [report-delivery-issue.md](runbooks/report-delivery-issue.md)
+
+### Health check
+
+A liveness endpoint is available at `GET /health` (returns `{"status": "ok"}`).
+
+### Metrics and tracing
+
+Detailed metrics (Prometheus, Datadog) and distributed tracing are deferred to a post-pilot phase.
 
 ## Backups
 

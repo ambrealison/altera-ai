@@ -45,36 +45,18 @@ and approves reports before client download.
 | 28A-2 | Persistence: PostgresRepository protocol parity       | **Done.** 25 methods missing from `PostgresRepository` vs `StoreProtocol` (all covered by `InMemoryStore`). Implemented: upload lifecycle, WWF ingredients, review decisions, jobs, enrichment records, recommendations, scenarios. Added mappers for all new domain types, updated `upload_from_row`/`upload_to_row` with Phase 15 fields, created migration 0025 (`review_decisions` + `nutrition_enrichment_records` tables). AST-based protocol compliance check; 7 new integration tests (skipped without DB credentials). |
 | 28A-3 | Audit coverage: scenarios, comparisons, enrichment    | **Done.** Three new `AuditEventType` values: `SCENARIO_RUN`, `COMPARISON_REQUESTED`, `ENRICHMENT_APPLIED`. Emitted from `run_scenario_route`, `get_run_comparison_route`, `create_manual_enrichment_route`, and `apply_category_average_enrichment_route`. Migration 0026 backfills `audit_events_action_check` constraint with all 34 action values (exports, reviews, recommendations, and the 3 new ones). 8 new tests (1194 total). |
 | 28A-4 | WWF Step 2 coverage caveats and disclosure            | **Done.** `_wwf_step2_caveats()` in `coverage.py` improved: (1) Step 2 caveat now shows denominator "X of Y own-brand composite product(s)" instead of just "X"; (2) new "own-brand Step 1 only" caveat when Y−X > 0; (3) branded composite caveat refactored into single-pass loop (no duplicate `get_wwf_classification` calls); (4) new FG3 missing-subgroup caveat when any stored Step 2 FG3 ingredient row has `fg3_subgroup=None`. Docs updated: `report-structure.md` (caveats table), `wwf.md` (Step 2 coverage disclosure section). 4 new tests (1198 total). |
+| 28A-5 | Production-readiness cleanup                          | **Done.** (1) ROADMAP stale section replaced (old section still referenced Phase 13B/13D ordering). (2) Org-lifecycle audit gap documented (no app-level provisioning endpoints; `ORG_CREATED`/`ORG_MEMBER_INVITED`/`ORG_ROLE_CHANGED` events defined but not yet emitted). (3) Auth predicates `can_create_scenario`, `can_apply_enrichment`, `can_generate_recommendations` added to `AuthContext` as semantic aliases for `is_altera_internal`; 7 route guards updated to use them. |
+| 28B   | Operational baseline for pilot readiness              | **Done.** (1) `altera_api/observability/` module: `logging.py` (`_JsonFormatter`, `_ContextFilter`, `configure_logging()`, `get_logger()`), `middleware.py` (`RequestLoggingMiddleware` — request_id, duration_ms, path logged; auth headers never logged), `sentry.py` (`init_sentry()` with `try: import sentry_sdk` optional pattern, `_before_send()` stripping auth headers). (2) `main.py` updated: lifespan context manager calling `configure_logging()` + `init_sentry()`; `RequestLoggingMiddleware` added. (3) `.env.example` updated with `LOG_LEVEL`, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`. (4) `docs/development/job-backend.md` created: `SyncDevRunner` rationale, pilot SLAs, Celery/RQ/Dramatiq swap-in guide, operational considerations. (5) 6 runbooks in `docs/development/runbooks/`: upload-failure, job-stuck, export-download-failure, rls-permission-denied, ai-classification-failure, report-delivery-issue. (6) `tests/integration/README.md` created. (7) `docs/development/deployment.md` observability section rewritten. (8) `apps/api/README.md` updated with observability config and layout. (9) Tests: `tests/observability/test_logging_middleware.py` (5 tests), `test_sentry.py` (7 tests), `test_rls_audit.py` (2 tests — RLS enabled + policy present on all 14 multi-tenant tables; no live DB required). |
 
 ## Roadmap
 
-All phases through 28A-4 are complete (see status table above).
-The remaining roadmap runs from Phase 28B to pilot readiness.
+All phases through 28B are complete (see status table above).
+The remaining roadmap runs from Phase 29 to pilot readiness.
 
-### Phase 28B — Operational baseline
-
-The product is functionally complete through Phase 28A. Phase 28B
-closes the gap between "it works" and "it can run in production
-unattended."
-
-- **Structured logging**: replace bare `print` / `logging` calls
-  with JSON-structured logs (service, trace_id, org_id, level,
-  message). Target: Cloud Run log sink + Supabase log drain.
-- **Sentry error tracking**: instrument FastAPI + Next.js with Sentry
-  DSN; capture unhandled exceptions with org_id tag; alert on error
-  rate spike.
-- **Startup RLS audit**: on `PostgresRepository` init, verify that
-  the connected user can only see rows scoped to its own `organisation_id`
-  by running a canary query. Fail fast if RLS is misconfigured.
-- **Job backend SLA decision**: choose between in-process
-  `SyncDevRunner` (current) and a proper queue (Supabase Edge Function,
-  Inngest, or dedicated worker). The decision gate is pilot volume and
-  latency SLO. Document the chosen approach.
-- **Staging Postgres integration tests**: run `tests/integration/`
-  against a staging Supabase project in CI (requires secrets injection).
-  Currently the integration tests are skipped without credentials.
-- **Runbooks**: on-call runbook for stuck jobs, failed runs, upload
-  validation errors. Linked from `docs/operations/runbooks.md`.
+**Recommended next phase: Phase 29** — the audit log UI is the highest
+leverage item for Altera-internal operators and is a hard requirement
+for the pilot sign-off (methodology leads need an immutable audit trail
+visible in the UI before any client report is delivered).
 
 ### Phase 29 — Audit log UI
 

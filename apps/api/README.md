@@ -79,6 +79,31 @@ All three Supabase env vars (`SUPABASE_URL`, `SUPABASE_JWT_SECRET`,
 `SUPABASE_SERVICE_ROLE_KEY`) must be present. Set
 `ALTERA_USE_IN_MEMORY_STORE=false` to enable Postgres persistence.
 
+## Observability configuration (Phase 28B)
+
+### Structured logging
+
+Logs are emitted as JSON to stdout. Set `LOG_LEVEL` to control verbosity:
+
+```bash
+LOG_LEVEL=INFO   # DEBUG | INFO | WARNING | ERROR (default: INFO)
+```
+
+Every request emits a `request.complete` log line with `method`, `path`, `status`, `duration_ms`, and `request_id`. Sensitive headers (`Authorization`, `Cookie`) are never logged.
+
+### Sentry (optional)
+
+Install `sentry-sdk` separately, then set:
+
+```bash
+pip install sentry-sdk
+SENTRY_DSN=https://key@o0.ingest.sentry.io/123
+SENTRY_ENVIRONMENT=staging       # staging | production
+SENTRY_TRACES_SAMPLE_RATE=0.05  # 0.0–1.0, default 0.05
+```
+
+Leave `SENTRY_DSN` empty (or unset) to disable Sentry entirely — no `sentry-sdk` installation required.
+
 ## AI classifier configuration
 
 The classifier is disabled by default. To enable it:
@@ -150,11 +175,15 @@ altera_api/
 │   ├── postgres.py           # PostgresRepository (supabase-py v2)
 │   ├── mappers.py            # row ↔ domain conversions
 │   └── factory.py            # get_repository() — reads ALTERA_USE_IN_MEMORY_STORE
-└── storage/                  # Phase 13D + 16B — Supabase Storage
-    ├── service.py            # StorageService: signed upload URL, upload_export, signed download
-    ├── protocol.py           # StorageProtocol (duck-typed, for job handlers)
-    ├── fake.py               # FakeStorageService (in-memory test double)
-    └── factory.py            # get_storage_service() — None when Supabase not configured
+├── storage/                  # Phase 13D + 16B — Supabase Storage
+│   ├── service.py            # StorageService: signed upload URL, upload_export, signed download
+│   ├── protocol.py           # StorageProtocol (duck-typed, for job handlers)
+│   ├── fake.py               # FakeStorageService (in-memory test double)
+│   └── factory.py            # get_storage_service() — None when Supabase not configured
+└── observability/            # Phase 28B — structured logging + Sentry
+    ├── logging.py            # _JsonFormatter, _ContextFilter, configure_logging(), get_logger()
+    ├── middleware.py         # RequestLoggingMiddleware (request_id, duration_ms, path)
+    └── sentry.py             # init_sentry() — optional sentry-sdk integration
 ```
 
 ## Setup
