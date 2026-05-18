@@ -86,12 +86,14 @@ echo ""
 echo "=== 4. gitleaks working-tree scan ==="
 
 if command -v gitleaks >/dev/null 2>&1; then
+  _gl_report=$(mktemp /tmp/gitleaks_XXXXXX.json)
   if gitleaks detect --source . --config .gitleaks.toml --no-git --exit-code 1 \
-      --report-path /dev/null 2>/dev/null; then
+      --report-path "$_gl_report" 2>/dev/null; then
     _ok "gitleaks: no secrets in working tree"
   else
     _fail "gitleaks: secrets detected in working tree — run gitleaks manually for details"
   fi
+  rm -f "$_gl_report"
 else
   echo "  SKIP gitleaks not installed (brew install gitleaks / pip install gitleaks)"
 fi

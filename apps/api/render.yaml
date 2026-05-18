@@ -9,8 +9,8 @@ services:
   - type: web
     name: altera-api
     runtime: docker
-    dockerfilePath: ./Dockerfile      # relative to repo root; adjust if needed
-    dockerContext: apps/api
+    dockerfilePath: apps/api/Dockerfile   # relative to repo root
+    dockerContext: apps/api               # build context (pyproject.toml, uv.lock, etc.)
     plan: starter                     # change to standard/pro as needed
     region: oregon                    # change to match your Supabase region
 
