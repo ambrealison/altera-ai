@@ -35,6 +35,13 @@ class ManualReviewStatus(StrEnum):
         }
 
 
+class ManualReviewPriority(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
 class ManualReviewQueueReason(StrEnum):
     """Why a product is in the review queue."""
 

@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from altera_api.domain.common import Methodology
 from altera_api.domain.review import (
     ManualReviewItem,
+    ManualReviewPriority,
     ManualReviewQueueReason,
     ManualReviewStatus,
 )
@@ -51,3 +52,30 @@ def sort_queue_by_age(
             reverse=not oldest_first,
         )
     )
+
+
+def filter_by_priority(
+    items: Iterable[ManualReviewItem],
+    *,
+    priority: ManualReviewPriority,
+) -> tuple[ManualReviewItem, ...]:
+    """Keep only items whose computed priority matches ``priority``."""
+    from altera_api.review.priority import assign_priority
+
+    return tuple(item for item in items if assign_priority(item.reason)[0] is priority)
+
+
+def sort_by_priority(
+    items: Iterable[ManualReviewItem],
+    *,
+    highest_first: bool = True,
+) -> tuple[ManualReviewItem, ...]:
+    """Sort by priority weight, then by ``queued_at`` as a stable tiebreaker."""
+    from altera_api.review.priority import assign_priority, priority_weight
+
+    def _key(item: ManualReviewItem) -> tuple[int, object, str]:
+        w = priority_weight(assign_priority(item.reason)[0])
+        age = item.queued_at
+        return (-w if highest_first else w, age, str(item.product_id))
+
+    return tuple(sorted(items, key=_key))

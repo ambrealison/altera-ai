@@ -42,6 +42,7 @@ from altera_api.domain.protein_tracker import (
 )
 from altera_api.domain.review import (
     ManualReviewItem,
+    ManualReviewPriority,
     ManualReviewQueueReason,
     ManualReviewStatus,
 )
@@ -166,6 +167,9 @@ class ReviewItemView:
     lock_status: str = "unlocked"  # unlocked | locked_by_me | locked_by_other | expired
     assigned_to_user_id: UUID | None = None
     assigned_to_email: str | None = None
+    # Phase 19E — priority
+    priority_level: str = "low"  # low | medium | high | critical
+    priority_reasons: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -549,30 +553,41 @@ def list_review(
     methodology: Methodology | None = None,
     status: ManualReviewStatus | None = None,
     reason: ManualReviewQueueReason | None = None,
+    priority_level: ManualReviewPriority | None = None,
     upload_id: UUID | None = None,
     product_search: str | None = None,
-    oldest_first: bool = True,
+    sort: str = "oldest",  # oldest | newest | priority
     viewer_user_id: UUID | None = None,
 ) -> list[ReviewItemView]:
     """Return review items for a project with optional filtering and sorting.
 
     Filters applied in order:
-    1. methodology / status / reason — via filter_queue (pure, no DB join needed)
+    1. methodology / status / reason / priority_level — pure, no DB join
     2. upload_id — requires the product record
-    3. product_search — case-insensitive substring match on product_name and
-       external_product_id; requires the product record
+    3. product_search — case-insensitive substring on name or external ID
 
-    Sorting: oldest_first=True (default) sorts by queued_at ascending.
-    confidence-based sorting is a TODO — confidence lives on the
-    classification record, not the review item, so it requires either a
-    join or a denormalised field on ManualReviewItem.
+    Sort options: oldest (default) | newest | priority (critical first).
     """
-    from altera_api.review.queue import filter_queue, sort_queue_by_age
+    from altera_api.review.priority import assign_priority
+    from altera_api.review.queue import (
+        filter_by_priority,
+        filter_queue,
+        sort_by_priority,
+        sort_queue_by_age,
+    )
 
     now = datetime.now(UTC)
     raw_items = store.list_review_items_for_project(project.id, methodology=methodology)
     filtered = filter_queue(raw_items, status=status, reason=reason)
-    sorted_items = sort_queue_by_age(filtered, oldest_first=oldest_first)
+    if priority_level is not None:
+        filtered = filter_by_priority(filtered, priority=priority_level)
+
+    if sort == "newest":
+        sorted_items = sort_queue_by_age(filtered, oldest_first=False)
+    elif sort == "priority":
+        sorted_items = sort_by_priority(filtered, highest_first=True)
+    else:
+        sorted_items = sort_queue_by_age(filtered, oldest_first=True)
 
     search_lower = product_search.lower().strip() if product_search else None
 
@@ -617,6 +632,7 @@ def list_review(
                 ai_model = c.ai_model
                 ai_prompt_version = c.ai_prompt_version
 
+        prio, prio_reasons = assign_priority(item.reason)
         out.append(
             ReviewItemView(
                 product_id=product.id,
@@ -635,6 +651,8 @@ def list_review(
                 ai_model=ai_model,
                 ai_prompt_version=ai_prompt_version,
                 rationale_notes=item.rationale_notes,
+                priority_level=prio.value,
+                priority_reasons=prio_reasons,
                 **_lock_fields(item, store, viewer_user_id, now),
             )
         )
@@ -786,6 +804,7 @@ def _review_view_for(
         ai_model=ai_model,
         ai_prompt_version=ai_prompt_version,
         rationale_notes=item.rationale_notes if item else (),
+        **_priority_fields(item),
         **lock_kw,
     )
 
@@ -902,6 +921,15 @@ def assign_review_item(
         store, product_id=product_id, methodology=methodology,
         viewer_user_id=assigner_user_id,
     )
+
+
+def _priority_fields(item: ManualReviewItem | None) -> dict:
+    from altera_api.review.priority import assign_priority
+
+    if item is None:
+        return {"priority_level": "low", "priority_reasons": ()}
+    prio, reasons = assign_priority(item.reason)
+    return {"priority_level": prio.value, "priority_reasons": reasons}
 
 
 def _lock_status(

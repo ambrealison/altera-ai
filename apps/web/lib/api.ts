@@ -149,15 +149,21 @@ export interface ReviewItem {
   lock_status: "unlocked" | "locked_by_me" | "locked_by_other" | "expired";
   assigned_to_user_id: string | null;
   assigned_to_email: string | null;
+  // Phase 19E — priority
+  priority_level: "low" | "medium" | "high" | "critical";
+  priority_reasons: string[];
 }
+
+export type ReviewPriority = "low" | "medium" | "high" | "critical";
 
 export interface ReviewFilters {
   methodology?: Methodology;
   status?: ManualReviewStatus;
   reason?: ManualReviewReason;
+  priority_level?: ReviewPriority;
   upload_id?: string;
   product_search?: string;
-  sort?: "oldest" | "newest";
+  sort?: "oldest" | "newest" | "priority";
 }
 
 export type BulkReviewAction = "bulk_accept" | "bulk_defer" | "bulk_change_pt_group";
@@ -386,6 +392,7 @@ export function createApi(accessToken: string | null) {
       if (filters.methodology) params.set("methodology", filters.methodology);
       if (filters.status) params.set("status", filters.status);
       if (filters.reason) params.set("reason", filters.reason);
+      if (filters.priority_level) params.set("priority_level", filters.priority_level);
       if (filters.upload_id) params.set("upload_id", filters.upload_id);
       if (filters.product_search) params.set("product_search", filters.product_search);
       if (filters.sort) params.set("sort", filters.sort);

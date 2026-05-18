@@ -13,6 +13,7 @@ import {
   type Methodology,
   type ReviewFilters,
   type ReviewItem,
+  type ReviewPriority,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Button, Card, CardHeader, EmptyState, Pill } from "@/components/ui";
@@ -36,6 +37,15 @@ const STATUS_OPTIONS: ManualReviewStatus[] = [
 
 const METHODOLOGY_OPTIONS: Methodology[] = ["protein_tracker", "wwf"];
 
+const PRIORITY_OPTIONS: ReviewPriority[] = ["low", "medium", "high", "critical"];
+
+const PRIORITY_TONE: Record<ReviewPriority, "neutral" | "warn" | "ok" | "brand"> = {
+  low: "neutral",
+  medium: "brand",
+  high: "warn",
+  critical: "warn",
+};
+
 export default function ReviewPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -50,8 +60,9 @@ export default function ReviewPage() {
   const [filterMethodology, setFilterMethodology] = useState<Methodology | "">("");
   const [filterStatus, setFilterStatus] = useState<ManualReviewStatus | "">("");
   const [filterReason, setFilterReason] = useState<ManualReviewReason | "">("");
+  const [filterPriority, setFilterPriority] = useState<ReviewPriority | "">("");
   const [filterSearch, setFilterSearch] = useState("");
-  const [sortOrder, setSortOrder] = useState<"oldest" | "newest">("oldest");
+  const [sortOrder, setSortOrder] = useState<"oldest" | "newest" | "priority">("oldest");
 
   // Bulk selection — only used by Altera staff
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -64,6 +75,7 @@ export default function ReviewPage() {
     if (filterMethodology) filters.methodology = filterMethodology;
     if (filterStatus) filters.status = filterStatus;
     if (filterReason) filters.reason = filterReason;
+    if (filterPriority) filters.priority_level = filterPriority;
     if (filterSearch.trim()) filters.product_search = filterSearch.trim();
     if (sortOrder !== "oldest") filters.sort = sortOrder;
     try {
@@ -72,7 +84,7 @@ export default function ReviewPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     }
-  }, [api, projectId, filterMethodology, filterStatus, filterReason, filterSearch, sortOrder]);
+  }, [api, projectId, filterMethodology, filterStatus, filterReason, filterPriority, filterSearch, sortOrder]);
 
   const handleBulkAction = useCallback(
     async (action: BulkReviewAction) => {
@@ -166,6 +178,20 @@ export default function ReviewPage() {
             </select>
           </label>
 
+          <label className="text-sm">
+            <div className="text-xs font-medium text-gray-600">Priority</div>
+            <select
+              value={filterPriority}
+              onChange={(e) => setFilterPriority(e.target.value as ReviewPriority | "")}
+              className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            >
+              <option value="">All</option>
+              {PRIORITY_OPTIONS.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </label>
+
           <label className="grow text-sm">
             <div className="text-xs font-medium text-gray-600">Search</div>
             <input
@@ -181,11 +207,12 @@ export default function ReviewPage() {
             <div className="text-xs font-medium text-gray-600">Sort</div>
             <select
               value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as "oldest" | "newest")}
+              onChange={(e) => setSortOrder(e.target.value as "oldest" | "newest" | "priority")}
               className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm"
             >
               <option value="oldest">Oldest first</option>
               <option value="newest">Newest first</option>
+              <option value="priority">Priority (critical first)</option>
             </select>
           </label>
         </div>
@@ -198,18 +225,19 @@ export default function ReviewPage() {
           <EmptyState
             title="No items"
             description={
-              filterMethodology || filterStatus || filterReason || filterSearch
+              filterMethodology || filterStatus || filterReason || filterPriority || filterSearch
                 ? "No items match the current filters."
                 : "Everything in this project is currently classified."
             }
             action={
-              filterMethodology || filterStatus || filterReason || filterSearch ? (
+              filterMethodology || filterStatus || filterReason || filterPriority || filterSearch ? (
                 <Button
                   variant="secondary"
                   onClick={() => {
                     setFilterMethodology("");
                     setFilterStatus("");
                     setFilterReason("");
+                    setFilterPriority("");
                     setFilterSearch("");
                   }}
                 >
@@ -412,6 +440,10 @@ function ReviewRow({
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
             <Pill tone="brand">{item.methodology}</Pill>
             <Pill tone={item.status === "in_queue" ? "neutral" : "ok"}>{item.status}</Pill>
+            {/* Priority badge */}
+            <Pill tone={PRIORITY_TONE[item.priority_level]}>
+              {item.priority_level}
+            </Pill>
             <span className="text-xs text-gray-500">
               current: {item.current_category ?? "—"}
             </span>
@@ -439,6 +471,15 @@ function ReviewRow({
               </span>
             )}
           </div>
+          {/* Priority reasons — compact inline list */}
+          {item.priority_reasons.length > 0 && (
+            <div className="mt-1 text-xs text-gray-500">
+              priority signals:{" "}
+              <span className="font-medium text-gray-700">
+                {item.priority_reasons.join(", ")}
+              </span>
+            </div>
+          )}
           {/* Rationale section — source metadata + notes */}
           <div className="mt-2 space-y-1 text-xs text-gray-500">
             {item.source && (

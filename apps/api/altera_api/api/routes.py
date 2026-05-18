@@ -38,7 +38,11 @@ from altera_api.domain.audit import AuditEvent, AuditEventType
 from altera_api.domain.common import Methodology
 from altera_api.domain.job import Job, JobStatus, JobType
 from altera_api.domain.project import Project
-from altera_api.domain.review import ManualReviewQueueReason, ManualReviewStatus
+from altera_api.domain.review import (
+    ManualReviewPriority,
+    ManualReviewQueueReason,
+    ManualReviewStatus,
+)
 from altera_api.ingestion.validators import validate_upload
 from altera_api.jobs.dependencies import get_worker
 from altera_api.jobs.runner import WorkerBackend
@@ -486,6 +490,9 @@ class ReviewItemResponse(BaseModel):
     lock_status: str = "unlocked"
     assigned_to_user_id: UUID | None = None
     assigned_to_email: str | None = None
+    # Phase 19E — priority (derived from queue reason; no commercial fields)
+    priority_level: str = "low"
+    priority_reasons: list[str] = []
     # Excluded intentionally: items_purchased, items_sold, weight_per_item_kg,
     # revenue, margin, supplier terms — all commercial fields.
 
@@ -524,6 +531,8 @@ def _review_response(v: object) -> ReviewItemResponse:
         lock_status=v.lock_status,
         assigned_to_user_id=v.assigned_to_user_id,
         assigned_to_email=v.assigned_to_email,
+        priority_level=v.priority_level,
+        priority_reasons=list(v.priority_reasons),
     )
 
 
@@ -538,17 +547,17 @@ def list_review_route(
     methodology: Methodology | None = None,
     status: ManualReviewStatus | None = None,
     reason: ManualReviewQueueReason | None = None,
+    priority_level: ManualReviewPriority | None = None,
     upload_id: UUID | None = None,
     product_search: str | None = None,
-    sort: Literal["oldest", "newest"] = "oldest",
+    sort: Literal["oldest", "newest", "priority"] = "oldest",
 ) -> list[ReviewItemResponse]:
     """List review items for a project with optional filtering and sorting.
 
-    Filters: methodology, status, reason, upload_id, product_search (name or
-    external_product_id substring, case-insensitive).
+    Filters: methodology, status, reason, priority_level, upload_id,
+    product_search (name or external_product_id substring, case-insensitive).
 
-    Sort: oldest (default) = queued_at ascending; newest = queued_at descending.
-    Confidence-based sorting is not yet supported (see TODO in orchestrator).
+    Sort: oldest (default) | newest | priority (critical first).
     """
     views = list_review(
         store,
@@ -556,9 +565,10 @@ def list_review_route(
         methodology=methodology,
         status=status,
         reason=reason,
+        priority_level=priority_level,
         upload_id=upload_id,
         product_search=product_search,
-        oldest_first=(sort == "oldest"),
+        sort=sort,
         viewer_user_id=auth.user_id if auth.can_review else None,
     )
     return [_review_response(v) for v in views]
