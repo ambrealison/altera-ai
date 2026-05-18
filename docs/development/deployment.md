@@ -177,24 +177,58 @@ not add real values to example files.
 
 ### Rate limiting
 
-Phase 30B added an in-memory sliding-window rate limiter. It is disabled by
-default (`RATE_LIMIT_ENABLED=false`). When enabled, requests are keyed by
-authenticated user (`sub` from JWT) or client IP.
+Phase 30B/30C — in-memory sliding-window rate limiter, disabled by default
+(`RATE_LIMIT_ENABLED=false`).
 
-| Group    | Default (req/min) | Env var                             |
-|----------|-------------------|-------------------------------------|
-| uploads  | 20                | `RATE_LIMIT_UPLOADS_PER_MINUTE`     |
-| classify | 10                | `RATE_LIMIT_CLASSIFY_PER_MINUTE`    |
-| exports  | 30                | `RATE_LIMIT_EXPORTS_PER_MINUTE`     |
-| default  | 200               | `RATE_LIMIT_DEFAULT_PER_MINUTE`     |
+| Group    | Default (req/min) | Env var                             | Matched routes                                  |
+|----------|-------------------|-------------------------------------|-------------------------------------------------|
+| uploads  | 20                | `RATE_LIMIT_UPLOADS_PER_MINUTE`     | POST …/uploads, …/uploads/prepare, …/ingest, …/jobs/validate, …/wwf-ingredients/upload |
+| classify | 10                | `RATE_LIMIT_CLASSIFY_PER_MINUTE`    | POST …/classify, …/jobs/classify                |
+| exports  | 30                | `RATE_LIMIT_EXPORTS_PER_MINUTE`     | GET …/export, POST …/jobs/export                |
+| compute  | 5                 | `RATE_LIMIT_COMPUTE_PER_MINUTE`     | POST …/jobs/calculate, …/scenarios/{id}/run, GET …/comparisons |
+| default  | 200               | `RATE_LIMIT_DEFAULT_PER_MINUTE`     | everything else                                 |
+
+**Key selection (Phase 30C):** Requests are keyed by client IP only. Unverified
+JWT claims are never used (they are attacker-controlled before signature
+verification). `X-Forwarded-For` is only trusted when the direct peer is in
+`TRUSTED_PROXIES` (comma-separated CIDR list, empty by default).
+
+```bash
+TRUSTED_PROXIES=10.0.0.1,192.168.0.0/16   # example: Fly.io or Cloudflare egress range
+RATE_LIMIT_MAX_BUCKETS=100000              # evict oldest beyond this cap
+```
 
 Rate-limited responses return `429 Too Many Requests` with a `Retry-After`
 header and a structured `error_code: rate_limited` body.
 
 **Production note:** The in-memory limiter is single-process only. For
-multi-process or multi-instance deployments, replace `altera_api/ratelimit.py`
-with a Redis-backed implementation or delegate rate limiting to the reverse
-proxy / API gateway.
+multi-process or multi-instance deployments (Fly.io, Render, Kubernetes), use a
+Redis/Upstash-backed implementation or delegate rate limiting to the edge
+(Cloudflare, API gateway).
+
+### CORS fail-closed (Phase 30C)
+
+If `CORS_ALLOWED_ORIGINS` is not set and `ALTERA_DEV_AUTH_ENABLED` is false
+(i.e. production mode), the server **refuses to start** with a clear error. This
+prevents accidental deployment with the `http://localhost:3000` fallback in
+production.
+
+```bash
+CORS_ALLOWED_ORIGINS=https://app.altera-ai.com   # required in production
+```
+
+### Secret scanning (Phase 30C)
+
+`.gitleaks.toml` in the repo root configures Gitleaks to detect OpenAI API keys,
+Supabase service-role keys, and other secrets. Run before every deployment:
+
+```bash
+gitleaks detect --source . --config .gitleaks.toml
+```
+
+**If a key is found in history:** revoke it in the provider dashboard immediately,
+then rewrite history with `git filter-repo --replace-text secrets.txt` before
+pushing to any remote.
 
 ### Dependency audits
 

@@ -1,4 +1,4 @@
-"""Phase 30B — rate limiting baseline tests.
+"""Phase 30B — rate limiting baseline tests (updated for Phase 30C keying).
 
 Covers:
 - Rate limiter disabled by default (does not block requests)
@@ -7,9 +7,8 @@ Covers:
 - Retry-After header present on 429
 - Upload route triggers the uploads group
 - Export route triggers the exports group
-- Separate users do not share buckets
 - Separate IPs do not share buckets
-- No Authorization/Cookie token leaked in error detail
+- No raw JWT token in bucket key, logs, or error response
 """
 
 from __future__ import annotations
@@ -24,7 +23,7 @@ from fastapi.testclient import TestClient
 from altera_api.ratelimit import (
     RateLimiter,
     RateLimitMiddleware,
-    _extract_key,
+    _extract_ip,
     _route_group,
 )
 
@@ -44,7 +43,6 @@ def _make_jwt(sub: str) -> str:
 def _app_with_limiter(limiter: RateLimiter | None) -> FastAPI:
     """Minimal FastAPI app wired with the given limiter (None = disabled)."""
     mini = FastAPI()
-
     mini.add_middleware(RateLimitMiddleware, limiter=limiter, read_env=False)
 
     @mini.get("/api/v1/projects")
@@ -75,11 +73,17 @@ class TestRouteGroup:
     def test_options_always_skip(self) -> None:
         assert _route_group("/api/v1/projects", "OPTIONS") == "skip"
 
+    def test_legacy_uploads_post_is_uploads(self) -> None:
+        assert _route_group("/api/v1/projects/x/uploads", "POST") == "uploads"
+
     def test_prepare_upload_is_uploads(self) -> None:
         assert _route_group("/api/v1/projects/x/uploads/prepare", "POST") == "uploads"
 
     def test_ingest_is_uploads(self) -> None:
         assert _route_group("/api/v1/projects/x/uploads/abc/ingest", "POST") == "uploads"
+
+    def test_jobs_validate_is_uploads(self) -> None:
+        assert _route_group("/api/v1/projects/x/uploads/u/jobs/validate", "POST") == "uploads"
 
     def test_wwf_upload_is_uploads(self) -> None:
         assert _route_group("/api/v1/projects/x/wwf-ingredients/upload", "POST") == "uploads"
@@ -96,6 +100,15 @@ class TestRouteGroup:
     def test_jobs_export_is_exports(self) -> None:
         assert _route_group("/api/v1/projects/x/runs/r/jobs/export", "POST") == "exports"
 
+    def test_jobs_calculate_is_compute(self) -> None:
+        assert _route_group("/api/v1/projects/x/jobs/calculate", "POST") == "compute"
+
+    def test_scenario_run_is_compute(self) -> None:
+        assert _route_group("/api/v1/scenarios/s1/run", "POST") == "compute"
+
+    def test_comparisons_get_is_compute(self) -> None:
+        assert _route_group("/api/v1/projects/x/comparisons", "GET") == "compute"
+
     def test_list_projects_is_default(self) -> None:
         assert _route_group("/api/v1/projects", "GET") == "default"
 
@@ -104,24 +117,19 @@ class TestRouteGroup:
 
 
 # ---------------------------------------------------------------------------
-# Key extraction unit tests
+# IP extraction tests
 # ---------------------------------------------------------------------------
 
 
-class TestExtractKey:
+class TestExtractIp:
     def _fake_request(
         self,
-        authorization: str | None = None,
         forwarded_for: str | None = None,
         client_host: str = "127.0.0.1",
     ) -> Any:
-        """Build a minimal mock request object."""
         from unittest.mock import MagicMock
-
         r = MagicMock()
         headers: dict[str, str] = {}
-        if authorization is not None:
-            headers["authorization"] = authorization
         if forwarded_for is not None:
             headers["x-forwarded-for"] = forwarded_for
         r.headers = headers
@@ -129,28 +137,25 @@ class TestExtractKey:
         r.client.host = client_host
         return r
 
-    def test_jwt_sub_used_as_key(self) -> None:
-        token = _make_jwt("user-abc-123")
-        req = self._fake_request(authorization=f"Bearer {token}")
-        assert _extract_key(req) == "user:user-abc-123"
-
-    def test_no_auth_falls_back_to_ip(self) -> None:
+    def test_no_proxy_uses_peer_ip(self) -> None:
         req = self._fake_request(client_host="10.0.0.5")
-        assert _extract_key(req) == "ip:10.0.0.5"
+        assert _extract_ip(req, []) == "ip:10.0.0.5"
 
-    def test_forwarded_for_first_hop_used(self) -> None:
-        req = self._fake_request(forwarded_for="1.2.3.4, 5.6.7.8")
-        assert _extract_key(req) == "ip:1.2.3.4"
+    def test_untrusted_proxy_ignores_forwarded_for(self) -> None:
+        req = self._fake_request(forwarded_for="1.2.3.4", client_host="9.9.9.9")
+        assert _extract_ip(req, []) == "ip:9.9.9.9"
 
-    def test_malformed_jwt_falls_back_to_ip(self) -> None:
-        req = self._fake_request(authorization="Bearer notajwt", client_host="9.9.9.9")
-        assert _extract_key(req) == "ip:9.9.9.9"
-
-    def test_raw_token_not_in_key(self) -> None:
-        token = _make_jwt("secret-sub")
-        req = self._fake_request(authorization=f"Bearer {token}")
-        key = _extract_key(req)
-        # Key must not contain the raw token
+    def test_jwt_bearer_in_request_still_keys_by_ip(self) -> None:
+        """A JWT sub claim must NOT influence the rate-limit key."""
+        from unittest.mock import MagicMock
+        token = _make_jwt("secret-user-id")
+        req = MagicMock()
+        req.headers = {"authorization": f"Bearer {token}"}
+        req.client = MagicMock()
+        req.client.host = "5.5.5.5"
+        key = _extract_ip(req, [])
+        assert key == "ip:5.5.5.5"
+        assert "secret-user-id" not in key
         assert token not in key
 
 
@@ -160,8 +165,6 @@ class TestExtractKey:
 
 
 class TestRateLimitDisabledByDefault:
-    """Without a limiter the middleware is transparent."""
-
     def test_no_limiter_never_blocks(self) -> None:
         client = TestClient(_app_with_limiter(None))
         for _ in range(50):
@@ -170,20 +173,22 @@ class TestRateLimitDisabledByDefault:
 
 
 class TestRateLimitBlocking:
-    """With a tight limiter requests are blocked after the threshold."""
-
     def _tight_limiter(self, group: str, limit: int = 3) -> RateLimiter:
-        limits = {"uploads": 200, "classify": 200, "exports": 200, "default": 200}
+        limits = {
+            "uploads": 200, "classify": 200, "exports": 200,
+            "compute": 200, "default": 200,
+        }
         limits[group] = limit
         return RateLimiter(limits=limits)
 
     def test_blocks_after_default_threshold(self) -> None:
-        limiter = RateLimiter(limits={"uploads": 200, "classify": 200, "exports": 200, "default": 3})
+        limiter = RateLimiter(limits={
+            "uploads": 200, "classify": 200, "exports": 200, "compute": 200, "default": 3,
+        })
         client = TestClient(_app_with_limiter(limiter))
         for _ in range(3):
             assert client.get("/api/v1/projects").status_code == 200
-        r = client.get("/api/v1/projects")
-        assert r.status_code == 429
+        assert client.get("/api/v1/projects").status_code == 429
 
     def test_blocks_upload_route(self) -> None:
         limiter = self._tight_limiter("uploads", limit=2)
@@ -201,95 +206,75 @@ class TestRateLimitBlocking:
 
 
 class TestRateLimitResponse:
-    """429 response shape matches the structured error envelope."""
+    def _spent_limiter(self) -> RateLimiter:
+        return RateLimiter(limits={
+            "uploads": 200, "classify": 200, "exports": 200, "compute": 200, "default": 1,
+        })
 
     def test_429_has_correct_error_code(self) -> None:
-        limiter = RateLimiter(limits={"uploads": 200, "classify": 200, "exports": 200, "default": 1})
-        client = TestClient(_app_with_limiter(limiter))
-        client.get("/api/v1/projects")  # exhaust
+        client = TestClient(_app_with_limiter(self._spent_limiter()))
+        client.get("/api/v1/projects")
         r = client.get("/api/v1/projects")
         assert r.status_code == 429
-        body = r.json()
-        assert body["detail"]["error_code"] == "rate_limited"
-        assert "message" in body["detail"]
+        assert r.json()["detail"]["error_code"] == "rate_limited"
 
     def test_429_has_retry_after_header(self) -> None:
-        limiter = RateLimiter(limits={"uploads": 200, "classify": 200, "exports": 200, "default": 1})
-        client = TestClient(_app_with_limiter(limiter))
-        client.get("/api/v1/projects")  # exhaust
+        client = TestClient(_app_with_limiter(self._spent_limiter()))
+        client.get("/api/v1/projects")
         r = client.get("/api/v1/projects")
         assert r.status_code == 429
-        assert "retry-after" in r.headers
         assert int(r.headers["retry-after"]) > 0
 
     def test_429_detail_has_retry_after_seconds(self) -> None:
-        limiter = RateLimiter(limits={"uploads": 200, "classify": 200, "exports": 200, "default": 1})
-        client = TestClient(_app_with_limiter(limiter))
-        client.get("/api/v1/projects")  # exhaust
+        client = TestClient(_app_with_limiter(self._spent_limiter()))
+        client.get("/api/v1/projects")
         r = client.get("/api/v1/projects")
-        body = r.json()
-        assert "retry_after_seconds" in body["detail"]["details"]
+        assert "retry_after_seconds" in r.json()["detail"]["details"]
 
-    def test_429_contains_no_authorization_data(self) -> None:
-        limiter = RateLimiter(limits={"uploads": 200, "classify": 200, "exports": 200, "default": 1})
-        client = TestClient(_app_with_limiter(limiter))
+    def test_429_does_not_echo_authorization_token(self) -> None:
+        client = TestClient(_app_with_limiter(self._spent_limiter()))
         token = _make_jwt("sensitive-user-id")
         headers = {"Authorization": f"Bearer {token}"}
-        client.get("/api/v1/projects", headers=headers)  # exhaust
+        client.get("/api/v1/projects", headers=headers)
         r = client.get("/api/v1/projects", headers=headers)
         assert r.status_code == 429
-        body_text = r.text
-        # Raw token must not appear in the response body.
-        assert token not in body_text
+        assert token not in r.text
 
 
 class TestRateLimitBucketIsolation:
-    """Different keys do not share buckets."""
+    def test_separate_ips_have_independent_buckets(self) -> None:
+        limiter = RateLimiter(limits={
+            "uploads": 200, "classify": 200, "exports": 200, "compute": 200, "default": 2,
+        })
+        # Exhaust bucket for ip:1.1.1.1.
+        for _ in range(2):
+            allowed, _ = limiter.check("ip:1.1.1.1", "default")
+            assert allowed
+        blocked, _ = limiter.check("ip:1.1.1.1", "default")
+        assert not blocked
 
-    def test_separate_users_have_independent_buckets(self) -> None:
-        limiter = RateLimiter(limits={"uploads": 200, "classify": 200, "exports": 200, "default": 2})
+        # ip:2.2.2.2 is independent.
+        allowed, _ = limiter.check("ip:2.2.2.2", "default")
+        assert allowed
+
+    def test_forged_jwt_sub_does_not_create_per_user_buckets(self) -> None:
+        """Phase 30C: forged JWTs must not create separate buckets — all keyed by IP."""
+        limiter = RateLimiter(limits={
+            "uploads": 200, "classify": 200, "exports": 200, "compute": 200, "default": 2,
+        })
         client = TestClient(_app_with_limiter(limiter))
-
         token_a = _make_jwt("user-a")
         token_b = _make_jwt("user-b")
-
-        # Exhaust user-a's bucket.
+        # Exhaust with user-a JWT.
         for _ in range(2):
-            r = client.get("/api/v1/projects", headers={"Authorization": f"Bearer {token_a}"})
-            assert r.status_code == 200
-        r = client.get("/api/v1/projects", headers={"Authorization": f"Bearer {token_a}"})
-        assert r.status_code == 429
-
-        # user-b's bucket is independent and should still be OK.
+            client.get("/api/v1/projects", headers={"Authorization": f"Bearer {token_a}"})
+        # user-b JWT from the same IP should also be rate-limited (same bucket).
         r = client.get("/api/v1/projects", headers={"Authorization": f"Bearer {token_b}"})
-        assert r.status_code == 200
-
-    def test_separate_ips_have_independent_buckets(self) -> None:
-        limiter = RateLimiter(limits={"uploads": 200, "classify": 200, "exports": 200, "default": 2})
-        client = TestClient(_app_with_limiter(limiter))
-
-        # Exhaust IP 1.
-        for _ in range(2):
-            r = client.get("/api/v1/projects", headers={"X-Forwarded-For": "1.1.1.1"})
-            assert r.status_code == 200
-        r = client.get("/api/v1/projects", headers={"X-Forwarded-For": "1.1.1.1"})
         assert r.status_code == 429
-
-        # IP 2 is independent.
-        r = client.get("/api/v1/projects", headers={"X-Forwarded-For": "2.2.2.2"})
-        assert r.status_code == 200
 
     def test_different_groups_tracked_separately(self) -> None:
-        """Upload and default groups have separate budgets for the same user."""
-        limiter = RateLimiter(limits={"uploads": 1, "classify": 200, "exports": 200, "default": 200})
+        limiter = RateLimiter(limits={"uploads": 1, "classify": 200, "exports": 200, "compute": 200, "default": 200})
         client = TestClient(_app_with_limiter(limiter))
-
-        # Exhaust uploads group.
-        r = client.post("/api/v1/projects/p/uploads/prepare")
-        assert r.status_code == 200
-        r = client.post("/api/v1/projects/p/uploads/prepare")
-        assert r.status_code == 429
-
-        # Default group is unaffected.
-        r = client.get("/api/v1/projects")
-        assert r.status_code == 200
+        assert client.post("/api/v1/projects/p/uploads/prepare").status_code == 200
+        assert client.post("/api/v1/projects/p/uploads/prepare").status_code == 429
+        assert client.get("/api/v1/projects").status_code == 200

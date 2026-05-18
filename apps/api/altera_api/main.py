@@ -38,12 +38,34 @@ def _parse_allowed_origins() -> list[str]:
     (e.g. ``https://app.altera-ai.com,https://staging.altera-ai.com``).
     Defaults to ``http://localhost:3000`` for local dev.
 
-    Never use ``*`` with ``allow_credentials=True`` — browsers will
-    reject the pre-flight and CORS will silently break.  In production,
-    set this to the exact frontend origin(s).
+    Never use ``*`` with ``allow_credentials=True`` — browsers will reject
+    pre-flights and CORS will silently break.  Production safety is
+    enforced at startup by :func:`_check_cors_production_config`.
     """
-    raw = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
-    return [o.strip() for o in raw.split(",") if o.strip()]
+    raw = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    return origins or ["http://localhost:3000"]
+
+
+def _check_cors_production_config() -> None:
+    """Raise ``RuntimeError`` if production mode has no explicit CORS origins.
+
+    Called at server startup (lifespan), after env vars are in their final
+    state.  When ``ALTERA_DEV_AUTH_ENABLED`` is true (dev/test) the
+    localhost fallback from :func:`_parse_allowed_origins` is acceptable.
+    In all other modes ``CORS_ALLOWED_ORIGINS`` must be explicitly set.
+    """
+    raw = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    if not origins:
+        dev_auth = os.getenv("ALTERA_DEV_AUTH_ENABLED", "false").lower()
+        if dev_auth not in ("1", "true", "yes"):
+            raise RuntimeError(
+                "CORS_ALLOWED_ORIGINS must be set in production "
+                "(ALTERA_DEV_AUTH_ENABLED is not true). "
+                "Set it to the exact frontend origin, e.g. "
+                "CORS_ALLOWED_ORIGINS=https://app.altera-ai.com"
+            )
 
 
 class HealthResponse(BaseModel):
@@ -52,6 +74,7 @@ class HealthResponse(BaseModel):
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    _check_cors_production_config()
     configure_logging(level=os.getenv("LOG_LEVEL", "INFO"))
     init_sentry()
     yield

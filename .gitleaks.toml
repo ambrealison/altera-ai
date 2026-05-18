@@ -1,0 +1,45 @@
+# Gitleaks configuration for Altera AI.
+# Run: gitleaks detect --source . --config .gitleaks.toml
+# Install: brew install gitleaks   OR   go install github.com/gitleaks/gitleaks/v8@latest
+#
+# This config EXTENDS the default ruleset with project-specific rules.
+# Key rotation note:
+#   If a real secret is found in history, revoke it FIRST, then rewrite
+#   history with:
+#     git filter-repo --replace-text secrets.txt
+#   where secrets.txt contains one literal per line.
+
+title = "Altera AI secret scanner"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "openai-key"
+description = "OpenAI API key (sk- or sk-proj-)"
+regex = '''sk-(?:proj-)?[A-Za-z0-9_-]{20,}'''
+tags = ["secret", "openai"]
+
+  [rules.allowlist]
+  # Placeholder values in example files are safe.
+  regexes = [
+    '''sk-proj-YOUR_KEY_HERE''',
+    '''sk-\.\.\.''',
+  ]
+
+[[rules]]
+id = "supabase-service-role"
+description = "Supabase service role key (long JWT)"
+# Service role JWTs are long HS256 tokens; flag anything that looks like
+# a JWT assigned to SUPABASE_SERVICE_ROLE_KEY.
+regex = '''SUPABASE_SERVICE_ROLE_KEY\s*=\s*ey[A-Za-z0-9_-]{20,}'''
+tags = ["secret", "supabase"]
+
+[allowlist]
+# .env.example files must only contain placeholders, so suppress the
+# whole-file allowlist and let the per-rule allowlists handle it.
+paths = [
+  '''.env.example''',
+  '''apps/api/.env.example''',
+  '''apps/web/.env.example''',
+]

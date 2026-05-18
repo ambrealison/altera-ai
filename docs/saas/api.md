@@ -218,18 +218,20 @@ Every API response carries the following security headers (set by
 
 ## Rate limits
 
-Phase 30B added an in-memory sliding-window rate limiter (disabled by default).
+Phase 30B/30C — in-memory sliding-window rate limiter, disabled by default.
 Enable with `RATE_LIMIT_ENABLED=true`.
 
 | Group    | Default (req/min) | Env override                        | Matched routes                                         |
 |----------|-------------------|-------------------------------------|--------------------------------------------------------|
-| uploads  | 20                | `RATE_LIMIT_UPLOADS_PER_MINUTE`     | `POST …/uploads/prepare`, `…/ingest`, `…/wwf-ingredients/upload` |
+| uploads  | 20                | `RATE_LIMIT_UPLOADS_PER_MINUTE`     | `POST …/uploads`, `…/uploads/prepare`, `…/ingest`, `…/jobs/validate`, `…/wwf-ingredients/upload` |
 | classify | 10                | `RATE_LIMIT_CLASSIFY_PER_MINUTE`    | `POST …/classify`, `…/jobs/classify`                   |
 | exports  | 30                | `RATE_LIMIT_EXPORTS_PER_MINUTE`     | `GET …/export`, `POST …/jobs/export`                   |
+| compute  | 5                 | `RATE_LIMIT_COMPUTE_PER_MINUTE`     | `POST …/jobs/calculate`, `…/scenarios/{id}/run`, `GET …/comparisons` |
 | default  | 200               | `RATE_LIMIT_DEFAULT_PER_MINUTE`     | all other routes                                       |
 
-Requests are keyed by authenticated user (`sub` from JWT) when an
-`Authorization: Bearer` header is present, or by client IP otherwise.
+Requests are keyed by **client IP** only. `X-Forwarded-For` is only trusted
+when the connecting peer is in the `TRUSTED_PROXIES` env var (CIDR list, empty
+by default). Unverified JWT claims are never used for rate-limit keying.
 
 Rate-limited responses return `429 Too Many Requests` with a `Retry-After`
 header and a structured error body:
@@ -245,5 +247,5 @@ header and a structured error body:
 ```
 
 > **Production note:** The in-memory limiter is single-process only. For
-> multi-process deployments, replace it with a Redis-backed implementation
-> or push rate limiting to the API gateway / CDN layer.
+> multi-process deployments, replace it with a Redis/Upstash-backed
+> implementation or push rate limiting to the API gateway / CDN layer.

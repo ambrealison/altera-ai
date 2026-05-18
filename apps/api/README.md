@@ -114,24 +114,46 @@ SENTRY_TRACES_SAMPLE_RATE=0.05  # 0.0–1.0, default 0.05
 
 Leave `SENTRY_DSN` empty (or unset) to disable Sentry entirely — no `sentry-sdk` installation required.
 
-## Rate limiting configuration (Phase 30B)
+## Rate limiting configuration (Phase 30B/30C)
 
 Disabled by default. Enable for single-process deployments:
 
 ```bash
 RATE_LIMIT_ENABLED=true
-RATE_LIMIT_UPLOADS_PER_MINUTE=20    # POST .../uploads/prepare, .../ingest, .../wwf-ingredients/upload
+RATE_LIMIT_UPLOADS_PER_MINUTE=20    # POST .../uploads, .../uploads/prepare, .../ingest, .../jobs/validate
 RATE_LIMIT_CLASSIFY_PER_MINUTE=10   # POST .../classify, .../jobs/classify
 RATE_LIMIT_EXPORTS_PER_MINUTE=30    # GET .../export, POST .../jobs/export
+RATE_LIMIT_COMPUTE_PER_MINUTE=5     # POST .../jobs/calculate, .../scenarios/{id}/run, GET .../comparisons
 RATE_LIMIT_DEFAULT_PER_MINUTE=200   # all other routes
+RATE_LIMIT_MAX_BUCKETS=100000       # evict oldest beyond this cap
+
+# Only set if a known reverse proxy sits in front (Fly.io, Cloudflare, etc.)
+TRUSTED_PROXIES=                    # comma-separated CIDRs; empty = never trust X-Forwarded-For
 ```
 
-Requests are keyed by JWT `sub` claim when authenticated, or by client IP
-otherwise. 429 responses include `Retry-After` and a structured
-`error_code: rate_limited` body.
+Requests are keyed by **client IP only**. Unverified JWT claims are never used
+(they are attacker-controlled). `X-Forwarded-For` is only trusted when the
+direct peer is in `TRUSTED_PROXIES`. 429 responses include `Retry-After` and
+a structured `error_code: rate_limited` body.
 
 The in-memory limiter is single-process only. For multi-process production
-deployments, use a Redis-backed implementation or API gateway rate limiting.
+deployments, use a Redis/Upstash-backed implementation or API gateway.
+
+## CORS configuration (Phase 30C)
+
+`CORS_ALLOWED_ORIGINS` **must** be set in production. The server refuses to
+start if it is unset and `ALTERA_DEV_AUTH_ENABLED` is not `true`.
+
+```bash
+CORS_ALLOWED_ORIGINS=https://app.altera-ai.com
+```
+
+## Secret scanning
+
+`.gitleaks.toml` at the repo root configures Gitleaks detection. Run before
+every deployment: `gitleaks detect --source . --config .gitleaks.toml`. If a
+secret is found in history, revoke it immediately and rewrite history with
+`git filter-repo` before pushing to any remote.
 
 ## AI classifier configuration
 
