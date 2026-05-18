@@ -12,6 +12,10 @@ import {
   type PersistedRecommendation,
   type RecommendationItem,
   type ReportDocument,
+  type ScenarioOperationResponse,
+  type ScenarioOperationType,
+  type ScenarioResponse,
+  type ScenarioResultResponse,
   type WWFReportSection,
 } from "@/lib/api";
 
@@ -32,6 +36,7 @@ export default function ReportPage() {
   const [report, setReport] = useState<ReportDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notApproved, setNotApproved] = useState(false);
+  const [scenarioPrefill, setScenarioPrefill] = useState<ScenarioPrefill | null>(null);
 
   useEffect(() => {
     if (loading || !id || !runId) return;
@@ -193,14 +198,23 @@ export default function ReportPage() {
         projectId={id}
         runId={runId}
         api={api}
+        onCreateScenario={isAltera && meta.methodology === "protein_tracker"
+          ? (prefill) => setScenarioPrefill(prefill)
+          : undefined}
       />
 
       {/* Data coverage and uncertainty */}
       <CoverageSectionCard coverage={coverage} />
 
-      {/* Scenarios — Altera only (Phase 26A) */}
+      {/* Scenarios — Altera only, PT only */}
       {isAltera && meta.methodology === "protein_tracker" && (
-        <ScenariosPlaceholderCard projectId={id} runId={runId} />
+        <ScenariosCard
+          projectId={id}
+          runId={runId}
+          api={api}
+          prefill={scenarioPrefill}
+          onPrefillConsumed={() => setScenarioPrefill(null)}
+        />
       )}
     </div>
   );
@@ -221,18 +235,33 @@ const REC_STATUS_TONE: Record<string, "neutral" | "warn" | "ok" | "error" | "bra
   archived: "neutral",
 };
 
+// Recommendation action types that can seed a scenario
+const REC_TO_OP: Record<string, ScenarioOperationType> = {
+  increase_plant_core_share: "increase_plant_core_protein",
+  reduce_animal_core_dependency: "reduce_animal_core_protein",
+  improve_composite_breakdown: "improve_composite_split",
+};
+
+interface ScenarioPrefill {
+  name: string;
+  description: string;
+  opType: ScenarioOperationType;
+}
+
 function RecommendationsCard({
   recommendations: initialRecs,
   isAltera,
   projectId,
   runId,
   api,
+  onCreateScenario,
 }: {
   recommendations: RecommendationItem[];
   isAltera: boolean;
   projectId: string;
   runId: string;
   api: ReturnType<typeof createApi>;
+  onCreateScenario?: (prefill: ScenarioPrefill) => void;
 }) {
   const [recs, setRecs] = useState<RecommendationItem[]>(initialRecs);
   const [generating, setGenerating] = useState(false);
@@ -346,6 +375,20 @@ function RecommendationsCard({
                   {r.status !== "archived" && r.status !== "dismissed" && (
                     <Button variant="ghost" onClick={() => handleTransition(r.id!, "archive")}>
                       Archive
+                    </Button>
+                  )}
+                  {onCreateScenario && REC_TO_OP[r.action_type] && (
+                    <Button
+                      variant="ghost"
+                      onClick={() =>
+                        onCreateScenario({
+                          name: r.title,
+                          description: r.rationale,
+                          opType: REC_TO_OP[r.action_type],
+                        })
+                      }
+                    >
+                      Simulate ↓
                     </Button>
                   )}
                 </div>
@@ -543,44 +586,546 @@ function WWFSection({ section: s }: { section: WWFReportSection }) {
 }
 
 // ---------------------------------------------------------------------------
-// Scenarios placeholder (Phase 26A)
+// Scenarios card (Phase 26B)
 // ---------------------------------------------------------------------------
 
-function ScenariosPlaceholderCard({
+const PT_GROUPS = [
+  "plant_based_core",
+  "plant_based_non_core",
+  "composite_products",
+  "animal_core",
+] as const;
+
+const OP_LABELS: Record<ScenarioOperationType, string> = {
+  shift_protein_between_groups: "Shift protein between groups",
+  increase_plant_core_protein: "Increase plant core protein",
+  reduce_animal_core_protein: "Reduce animal core protein",
+  improve_composite_split: "Improve composite split",
+};
+
+function fmtDelta(val: string | null | undefined): string {
+  if (val == null) return "—";
+  const n = parseFloat(val);
+  if (isNaN(n)) return val;
+  return (n >= 0 ? "+" : "") + n.toFixed(2);
+}
+
+function deltaClass(val: string | null | undefined): string {
+  if (val == null) return "text-gray-500";
+  const n = parseFloat(val);
+  if (isNaN(n) || n === 0) return "text-gray-500";
+  return n > 0 ? "text-green-600" : "text-rose-600";
+}
+
+type OpFormState = {
+  operation_type: ScenarioOperationType;
+  // shift_protein_between_groups
+  from_group: string;
+  to_group: string;
+  // amount_kg used by shift, increase, reduce
+  amount_kg: string;
+  // improve_composite_split
+  plant_pct: string;
+  rationale: string;
+};
+
+function defaultOpForm(opType?: ScenarioOperationType): OpFormState {
+  return {
+    operation_type: opType ?? "increase_plant_core_protein",
+    from_group: "animal_core",
+    to_group: "plant_based_core",
+    amount_kg: "",
+    plant_pct: "60",
+    rationale: "",
+  };
+}
+
+function opToRequest(form: OpFormState): { operation_type: ScenarioOperationType; parameters: Record<string, string | number>; rationale: string } {
+  const params: Record<string, string | number> = {};
+  if (form.operation_type === "shift_protein_between_groups") {
+    params.from_group = form.from_group;
+    params.to_group = form.to_group;
+    params.amount_kg = form.amount_kg;
+  } else if (form.operation_type === "increase_plant_core_protein") {
+    params.amount_kg = form.amount_kg;
+  } else if (form.operation_type === "reduce_animal_core_protein") {
+    params.amount_kg = form.amount_kg;
+  } else if (form.operation_type === "improve_composite_split") {
+    const plant = parseFloat(form.plant_pct);
+    params.plant_pct = form.plant_pct;
+    params.animal_pct = String(isNaN(plant) ? 40 : 100 - plant);
+  }
+  return { operation_type: form.operation_type, parameters: params, rationale: form.rationale };
+}
+
+function OpParamFields({
+  form,
+  onChange,
+}: {
+  form: OpFormState;
+  onChange: (patch: Partial<OpFormState>) => void;
+}) {
+  if (form.operation_type === "shift_protein_between_groups") {
+    return (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <label className="flex flex-col gap-1 text-xs text-gray-600">
+          From group
+          <select
+            className="rounded border border-gray-200 px-2 py-1.5 text-sm"
+            value={form.from_group}
+            onChange={(e) => onChange({ from_group: e.target.value })}
+          >
+            {PT_GROUPS.map((g) => (
+              <option key={g} value={g}>{g.replace(/_/g, " ")}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-gray-600">
+          To group
+          <select
+            className="rounded border border-gray-200 px-2 py-1.5 text-sm"
+            value={form.to_group}
+            onChange={(e) => onChange({ to_group: e.target.value })}
+          >
+            {PT_GROUPS.map((g) => (
+              <option key={g} value={g}>{g.replace(/_/g, " ")}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-gray-600">
+          Amount (kg)
+          <input
+            type="number"
+            min={0}
+            step="any"
+            placeholder="e.g. 500"
+            className="rounded border border-gray-200 px-2 py-1.5 text-sm"
+            value={form.amount_kg}
+            onChange={(e) => onChange({ amount_kg: e.target.value })}
+          />
+        </label>
+      </div>
+    );
+  }
+  if (form.operation_type === "increase_plant_core_protein" || form.operation_type === "reduce_animal_core_protein") {
+    const label = form.operation_type === "increase_plant_core_protein"
+      ? "Protein to add (kg)"
+      : "Protein to reduce (kg)";
+    return (
+      <label className="flex flex-col gap-1 text-xs text-gray-600">
+        {label}
+        <input
+          type="number"
+          min={0}
+          step="any"
+          placeholder="e.g. 1000"
+          className="w-48 rounded border border-gray-200 px-2 py-1.5 text-sm"
+          value={form.amount_kg}
+          onChange={(e) => onChange({ amount_kg: e.target.value })}
+        />
+      </label>
+    );
+  }
+  if (form.operation_type === "improve_composite_split") {
+    const plant = parseFloat(form.plant_pct);
+    const animal = isNaN(plant) ? "—" : String(100 - plant);
+    return (
+      <div className="flex items-end gap-4">
+        <label className="flex flex-col gap-1 text-xs text-gray-600">
+          Plant % (of composite protein)
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step="any"
+            placeholder="e.g. 60"
+            className="w-32 rounded border border-gray-200 px-2 py-1.5 text-sm"
+            value={form.plant_pct}
+            onChange={(e) => onChange({ plant_pct: e.target.value })}
+          />
+        </label>
+        <div className="pb-2 text-xs text-gray-500">Animal: {animal}%</div>
+      </div>
+    );
+  }
+  return null;
+}
+
+function ScenarioResultTable({ result }: { result: ScenarioResultResponse }) {
+  const p = result.pt_projected;
+  if (!p) return null;
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Projection result</div>
+      <table className="w-full text-left text-sm">
+        <thead className="text-xs uppercase tracking-wider text-gray-400">
+          <tr>
+            <th className="py-1.5">Metric</th>
+            <th className="py-1.5 text-right">Base</th>
+            <th className="py-1.5 text-right">Projected</th>
+            <th className="py-1.5 text-right">Δ</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          <tr>
+            <td className="py-1.5 text-gray-700">Plant protein (kg)</td>
+            <td className="py-1.5 text-right font-mono">{parseFloat(p.base_plant_protein_kg).toFixed(2)}</td>
+            <td className="py-1.5 text-right font-mono">{parseFloat(p.projected_plant_protein_kg).toFixed(2)}</td>
+            <td className={`py-1.5 text-right font-mono ${deltaClass(p.delta_plant_protein_kg)}`}>{fmtDelta(p.delta_plant_protein_kg)}</td>
+          </tr>
+          <tr>
+            <td className="py-1.5 text-gray-700">Animal protein (kg)</td>
+            <td className="py-1.5 text-right font-mono">{parseFloat(p.base_animal_protein_kg).toFixed(2)}</td>
+            <td className="py-1.5 text-right font-mono">{parseFloat(p.projected_animal_protein_kg).toFixed(2)}</td>
+            <td className={`py-1.5 text-right font-mono ${deltaClass(p.delta_animal_protein_kg)}`}>{fmtDelta(p.delta_animal_protein_kg)}</td>
+          </tr>
+          {p.base_plant_share_pct != null && (
+            <tr>
+              <td className="py-1.5 text-gray-700">Plant share (%)</td>
+              <td className="py-1.5 text-right font-mono">{parseFloat(p.base_plant_share_pct).toFixed(1)}</td>
+              <td className="py-1.5 text-right font-mono">{p.projected_plant_share_pct != null ? parseFloat(p.projected_plant_share_pct).toFixed(1) : "—"}</td>
+              <td className={`py-1.5 text-right font-mono ${deltaClass(p.delta_plant_share_pct)}`}>{fmtDelta(p.delta_plant_share_pct)}</td>
+            </tr>
+          )}
+          {p.projected_animal_share_pct != null && (
+            <tr>
+              <td className="py-1.5 text-gray-700">Animal share (%)</td>
+              <td className="py-1.5 text-right font-mono">{p.base_plant_share_pct != null ? (100 - parseFloat(p.base_plant_share_pct)).toFixed(1) : "—"}</td>
+              <td className="py-1.5 text-right font-mono">{parseFloat(p.projected_animal_share_pct).toFixed(1)}</td>
+              <td className={`py-1.5 text-right font-mono ${deltaClass(p.delta_plant_share_pct ? String(-parseFloat(p.delta_plant_share_pct)) : null)}`}>
+                {p.delta_plant_share_pct != null ? fmtDelta(String(-parseFloat(p.delta_plant_share_pct))) : "—"}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      {result.warnings.length > 0 && (
+        <div className="rounded border border-amber-100 bg-amber-50 px-3 py-2">
+          <p className="text-xs font-medium text-amber-700 mb-1">Projection warnings</p>
+          <ul className="space-y-0.5">
+            {result.warnings.map((w, i) => (
+              <li key={i} className="text-xs text-amber-700">· {w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScenarioItem({
+  scenario,
+  api,
+  onUpdate,
+}: {
+  scenario: ScenarioResponse;
+  api: ReturnType<typeof createApi>;
+  onUpdate: (updated: ScenarioResponse) => void;
+}) {
+  const [ops, setOps] = useState<ScenarioOperationResponse[] | null>(null);
+  const [result, setResult] = useState<ScenarioResultResponse | null>(null);
+  const [showOpForm, setShowOpForm] = useState(false);
+  const [opForm, setOpForm] = useState<OpFormState>(defaultOpForm());
+  const [addingOp, setAddingOp] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [opError, setOpError] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(true);
+
+  useEffect(() => {
+    api.listScenarioOperations(scenario.id).then(setOps).catch(() => setOps([]));
+    api.getScenarioResult(scenario.id)
+      .then(setResult)
+      .catch(() => setResult(null));
+  }, [api, scenario.id]);
+
+  async function handleAddOp() {
+    setAddingOp(true);
+    setOpError(null);
+    try {
+      const req = opToRequest(opForm);
+      const newOp = await api.addScenarioOperation(scenario.id, req);
+      setOps((prev) => [...(prev ?? []), newOp]);
+      setShowOpForm(false);
+      setOpForm(defaultOpForm());
+    } catch (e: unknown) {
+      setOpError(e instanceof Error ? e.message : "Failed to add operation");
+    } finally {
+      setAddingOp(false);
+    }
+  }
+
+  async function handleRun() {
+    setRunning(true);
+    setRunError(null);
+    try {
+      const res = await api.runScenario(scenario.id);
+      setResult(res);
+      if (scenario.status === "draft") {
+        onUpdate({ ...scenario, status: "active" });
+      }
+    } catch (e: unknown) {
+      setRunError(e instanceof Error ? e.message : "Failed to run scenario");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const statusTone: "neutral" | "ok" | "warn" =
+    scenario.status === "active" ? "ok" : scenario.status === "archived" ? "neutral" : "warn";
+
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="text-sm font-medium text-gray-900 hover:underline"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {scenario.name}
+          </button>
+          <Pill tone={statusTone}>{scenario.status}</Pill>
+          <span className="text-xs text-gray-400">{ops?.length ?? scenario.operation_count} op{(ops?.length ?? scenario.operation_count) !== 1 ? "s" : ""}</span>
+        </div>
+        <Button
+          variant="ghost"
+          onClick={handleRun}
+          disabled={running || !ops || ops.length === 0}
+        >
+          {running ? "Running…" : "Run"}
+        </Button>
+      </div>
+      {scenario.description && (
+        <p className="mt-1 text-xs text-gray-500">{scenario.description}</p>
+      )}
+      {runError && <p className="mt-2 text-xs text-rose-600">{runError}</p>}
+
+      {expanded && (
+        <div className="mt-3 space-y-3">
+          {/* Operations list */}
+          {ops && ops.length > 0 && (
+            <div className="space-y-1.5">
+              {ops.map((op, i) => (
+                <div key={op.id} className="flex items-start gap-2 text-xs text-gray-600">
+                  <span className="text-gray-300">{i + 1}.</span>
+                  <div>
+                    <span className="font-medium">{OP_LABELS[op.operation_type as ScenarioOperationType]}</span>
+                    <span className="ml-2 font-mono text-gray-400">
+                      {Object.entries(op.parameters)
+                        .map(([k, v]) => `${k}=${v}`)
+                        .join(", ")}
+                    </span>
+                    {op.rationale && <span className="ml-2 italic text-gray-400">— {op.rationale}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add operation form */}
+          {showOpForm ? (
+            <div className="rounded border border-gray-200 bg-white p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-700">Add operation</span>
+                <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => setShowOpForm(false)}>✕</button>
+              </div>
+              <label className="flex flex-col gap-1 text-xs text-gray-600">
+                Type
+                <select
+                  className="rounded border border-gray-200 px-2 py-1.5 text-sm"
+                  value={opForm.operation_type}
+                  onChange={(e) => setOpForm({ ...defaultOpForm(e.target.value as ScenarioOperationType), rationale: opForm.rationale })}
+                >
+                  {(Object.keys(OP_LABELS) as ScenarioOperationType[]).map((k) => (
+                    <option key={k} value={k}>{OP_LABELS[k]}</option>
+                  ))}
+                </select>
+              </label>
+              <OpParamFields form={opForm} onChange={(patch) => setOpForm((f) => ({ ...f, ...patch }))} />
+              <label className="flex flex-col gap-1 text-xs text-gray-600">
+                Rationale (optional)
+                <input
+                  type="text"
+                  placeholder="Why this operation?"
+                  className="rounded border border-gray-200 px-2 py-1.5 text-sm"
+                  value={opForm.rationale}
+                  onChange={(e) => setOpForm((f) => ({ ...f, rationale: e.target.value }))}
+                />
+              </label>
+              {opError && <p className="text-xs text-rose-600">{opError}</p>}
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={handleAddOp} disabled={addingOp}>
+                  {addingOp ? "Adding…" : "Add"}
+                </Button>
+                <Button variant="ghost" onClick={() => setShowOpForm(false)}>Cancel</Button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="text-xs text-blue-600 hover:underline"
+              onClick={() => setShowOpForm(true)}
+            >
+              + Add operation
+            </button>
+          )}
+
+          {/* Result table */}
+          {result && <ScenarioResultTable result={result} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScenariosCard({
   projectId,
   runId,
+  api,
+  prefill,
+  onPrefillConsumed,
 }: {
   projectId: string;
   runId: string;
+  api: ReturnType<typeof createApi>;
+  prefill: ScenarioPrefill | null;
+  onPrefillConsumed: () => void;
 }) {
+  const [scenarios, setScenarios] = useState<ScenarioResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createDesc, setCreateDesc] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // Suggested op type from prefill — stored for when create form opens
+  const [pendingOpType, setPendingOpType] = useState<ScenarioOperationType | null>(null);
+
+  useEffect(() => {
+    api.listScenarios(projectId)
+      .then((list) => setScenarios(list))
+      .catch(() => setScenarios([]))
+      .finally(() => setLoading(false));
+  }, [api, projectId]);
+
+  // When prefill arrives, open create form with pre-populated values
+  useEffect(() => {
+    if (!prefill) return;
+    setCreateName(prefill.name);
+    setCreateDesc(prefill.description);
+    setPendingOpType(prefill.opType);
+    setShowCreate(true);
+    onPrefillConsumed();
+    // Scroll to scenarios card
+    document.getElementById("scenarios-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [prefill, onPrefillConsumed]);
+
+  async function handleCreate() {
+    if (!createName.trim()) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const created = await api.createScenario(projectId, {
+        name: createName.trim(),
+        description: createDesc.trim(),
+        base_run_id: runId,
+      });
+      setScenarios((prev) => [created, ...prev]);
+      setShowCreate(false);
+      setCreateName("");
+      setCreateDesc("");
+      setPendingOpType(null);
+    } catch (e: unknown) {
+      setCreateError(e instanceof Error ? e.message : "Failed to create scenario");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
-    <Card>
-      <CardHeader
-        title="Scenario modelling"
-        subtitle="What-if projections for Protein Tracker runs. Deterministic, read-only."
-      />
-      <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        <p className="font-medium">Phase 26A — available via API</p>
-        <p className="mt-1 text-xs text-blue-700">
-          Scenario modelling is available through the REST API. Use
-          <code className="mx-1 rounded bg-blue-100 px-1 font-mono text-xs">
-            POST /api/v1/projects/{projectId}/scenarios
-          </code>
-          to create a scenario against run
-          <code className="ml-1 rounded bg-blue-100 px-1 font-mono text-xs">{runId}</code>,
-          add operations, then call
-          <code className="mx-1 rounded bg-blue-100 px-1 font-mono text-xs">
-            POST /api/v1/scenarios/:id/run
-          </code>
-          to compute the projection.
+    <div id="scenarios-card">
+      <Card>
+        <div className="flex items-start justify-between">
+          <CardHeader
+            title="Scenario modelling"
+            subtitle="What-if projections against this PT run. Deterministic — actual results are never changed."
+          />
+          {!showCreate && (
+            <Button variant="ghost" onClick={() => setShowCreate(true)}>
+              + New scenario
+            </Button>
+          )}
+        </div>
+
+        {/* Create form */}
+        {showCreate && (
+          <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-blue-900">New scenario</span>
+              <button className="text-xs text-blue-400 hover:text-blue-600" onClick={() => { setShowCreate(false); setPendingOpType(null); }}>✕</button>
+            </div>
+            <label className="flex flex-col gap-1 text-xs text-gray-600">
+              Name
+              <input
+                type="text"
+                placeholder="e.g. Increase plant core by 10%"
+                className="rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                autoFocus
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-gray-600">
+              Description (optional)
+              <input
+                type="text"
+                placeholder="Why this scenario?"
+                className="rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
+                value={createDesc}
+                onChange={(e) => setCreateDesc(e.target.value)}
+              />
+            </label>
+            {pendingOpType && (
+              <p className="text-xs text-blue-700">
+                Suggested first operation: <span className="font-medium">{OP_LABELS[pendingOpType]}</span>. Add it after creating the scenario.
+              </p>
+            )}
+            {createError && <p className="text-xs text-rose-600">{createError}</p>}
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={handleCreate} disabled={creating || !createName.trim()}>
+                {creating ? "Creating…" : "Create"}
+              </Button>
+              <Button variant="ghost" onClick={() => { setShowCreate(false); setPendingOpType(null); }}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        {/* Scenario list */}
+        {loading ? (
+          <p className="mt-4 text-sm text-gray-400">Loading scenarios…</p>
+        ) : scenarios.length === 0 && !showCreate ? (
+          <p className="mt-4 text-sm text-gray-400">
+            No scenarios yet. Create one to model what-if changes to this run.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {scenarios.map((s) => (
+              <ScenarioItem
+                key={s.id}
+                scenario={s}
+                api={api}
+                onUpdate={(updated) =>
+                  setScenarios((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
+                }
+              />
+            ))}
+          </div>
+        )}
+        <p className="mt-4 text-xs text-gray-400">
+          PT only · Projections do not affect actual run results · WWF scenarios not yet available
         </p>
-        <p className="mt-2 text-xs text-blue-600">
-          Supported operations: shift protein between groups, increase plant core,
-          reduce animal core, improve composite split. WWF scenarios are not yet implemented.
-          A full UI for scenario authoring is planned for a future phase.
-        </p>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 }
 

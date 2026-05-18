@@ -1818,6 +1818,38 @@ def list_scenarios_route(
     return [_scenario_response(store, s) for s in scenarios]
 
 
+@api_router.get(
+    "/scenarios/{scenario_id}/operations",
+    response_model=list[ScenarioOperationResponse],
+)
+def list_scenario_operations_route(
+    scenario_id: UUID,
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> list[ScenarioOperationResponse]:
+    """List operations for a scenario (Altera only)."""
+    if not auth.is_altera_internal:
+        raise HTTPException(status_code=403, detail="altera internal access required")
+
+    scenario = store.get_scenario(scenario_id)
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="scenario not found")
+
+    ops = store.list_scenario_operations(scenario_id)
+    return [
+        ScenarioOperationResponse(
+            id=op.id,
+            scenario_id=op.scenario_id,
+            operation_type=op.operation_type,
+            parameters=op.parameters,
+            rationale=op.rationale,
+            order=op.order,
+            created_at=op.created_at.isoformat(),
+        )
+        for op in ops
+    ]
+
+
 @api_router.post(
     "/scenarios/{scenario_id}/operations",
     response_model=ScenarioOperationResponse,

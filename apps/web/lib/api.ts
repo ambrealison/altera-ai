@@ -907,6 +907,13 @@ export function createApi(accessToken: string | null) {
         accessToken,
       ),
 
+    listScenarioOperations: (scenarioId: string) =>
+      request<ScenarioOperationResponse[]>(
+        `/api/v1/scenarios/${scenarioId}/operations`,
+        { method: "GET" },
+        accessToken,
+      ),
+
     addScenarioOperation: (scenarioId: string, body: ScenarioOperationRequest) =>
       request<ScenarioOperationResponse>(
         `/api/v1/scenarios/${scenarioId}/operations`,

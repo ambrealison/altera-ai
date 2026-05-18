@@ -448,20 +448,39 @@ or task handlers. The frontend polls `GET /jobs/{id}` for async status.
 The original synchronous HTTP endpoints remain available for backwards
 compatibility and for the direct multipart upload flow.
 
-## Scenario modelling (Phase 26A)
+## Scenario modelling (Phase 26A/26B)
 
 After a run is complete, an Altera methodology lead can create one or
 more **scenarios** against that run — deterministic projections that
 explore "what if the retailer made this change?" without touching the
 underlying measurement data.
 
-Scenarios are **Protein Tracker only** in Phase 26A. WWF scenario
-modelling is deferred.
+Scenarios are **Protein Tracker only**. WWF scenario modelling is deferred.
 
 Scenario lifecycle: `draft → active → archived`.
 
-A scenario is created in `draft`. It transitions to `active`
-automatically on first successful execution.
+A scenario is created in `draft`. It transitions to `active` automatically
+on first successful execution (`POST /scenarios/{id}/run`).
+
+### Report page UI (Phase 26B)
+
+The report page includes a **Scenario modelling** card for Altera users.
+From there, an analyst can:
+
+1. Create a named scenario against the current run.
+2. Add one or more operations (shift, increase, reduce, or composite-split).
+3. Run the projection to see base-vs-projected plant/animal protein and share.
+4. Repeat with different operations; each Run overwrites the previous result.
+
+### Recommendation bridge (Phase 26B)
+
+For three recommendation types, a **Simulate ↓** button opens the scenario
+create form pre-populated with the recommendation's name and rationale.
+The user must enter the numeric parameter (amount kg or split %). No
+assumptions are applied automatically and no impact estimates are shown.
+
+Scenarios never mutate actual run results and never feed into the approved
+client report.
 
 See [../scenarios/overview.md](../scenarios/overview.md) for the full
 projection engine, operation taxonomy, and access control rules.

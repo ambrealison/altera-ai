@@ -9,10 +9,14 @@ Scenarios are **not forecasts** and do not modify any historical data.
 Every projection is recomputable on demand from the same base run and
 the same ordered set of operations.
 
-## Phase 26A scope
+## Phase scope
 
-Phase 26A implements the scenario foundation for **Protein Tracker only**.
-WWF scenario modelling is deferred to a future phase.
+**Phase 26A** implemented the scenario foundation: domain models, projection
+engine, persistence, API endpoints, and Supabase migration.
+
+**Phase 26B** adds a functional UI on the report page (create, add operations,
+run, view results) and a recommendation-to-scenario bridge. Both phases are
+**Protein Tracker only**. WWF scenario modelling is deferred to a future phase.
 
 ## Core concepts
 
@@ -83,7 +87,7 @@ Key invariants:
 `scenario_id`. Re-running a scenario upserts the result. The result
 payload is the serialised `ScenarioResult` Pydantic model.
 
-## API endpoints (Phase 26A)
+## API endpoints
 
 All scenario endpoints are under `/api/v1/projects/{project_id}/scenarios`
 unless noted.
@@ -92,6 +96,7 @@ unless noted.
 |--------|------|------|-------------|
 | `POST` | `/` | Altera only | Create a scenario (returns `draft` scenario) |
 | `GET` | `/` | Altera only | List all scenarios for a project |
+| `GET` | `/{id}/operations` | Altera only | List operations for a scenario (Phase 26B) |
 | `POST` | `/{id}/operations` | Altera only | Add an operation to a scenario |
 | `POST` | `/{id}/run` | Altera only | Execute the projection; upserts result; auto-promotes to `active` |
 | `GET` | `/{id}/result` | Altera + clients (active only) | Fetch the latest projection result |
@@ -127,13 +132,49 @@ RLS mirrors these rules in Supabase:
 | `scenario_operations` | Ordered operation steps per scenario |
 | `scenario_results` | Latest projection output, keyed by `scenario_id` |
 
-## Frontend (Phase 26A)
+## Frontend (Phase 26B)
 
-A `ScenariosPlaceholderCard` is shown on the report page for Altera
-users when the run methodology is `protein_tracker`. The card renders a
-blue info box with the API endpoint instructions for creating and running
-scenarios. A full interactive scenario-builder UI is deferred to a later
-phase.
+`ScenariosCard` is shown on the report page for Altera users when the run
+methodology is `protein_tracker`. It provides:
+
+- **Scenario list** — loads all scenarios for the project on mount.
+- **Create form** — inline form for name and optional description; calls
+  `POST /projects/{id}/scenarios` with the current `run_id` as `base_run_id`.
+- **Per-scenario operation list** — fetches operations via the new
+  `GET /scenarios/{id}/operations` endpoint.
+- **Add operation form** — type selector + conditional parameter fields:
+  - `shift_protein_between_groups`: from-group, to-group, amount (kg).
+  - `increase_plant_core_protein`: amount to add (kg).
+  - `reduce_animal_core_protein`: amount to reduce (kg).
+  - `improve_composite_split`: plant % (animal % auto-derived).
+- **Run button** — calls `POST /scenarios/{id}/run`; scenario auto-promotes
+  to `active`; result table appears inline.
+- **Result table** — base vs projected for plant protein (kg), animal
+  protein (kg), plant share (%), animal share (%), with signed deltas
+  coloured green/red.
+- **Warnings** — clamping and parse warnings from the projection engine are
+  displayed in an amber box below the result table.
+
+### Recommendation-to-scenario bridge
+
+Three recommendation action types have a safe scenario mapping:
+
+| Recommendation `action_type` | Suggested operation |
+|-------------------------------|---------------------|
+| `increase_plant_core_share` | `increase_plant_core_protein` |
+| `reduce_animal_core_dependency` | `reduce_animal_core_protein` |
+| `improve_composite_breakdown` | `improve_composite_split` |
+
+For recommendations carrying one of these action types, a **Simulate ↓**
+button appears in the lifecycle action row. Clicking it:
+
+1. Pre-populates the scenario create form with the recommendation's title
+   (name) and rationale (description).
+2. Shows a hint for the suggested operation type.
+3. Scrolls the page to `ScenariosCard`.
+
+The user must still enter the numeric parameter (amount kg or plant %)
+and click Run. No assumptions are made automatically.
 
 ## What scenarios are NOT
 
