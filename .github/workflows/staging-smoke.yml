@@ -1,0 +1,35 @@
+name: Staging smoke test
+
+# Manually triggered from the GitHub Actions UI.
+# Required inputs:
+#   api_url  — deployed backend root URL
+#   web_url  — deployed frontend root URL (optional)
+#
+# No deployment secrets required — the smoke test only hits public
+# endpoints (/health, /version, /api/v1/me).
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Backend URL (e.g. https://api.staging.altera-ai.com)"
+        required: true
+        type: string
+      web_url:
+        description: "Frontend URL (optional, e.g. https://staging.altera-ai.com)"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  smoke:
+    name: Smoke test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run smoke tests
+        run: bash scripts/staging_smoke.sh
+        env:
+          API_BASE_URL: ${{ inputs.api_url }}
+          WEB_BASE_URL: ${{ inputs.web_url }}

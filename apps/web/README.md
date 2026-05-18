@@ -108,3 +108,26 @@ Then open http://localhost:3000.
 pnpm --filter @altera-ai/web lint
 pnpm --filter @altera-ai/web typecheck
 ```
+
+## Vercel deployment
+
+1. Connect the repository in the Vercel dashboard.
+2. Set **Root Directory** to `apps/web`.
+3. Framework is auto-detected as Next.js.
+4. Set environment variables in the Vercel project settings:
+
+   | Variable | Description |
+   |---|---|
+   | `NEXT_PUBLIC_API_BASE_URL` | Deployed backend URL |
+   | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key |
+
+   Do **not** add `SUPABASE_SERVICE_ROLE_KEY` or any backend-only secrets
+   here — they would be baked into the client bundle.
+
+5. Add Auth redirect URLs in the Supabase dashboard → Authentication → URL Configuration:
+
+   ```
+   https://<vercel-deployment-url>/auth/callback
+   https://staging.altera-ai.com/auth/callback
+   ```

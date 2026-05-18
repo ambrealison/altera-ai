@@ -90,6 +90,27 @@ Full history scan (requires gitleaks installed):
 gitleaks detect --source . --config .gitleaks.toml
 ```
 
+## Staging smoke test workflow
+
+`.github/workflows/staging-smoke.yml` is a manual `workflow_dispatch`
+workflow. Trigger it from GitHub Actions UI after deploying to staging:
+
+1. Go to **Actions → Staging smoke test → Run workflow**.
+2. Enter the backend URL and optionally the frontend URL.
+3. The workflow runs `scripts/staging_smoke.sh` which checks `/health`,
+   `/version`, and `/api/v1/me` (expects 401).
+
+No deployment secrets are required — the smoke test only hits public
+endpoints.
+
+Run the same check locally:
+
+```bash
+API_BASE_URL=https://api.staging.altera-ai.com \
+WEB_BASE_URL=https://staging.altera-ai.com \
+./scripts/staging_smoke.sh
+```
+
 ## Caches
 
 | Cache | Key |

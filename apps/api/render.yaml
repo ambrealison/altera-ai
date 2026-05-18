@@ -1,0 +1,75 @@
+# Render deployment template for the Altera AI backend.
+#
+# This is a TEMPLATE — fill in the envVarGroups or individual envVars
+# before deploying. Never commit real secrets here.
+#
+# Docs: https://render.com/docs/render-yaml-spec
+
+services:
+  - type: web
+    name: altera-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile      # relative to repo root; adjust if needed
+    dockerContext: apps/api
+    plan: starter                     # change to standard/pro as needed
+    region: oregon                    # change to match your Supabase region
+
+    # Health check — Render marks the service healthy when this returns 200.
+    healthCheckPath: /health
+
+    # Auto-deploy on push to the deploy branch (set in Render dashboard).
+    autoDeploy: false                 # set true once staging is verified
+
+    envVars:
+      # ── Required ──────────────────────────────────────────────────────
+      - key: SUPABASE_URL
+        sync: false                   # set in Render dashboard / secret group
+
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      - key: SUPABASE_ANON_KEY
+        sync: false
+
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://staging.altera-ai.com   # replace with real frontend URL
+
+      # ── Persistence ────────────────────────────────────────────────────
+      - key: ALTERA_USE_IN_MEMORY_STORE
+        value: "false"
+
+      # ── Auth ───────────────────────────────────────────────────────────
+      - key: ALTERA_DEV_AUTH_ENABLED
+        value: "false"
+
+      # ── AI provider ────────────────────────────────────────────────────
+      - key: OPENAI_API_KEY
+        sync: false
+
+      - key: ALTERA_AI_CLASSIFIER_ENABLED
+        value: "true"
+
+      - key: ALTERA_AI_PROVIDER
+        value: openai
+
+      # ── Rate limiting ──────────────────────────────────────────────────
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+
+      # Render's egress IPs — check https://render.com/docs/static-outbound-ip-addresses
+      # and replace with actual ranges before enabling.
+      # - key: TRUSTED_PROXIES
+      #   value: ""
+
+      # ── Observability ──────────────────────────────────────────────────
+      - key: LOG_LEVEL
+        value: INFO
+
+      - key: SENTRY_DSN
+        sync: false                   # leave empty to disable Sentry
+
+      - key: SENTRY_ENVIRONMENT
+        value: staging

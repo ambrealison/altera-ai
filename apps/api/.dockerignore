@@ -1,0 +1,23 @@
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environment (rebuilt in Docker)
+.venv/
+
+# Test and dev tooling (not needed in production image)
+tests/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets — must never be baked into the image
+.env
+.env.*
+!.env.example

@@ -339,15 +339,121 @@ For `SUPABASE_JWT_SECRET` rotation: Supabase rotates the JWT secret automaticall
 
 If a secret is found committed to git history: revoke it immediately in the provider dashboard, then rewrite history (see `docs/development/ci.md` — Git history note).
 
+### Docker build and run
+
+Build the backend image from the repo root:
+
+```bash
+docker build -t altera-api apps/api/
+```
+
+Run locally (in-memory store, dev auth — for image testing only):
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e ALTERA_DEV_AUTH_ENABLED=true \
+  -e CORS_ALLOWED_ORIGINS=http://localhost:3000 \
+  altera-api
+# curl http://localhost:8000/health
+```
+
+Run with Postgres (real secrets via env vars):
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e ALTERA_DEV_AUTH_ENABLED=false \
+  -e ALTERA_USE_IN_MEMORY_STORE=false \
+  -e SUPABASE_URL=https://<ref>.supabase.co \
+  -e SUPABASE_JWT_SECRET=<secret> \
+  -e SUPABASE_SERVICE_ROLE_KEY=<key> \
+  -e SUPABASE_ANON_KEY=<key> \
+  -e CORS_ALLOWED_ORIGINS=http://localhost:3000 \
+  altera-api
+```
+
+`$PORT` is honoured — Render/Fly.io/Railway set it automatically.
+
+### Render deployment
+
+`apps/api/render.yaml` is a template for Render deployments. Before
+using it:
+
+1. Set `sync: false` env vars in the Render dashboard or a secret group.
+2. Replace the `CORS_ALLOWED_ORIGINS` value with your real frontend URL.
+3. Set `autoDeploy: true` once the initial deployment is verified.
+
+Deploy the service from the Render dashboard by connecting the repository
+and pointing it at `apps/api/render.yaml`.
+
+### Supabase staging project setup
+
+1. Create a new Supabase project for staging in the Supabase dashboard.
+2. Note the project reference ID, URL, anon key, service role key, and JWT secret.
+3. Apply migrations:
+   ```bash
+   supabase db push --project-ref <STAGING_PROJECT_REF>
+   ```
+4. Create storage buckets (**private**, not public):
+   ```bash
+   # Using the Supabase CLI:
+   supabase storage create-bucket uploads --project-ref <REF> --private
+   supabase storage create-bucket exports --project-ref <REF> --private
+   # Or create them in the Supabase dashboard → Storage.
+   ```
+5. Configure Auth redirect URLs (Supabase dashboard → Authentication → URL Configuration):
+   ```
+   https://<vercel-staging-url>/auth/callback
+   https://staging.altera-ai.com/auth/callback
+   ```
+6. Verify RLS policies are active:
+   ```bash
+   cd apps/api && uv run pytest tests/observability/test_rls_audit.py -v
+   ```
+
+### First Altera admin user (bootstrap gap)
+
+There is currently no API endpoint to provision organisations or assign
+the first `altera_admin` role. Bootstrap is manual:
+
+1. Create the user in the Supabase Auth dashboard or via `supabase auth user create`.
+2. Insert the organisation and membership rows directly in the Supabase SQL editor:
+   ```sql
+   -- Replace UUIDs and values as appropriate.
+   INSERT INTO organisations (id, name, organisation_type)
+   VALUES ('<uuid>', 'Altera AI', 'altera');
+
+   INSERT INTO memberships (user_id, organisation_id, role)
+   VALUES ('<auth-user-uuid>', '<org-uuid>', 'altera_admin');
+   ```
+3. Verify login and `/api/v1/me` returns the expected role.
+
+This is a known gap — org management endpoints are planned for a later phase.
+
+### Smoke test
+
+After deploying, run the smoke test to verify the service is healthy:
+
+```bash
+API_BASE_URL=https://api.staging.altera-ai.com \
+WEB_BASE_URL=https://staging.altera-ai.com \
+./scripts/staging_smoke.sh
+```
+
+Or trigger the GitHub Actions smoke test manually:
+`Actions → Staging smoke test → Run workflow`.
+
 ### Staging deployment checklist
 
-- [ ] CI passes on the branch being deployed
+- [ ] CI passes on the branch being deployed (`Actions → CI`)
+- [ ] Git history cleaned (`./scripts/verify_no_tracked_secrets.sh` passes)
 - [ ] All required backend env vars set in the staging secret manager
-- [ ] All required frontend env vars set in the Vercel project settings (or equivalent)
-- [ ] `supabase db push` applied to the staging Supabase project
-- [ ] `GET /health` returns `{"status": "ok"}` after deploy
-- [ ] `/version` returns the expected build version
+- [ ] All required frontend env vars set in the Vercel project settings
+- [ ] `supabase db push` applied to the staging project
+- [ ] Storage buckets `uploads` and `exports` created as **private**
+- [ ] Auth redirect URLs configured in Supabase
+- [ ] First Altera admin user bootstrapped (see above)
+- [ ] `./scripts/staging_smoke.sh` passes
 - [ ] Login flow works end-to-end (Supabase Auth → JWT → API `/me`)
 - [ ] At least one test upload processed successfully
-- [ ] Sentry events visible in the staging environment
+- [ ] Sentry events visible in the staging Sentry project
 - [ ] `ALTERA_DEV_AUTH_ENABLED=false` confirmed in staging logs
