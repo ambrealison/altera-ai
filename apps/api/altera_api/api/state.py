@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 
 from altera_api.domain.audit import AuditEvent
 from altera_api.domain.common import Methodology, Role
+from altera_api.domain.enrichment import NutritionEnrichmentRecord
 from altera_api.domain.job import Job, JobStatus, JobType
 from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.product import NormalizedProduct
@@ -116,6 +117,8 @@ class InMemoryStore:
         self.audit_events: list[AuditEvent] = []
         self.wwf_ingredients: dict[UUID, list[WWFCompositeIngredient]] = {}
         self.jobs: dict[UUID, Job] = {}
+        # Phase 23A: enrichment records keyed by product_id
+        self.enrichment_records: dict[UUID, list[NutritionEnrichmentRecord]] = {}
         # Bootstrap a default org + user so Phase 12 doesn't need auth.
         self._bootstrap_default_tenant()
 
@@ -483,3 +486,30 @@ class InMemoryStore:
             ):
                 return job
         return None
+
+    # ------------------------------------------------------------------
+    # Nutrition enrichment (Phase 23A)
+    # ------------------------------------------------------------------
+
+    def add_enrichment_record(self, record: NutritionEnrichmentRecord) -> None:
+        with self._lock:
+            recs = self.enrichment_records.get(record.product_id)
+            if recs is None:
+                self.enrichment_records[record.product_id] = [record]
+            else:
+                recs.append(record)
+
+    def get_enrichment_records_for_product(
+        self, product_id: UUID
+    ) -> list[NutritionEnrichmentRecord]:
+        return list(self.enrichment_records.get(product_id, []))
+
+    def list_enrichment_records_for_project(
+        self, project_id: UUID
+    ) -> list[NutritionEnrichmentRecord]:
+        result: list[NutritionEnrichmentRecord] = []
+        for pid, recs in self.enrichment_records.items():
+            product = self.products.get(pid)
+            if product is not None and product.project_id == project_id:
+                result.extend(recs)
+        return result

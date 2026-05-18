@@ -42,6 +42,7 @@ class ProteinSource(StrEnum):
 
     LABEL = "label"
     REFERENCE_DB = "reference_db"
+    ENRICHED = "enriched"  # Phase 23A: value supplied by the enrichment pipeline
 
 
 class RawProduct(DomainBase):
@@ -75,10 +76,16 @@ class RawProduct(DomainBase):
 
 
 class PTProductFields(DomainBase):
-    """Protein-Tracker-specific block on a normalised product."""
+    """Protein-Tracker-specific block on a normalised product.
+
+    ``protein_pct`` is ``None`` when the retailer did not supply label
+    protein data and no enrichment value has been applied yet. Products
+    with ``protein_pct=None`` are excluded from the protein calculation
+    until enriched (Phase 23A+).
+    """
 
     items_purchased: Quantity
-    protein_pct: Decimal = Field(ge=Decimal("0"), le=Decimal("100"))
+    protein_pct: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("100"))
     protein_source: ProteinSource = ProteinSource.REFERENCE_DB
     plant_protein_pct: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("100"))
     animal_protein_pct: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("100"))

@@ -123,6 +123,10 @@ def calculate_pt_run(
             )
 
         pt_fields = product.pt_fields
+        if pt_fields.protein_pct is None:
+            # protein_pct absent — product awaits enrichment (Phase 23A).
+            # Exclude from protein calculation; contributes zero to all totals.
+            continue
         volume_kg = _q8(pt_fields.items_purchased * product.weight_per_item_kg)
         full_protein_kg = _q8(volume_kg * pt_fields.protein_pct / _ONE_HUNDRED)
 

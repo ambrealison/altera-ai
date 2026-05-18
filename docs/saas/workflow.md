@@ -258,7 +258,41 @@ The report page shows:
    from thresholds documented in
    [../outputs/report-structure.md](../outputs/report-structure.md).
    Methodology-specific caveats (e.g. 50/50 composite protein split,
-   WWF dairy equivalents) are listed below the metrics.
+   WWF dairy equivalents, enrichment disclosures) are listed below the
+   metrics.
+
+## Nutrition enrichment pipeline (Phase 23A)
+
+When a PT upload includes products without a retailer-provided
+`protein_pct`, the assessor (`enrichment/assessor.py`) flags them as
+`NEEDED` and records a `NutritionEnrichmentRecord` per product. These
+products are **excluded from protein totals** in any PT run until a
+value is supplied.
+
+Enrichment sources in priority order:
+
+| Priority | Source | Available |
+|----------|--------|-----------|
+| 0 | `retailer_provided` — taken directly from the upload | Yes (not an enrichment step; recorded automatically) |
+| 1 | `manual_altera` — analyst override entered via the review UI | Yes |
+| 2 | `category_average` — average for the product's PT group | Yes |
+| 3 | `open_food_facts` — Open Food Facts public database | Planned |
+| 4 | `ciqual` — ANSES CIQUAL French food composition table | Planned |
+| 5 | `oqali` — OQALI Observatory (France) | Planned |
+| 6 | `nevo` — Dutch NEVO table | Planned |
+
+External databases (priorities 3–6) are registered in
+`enrichment/registry.py` but `is_available=False` — no outbound API
+calls are made in Phase 23A.
+
+Enrichment records are stored separately from the normalised product;
+retailer-provided values are never overwritten. The calculation engine
+uses only `NormalizedProduct.pt_fields.protein_pct` — enrichment
+records in the store are invisible to `calculate_pt_run`.
+
+The coverage section discloses enrichment via two optional caveats;
+see [../outputs/report-structure.md](../outputs/report-structure.md)
+for the exact wording.
 
 ## 13. Closing out
 

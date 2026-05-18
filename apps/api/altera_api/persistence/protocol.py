@@ -13,6 +13,7 @@ from uuid import UUID
 from altera_api.api.state import ExportRecord, RunRecord, UploadRecord
 from altera_api.domain.audit import AuditEvent
 from altera_api.domain.common import Methodology
+from altera_api.domain.enrichment import NutritionEnrichmentRecord
 from altera_api.domain.job import Job, JobType
 from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.product import NormalizedProduct
@@ -152,3 +153,14 @@ class StoreProtocol(Protocol):
     def get_job(self, job_id: UUID) -> Job | None: ...
     def list_jobs_for_project(self, project_id: UUID) -> list[Job]: ...
     def find_active_job(self, *, job_type: JobType, idempotency_key: str) -> Job | None: ...
+
+    # ------------------------------------------------------------------
+    # Nutrition enrichment (Phase 23A)
+    # ------------------------------------------------------------------
+    def add_enrichment_record(self, record: NutritionEnrichmentRecord) -> None: ...
+    def get_enrichment_records_for_product(
+        self, product_id: UUID
+    ) -> list[NutritionEnrichmentRecord]: ...
+    def list_enrichment_records_for_project(
+        self, project_id: UUID
+    ) -> list[NutritionEnrichmentRecord]: ...

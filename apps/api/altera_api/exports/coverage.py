@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from altera_api.persistence.protocol import StoreProtocol
 
 from altera_api.domain.common import ClassificationSource, Methodology
+from altera_api.domain.enrichment import NutritionEnrichmentStatus
 from altera_api.domain.project import Project
 from altera_api.domain.protein_tracker import ProteinTrackerCalculationSummary
 from altera_api.domain.report import CoverageSection
@@ -207,6 +208,42 @@ def _wwf_caveats(s: WWFCalculationSummary) -> list[str]:
     return caveats
 
 
+def _enrichment_caveats(store: StoreProtocol, project_id: UUID) -> list[str]:
+    """Disclose enrichment usage and gaps for PT runs (Phase 23A).
+
+    Returns caveats only when enrichment records exist for the project.
+    Products with retailer-provided protein data produce no caveats.
+    """
+    try:
+        enrichment_records = store.list_enrichment_records_for_project(project_id)
+    except AttributeError:
+        # Store does not yet implement enrichment methods — safe no-op.
+        return []
+
+    needed = sum(
+        1
+        for r in enrichment_records
+        if r.nutrient == "protein_pct" and r.status is NutritionEnrichmentStatus.NEEDED
+    )
+    enriched = sum(
+        1
+        for r in enrichment_records
+        if r.nutrient == "protein_pct" and r.status is NutritionEnrichmentStatus.ENRICHED
+    )
+    caveats: list[str] = []
+    if needed > 0:
+        caveats.append(
+            f"{needed} product(s) are missing label protein %; "
+            "enrichment from an external or manual source is recommended."
+        )
+    if enriched > 0:
+        caveats.append(
+            f"{enriched} product(s) used enriched protein % values "
+            "(not from retailer labels). Enrichment source recorded per product."
+        )
+    return caveats
+
+
 def build_coverage_section(
     store: StoreProtocol,
     run: RunRecord,
@@ -356,11 +393,12 @@ def build_coverage_section(
     )
 
     # ------------------------------------------------------------------ #
-    # Caveats
+    # Caveats (methodology-specific + enrichment disclosure)
     # ------------------------------------------------------------------ #
     if is_pt:
         s_pt = ProteinTrackerCalculationSummary.model_validate(run.summary_payload)
         caveats = _pt_caveats(s_pt, products_with_missing_protein or 0)
+        caveats = caveats + _enrichment_caveats(store, project.id)
     else:
         s_wwf = WWFCalculationSummary.model_validate(run.summary_payload)
         caveats = _wwf_caveats(s_wwf)

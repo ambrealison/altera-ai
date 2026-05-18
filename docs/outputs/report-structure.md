@@ -212,6 +212,18 @@ Fields that are methodology-specific (`products_with_missing_protein`,
 `missing_protein_share_pct`) are `null` for WWF runs.
 Percentages are `null` when the denominator is zero.
 
+### Enrichment caveats (Phase 23A)
+
+When enrichment records exist for the project the `caveats` list in PT
+coverage sections will include one or both of:
+
+- **NEEDED**: `"N product(s) are missing label protein %; enrichment from an external or manual source is recommended."` — products that have no `protein_pct` and no enrichment value applied; they are excluded from protein totals.
+- **ENRICHED**: `"N product(s) used enriched protein % values (not from retailer labels). Enrichment source recorded per product."` — products whose protein value came from an enrichment record rather than the retailer label.
+
+These caveats are deterministic and source-agnostic; the enrichment
+source for each individual product is stored in
+`NutritionEnrichmentRecord.source`.
+
 ## What is never shown
 
 - Any sales revenue, sales value, margin, or supplier figure.
