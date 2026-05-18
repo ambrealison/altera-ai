@@ -9,6 +9,7 @@ import {
   createApi,
   type CoverageSection,
   type PTReportSection,
+  type PersistedRecommendation,
   type RecommendationItem,
   type ReportDocument,
   type WWFReportSection,
@@ -186,7 +187,13 @@ export default function ReportPage() {
       )}
 
       {/* Recommendations */}
-      <RecommendationsCard recommendations={recommendations} isAltera={isAltera} />
+      <RecommendationsCard
+        recommendations={recommendations}
+        isAltera={isAltera}
+        projectId={id}
+        runId={runId}
+        api={api}
+      />
 
       {/* Data coverage and uncertainty */}
       <CoverageSectionCard coverage={coverage} />
@@ -201,21 +208,83 @@ const PRIORITY_TONE: Record<string, "ok" | "warn" | "error" | "neutral"> = {
   critical: "error",
 };
 
+const REC_STATUS_TONE: Record<string, "neutral" | "warn" | "ok" | "error" | "brand"> = {
+  draft: "neutral",
+  proposed: "warn",
+  accepted: "ok",
+  dismissed: "error",
+  archived: "neutral",
+};
+
 function RecommendationsCard({
-  recommendations,
+  recommendations: initialRecs,
   isAltera,
+  projectId,
+  runId,
+  api,
 }: {
   recommendations: RecommendationItem[];
   isAltera: boolean;
+  projectId: string;
+  runId: string;
+  api: ReturnType<typeof createApi>;
 }) {
-  const visible = recommendations.filter((r) => r.client_facing || isAltera);
+  const [recs, setRecs] = useState<RecommendationItem[]>(initialRecs);
+  const [generating, setGenerating] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const visible = recs.filter((r) => r.client_facing || isAltera);
+
+  async function handleGenerate() {
+    setGenerating(true);
+    setActionError(null);
+    try {
+      const updated = await api.generateRecommendations(projectId, runId);
+      setRecs(updated);
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : "Failed to generate recommendations");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleTransition(
+    id: string,
+    action: "propose" | "dismiss" | "archive" | "accept",
+  ) {
+    setActionError(null);
+    try {
+      let updated: PersistedRecommendation;
+      if (action === "propose") updated = await api.proposeRecommendation(id);
+      else if (action === "dismiss") updated = await api.dismissRecommendation(id);
+      else if (action === "archive") updated = await api.archiveRecommendation(id);
+      else updated = await api.acceptRecommendation(id);
+      setRecs((prev) => prev.map((r) => (r.id === id ? { ...r, status: updated.status } : r)));
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : "Action failed");
+    }
+  }
 
   return (
     <Card>
-      <CardHeader
-        title="Recommendations"
-        subtitle="Deterministic, directional signals from this run. No numeric impact estimates."
-      />
+      <div className="flex items-start justify-between">
+        <CardHeader
+          title="Recommendations"
+          subtitle="Deterministic, directional signals from this run. No numeric impact estimates."
+        />
+        {isAltera && (
+          <Button
+            variant="ghost"
+            onClick={handleGenerate}
+            disabled={generating}
+          >
+            {generating ? "Generating…" : "Generate / refresh"}
+          </Button>
+        )}
+      </div>
+      {actionError && (
+        <p className="mt-2 text-xs text-rose-600">{actionError}</p>
+      )}
       {visible.length === 0 ? (
         <p className="mt-3 text-sm text-gray-500">No recommendations generated yet.</p>
       ) : (
@@ -225,6 +294,7 @@ function RecommendationsCard({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium text-sm text-gray-900">{r.title}</span>
                 <Pill tone={PRIORITY_TONE[r.priority] ?? "neutral"}>{r.priority}</Pill>
+                <Pill tone={REC_STATUS_TONE[r.status] ?? "neutral"}>{r.status}</Pill>
                 {!r.client_facing && isAltera && (
                   <Pill tone="brand">Altera only</Pill>
                 )}
@@ -249,6 +319,30 @@ function RecommendationsCard({
                       <li key={i} className="text-xs text-amber-700">· {c}</li>
                     ))}
                   </ul>
+                </div>
+              )}
+              {isAltera && r.id && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {r.status === "draft" && (
+                    <Button variant="ghost" onClick={() => handleTransition(r.id!, "propose")}>
+                      Propose
+                    </Button>
+                  )}
+                  {r.status === "proposed" && (
+                    <Button variant="ghost" onClick={() => handleTransition(r.id!, "accept")}>
+                      Accept
+                    </Button>
+                  )}
+                  {(r.status === "draft" || r.status === "proposed") && (
+                    <Button variant="ghost" onClick={() => handleTransition(r.id!, "dismiss")}>
+                      Dismiss
+                    </Button>
+                  )}
+                  {r.status !== "archived" && r.status !== "dismissed" && (
+                    <Button variant="ghost" onClick={() => handleTransition(r.id!, "archive")}>
+                      Archive
+                    </Button>
+                  )}
                 </div>
               )}
             </li>

@@ -228,17 +228,41 @@ when no triggers fire). Each item is a `Recommendation` with:
 - `confidence` — `low` / `medium` / `high`
 - `evidence` — bullet list of data points that triggered the recommendation
 - `caveats` — static caveats from the taxonomy
-- `status` — always `draft` in Phase 25A
+- `id` — UUID when loaded from the persistence store; `null` for ephemeral engine output
+- `run_id` — UUID when persisted; `null` for ephemeral
+- `status` — `draft` | `proposed` | `accepted` | `dismissed` | `archived`
 - `client_facing` — `true` for GMS-visible items; `false` for Altera-only
 
-**Phase 25A constraints:**
+**Phase 25A constraints (still apply):**
 
 - Recommendations are deterministic. Same inputs → same output, no randomness.
 - No LLM is called.
 - No numeric impact estimates.
 - No scenario modelling.
 - No unsupported health or nutrition claims.
-- `status` lifecycle (accept / dismiss / archive) is Phase 25B+.
+
+**Phase 25B — persistence and lifecycle:**
+
+Recommendations can be persisted via `POST /runs/{run_id}/recommendations/generate`
+(Altera internal only).  Once persisted, `build_report_document` uses the stored
+records rather than calling the engine again.
+
+Lifecycle transitions (all require `ALTERA_METHODOLOGY_LEAD` or `ALTERA_ADMIN`):
+
+```
+draft → proposed  (POST /recommendations/{id}/propose)
+proposed → accepted  (POST /recommendations/{id}/accept)
+any → dismissed   (POST /recommendations/{id}/dismiss)
+any → archived    (POST /recommendations/{id}/archive)
+```
+
+Client visibility gate: the `GET /recommendations` endpoint and
+`build_report_document` filter to `proposed` and `accepted` status for
+non-Altera callers.  Altera users see all statuses.
+
+Re-running `generate` is safe: existing records with status already
+`proposed`, `accepted`, `dismissed`, or `archived` keep their status;
+only new (not yet stored) items are inserted at `draft`.
 
 See [../recommendations/action-taxonomy.md](../recommendations/action-taxonomy.md)
 for the full trigger list.

@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
-from altera_api.api.state import ExportRecord, RunRecord, UploadRecord
+from altera_api.api.state import ExportRecord, PersistedRecommendation, RunRecord, UploadRecord
 from altera_api.domain.audit import AuditEvent
 from altera_api.domain.common import Methodology
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
@@ -174,3 +174,26 @@ class StoreProtocol(Protocol):
     def list_enrichment_records_for_project(
         self, project_id: UUID
     ) -> list[NutritionEnrichmentRecord]: ...
+
+    # ------------------------------------------------------------------
+    # Recommendations (Phase 25B)
+    # ------------------------------------------------------------------
+    def upsert_recommendations_for_run(
+        self, records: list[PersistedRecommendation]
+    ) -> None: ...
+    def list_recommendations_for_run(
+        self, run_id: UUID
+    ) -> list[PersistedRecommendation]: ...
+    def list_recommendations_for_project(
+        self, project_id: UUID
+    ) -> list[PersistedRecommendation]: ...
+    def get_recommendation(
+        self, recommendation_id: UUID
+    ) -> PersistedRecommendation | None: ...
+    def update_recommendation_status(
+        self,
+        recommendation_id: UUID,
+        *,
+        status: str,
+        by_user_id: UUID,
+    ) -> PersistedRecommendation | None: ...

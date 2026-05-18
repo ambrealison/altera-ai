@@ -80,3 +80,10 @@ class AuthContext:
             AlteraRole.ALTERA_METHODOLOGY_LEAD,
             AlteraRole.ALTERA_ADMIN,
         }
+
+    @property
+    def can_propose_recommendation(self) -> bool:
+        return isinstance(self.role, AlteraRole) and self.role in {
+            AlteraRole.ALTERA_METHODOLOGY_LEAD,
+            AlteraRole.ALTERA_ADMIN,
+        }

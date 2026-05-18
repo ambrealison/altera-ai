@@ -15,13 +15,14 @@ from collections import Counter
 from datetime import UTC, datetime
 from uuid import UUID
 
-from altera_api.api.state import ExportRecord, RunRecord
+from altera_api.api.state import ExportRecord, PersistedRecommendation, RunRecord
 from altera_api.domain.common import Methodology
 from altera_api.domain.project import Project
 from altera_api.domain.protein_tracker import (
     ProteinTrackerCalculationSummary,
     ProteinTrackerGroup,
 )
+from altera_api.domain.recommendation import Recommendation
 from altera_api.domain.report import (
     ClassificationSources,
     PTGroupData,
@@ -218,6 +219,32 @@ def _wwf_executive_summary(
 
 
 # ---------------------------------------------------------------------------
+# Recommendation helpers
+# ---------------------------------------------------------------------------
+
+_CLIENT_VISIBLE_REC_STATUSES = {"proposed", "accepted"}
+
+
+def _persisted_to_recommendation(rec: PersistedRecommendation) -> Recommendation:
+    return Recommendation(
+        id=rec.id,
+        run_id=rec.run_id,
+        action_type=rec.action_type,
+        category=rec.category,
+        title=rec.title,
+        description=rec.description,
+        rationale=rec.rationale,
+        expected_direction=rec.expected_direction,
+        priority=rec.priority,
+        confidence=rec.confidence,
+        evidence=rec.evidence,
+        status=rec.status,
+        caveats=rec.caveats,
+        client_facing=rec.client_facing,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -227,6 +254,8 @@ def build_report_document(
     run: RunRecord,
     project: Project,
     export: ExportRecord | None = None,
+    *,
+    is_altera: bool = True,
 ) -> ReportDocument:
     """Build a ReportDocument from a run, project, and optional export.
 
@@ -268,54 +297,70 @@ def build_report_document(
     coverage = build_coverage_section(store, run, project)
 
     # --- Recommendations ---
-    if run.methodology is Methodology.PROTEIN_TRACKER:
-        s_pt_for_recs = ProteinTrackerCalculationSummary.model_validate(run.summary_payload)
-        recs = generate_recommendations(
-            Methodology.PROTEIN_TRACKER,
-            pt_summary=s_pt_for_recs,
-            uncertainty_level=coverage.uncertainty_level,
-            products_total=coverage.products_total,
-            products_unknown=coverage.products_unknown,
-            products_ai_classified=coverage.products_ai_classified,
-            products_with_missing_protein=coverage.products_with_missing_protein,
-        )
-    else:
-        s_wwf_for_recs = WWFCalculationSummary.model_validate(run.summary_payload)
-        # Count own-brand composites with/without step2 data for WWF recommendation triggers.
-        step2_map = store.get_wwf_ingredients_by_project(project.id)
-        wwf_step2_applied = len(step2_map)
-        product_ids_in_run = {
-            row["product_id"] for row in run.rows_payload if row.get("product_id")
-        }
-        products_in_run_list = [
-            p
-            for p in store.list_products_for_project(project.id)
-            if str(p.id) in product_ids_in_run or p.id in product_ids_in_run
-        ]
-        own_brand_composite_count = 0
-        branded_composite_count = 0
-        for p in products_in_run_list:
-            if p.wwf_fields is None:
-                continue
-            clf = store.get_wwf_classification(p.id)
-            if clf is None or not clf.wwf_is_composite:
-                continue
-            if p.wwf_fields.is_own_brand:
-                own_brand_composite_count += 1
-            else:
-                branded_composite_count += 1
+    # Prefer persisted recommendations (Phase 25B).  Fall back to the engine
+    # for Altera users when nothing is persisted yet; return empty for clients.
+    persisted = store.list_recommendations_for_run(run.id)
+    if persisted:
+        if is_altera:
+            recs = [_persisted_to_recommendation(r) for r in persisted]
+        else:
+            recs = [
+                _persisted_to_recommendation(r)
+                for r in persisted
+                if r.status in _CLIENT_VISIBLE_REC_STATUSES
+            ]
+    elif is_altera:
+        # Ephemeral engine fallback for Altera preview before any generate call.
+        if run.methodology is Methodology.PROTEIN_TRACKER:
+            s_pt_for_recs = ProteinTrackerCalculationSummary.model_validate(run.summary_payload)
+            recs = generate_recommendations(
+                Methodology.PROTEIN_TRACKER,
+                pt_summary=s_pt_for_recs,
+                uncertainty_level=coverage.uncertainty_level,
+                products_total=coverage.products_total,
+                products_unknown=coverage.products_unknown,
+                products_ai_classified=coverage.products_ai_classified,
+                products_with_missing_protein=coverage.products_with_missing_protein,
+            )
+        else:
+            s_wwf_for_recs = WWFCalculationSummary.model_validate(run.summary_payload)
+            step2_map = store.get_wwf_ingredients_by_project(project.id)
+            wwf_step2_applied = len(step2_map)
+            product_ids_in_run = {
+                row["product_id"] for row in run.rows_payload if row.get("product_id")
+            }
+            products_in_run_list = [
+                p
+                for p in store.list_products_for_project(project.id)
+                if str(p.id) in product_ids_in_run or p.id in product_ids_in_run
+            ]
+            own_brand_composite_count = 0
+            branded_composite_count = 0
+            for p in products_in_run_list:
+                if p.wwf_fields is None:
+                    continue
+                clf = store.get_wwf_classification(p.id)
+                if clf is None or not clf.wwf_is_composite:
+                    continue
+                if p.wwf_fields.is_own_brand:
+                    own_brand_composite_count += 1
+                else:
+                    branded_composite_count += 1
 
-        recs = generate_recommendations(
-            Methodology.WWF,
-            wwf_summary=s_wwf_for_recs,
-            uncertainty_level=coverage.uncertainty_level,
-            products_total=coverage.products_total,
-            products_unknown=coverage.products_unknown,
-            products_ai_classified=coverage.products_ai_classified,
-            wwf_step2_applied_count=wwf_step2_applied,
-            wwf_own_brand_composite_count=own_brand_composite_count,
-            wwf_branded_composite_count=branded_composite_count,
-        )
+            recs = generate_recommendations(
+                Methodology.WWF,
+                wwf_summary=s_wwf_for_recs,
+                uncertainty_level=coverage.uncertainty_level,
+                products_total=coverage.products_total,
+                products_unknown=coverage.products_unknown,
+                products_ai_classified=coverage.products_ai_classified,
+                wwf_step2_applied_count=wwf_step2_applied,
+                wwf_own_brand_composite_count=own_brand_composite_count,
+                wwf_branded_composite_count=branded_composite_count,
+            )
+    else:
+        # Client with no persisted (proposed/accepted) recommendations yet.
+        recs = []
 
     return ReportDocument(
         meta=meta,

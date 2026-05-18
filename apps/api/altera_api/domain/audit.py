@@ -70,6 +70,13 @@ class AuditEventType(StrEnum):
     REVIEW_DECISION_MADE = "review.decision_made"
     REVIEW_BULK_ACTION = "review.bulk_action"
 
+    # Recommendation lifecycle (Phase 25B)
+    RECOMMENDATION_GENERATED = "recommendation.generated"
+    RECOMMENDATION_PROPOSED = "recommendation.proposed"
+    RECOMMENDATION_ACCEPTED = "recommendation.accepted"
+    RECOMMENDATION_DISMISSED = "recommendation.dismissed"
+    RECOMMENDATION_ARCHIVED = "recommendation.archived"
+
 
 _SYSTEM_EVENT_TYPES = frozenset(
     {

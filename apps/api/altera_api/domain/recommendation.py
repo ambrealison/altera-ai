@@ -1,13 +1,17 @@
-"""Recommendation domain models (Phase 25A).
+"""Recommendation domain models (Phase 25A / 25B).
 
 Recommendations are assembled deterministically from run/coverage data at
 report time — no LLM involvement. They are directional and methodology-aware;
 they do not carry numeric impact estimates or commercial fields.
+
+Phase 25B adds optional `id` and `run_id` fields so persisted recommendations
+carry their store identifiers for lifecycle API calls.
 """
 
 from __future__ import annotations
 
 from enum import StrEnum
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -56,8 +60,13 @@ class Recommendation(BaseModel):
 
     Fields mirror what the frontend `RecommendationsSection` renders.
     No commercial, revenue, or supplier fields appear here.
+
+    `id` and `run_id` are None for engine-generated (ephemeral) recommendations
+    and populated for recommendations loaded from the persistence store.
     """
 
+    id: UUID | None = None
+    run_id: UUID | None = None
     action_type: str
     category: str
     title: str

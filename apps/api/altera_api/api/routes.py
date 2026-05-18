@@ -33,7 +33,7 @@ from altera_api.api.orchestrator import (
     run_calculation,
     submit_decision,
 )
-from altera_api.api.state import ExportRecord
+from altera_api.api.state import ExportRecord, PersistedRecommendation
 from altera_api.auth import AuthContext, authed_user
 from altera_api.domain.audit import AuditEvent, AuditEventType
 from altera_api.domain.common import Methodology
@@ -1305,7 +1305,312 @@ def get_report_route(
             )
         export = max(visible, key=lambda e: e.created_at)
 
-    return build_report_document(store, record, project, export)
+    return build_report_document(store, record, project, export, is_altera=auth.is_altera_internal)
+
+
+# ---------------------------------------------------------------------------
+# Recommendations (Phase 25B)
+# ---------------------------------------------------------------------------
+
+
+class RecommendationResponse(BaseModel):
+    id: UUID
+    run_id: UUID
+    action_type: str
+    category: str
+    title: str
+    description: str
+    rationale: str
+    expected_direction: str
+    priority: str
+    confidence: str
+    evidence: list[str]
+    status: str
+    caveats: list[str]
+    client_facing: bool
+    created_at: str
+    updated_at: str
+
+
+def _rec_response(rec: PersistedRecommendation) -> RecommendationResponse:
+    return RecommendationResponse(
+        id=rec.id,
+        run_id=rec.run_id,
+        action_type=rec.action_type,
+        category=rec.category,
+        title=rec.title,
+        description=rec.description,
+        rationale=rec.rationale,
+        expected_direction=rec.expected_direction,
+        priority=rec.priority,
+        confidence=rec.confidence,
+        evidence=rec.evidence,
+        status=rec.status,
+        caveats=rec.caveats,
+        client_facing=rec.client_facing,
+        created_at=rec.created_at.isoformat(),
+        updated_at=rec.updated_at.isoformat(),
+    )
+
+
+_CLIENT_VISIBLE_REC_STATUSES = {"proposed", "accepted"}
+
+
+@api_router.get(
+    "/projects/{project_id}/runs/{run_id}/recommendations",
+    response_model=list[RecommendationResponse],
+)
+def list_recommendations_route(
+    run_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> list[RecommendationResponse]:
+    """List persisted recommendations for a run.
+
+    Altera users see all statuses; clients see only proposed and accepted.
+    """
+    record = store.get_run(run_id)
+    if record is None or record.project_id != project.id:
+        raise HTTPException(status_code=404, detail="run not found")
+
+    recs = store.list_recommendations_for_run(run_id)
+
+    if not auth.is_altera_internal:
+        recs = [r for r in recs if r.status in _CLIENT_VISIBLE_REC_STATUSES]
+
+    return [_rec_response(r) for r in recs]
+
+
+@api_router.post(
+    "/projects/{project_id}/runs/{run_id}/recommendations/generate",
+    response_model=list[RecommendationResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_recommendations_route(
+    run_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> list[RecommendationResponse]:
+    """Generate and persist recommendations for a run (Altera only).
+
+    Existing recommendations are upserted with status preservation — already
+    proposed/accepted/dismissed/archived items keep their status.
+    """
+    if not auth.is_altera_internal:
+        raise HTTPException(status_code=403, detail="altera internal access required")
+
+    record = store.get_run(run_id)
+    if record is None or record.project_id != project.id:
+        raise HTTPException(status_code=404, detail="run not found")
+
+    from altera_api.exports.coverage import build_coverage_section
+    from altera_api.recommendations.engine import generate_recommendations as _gen
+
+    coverage = build_coverage_section(store, record, project)
+
+    from altera_api.domain.common import Methodology as _M
+
+    if record.methodology is _M.PROTEIN_TRACKER:
+        from altera_api.domain.protein_tracker import ProteinTrackerCalculationSummary
+
+        s_pt = ProteinTrackerCalculationSummary.model_validate(record.summary_payload)
+        ephemeral = _gen(
+            _M.PROTEIN_TRACKER,
+            pt_summary=s_pt,
+            uncertainty_level=coverage.uncertainty_level,
+            products_total=coverage.products_total,
+            products_unknown=coverage.products_unknown,
+            products_ai_classified=coverage.products_ai_classified,
+            products_with_missing_protein=coverage.products_with_missing_protein,
+        )
+    else:
+        from altera_api.domain.wwf import WWFCalculationSummary
+
+        s_wwf = WWFCalculationSummary.model_validate(record.summary_payload)
+        step2_map = store.get_wwf_ingredients_by_project(project.id)
+        wwf_step2_applied = len(step2_map)
+        product_ids_in_run = {row["product_id"] for row in record.rows_payload if row.get("product_id")}
+        products_in_run_list = [
+            p
+            for p in store.list_products_for_project(project.id)
+            if str(p.id) in product_ids_in_run or p.id in product_ids_in_run
+        ]
+        own_brand_count = 0
+        branded_count = 0
+        for p in products_in_run_list:
+            if p.wwf_fields is None:
+                continue
+            clf = store.get_wwf_classification(p.id)
+            if clf is None or not clf.wwf_is_composite:
+                continue
+            if p.wwf_fields.is_own_brand:
+                own_brand_count += 1
+            else:
+                branded_count += 1
+        ephemeral = _gen(
+            _M.WWF,
+            wwf_summary=s_wwf,
+            uncertainty_level=coverage.uncertainty_level,
+            products_total=coverage.products_total,
+            products_unknown=coverage.products_unknown,
+            products_ai_classified=coverage.products_ai_classified,
+            wwf_step2_applied_count=wwf_step2_applied,
+            wwf_own_brand_composite_count=own_brand_count,
+            wwf_branded_composite_count=branded_count,
+        )
+
+    now = datetime.now(UTC)
+    persisted_records = [
+        PersistedRecommendation(
+            id=uuid4(),
+            organisation_id=project.organisation_id,
+            project_id=project.id,
+            run_id=run_id,
+            methodology=record.methodology.value,
+            action_type=r.action_type,
+            category=r.category,
+            title=r.title,
+            description=r.description,
+            rationale=r.rationale,
+            expected_direction=r.expected_direction,
+            priority=r.priority,
+            confidence=r.confidence,
+            evidence=r.evidence,
+            caveats=r.caveats,
+            status="draft",
+            client_facing=r.client_facing,
+            created_at=now,
+            updated_at=now,
+            created_by=auth.user_id,
+        )
+        for r in ephemeral
+    ]
+
+    if persisted_records:
+        store.upsert_recommendations_for_run(persisted_records)
+
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=project.organisation_id,
+            actor_user_id=auth.user_id,
+            action=AuditEventType.RECOMMENDATION_GENERATED,
+            target_table="recommendations",
+            target_id=run_id,
+            metadata={"run_id": str(run_id), "count": len(persisted_records)},
+            created_at=now,
+        )
+    )
+
+    return [_rec_response(r) for r in store.list_recommendations_for_run(run_id)]
+
+
+def _transition_recommendation(
+    recommendation_id: UUID,
+    new_status: str,
+    audit_action: AuditEventType,
+    store: StoreProtocol,
+    auth: AuthContext,
+) -> RecommendationResponse:
+    """Shared helper for propose/dismiss/archive/accept transitions."""
+    rec = store.get_recommendation(recommendation_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail="recommendation not found")
+
+    # Cross-org guard
+    if rec.organisation_id != auth.organisation_id and not auth.is_altera_internal:
+        raise HTTPException(status_code=403, detail="access denied")
+
+    updated = store.update_recommendation_status(
+        recommendation_id, status=new_status, by_user_id=auth.user_id
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="recommendation not found")
+
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=rec.organisation_id,
+            actor_user_id=auth.user_id,
+            action=audit_action,
+            target_table="recommendations",
+            target_id=recommendation_id,
+            metadata={"new_status": new_status},
+            created_at=datetime.now(UTC),
+        )
+    )
+
+    return _rec_response(updated)
+
+
+@api_router.post(
+    "/recommendations/{recommendation_id}/propose",
+    response_model=RecommendationResponse,
+)
+def propose_recommendation_route(
+    recommendation_id: UUID,
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> RecommendationResponse:
+    """Propose a recommendation (promote from draft → proposed). Altera METHODOLOGY_LEAD/ADMIN only."""
+    if not auth.can_propose_recommendation:
+        raise HTTPException(status_code=403, detail="insufficient permissions to propose recommendations")
+    return _transition_recommendation(
+        recommendation_id, "proposed", AuditEventType.RECOMMENDATION_PROPOSED, store, auth
+    )
+
+
+@api_router.post(
+    "/recommendations/{recommendation_id}/dismiss",
+    response_model=RecommendationResponse,
+)
+def dismiss_recommendation_route(
+    recommendation_id: UUID,
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> RecommendationResponse:
+    """Dismiss a recommendation (Altera internal only)."""
+    if not auth.is_altera_internal:
+        raise HTTPException(status_code=403, detail="altera internal access required")
+    return _transition_recommendation(
+        recommendation_id, "dismissed", AuditEventType.RECOMMENDATION_DISMISSED, store, auth
+    )
+
+
+@api_router.post(
+    "/recommendations/{recommendation_id}/archive",
+    response_model=RecommendationResponse,
+)
+def archive_recommendation_route(
+    recommendation_id: UUID,
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> RecommendationResponse:
+    """Archive a recommendation (Altera internal only)."""
+    if not auth.is_altera_internal:
+        raise HTTPException(status_code=403, detail="altera internal access required")
+    return _transition_recommendation(
+        recommendation_id, "archived", AuditEventType.RECOMMENDATION_ARCHIVED, store, auth
+    )
+
+
+@api_router.post(
+    "/recommendations/{recommendation_id}/accept",
+    response_model=RecommendationResponse,
+)
+def accept_recommendation_route(
+    recommendation_id: UUID,
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> RecommendationResponse:
+    """Accept a recommendation (proposed → accepted). Altera METHODOLOGY_LEAD/ADMIN only."""
+    if not auth.can_propose_recommendation:
+        raise HTTPException(status_code=403, detail="insufficient permissions to accept recommendations")
+    return _transition_recommendation(
+        recommendation_id, "accepted", AuditEventType.RECOMMENDATION_ACCEPTED, store, auth
+    )
 
 
 # ---------------------------------------------------------------------------

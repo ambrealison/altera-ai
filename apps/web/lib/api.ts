@@ -420,10 +420,13 @@ export interface CoverageSection {
   review_completion_note: string;
 }
 
-// Phase 25A — recommendation engine
+// Phase 25A / 25B — recommendation engine + lifecycle
 export type RecommendationPriority = "low" | "medium" | "high" | "critical";
+export type RecommendationStatus = "draft" | "proposed" | "accepted" | "dismissed" | "archived";
 
 export interface RecommendationItem {
+  id: string | null;
+  run_id: string | null;
   action_type: string;
   category: string;
   title: string;
@@ -433,9 +436,16 @@ export interface RecommendationItem {
   priority: RecommendationPriority;
   confidence: string;
   evidence: string[];
-  status: string;
+  status: RecommendationStatus;
   caveats: string[];
   client_facing: boolean;
+}
+
+export interface PersistedRecommendation extends RecommendationItem {
+  id: string;
+  run_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ReportDocument {
@@ -758,6 +768,52 @@ export function createApi(accessToken: string | null) {
       request<Job>(
         `/api/v1/projects/${projectId}/runs/${runId}/jobs/export`,
         { method: "POST", body: JSON.stringify({ fmt }) },
+        accessToken,
+      ),
+
+    // -----------------------------------------------------------------------
+    // Recommendations (Phase 25B)
+    // -----------------------------------------------------------------------
+
+    listRecommendations: (projectId: string, runId: string) =>
+      request<PersistedRecommendation[]>(
+        `/api/v1/projects/${projectId}/runs/${runId}/recommendations`,
+        { method: "GET" },
+        accessToken,
+      ),
+
+    generateRecommendations: (projectId: string, runId: string) =>
+      request<PersistedRecommendation[]>(
+        `/api/v1/projects/${projectId}/runs/${runId}/recommendations/generate`,
+        { method: "POST", body: JSON.stringify({}) },
+        accessToken,
+      ),
+
+    proposeRecommendation: (recommendationId: string) =>
+      request<PersistedRecommendation>(
+        `/api/v1/recommendations/${recommendationId}/propose`,
+        { method: "POST", body: JSON.stringify({}) },
+        accessToken,
+      ),
+
+    dismissRecommendation: (recommendationId: string) =>
+      request<PersistedRecommendation>(
+        `/api/v1/recommendations/${recommendationId}/dismiss`,
+        { method: "POST", body: JSON.stringify({}) },
+        accessToken,
+      ),
+
+    archiveRecommendation: (recommendationId: string) =>
+      request<PersistedRecommendation>(
+        `/api/v1/recommendations/${recommendationId}/archive`,
+        { method: "POST", body: JSON.stringify({}) },
+        accessToken,
+      ),
+
+    acceptRecommendation: (recommendationId: string) =>
+      request<PersistedRecommendation>(
+        `/api/v1/recommendations/${recommendationId}/accept`,
+        { method: "POST", body: JSON.stringify({}) },
         accessToken,
       ),
 

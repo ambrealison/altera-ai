@@ -84,6 +84,33 @@ class ExportRecord:
 
 
 @dataclass
+class PersistedRecommendation:
+    """A recommendation that has been saved to the store for lifecycle management."""
+
+    id: UUID
+    organisation_id: UUID
+    project_id: UUID
+    run_id: UUID
+    methodology: str
+    action_type: str
+    category: str
+    title: str
+    description: str
+    rationale: str
+    expected_direction: str
+    priority: str
+    confidence: str
+    evidence: list[str]
+    caveats: list[str]
+    status: str  # draft | proposed | accepted | dismissed | archived
+    client_facing: bool
+    created_at: datetime
+    updated_at: datetime
+    created_by: UUID | None = None
+    updated_by: UUID | None = None
+
+
+@dataclass
 class UploadRecord:
     """Per-upload bookkeeping that the domain ``Upload`` model doesn't carry."""
 
@@ -120,6 +147,8 @@ class InMemoryStore:
         self.jobs: dict[UUID, Job] = {}
         # Phase 23A: enrichment records keyed by product_id
         self.enrichment_records: dict[UUID, list[NutritionEnrichmentRecord]] = {}
+        # Phase 25B: persisted recommendations keyed by recommendation id
+        self.recommendations: dict[UUID, PersistedRecommendation] = {}
         # Bootstrap a default org + user so Phase 12 doesn't need auth.
         self._bootstrap_default_tenant()
 
@@ -535,3 +564,88 @@ class InMemoryStore:
             if product is not None and product.project_id == project_id:
                 result.extend(recs)
         return result
+
+    # ------------------------------------------------------------------
+    # Recommendations (Phase 25B)
+    # ------------------------------------------------------------------
+
+    def upsert_recommendations_for_run(
+        self,
+        records: list[PersistedRecommendation],
+    ) -> None:
+        """Upsert a list of recommendations for a run.
+
+        Existing records with the same (run_id, action_type) are updated in
+        place but their status is preserved if it has already been promoted
+        beyond 'draft'.  New records are inserted with status 'draft'.
+        """
+        _TERMINAL_STATUSES = {"proposed", "accepted", "dismissed", "archived"}
+        with self._lock:
+            if not records:
+                return
+            target_run_id = records[0].run_id
+            existing_by_key: dict[tuple[UUID, str], PersistedRecommendation] = {
+                (r.run_id, r.action_type): r
+                for r in self.recommendations.values()
+                if r.run_id == target_run_id
+            }
+            for rec in records:
+                key = (rec.run_id, rec.action_type)
+                existing = existing_by_key.get(key)
+                if existing is not None:
+                    # Preserve status if already promoted; update content fields.
+                    import dataclasses
+                    status_to_keep = (
+                        existing.status if existing.status in _TERMINAL_STATUSES else rec.status
+                    )
+                    updated = dataclasses.replace(
+                        existing,
+                        title=rec.title,
+                        description=rec.description,
+                        rationale=rec.rationale,
+                        expected_direction=rec.expected_direction,
+                        priority=rec.priority,
+                        confidence=rec.confidence,
+                        evidence=rec.evidence,
+                        caveats=rec.caveats,
+                        client_facing=rec.client_facing,
+                        status=status_to_keep,
+                        updated_at=datetime.now(UTC),
+                        updated_by=rec.updated_by,
+                    )
+                    self.recommendations[existing.id] = updated
+                else:
+                    self.recommendations[rec.id] = rec
+
+    def list_recommendations_for_run(self, run_id: UUID) -> list[PersistedRecommendation]:
+        return [r for r in self.recommendations.values() if r.run_id == run_id]
+
+    def list_recommendations_for_project(
+        self, project_id: UUID
+    ) -> list[PersistedRecommendation]:
+        return [r for r in self.recommendations.values() if r.project_id == project_id]
+
+    def get_recommendation(self, recommendation_id: UUID) -> PersistedRecommendation | None:
+        return self.recommendations.get(recommendation_id)
+
+    def update_recommendation_status(
+        self,
+        recommendation_id: UUID,
+        *,
+        status: str,
+        by_user_id: UUID,
+    ) -> PersistedRecommendation | None:
+        import dataclasses
+
+        with self._lock:
+            rec = self.recommendations.get(recommendation_id)
+            if rec is None:
+                return None
+            updated = dataclasses.replace(
+                rec,
+                status=status,
+                updated_at=datetime.now(UTC),
+                updated_by=by_user_id,
+            )
+            self.recommendations[recommendation_id] = updated
+            return updated

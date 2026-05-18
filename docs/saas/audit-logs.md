@@ -26,6 +26,18 @@ application role.
 | `run.created`                | triggerer              | `runs.id`             |
 | `run.succeeded` / `failed`   | system                 | `runs.id`             |
 | `export.generated`           | requester              | run + export format   |
+| `export.submitted_for_review`| submitter              | export id             |
+| `export.approved`            | methodology lead       | export id             |
+| `export.rejected`            | methodology lead       | export id + reason    |
+| `export.delivered`           | lead / admin           | export id             |
+| `export.downloaded`          | client user            | export id             |
+| `review.decision_made`       | reviewer               | product + methodology |
+| `review.bulk_action`         | reviewer               | count + action        |
+| `recommendation.generated`   | Altera user            | run id + count        |
+| `recommendation.proposed`    | methodology lead/admin | recommendation id     |
+| `recommendation.accepted`    | methodology lead/admin | recommendation id     |
+| `recommendation.dismissed`   | Altera user            | recommendation id     |
+| `recommendation.archived`    | Altera user            | recommendation id     |
 | `commercial_data_block`      | system (high-severity) | upload id + field name|
 | `auth.signed_in`             | the user               | the session id        |
 
