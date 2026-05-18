@@ -10,7 +10,15 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
-from altera_api.api.state import ExportRecord, PersistedRecommendation, RunRecord, UploadRecord
+from altera_api.api.state import (
+    ExportRecord,
+    PersistedRecommendation,
+    RunRecord,
+    ScenarioOperationRecord,
+    ScenarioRecord,
+    ScenarioResultRecord,
+    UploadRecord,
+)
 from altera_api.domain.audit import AuditEvent
 from altera_api.domain.common import Methodology
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
@@ -197,3 +205,15 @@ class StoreProtocol(Protocol):
         status: str,
         by_user_id: UUID,
     ) -> PersistedRecommendation | None: ...
+
+    # ------------------------------------------------------------------
+    # Scenarios (Phase 26A)
+    # ------------------------------------------------------------------
+    def add_scenario(self, record: ScenarioRecord) -> None: ...
+    def get_scenario(self, scenario_id: UUID) -> ScenarioRecord | None: ...
+    def list_scenarios_for_project(self, project_id: UUID) -> list[ScenarioRecord]: ...
+    def update_scenario_status(self, scenario_id: UUID, *, status: str) -> ScenarioRecord | None: ...
+    def add_scenario_operation(self, record: ScenarioOperationRecord) -> None: ...
+    def list_scenario_operations(self, scenario_id: UUID) -> list[ScenarioOperationRecord]: ...
+    def save_scenario_result(self, record: ScenarioResultRecord) -> None: ...
+    def get_scenario_result(self, scenario_id: UUID) -> ScenarioResultRecord | None: ...

@@ -448,6 +448,78 @@ export interface PersistedRecommendation extends RecommendationItem {
   updated_at: string;
 }
 
+// Phase 26A — scenario modelling
+export type ScenarioStatus = "draft" | "active" | "archived";
+export type ScenarioOperationType =
+  | "shift_protein_between_groups"
+  | "increase_plant_core_protein"
+  | "reduce_animal_core_protein"
+  | "improve_composite_split";
+
+export interface ScenarioResponse {
+  id: string;
+  organisation_id: string;
+  project_id: string;
+  base_run_id: string;
+  name: string;
+  description: string;
+  status: ScenarioStatus;
+  methodology: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  operation_count: number;
+}
+
+export interface ScenarioOperationRequest {
+  operation_type: ScenarioOperationType;
+  parameters: Record<string, string | number>;
+  rationale?: string;
+  order?: number;
+}
+
+export interface ScenarioOperationResponse {
+  id: string;
+  scenario_id: string;
+  operation_type: ScenarioOperationType;
+  parameters: Record<string, string | number>;
+  rationale: string;
+  order: number;
+  created_at: string;
+}
+
+export interface PTProjectedGroupResponse {
+  pt_group: string;
+  base_protein_kg: string;
+  projected_protein_kg: string;
+  delta_protein_kg: string;
+}
+
+export interface PTProjectedSummaryResponse {
+  base_plant_protein_kg: string;
+  base_animal_protein_kg: string;
+  base_total_protein_kg: string;
+  base_plant_share_pct: string | null;
+  projected_plant_protein_kg: string;
+  projected_animal_protein_kg: string;
+  projected_total_protein_kg: string;
+  projected_plant_share_pct: string | null;
+  projected_animal_share_pct: string | null;
+  delta_plant_protein_kg: string;
+  delta_animal_protein_kg: string;
+  delta_plant_share_pct: string | null;
+  per_group: PTProjectedGroupResponse[];
+}
+
+export interface ScenarioResultResponse {
+  scenario_id: string;
+  base_run_id: string;
+  methodology: string;
+  pt_projected: PTProjectedSummaryResponse | null;
+  warnings: string[];
+  created_at: string;
+}
+
 export interface ReportDocument {
   meta: ReportMeta;
   executive_summary: string;
@@ -814,6 +886,45 @@ export function createApi(accessToken: string | null) {
       request<PersistedRecommendation>(
         `/api/v1/recommendations/${recommendationId}/accept`,
         { method: "POST", body: JSON.stringify({}) },
+        accessToken,
+      ),
+
+    // -----------------------------------------------------------------------
+    // Scenarios (Phase 26A)
+    // -----------------------------------------------------------------------
+
+    listScenarios: (projectId: string) =>
+      request<ScenarioResponse[]>(
+        `/api/v1/projects/${projectId}/scenarios`,
+        { method: "GET" },
+        accessToken,
+      ),
+
+    createScenario: (projectId: string, body: { name: string; description?: string; base_run_id: string }) =>
+      request<ScenarioResponse>(
+        `/api/v1/projects/${projectId}/scenarios`,
+        { method: "POST", body: JSON.stringify(body) },
+        accessToken,
+      ),
+
+    addScenarioOperation: (scenarioId: string, body: ScenarioOperationRequest) =>
+      request<ScenarioOperationResponse>(
+        `/api/v1/scenarios/${scenarioId}/operations`,
+        { method: "POST", body: JSON.stringify(body) },
+        accessToken,
+      ),
+
+    runScenario: (scenarioId: string) =>
+      request<ScenarioResultResponse>(
+        `/api/v1/scenarios/${scenarioId}/run`,
+        { method: "POST", body: JSON.stringify({}) },
+        accessToken,
+      ),
+
+    getScenarioResult: (scenarioId: string) =>
+      request<ScenarioResultResponse>(
+        `/api/v1/scenarios/${scenarioId}/result`,
+        { method: "GET" },
         accessToken,
       ),
 

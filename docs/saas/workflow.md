@@ -448,6 +448,24 @@ or task handlers. The frontend polls `GET /jobs/{id}` for async status.
 The original synchronous HTTP endpoints remain available for backwards
 compatibility and for the direct multipart upload flow.
 
+## Scenario modelling (Phase 26A)
+
+After a run is complete, an Altera methodology lead can create one or
+more **scenarios** against that run — deterministic projections that
+explore "what if the retailer made this change?" without touching the
+underlying measurement data.
+
+Scenarios are **Protein Tracker only** in Phase 26A. WWF scenario
+modelling is deferred.
+
+Scenario lifecycle: `draft → active → archived`.
+
+A scenario is created in `draft`. It transitions to `active`
+automatically on first successful execution.
+
+See [../scenarios/overview.md](../scenarios/overview.md) for the full
+projection engine, operation taxonomy, and access control rules.
+
 ## AI classifier (Phase 17)
 
 The `classify_upload` job integrates an optional AI classifier between

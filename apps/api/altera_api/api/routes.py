@@ -33,7 +33,13 @@ from altera_api.api.orchestrator import (
     run_calculation,
     submit_decision,
 )
-from altera_api.api.state import ExportRecord, PersistedRecommendation
+from altera_api.api.state import (
+    ExportRecord,
+    PersistedRecommendation,
+    ScenarioOperationRecord,
+    ScenarioRecord,
+    ScenarioResultRecord,
+)
 from altera_api.auth import AuthContext, authed_user
 from altera_api.domain.audit import AuditEvent, AuditEventType
 from altera_api.domain.common import Methodology
@@ -45,6 +51,12 @@ from altera_api.domain.review import (
     ManualReviewPriority,
     ManualReviewQueueReason,
     ManualReviewStatus,
+)
+from altera_api.domain.scenario import (
+    ScenarioOperation,
+    ScenarioOperationType,
+    ScenarioResult,
+    ScenarioStatus,
 )
 from altera_api.exports.report import build_report_document
 from altera_api.ingestion.validators import validate_upload
@@ -1611,6 +1623,340 @@ def accept_recommendation_route(
     return _transition_recommendation(
         recommendation_id, "accepted", AuditEventType.RECOMMENDATION_ACCEPTED, store, auth
     )
+
+
+# ---------------------------------------------------------------------------
+# Scenarios (Phase 26A)
+# ---------------------------------------------------------------------------
+
+
+class ScenarioCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = ""
+    base_run_id: UUID
+
+
+class ScenarioOperationRequest(BaseModel):
+    operation_type: str
+    parameters: dict = Field(default_factory=dict)
+    rationale: str = ""
+    order: int = 0
+
+
+class ScenarioOperationResponse(BaseModel):
+    id: UUID
+    scenario_id: UUID
+    operation_type: str
+    parameters: dict
+    rationale: str
+    order: int
+    created_at: str
+
+
+class ScenarioResponse(BaseModel):
+    id: UUID
+    organisation_id: UUID
+    project_id: UUID
+    base_run_id: UUID
+    name: str
+    description: str
+    status: str
+    methodology: str
+    created_by: UUID
+    created_at: str
+    updated_at: str
+    operation_count: int
+
+
+class PTProjectedGroupResponse(BaseModel):
+    pt_group: str
+    base_protein_kg: str
+    projected_protein_kg: str
+    delta_protein_kg: str
+
+
+class PTProjectedSummaryResponse(BaseModel):
+    base_plant_protein_kg: str
+    base_animal_protein_kg: str
+    base_total_protein_kg: str
+    base_plant_share_pct: str | None
+    projected_plant_protein_kg: str
+    projected_animal_protein_kg: str
+    projected_total_protein_kg: str
+    projected_plant_share_pct: str | None
+    projected_animal_share_pct: str | None
+    delta_plant_protein_kg: str
+    delta_animal_protein_kg: str
+    delta_plant_share_pct: str | None
+    per_group: list[PTProjectedGroupResponse]
+
+
+class ScenarioResultResponse(BaseModel):
+    scenario_id: UUID
+    base_run_id: UUID
+    methodology: str
+    pt_projected: PTProjectedSummaryResponse | None
+    warnings: list[str]
+    created_at: str
+
+
+def _scenario_response(store: StoreProtocol, rec: ScenarioRecord) -> ScenarioResponse:
+    op_count = len(store.list_scenario_operations(rec.id))
+    return ScenarioResponse(
+        id=rec.id,
+        organisation_id=rec.organisation_id,
+        project_id=rec.project_id,
+        base_run_id=rec.base_run_id,
+        name=rec.name,
+        description=rec.description,
+        status=rec.status,
+        methodology=rec.methodology,
+        created_by=rec.created_by,
+        created_at=rec.created_at.isoformat(),
+        updated_at=rec.updated_at.isoformat(),
+        operation_count=op_count,
+    )
+
+
+def _result_response(result: ScenarioResult) -> ScenarioResultResponse:
+    pt = None
+    if result.pt_projected is not None:
+        p = result.pt_projected
+        pt = PTProjectedSummaryResponse(
+            base_plant_protein_kg=str(p.base_plant_protein_kg),
+            base_animal_protein_kg=str(p.base_animal_protein_kg),
+            base_total_protein_kg=str(p.base_total_protein_kg),
+            base_plant_share_pct=str(p.base_plant_share_pct) if p.base_plant_share_pct is not None else None,
+            projected_plant_protein_kg=str(p.projected_plant_protein_kg),
+            projected_animal_protein_kg=str(p.projected_animal_protein_kg),
+            projected_total_protein_kg=str(p.projected_total_protein_kg),
+            projected_plant_share_pct=str(p.projected_plant_share_pct) if p.projected_plant_share_pct is not None else None,
+            projected_animal_share_pct=str(p.projected_animal_share_pct) if p.projected_animal_share_pct is not None else None,
+            delta_plant_protein_kg=str(p.delta_plant_protein_kg),
+            delta_animal_protein_kg=str(p.delta_animal_protein_kg),
+            delta_plant_share_pct=str(p.delta_plant_share_pct) if p.delta_plant_share_pct is not None else None,
+            per_group=[
+                PTProjectedGroupResponse(
+                    pt_group=g.pt_group,
+                    base_protein_kg=str(g.base_protein_kg),
+                    projected_protein_kg=str(g.projected_protein_kg),
+                    delta_protein_kg=str(g.delta_protein_kg),
+                )
+                for g in p.per_group
+            ],
+        )
+    return ScenarioResultResponse(
+        scenario_id=result.scenario_id,
+        base_run_id=result.base_run_id,
+        methodology=result.methodology,
+        pt_projected=pt,
+        warnings=result.warnings,
+        created_at=result.created_at.isoformat(),
+    )
+
+
+@api_router.post(
+    "/projects/{project_id}/scenarios",
+    response_model=ScenarioResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_scenario_route(
+    body: ScenarioCreateRequest,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ScenarioResponse:
+    """Create a scenario attached to a base run (Altera only)."""
+    if not auth.is_altera_internal:
+        raise HTTPException(status_code=403, detail="altera internal access required")
+
+    run = store.get_run(body.base_run_id)
+    if run is None or run.project_id != project.id:
+        raise HTTPException(status_code=404, detail="base run not found")
+
+    if run.methodology.value != "protein_tracker":
+        raise HTTPException(
+            status_code=422,
+            detail="Phase 26A only supports Protein Tracker scenarios. "
+                   "WWF scenario modelling is not yet implemented.",
+        )
+
+    now = datetime.now(UTC)
+    rec = ScenarioRecord(
+        id=uuid4(),
+        organisation_id=project.organisation_id,
+        project_id=project.id,
+        base_run_id=body.base_run_id,
+        name=body.name,
+        description=body.description,
+        status=ScenarioStatus.DRAFT.value,
+        methodology="protein_tracker",
+        created_by=auth.user_id,
+        created_at=now,
+        updated_at=now,
+    )
+    store.add_scenario(rec)
+    return _scenario_response(store, rec)
+
+
+@api_router.get(
+    "/projects/{project_id}/scenarios",
+    response_model=list[ScenarioResponse],
+)
+def list_scenarios_route(
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> list[ScenarioResponse]:
+    """List scenarios for a project.
+
+    Altera sees all statuses. Clients see only active scenarios.
+    """
+    scenarios = store.list_scenarios_for_project(project.id)
+    if not auth.is_altera_internal:
+        scenarios = [s for s in scenarios if s.status == ScenarioStatus.ACTIVE.value]
+    return [_scenario_response(store, s) for s in scenarios]
+
+
+@api_router.post(
+    "/scenarios/{scenario_id}/operations",
+    response_model=ScenarioOperationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_scenario_operation_route(
+    scenario_id: UUID,
+    body: ScenarioOperationRequest,
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ScenarioOperationResponse:
+    """Add an operation to a scenario (Altera only)."""
+    if not auth.is_altera_internal:
+        raise HTTPException(status_code=403, detail="altera internal access required")
+
+    scenario = store.get_scenario(scenario_id)
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="scenario not found")
+    if scenario.organisation_id != auth.organisation_id and not auth.is_altera_internal:
+        raise HTTPException(status_code=403, detail="access denied")
+
+    # Validate operation type
+    try:
+        ScenarioOperationType(body.operation_type)
+    except ValueError:
+        valid = [o.value for o in ScenarioOperationType]
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown operation_type {body.operation_type!r}. Valid: {valid}",
+        ) from None
+
+    now = datetime.now(UTC)
+    op = ScenarioOperationRecord(
+        id=uuid4(),
+        scenario_id=scenario_id,
+        operation_type=body.operation_type,
+        parameters=body.parameters,
+        rationale=body.rationale,
+        order=body.order,
+        created_at=now,
+    )
+    store.add_scenario_operation(op)
+
+    return ScenarioOperationResponse(
+        id=op.id,
+        scenario_id=op.scenario_id,
+        operation_type=op.operation_type,
+        parameters=op.parameters,
+        rationale=op.rationale,
+        order=op.order,
+        created_at=op.created_at.isoformat(),
+    )
+
+
+@api_router.post(
+    "/scenarios/{scenario_id}/run",
+    response_model=ScenarioResultResponse,
+)
+def run_scenario_route(
+    scenario_id: UUID,
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ScenarioResultResponse:
+    """Execute a scenario projection and persist the result (Altera only)."""
+    if not auth.is_altera_internal:
+        raise HTTPException(status_code=403, detail="altera internal access required")
+
+    scenario = store.get_scenario(scenario_id)
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="scenario not found")
+
+    run = store.get_run(scenario.base_run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="base run not found")
+
+    from altera_api.domain.protein_tracker import ProteinTrackerCalculationSummary
+    from altera_api.scenarios.pt_projection import project_pt_scenario
+
+    try:
+        base_summary = ProteinTrackerCalculationSummary.model_validate(run.summary_payload)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Cannot parse base run summary: {exc}") from exc
+
+    ops_records = store.list_scenario_operations(scenario_id)
+    ops = [
+        ScenarioOperation(
+            id=op.id,
+            scenario_id=op.scenario_id,
+            operation_type=ScenarioOperationType(op.operation_type),
+            parameters=op.parameters,
+            rationale=op.rationale,
+            order=op.order,
+        )
+        for op in ops_records
+    ]
+
+    result = project_pt_scenario(base_summary, ops, scenario_id=scenario_id)
+
+    store.save_scenario_result(
+        ScenarioResultRecord(
+            scenario_id=scenario_id,
+            base_run_id=scenario.base_run_id,
+            methodology=scenario.methodology,
+            result_payload=result.model_dump(mode="json"),
+            created_at=result.created_at,
+        )
+    )
+
+    # Promote to active on first successful run
+    if scenario.status == ScenarioStatus.DRAFT.value:
+        store.update_scenario_status(scenario_id, status=ScenarioStatus.ACTIVE.value)
+
+    return _result_response(result)
+
+
+@api_router.get(
+    "/scenarios/{scenario_id}/result",
+    response_model=ScenarioResultResponse,
+)
+def get_scenario_result_route(
+    scenario_id: UUID,
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ScenarioResultResponse:
+    """Return the most recent projection result for a scenario."""
+    scenario = store.get_scenario(scenario_id)
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="scenario not found")
+
+    # Clients only see active scenarios
+    if not auth.is_altera_internal and scenario.status != ScenarioStatus.ACTIVE.value:
+        raise HTTPException(status_code=403, detail="scenario not yet active")
+
+    result_record = store.get_scenario_result(scenario_id)
+    if result_record is None:
+        raise HTTPException(status_code=404, detail="no result yet — run the scenario first")
+
+    result = ScenarioResult.model_validate(result_record.result_payload)
+    return _result_response(result)
 
 
 # ---------------------------------------------------------------------------

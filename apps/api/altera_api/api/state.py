@@ -111,6 +111,47 @@ class PersistedRecommendation:
 
 
 @dataclass
+class ScenarioRecord:
+    """Persisted scenario header (metadata only; operations stored separately)."""
+
+    id: UUID
+    organisation_id: UUID
+    project_id: UUID
+    base_run_id: UUID
+    name: str
+    description: str
+    status: str  # draft | active | archived
+    methodology: str
+    created_by: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass
+class ScenarioOperationRecord:
+    """A single persisted scenario operation."""
+
+    id: UUID
+    scenario_id: UUID
+    operation_type: str
+    parameters: dict  # free-form; validated by projection engine
+    rationale: str
+    order: int
+    created_at: datetime
+
+
+@dataclass
+class ScenarioResultRecord:
+    """Persisted projection output for a scenario run."""
+
+    scenario_id: UUID
+    base_run_id: UUID
+    methodology: str
+    result_payload: dict  # model_dump() of ScenarioResult
+    created_at: datetime
+
+
+@dataclass
 class UploadRecord:
     """Per-upload bookkeeping that the domain ``Upload`` model doesn't carry."""
 
@@ -149,6 +190,10 @@ class InMemoryStore:
         self.enrichment_records: dict[UUID, list[NutritionEnrichmentRecord]] = {}
         # Phase 25B: persisted recommendations keyed by recommendation id
         self.recommendations: dict[UUID, PersistedRecommendation] = {}
+        # Phase 26A: scenarios, operations, results
+        self.scenarios: dict[UUID, ScenarioRecord] = {}
+        self.scenario_operations: dict[UUID, ScenarioOperationRecord] = {}
+        self.scenario_results: dict[UUID, ScenarioResultRecord] = {}
         # Bootstrap a default org + user so Phase 12 doesn't need auth.
         self._bootstrap_default_tenant()
 
@@ -649,3 +694,44 @@ class InMemoryStore:
             )
             self.recommendations[recommendation_id] = updated
             return updated
+
+    # ------------------------------------------------------------------
+    # Scenarios (Phase 26A)
+    # ------------------------------------------------------------------
+
+    def add_scenario(self, record: ScenarioRecord) -> None:
+        with self._lock:
+            self.scenarios[record.id] = record
+
+    def get_scenario(self, scenario_id: UUID) -> ScenarioRecord | None:
+        return self.scenarios.get(scenario_id)
+
+    def list_scenarios_for_project(self, project_id: UUID) -> list[ScenarioRecord]:
+        return [s for s in self.scenarios.values() if s.project_id == project_id]
+
+    def update_scenario_status(self, scenario_id: UUID, *, status: str) -> ScenarioRecord | None:
+        import dataclasses
+
+        with self._lock:
+            rec = self.scenarios.get(scenario_id)
+            if rec is None:
+                return None
+            updated = dataclasses.replace(rec, status=status, updated_at=datetime.now(UTC))
+            self.scenarios[scenario_id] = updated
+            return updated
+
+    def add_scenario_operation(self, record: ScenarioOperationRecord) -> None:
+        with self._lock:
+            self.scenario_operations[record.id] = record
+
+    def list_scenario_operations(self, scenario_id: UUID) -> list[ScenarioOperationRecord]:
+        return [
+            op for op in self.scenario_operations.values() if op.scenario_id == scenario_id
+        ]
+
+    def save_scenario_result(self, record: ScenarioResultRecord) -> None:
+        with self._lock:
+            self.scenario_results[record.scenario_id] = record
+
+    def get_scenario_result(self, scenario_id: UUID) -> ScenarioResultRecord | None:
+        return self.scenario_results.get(scenario_id)

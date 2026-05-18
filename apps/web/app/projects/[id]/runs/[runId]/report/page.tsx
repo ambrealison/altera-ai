@@ -197,6 +197,11 @@ export default function ReportPage() {
 
       {/* Data coverage and uncertainty */}
       <CoverageSectionCard coverage={coverage} />
+
+      {/* Scenarios — Altera only (Phase 26A) */}
+      {isAltera && meta.methodology === "protein_tracker" && (
+        <ScenariosPlaceholderCard projectId={id} runId={runId} />
+      )}
     </div>
   );
 }
@@ -536,3 +541,46 @@ function WWFSection({ section: s }: { section: WWFReportSection }) {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Scenarios placeholder (Phase 26A)
+// ---------------------------------------------------------------------------
+
+function ScenariosPlaceholderCard({
+  projectId,
+  runId,
+}: {
+  projectId: string;
+  runId: string;
+}) {
+  return (
+    <Card>
+      <CardHeader
+        title="Scenario modelling"
+        subtitle="What-if projections for Protein Tracker runs. Deterministic, read-only."
+      />
+      <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        <p className="font-medium">Phase 26A — available via API</p>
+        <p className="mt-1 text-xs text-blue-700">
+          Scenario modelling is available through the REST API. Use
+          <code className="mx-1 rounded bg-blue-100 px-1 font-mono text-xs">
+            POST /api/v1/projects/{projectId}/scenarios
+          </code>
+          to create a scenario against run
+          <code className="ml-1 rounded bg-blue-100 px-1 font-mono text-xs">{runId}</code>,
+          add operations, then call
+          <code className="mx-1 rounded bg-blue-100 px-1 font-mono text-xs">
+            POST /api/v1/scenarios/:id/run
+          </code>
+          to compute the projection.
+        </p>
+        <p className="mt-2 text-xs text-blue-600">
+          Supported operations: shift protein between groups, increase plant core,
+          reduce animal core, improve composite split. WWF scenarios are not yet implemented.
+          A full UI for scenario authoring is planned for a future phase.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
