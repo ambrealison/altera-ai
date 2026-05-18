@@ -267,15 +267,26 @@ only new (not yet stored) items are inserted at `draft`.
 See [../recommendations/action-taxonomy.md](../recommendations/action-taxonomy.md)
 for the full trigger list.
 
-### WWF Step 2 coverage caveats (Phase 24B)
+### WWF Step 2 coverage caveats (Phase 24B / 28A-4)
 
 The `caveats` list in WWF coverage sections includes Step 2 disclosure
-messages when relevant:
+messages when relevant. Four separate caveats are emitted based on the
+denominator and brand type:
 
-- **Step 2 applied**: `"Step 2 ingredient attribution applied to N own-brand composite product(s). Ingredient weights replace whole product weights for these products in the food-group breakdown."`
-  Emitted when `N > 0` own-brand composites have stored Step 2 ingredients.
-- **Branded at Step 1**: `"N branded composite product(s) reported at Step 1 (whole product weight). Ingredient-level attribution is not available for branded products."`
-  Emitted when `N > 0` branded composites are present in the run.
+- **Step 2 applied (with denominator)**: `"Step 2 ingredient attribution was applied to X of Y own-brand composite product(s). Ingredient weights distributed across food groups FG1–FG6."`
+  Emitted when `X > 0` own-brand composites have stored Step 2 ingredients, where `Y` is the
+  total own-brand composite count in the run. The denominator `Y` makes the coverage gap explicit.
+
+- **Own-brand Step 1 only**: `"Z own-brand composite product(s) remain reported at Step 1 only (whole product weight per composite category). Ingredient-level attribution was not provided for these products."`
+  Emitted when `Z = Y − X > 0`, i.e. some own-brand composites did not receive Step 2 data.
+
+- **Branded at Step 1**: `"N branded composite product(s) reported at Step 1 (whole product weight) only. Ingredient-level attribution is not available for branded products."`
+  Emitted when `N > 0` branded composites are present in the run. Branded composites are always
+  Step 1 only per the WWF methodology.
+
+- **FG3 missing subgroup**: `"M FG3 (fats and oils) Step 2 ingredient row(s) had no plant/animal subgroup specified; their weight was excluded from whole-diet plant/animal split totals. Step 1 composite weight is unaffected."`
+  Emitted when `M > 0` Step 2 FG3 ingredient rows were stored without a `fg3_subgroup` field.
+  The Step 1 weight is not affected; only the whole-diet plant/animal attribution is incomplete.
 
 These caveats are always surfaced when their conditions are met, regardless of
 the report's uncertainty level.

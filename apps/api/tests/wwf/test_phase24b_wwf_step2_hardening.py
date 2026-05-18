@@ -899,3 +899,131 @@ class TestCoverageCaveats:
         )
         coverage = build_coverage_section(store, record, project)
         assert not any("Step 2 ingredient attribution" in c for c in coverage.caveats)
+
+    def test_own_brand_denominator_shows_x_of_y(self) -> None:
+        """Step 2 caveat must include 'X of Y own-brand composite' format."""
+        from altera_api.exports.coverage import build_coverage_section
+
+        store = InMemoryStore()
+        s, project, record = self._run_with_step2(store, include_branded=False)
+        coverage = build_coverage_section(store, record, project)
+        # With 1 own-brand composite and Step 2 applied, expect "1 of 1 own-brand composite".
+        assert any("1 of 1 own-brand composite" in c for c in coverage.caveats)
+
+    def test_own_brand_step1_only_caveat(self) -> None:
+        """Own-brand composites without Step 2 data must be disclosed."""
+        from altera_api.api.orchestrator import run_calculation
+        from altera_api.exports.coverage import build_coverage_section
+
+        store = InMemoryStore()
+        org = _org(store)
+        project = store.create_project(
+            name="partial_step2",
+            methodologies_enabled=frozenset({Methodology.WWF}),
+            reporting_period_label="2024",
+            organisation_id=org.id,
+        )
+        # Two own-brand composites; only the first gets Step 2 data.
+        p_with_step2 = _product(project.id, org.id, ext_id="OWN1", is_own_brand=True)
+        p_no_step2 = _product(project.id, org.id, ext_id="OWN2", is_own_brand=True)
+        for p in (p_with_step2, p_no_step2):
+            store.add_product(p)
+            store.upsert_wwf_classification(_composite_clf(p.id))
+
+        store.upsert_wwf_ingredients_for_product(
+            p_with_step2.id,
+            [
+                WWFCompositeIngredient(
+                    id=uuid4(),
+                    parent_product_id=p_with_step2.id,
+                    food_group=WWFFoodGroup.FG4,
+                    ingredient_weight_kg_per_item=Decimal("0.2"),
+                )
+            ],
+        )
+
+        record = run_calculation(
+            store, project=project, methodology=Methodology.WWF, triggered_by=uuid4()
+        )
+        coverage = build_coverage_section(store, record, project)
+
+        # Step 2 caveat: "1 of 2 own-brand composite".
+        assert any("1 of 2 own-brand composite" in c for c in coverage.caveats)
+        # Own-brand step1-only caveat: 1 product without Step 2.
+        assert any(
+            "1 own-brand composite product(s) remain reported at Step 1 only" in c
+            for c in coverage.caveats
+        )
+
+    def test_fg3_missing_subgroup_emits_caveat(self) -> None:
+        """FG3 ingredient without plant/animal subgroup must trigger a caveat."""
+        from altera_api.api.orchestrator import run_calculation
+        from altera_api.exports.coverage import build_coverage_section
+
+        store = InMemoryStore()
+        org = _org(store)
+        project = store.create_project(
+            name="fg3_no_sub",
+            methodologies_enabled=frozenset({Methodology.WWF}),
+            reporting_period_label="2024",
+            organisation_id=org.id,
+        )
+        p = _product(project.id, org.id, is_own_brand=True)
+        store.add_product(p)
+        store.upsert_wwf_classification(_composite_clf(p.id))
+        store.upsert_wwf_ingredients_for_product(
+            p.id,
+            [
+                WWFCompositeIngredient(
+                    id=uuid4(),
+                    parent_product_id=p.id,
+                    food_group=WWFFoodGroup.FG3,
+                    fg3_subgroup=None,  # missing subgroup → excluded from whole-diet
+                    ingredient_weight_kg_per_item=Decimal("0.1"),
+                )
+            ],
+        )
+
+        record = run_calculation(
+            store, project=project, methodology=Methodology.WWF, triggered_by=uuid4()
+        )
+        coverage = build_coverage_section(store, record, project)
+
+        assert any("FG3" in c and "no plant/animal subgroup" in c for c in coverage.caveats)
+        assert any("excluded from whole-diet" in c for c in coverage.caveats)
+
+    def test_fg3_with_subgroup_no_caveat(self) -> None:
+        """FG3 ingredient WITH a plant/animal subgroup must NOT trigger the FG3 caveat."""
+        from altera_api.api.orchestrator import run_calculation
+        from altera_api.exports.coverage import build_coverage_section
+
+        store = InMemoryStore()
+        org = _org(store)
+        project = store.create_project(
+            name="fg3_with_sub",
+            methodologies_enabled=frozenset({Methodology.WWF}),
+            reporting_period_label="2024",
+            organisation_id=org.id,
+        )
+        p = _product(project.id, org.id, is_own_brand=True)
+        store.add_product(p)
+        store.upsert_wwf_classification(_composite_clf(p.id))
+        store.upsert_wwf_ingredients_for_product(
+            p.id,
+            [
+                WWFCompositeIngredient(
+                    id=uuid4(),
+                    parent_product_id=p.id,
+                    food_group=WWFFoodGroup.FG3,
+                    fg3_subgroup=WWFFG3Subgroup.PLANT_BASED_FAT,
+                    ingredient_weight_kg_per_item=Decimal("0.1"),
+                )
+            ],
+        )
+
+        record = run_calculation(
+            store, project=project, methodology=Methodology.WWF, triggered_by=uuid4()
+        )
+        coverage = build_coverage_section(store, record, project)
+
+        assert not any("FG3" in c and "no plant/animal subgroup" in c for c in coverage.caveats)

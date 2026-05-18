@@ -310,36 +310,78 @@ def _wwf_step2_caveats(
     *,
     products_in_run: list,
 ) -> list[str]:
-    """Disclose WWF Step 2 ingredient attribution status (Phase 24A/24B).
+    """Disclose WWF Step 2 ingredient attribution status (Phase 24A/24B/28A-4).
 
-    Reports how many own-brand composites had ingredient-level attribution
-    applied and how many branded composites remained at Step 1 only.
+    Reports:
+    - how many own-brand composites received Step 2 attribution vs the total
+    - how many own-brand composites remain at Step 1 only
+    - how many branded composites are Step 1 only (methodology-mandated)
+    - any FG3 (fats and oils) ingredient rows without a plant/animal subgroup
     """
     caveats: list[str] = []
 
+    # Count composite products by brand type in a single pass.
+    own_brand_composite_total = 0
+    branded_composite_total = 0
+    for p in products_in_run:
+        if p.wwf_fields is None:
+            continue
+        clf = store.get_wwf_classification(p.id)
+        if clf is None or not clf.wwf_is_composite:
+            continue
+        if p.wwf_fields.is_own_brand:
+            own_brand_composite_total += 1
+        else:
+            branded_composite_total += 1
+
+    # Step 2 ingredient data (product_id → ingredients mapping).
     step2_map = store.get_wwf_ingredients_by_project(project_id)
-    step2_count = len(step2_map)
-    if step2_count > 0:
+    step2_applied_count = len(step2_map)
+    own_brand_step1_only = max(0, own_brand_composite_total - step2_applied_count)
+
+    # Own-brand Step 2 caveat — show denominator when it is known.
+    if step2_applied_count > 0:
+        if own_brand_composite_total > 0:
+            caveats.append(
+                f"Step 2 ingredient attribution was applied to "
+                f"{step2_applied_count} of {own_brand_composite_total} "
+                f"own-brand composite product(s). "
+                "Ingredient weights distributed across food groups FG1–FG6."
+            )
+        else:
+            caveats.append(
+                f"Step 2 ingredient attribution applied to {step2_applied_count} own-brand "
+                "composite product(s). Ingredient weights distributed across food groups FG1–FG6."
+            )
+
+    # Own-brand composites remaining at Step 1 only.
+    if own_brand_step1_only > 0:
         caveats.append(
-            f"Step 2 ingredient attribution applied to {step2_count} own-brand composite "
-            "product(s). Ingredient weights distributed across food groups FG1–FG6."
+            f"{own_brand_step1_only} own-brand composite product(s) remain reported at "
+            "Step 1 only (whole product weight per composite category). "
+            "Ingredient-level attribution was not provided for these products."
         )
 
-    # Count branded composites from the products-in-run list.
-    branded_step1_count = sum(
-        1
-        for p in products_in_run
-        if p.wwf_fields is not None
-        and not p.wwf_fields.is_own_brand
-        # Only count if this product has a composite classification.
-        and store.get_wwf_classification(p.id) is not None
-        and (store.get_wwf_classification(p.id).wwf_is_composite or False)
-    )
-    if branded_step1_count > 0:
+    # Branded composites at Step 1 only (always the case per WWF methodology).
+    if branded_composite_total > 0:
         caveats.append(
-            f"{branded_step1_count} branded composite product(s) reported at Step 1 "
+            f"{branded_composite_total} branded composite product(s) reported at Step 1 "
             "(whole product weight) only. Ingredient-level attribution is not available "
             "for branded products."
+        )
+
+    # FG3 missing-subgroup limitation: plant/animal split excluded from whole-diet.
+    fg3_no_subgroup_count = sum(
+        1
+        for ingredients in step2_map.values()
+        for ing in ingredients
+        if ing.food_group.value == "FG3" and ing.fg3_subgroup is None
+    )
+    if fg3_no_subgroup_count > 0:
+        caveats.append(
+            f"{fg3_no_subgroup_count} FG3 (fats and oils) Step 2 ingredient row(s) had no "
+            "plant/animal subgroup specified; their weight was excluded from whole-diet "
+            "plant/animal split totals. Step 1 composite weight is unaffected."
         )
 
     return caveats

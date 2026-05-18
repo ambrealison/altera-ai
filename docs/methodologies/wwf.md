@@ -194,10 +194,22 @@ Violations are hard errors that abort processing for that product.
   `"plant_based_fat"` or `"animal_based_fat"`. When present it determines
   the ingredient's contribution to the whole-diet plant/animal split.
   When absent the ingredient is stored but excluded from that split (a
-  warning is emitted). Use when fat source is known.
+  warning is emitted at upload time, and a coverage caveat is emitted on
+  the report). Use when fat source is known.
 - FG5 ingredients may carry a `"grain_kind"` field:
   `"whole_grain"` or `"refined_grain"`. Stored for future reporting; not
   yet used in the main calculation.
+
+**Step 2 coverage disclosure (Phase 28A-4):**
+
+Reports include four deterministic caveats to disclose Step 2 completeness:
+
+1. **Denominator**: `"Step 2 ingredient attribution was applied to X of Y own-brand composite product(s)."` — shows the coverage fraction, not just the count.
+2. **Own-brand Step 1 only**: `"Z own-brand composite product(s) remain reported at Step 1 only."` — emitted when `Z = Y − X > 0`.
+3. **Branded Step 1 only**: `"N branded composite product(s) reported at Step 1 (whole product weight) only."` — always the case per the methodology.
+4. **FG3 gap**: `"M FG3 (fats and oils) Step 2 ingredient row(s) had no plant/animal subgroup specified; their weight was excluded from whole-diet plant/animal split totals."` — emitted when stored FG3 ingredients have no `subgroup` field.
+
+The Step 1 composite weight reported in the main result table is always complete and unaffected by Step 2 data gaps.
 
 **Re-upload semantics (Phase 24B):**
 
