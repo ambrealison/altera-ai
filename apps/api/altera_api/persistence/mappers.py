@@ -12,7 +12,15 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from altera_api.api.state import ExportRecord, RunRecord, UploadRecord
+from altera_api.api.state import (
+    ExportRecord,
+    PersistedRecommendation,
+    RunRecord,
+    ScenarioOperationRecord,
+    ScenarioRecord,
+    ScenarioResultRecord,
+    UploadRecord,
+)
 from altera_api.domain.common import (
     AlteraRole,
     ClassificationSource,
@@ -21,6 +29,12 @@ from altera_api.domain.common import (
     OrganisationType,
     Role,
 )
+from altera_api.domain.enrichment import (
+    NutritionEnrichmentRecord,
+    NutritionEnrichmentSource,
+    NutritionEnrichmentStatus,
+)
+from altera_api.domain.job import Job, JobStatus, JobType
 from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.product import (
     NormalizedProduct,
@@ -36,11 +50,14 @@ from altera_api.domain.protein_tracker import (
 )
 from altera_api.domain.report_exports import ReviewOwnerType
 from altera_api.domain.review import (
+    ManualReviewDecision,
+    ManualReviewDecisionType,
     ManualReviewItem,
     ManualReviewQueueReason,
     ManualReviewStatus,
 )
 from altera_api.domain.upload import Upload, UploadStatus
+from altera_api.domain.validation import ValidationReport
 from altera_api.domain.wwf import (
     WWFCompositeIngredient,
     WWFCompositeStep1Bucket,
@@ -151,6 +168,30 @@ def upload_from_row(row: dict) -> Upload:
         dropped_columns=tuple(row.get("dropped_columns") or []),
         uploaded_by=UUID(row["uploaded_by"]) if row.get("uploaded_by") else UUID(int=0),
         created_at=_parse_dt(row["created_at"]),
+        # Phase 15 fields
+        content_type=row.get("content_type"),
+        file_size_bytes=row.get("file_size_bytes"),
+        checksum_sha256=row.get("checksum_sha256"),
+        validation_started_at=(
+            _parse_dt(row["validation_started_at"])
+            if row.get("validation_started_at")
+            else None
+        ),
+        validation_completed_at=(
+            _parse_dt(row["validation_completed_at"])
+            if row.get("validation_completed_at")
+            else None
+        ),
+        ingestion_started_at=(
+            _parse_dt(row["ingestion_started_at"])
+            if row.get("ingestion_started_at")
+            else None
+        ),
+        ingestion_completed_at=(
+            _parse_dt(row["ingestion_completed_at"])
+            if row.get("ingestion_completed_at")
+            else None
+        ),
     )
 
 
@@ -166,13 +207,50 @@ def upload_to_row(upload: Upload) -> dict:
         "dropped_columns": list(upload.dropped_columns),
         "uploaded_by": str(upload.uploaded_by),
         "created_at": upload.created_at.isoformat(),
+        # Phase 15 fields
+        "content_type": upload.content_type,
+        "file_size_bytes": upload.file_size_bytes,
+        "checksum_sha256": upload.checksum_sha256,
+        "validation_started_at": (
+            upload.validation_started_at.isoformat()
+            if upload.validation_started_at
+            else None
+        ),
+        "validation_completed_at": (
+            upload.validation_completed_at.isoformat()
+            if upload.validation_completed_at
+            else None
+        ),
+        "ingestion_started_at": (
+            upload.ingestion_started_at.isoformat()
+            if upload.ingestion_started_at
+            else None
+        ),
+        "ingestion_completed_at": (
+            upload.ingestion_completed_at.isoformat()
+            if upload.ingestion_completed_at
+            else None
+        ),
     }
 
 
 def upload_record_from_rows(upload_row: dict, product_id_rows: list[dict]) -> UploadRecord:
+    validation_report: ValidationReport | None = None
+    vr_payload = upload_row.get("validation_report")
+    if vr_payload:
+        try:
+            validation_report = ValidationReport.model_validate(vr_payload)
+        except Exception:
+            pass
     return UploadRecord(
         upload=upload_from_row(upload_row),
         product_ids=[UUID(r["id"]) for r in product_id_rows],
+        validation_report=validation_report,
+        duplicate_of=(
+            UUID(upload_row["duplicate_of_upload_id"])
+            if upload_row.get("duplicate_of_upload_id")
+            else None
+        ),
     )
 
 
@@ -561,3 +639,278 @@ def wwf_ingredient_from_row(row: dict) -> WWFCompositeIngredient:
         ingredient_weight_kg_per_item=Decimal(str(row["ingredient_weight_kg_per_item"])),
         **subgroup_kwargs,
     )
+
+
+# ---------------------------------------------------------------------------
+# Jobs (Phase 16)
+# ---------------------------------------------------------------------------
+
+
+def job_from_row(row: dict) -> Job:
+    return Job(
+        job_id=UUID(row["job_id"]),
+        organisation_id=UUID(row["organisation_id"]),
+        project_id=UUID(row["project_id"]),
+        upload_id=UUID(row["upload_id"]) if row.get("upload_id") else None,
+        run_id=UUID(row["run_id"]) if row.get("run_id") else None,
+        job_type=JobType(row["job_type"]),
+        status=JobStatus(row["status"]),
+        progress_pct=row.get("progress_pct"),
+        created_by=UUID(row["created_by"]),
+        created_at=_parse_dt(row["created_at"]),
+        started_at=_parse_dt(row["started_at"]) if row.get("started_at") else None,
+        completed_at=_parse_dt(row["completed_at"]) if row.get("completed_at") else None,
+        failed_at=_parse_dt(row["failed_at"]) if row.get("failed_at") else None,
+        error_message=row.get("error_message"),
+        retry_count=row.get("retry_count") or 0,
+        idempotency_key=row.get("idempotency_key"),
+        payload=row.get("payload") or {},
+    )
+
+
+def job_to_row(job: Job) -> dict:
+    return {
+        "job_id": str(job.job_id),
+        "organisation_id": str(job.organisation_id),
+        "project_id": str(job.project_id),
+        "upload_id": str(job.upload_id) if job.upload_id else None,
+        "run_id": str(job.run_id) if job.run_id else None,
+        "job_type": job.job_type.value,
+        "status": job.status.value,
+        "progress_pct": job.progress_pct,
+        "created_by": str(job.created_by),
+        "created_at": job.created_at.isoformat(),
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        "failed_at": job.failed_at.isoformat() if job.failed_at else None,
+        "error_message": job.error_message,
+        "retry_count": job.retry_count,
+        "idempotency_key": job.idempotency_key,
+        "payload": job.payload,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Review decisions (Phase 19C)
+# ---------------------------------------------------------------------------
+
+
+def review_decision_to_row(decision: ManualReviewDecision) -> dict:
+    return {
+        "id": str(decision.id),
+        "product_id": str(decision.product_id),
+        "methodology": decision.methodology.value,
+        "decision": decision.decision.value,
+        "reviewer_user_id": str(decision.reviewer_user_id),
+        "from_category": decision.from_category,
+        "to_category": decision.to_category,
+        "reason": decision.reason,
+        "created_at": decision.created_at.isoformat(),
+    }
+
+
+def review_decision_from_row(row: dict) -> ManualReviewDecision:
+    return ManualReviewDecision(
+        id=UUID(row["id"]),
+        product_id=UUID(row["product_id"]),
+        methodology=Methodology(row["methodology"]),
+        decision=ManualReviewDecisionType(row["decision"]),
+        reviewer_user_id=UUID(row["reviewer_user_id"]),
+        from_category=row.get("from_category"),
+        to_category=row.get("to_category"),
+        reason=row.get("reason"),
+        created_at=_parse_dt(row["created_at"]),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Nutrition enrichment records (Phase 23A)
+# ---------------------------------------------------------------------------
+
+
+def enrichment_record_from_row(row: dict) -> NutritionEnrichmentRecord:
+    return NutritionEnrichmentRecord(
+        product_id=UUID(row["product_id"]),
+        nutrient=row["nutrient"],
+        original_value=(
+            Decimal(str(row["original_value"]))
+            if row.get("original_value") is not None
+            else None
+        ),
+        enriched_value=(
+            Decimal(str(row["enriched_value"]))
+            if row.get("enriched_value") is not None
+            else None
+        ),
+        unit=row["unit"],
+        source=NutritionEnrichmentSource(row["source"]),
+        confidence=(
+            Decimal(str(row["confidence"]))
+            if row.get("confidence") is not None
+            else None
+        ),
+        status=NutritionEnrichmentStatus(row["status"]),
+        rationale=row.get("rationale") or "",
+        created_at=_parse_dt(row["created_at"]),
+        created_by=UUID(row["created_by"]) if row.get("created_by") else None,
+    )
+
+
+def enrichment_record_to_row(record: NutritionEnrichmentRecord) -> dict:
+    return {
+        "product_id": str(record.product_id),
+        "nutrient": record.nutrient,
+        "original_value": (
+            float(record.original_value) if record.original_value is not None else None
+        ),
+        "enriched_value": (
+            float(record.enriched_value) if record.enriched_value is not None else None
+        ),
+        "unit": record.unit,
+        "source": record.source.value,
+        "confidence": float(record.confidence) if record.confidence is not None else None,
+        "status": record.status.value,
+        "rationale": record.rationale,
+        "created_at": record.created_at.isoformat(),
+        "created_by": str(record.created_by) if record.created_by else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Recommendations (Phase 25B)
+# ---------------------------------------------------------------------------
+
+
+def persisted_recommendation_from_row(row: dict) -> PersistedRecommendation:
+    return PersistedRecommendation(
+        id=UUID(row["id"]),
+        organisation_id=UUID(row["organisation_id"]),
+        project_id=UUID(row["project_id"]),
+        run_id=UUID(row["run_id"]),
+        methodology=row["methodology"],
+        action_type=row["action_type"],
+        category=row["category"],
+        title=row["title"],
+        description=row["description"],
+        rationale=row["rationale"],
+        expected_direction=row["expected_direction"],
+        priority=row["priority"],
+        confidence=row["confidence"],
+        evidence=list(row.get("evidence") or []),
+        caveats=list(row.get("caveats") or []),
+        status=row["status"],
+        client_facing=bool(row["client_facing"]),
+        created_at=_parse_dt(row["created_at"]),
+        updated_at=_parse_dt(row["updated_at"]),
+        created_by=UUID(row["created_by"]) if row.get("created_by") else None,
+        updated_by=UUID(row["updated_by"]) if row.get("updated_by") else None,
+    )
+
+
+def persisted_recommendation_to_row(rec: PersistedRecommendation) -> dict:
+    return {
+        "id": str(rec.id),
+        "organisation_id": str(rec.organisation_id),
+        "project_id": str(rec.project_id),
+        "run_id": str(rec.run_id),
+        "methodology": rec.methodology,
+        "action_type": rec.action_type,
+        "category": rec.category,
+        "title": rec.title,
+        "description": rec.description,
+        "rationale": rec.rationale,
+        "expected_direction": rec.expected_direction,
+        "priority": rec.priority,
+        "confidence": rec.confidence,
+        "evidence": list(rec.evidence),
+        "caveats": list(rec.caveats),
+        "status": rec.status,
+        "client_facing": rec.client_facing,
+        "created_at": rec.created_at.isoformat(),
+        "updated_at": rec.updated_at.isoformat(),
+        "created_by": str(rec.created_by) if rec.created_by else None,
+        "updated_by": str(rec.updated_by) if rec.updated_by else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Scenarios (Phase 26A)
+# ---------------------------------------------------------------------------
+
+
+def scenario_from_row(row: dict) -> ScenarioRecord:
+    return ScenarioRecord(
+        id=UUID(row["id"]),
+        organisation_id=UUID(row["organisation_id"]),
+        project_id=UUID(row["project_id"]),
+        base_run_id=UUID(row["base_run_id"]),
+        name=row["name"],
+        description=row.get("description") or "",
+        status=row["status"],
+        methodology=row["methodology"],
+        created_by=UUID(row["created_by"]) if row.get("created_by") else UUID(int=0),
+        created_at=_parse_dt(row["created_at"]),
+        updated_at=_parse_dt(row["updated_at"]),
+    )
+
+
+def scenario_to_row(record: ScenarioRecord) -> dict:
+    return {
+        "id": str(record.id),
+        "organisation_id": str(record.organisation_id),
+        "project_id": str(record.project_id),
+        "base_run_id": str(record.base_run_id),
+        "name": record.name,
+        "description": record.description,
+        "status": record.status,
+        "methodology": record.methodology,
+        "created_by": (
+            str(record.created_by) if record.created_by != UUID(int=0) else None
+        ),
+        "created_at": record.created_at.isoformat(),
+        "updated_at": record.updated_at.isoformat(),
+    }
+
+
+def scenario_operation_from_row(row: dict) -> ScenarioOperationRecord:
+    return ScenarioOperationRecord(
+        id=UUID(row["id"]),
+        scenario_id=UUID(row["scenario_id"]),
+        operation_type=row["operation_type"],
+        parameters=row.get("parameters") or {},
+        rationale=row.get("rationale") or "",
+        order=row.get("order") or 0,
+        created_at=_parse_dt(row["created_at"]),
+    )
+
+
+def scenario_operation_to_row(record: ScenarioOperationRecord) -> dict:
+    return {
+        "id": str(record.id),
+        "scenario_id": str(record.scenario_id),
+        "operation_type": record.operation_type,
+        "parameters": record.parameters,
+        "rationale": record.rationale,
+        "order": record.order,
+        "created_at": record.created_at.isoformat(),
+    }
+
+
+def scenario_result_from_row(row: dict) -> ScenarioResultRecord:
+    return ScenarioResultRecord(
+        scenario_id=UUID(row["scenario_id"]),
+        base_run_id=UUID(row["base_run_id"]),
+        methodology=row["methodology"],
+        result_payload=row.get("result_payload") or {},
+        created_at=_parse_dt(row["created_at"]),
+    )
+
+
+def scenario_result_to_row(record: ScenarioResultRecord) -> dict:
+    return {
+        "scenario_id": str(record.scenario_id),
+        "base_run_id": str(record.base_run_id),
+        "methodology": record.methodology,
+        "result_payload": record.result_payload,
+        "created_at": record.created_at.isoformat(),
+    }

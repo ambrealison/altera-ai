@@ -18,30 +18,54 @@ from uuid import UUID
 
 import supabase
 
-from altera_api.api.state import ExportRecord, RunRecord, UploadRecord
+from altera_api.api.state import (
+    ExportRecord,
+    PersistedRecommendation,
+    RunRecord,
+    ScenarioOperationRecord,
+    ScenarioRecord,
+    ScenarioResultRecord,
+    UploadRecord,
+)
 from altera_api.domain.audit import AuditEvent
 from altera_api.domain.common import Methodology
+from altera_api.domain.enrichment import NutritionEnrichmentRecord
+from altera_api.domain.job import Job, JobStatus, JobType
 from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.product import NormalizedProduct
 from altera_api.domain.project import Project
 from altera_api.domain.protein_tracker import ProteinTrackerProductClassification
-from altera_api.domain.review import ManualReviewItem
+from altera_api.domain.review import ManualReviewDecision, ManualReviewItem
 from altera_api.domain.upload import Upload
+from altera_api.domain.validation import ValidationReport
 from altera_api.domain.wwf import WWFCompositeIngredient, WWFProductClassification
 from altera_api.persistence.mappers import (
+    enrichment_record_from_row,
+    enrichment_record_to_row,
     export_record_from_row,
     export_record_to_row,
+    job_from_row,
+    job_to_row,
     manual_review_from_row,
     manual_review_to_row,
     organisation_from_row,
+    persisted_recommendation_from_row,
+    persisted_recommendation_to_row,
     product_from_row,
     product_to_row,
     project_from_row,
     project_to_row,
     pt_classification_from_row,
     pt_classification_to_row,
+    review_decision_to_row,
     run_record_from_row,
     run_record_to_row,
+    scenario_from_row,
+    scenario_operation_from_row,
+    scenario_operation_to_row,
+    scenario_result_from_row,
+    scenario_result_to_row,
+    scenario_to_row,
     upload_record_from_rows,
     upload_to_row,
     user_profile_from_rows,
@@ -507,3 +531,354 @@ class PostgresRepository:
             ).execute()
         except Exception:
             pass
+
+    # ------------------------------------------------------------------
+    # Upload lifecycle (Phase 15)
+    # ------------------------------------------------------------------
+
+    def update_upload(self, upload: Upload, *, product_ids: list[UUID] | None = None) -> None:
+        row = upload_to_row(upload)
+        row.pop("id", None)
+        self._rls.table("uploads").update(row).eq("id", str(upload.id)).execute()
+
+    def set_upload_validation_report(
+        self,
+        upload_id: UUID,
+        report: ValidationReport,
+        *,
+        duplicate_of: UUID | None = None,
+    ) -> None:
+        update: dict = {"validation_report": report.model_dump(mode="json")}
+        if duplicate_of is not None:
+            update["duplicate_of_upload_id"] = str(duplicate_of)
+        self._rls.table("uploads").update(update).eq("id", str(upload_id)).execute()
+
+    def get_upload_validation_report(self, upload_id: UUID) -> ValidationReport | None:
+        r = (
+            self._rls.table("uploads")
+            .select("validation_report")
+            .eq("id", str(upload_id))
+            .limit(1)
+            .execute()
+        )
+        if not r.data or r.data[0].get("validation_report") is None:
+            return None
+        try:
+            return ValidationReport.model_validate(r.data[0]["validation_report"])
+        except Exception:
+            return None
+
+    def find_upload_by_checksum(self, project_id: UUID, checksum: str) -> Upload | None:
+        r = (
+            self._rls.table("uploads")
+            .select("*")
+            .eq("project_id", str(project_id))
+            .eq("checksum_sha256", checksum)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not r.data:
+            return None
+        return upload_record_from_rows(r.data[0], []).upload
+
+    # ------------------------------------------------------------------
+    # WWF ingredients — missing write/clear methods (Phase 24A)
+    # ------------------------------------------------------------------
+
+    def upsert_wwf_ingredients_for_product(
+        self, product_id: UUID, ingredients: list[WWFCompositeIngredient]
+    ) -> None:
+        self._rls.table("product_composite_ingredients").delete().eq(
+            "product_id", str(product_id)
+        ).execute()
+        if ingredients:
+            rows = []
+            for ing in ingredients:
+                subgroup: str | None = None
+                for sg in (ing.fg1_subgroup, ing.fg2_subgroup):
+                    if sg is not None:
+                        subgroup = sg.value
+                        break
+                rows.append(
+                    {
+                        "id": str(ing.id),
+                        "product_id": str(product_id),
+                        "food_group": ing.food_group.value,
+                        "subgroup": subgroup,
+                        "ingredient_weight_kg_per_item": float(
+                            ing.ingredient_weight_kg_per_item
+                        ),
+                    }
+                )
+            self._rls.table("product_composite_ingredients").insert(rows).execute()
+
+    def clear_wwf_ingredients_for_project(self, project_id: UUID) -> None:
+        pr = self._rls.table("products").select("id").eq("project_id", str(project_id)).execute()
+        product_ids = [r["id"] for r in (pr.data or [])]
+        if product_ids:
+            self._rls.table("product_composite_ingredients").delete().in_(
+                "product_id", product_ids
+            ).execute()
+
+    def get_wwf_ingredients_for_product(
+        self, product_id: UUID
+    ) -> list[WWFCompositeIngredient]:
+        r = (
+            self._rls.table("product_composite_ingredients")
+            .select("*")
+            .eq("product_id", str(product_id))
+            .execute()
+        )
+        return [wwf_ingredient_from_row(row) for row in (r.data or [])]
+
+    # ------------------------------------------------------------------
+    # Review decisions (Phase 19C)
+    # ------------------------------------------------------------------
+
+    def add_review_decision(self, decision: ManualReviewDecision) -> None:
+        try:
+            self._rls.table("review_decisions").insert(
+                review_decision_to_row(decision)
+            ).execute()
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Jobs (Phase 16)
+    # ------------------------------------------------------------------
+
+    def add_job(self, job: Job) -> None:
+        self._rls.table("jobs").insert(job_to_row(job)).execute()
+
+    def update_job(self, job: Job) -> None:
+        row = job_to_row(job)
+        row.pop("job_id", None)
+        self._rls.table("jobs").update(row).eq("job_id", str(job.job_id)).execute()
+
+    def get_job(self, job_id: UUID) -> Job | None:
+        r = (
+            self._rls.table("jobs")
+            .select("*")
+            .eq("job_id", str(job_id))
+            .limit(1)
+            .execute()
+        )
+        if not r.data:
+            return None
+        return job_from_row(r.data[0])
+
+    def list_jobs_for_project(self, project_id: UUID) -> list[Job]:
+        r = (
+            self._rls.table("jobs")
+            .select("*")
+            .eq("project_id", str(project_id))
+            .execute()
+        )
+        return [job_from_row(row) for row in (r.data or [])]
+
+    def find_active_job(self, *, job_type: JobType, idempotency_key: str) -> Job | None:
+        r = (
+            self._rls.table("jobs")
+            .select("*")
+            .eq("job_type", job_type.value)
+            .eq("idempotency_key", idempotency_key)
+            .in_("status", [JobStatus.QUEUED.value, JobStatus.RUNNING.value])
+            .limit(1)
+            .execute()
+        )
+        if not r.data:
+            return None
+        return job_from_row(r.data[0])
+
+    # ------------------------------------------------------------------
+    # Nutrition enrichment (Phase 23A)
+    # ------------------------------------------------------------------
+
+    def add_enrichment_record(self, record: NutritionEnrichmentRecord) -> None:
+        self._rls.table("nutrition_enrichment_records").insert(
+            enrichment_record_to_row(record)
+        ).execute()
+
+    def get_enrichment_records_for_product(
+        self, product_id: UUID
+    ) -> list[NutritionEnrichmentRecord]:
+        r = (
+            self._rls.table("nutrition_enrichment_records")
+            .select("*")
+            .eq("product_id", str(product_id))
+            .execute()
+        )
+        return [enrichment_record_from_row(row) for row in (r.data or [])]
+
+    def list_enrichment_records_for_project(
+        self, project_id: UUID
+    ) -> list[NutritionEnrichmentRecord]:
+        pr = self._rls.table("products").select("id").eq("project_id", str(project_id)).execute()
+        product_ids = [r["id"] for r in (pr.data or [])]
+        if not product_ids:
+            return []
+        r = (
+            self._rls.table("nutrition_enrichment_records")
+            .select("*")
+            .in_("product_id", product_ids)
+            .execute()
+        )
+        return [enrichment_record_from_row(row) for row in (r.data or [])]
+
+    # ------------------------------------------------------------------
+    # Recommendations (Phase 25B)
+    # ------------------------------------------------------------------
+
+    def upsert_recommendations_for_run(
+        self, records: list[PersistedRecommendation]
+    ) -> None:
+        if not records:
+            return
+        rows = [persisted_recommendation_to_row(r) for r in records]
+        self._rls.table("recommendations").upsert(
+            rows, on_conflict="run_id,action_type"
+        ).execute()
+
+    def list_recommendations_for_run(
+        self, run_id: UUID
+    ) -> list[PersistedRecommendation]:
+        r = (
+            self._rls.table("recommendations")
+            .select("*")
+            .eq("run_id", str(run_id))
+            .execute()
+        )
+        return [persisted_recommendation_from_row(row) for row in (r.data or [])]
+
+    def list_recommendations_for_project(
+        self, project_id: UUID
+    ) -> list[PersistedRecommendation]:
+        r = (
+            self._rls.table("recommendations")
+            .select("*")
+            .eq("project_id", str(project_id))
+            .execute()
+        )
+        return [persisted_recommendation_from_row(row) for row in (r.data or [])]
+
+    def get_recommendation(
+        self, recommendation_id: UUID
+    ) -> PersistedRecommendation | None:
+        r = (
+            self._rls.table("recommendations")
+            .select("*")
+            .eq("id", str(recommendation_id))
+            .limit(1)
+            .execute()
+        )
+        if not r.data:
+            return None
+        return persisted_recommendation_from_row(r.data[0])
+
+    def update_recommendation_status(
+        self,
+        recommendation_id: UUID,
+        *,
+        status: str,
+        by_user_id: UUID,
+    ) -> PersistedRecommendation | None:
+        from datetime import UTC, datetime
+
+        r = (
+            self._svc.table("recommendations")
+            .update(
+                {
+                    "status": status,
+                    "updated_by": str(by_user_id),
+                    "updated_at": datetime.now(UTC).isoformat(),
+                }
+            )
+            .eq("id", str(recommendation_id))
+            .execute()
+        )
+        if not r.data:
+            return None
+        return persisted_recommendation_from_row(r.data[0])
+
+    # ------------------------------------------------------------------
+    # Scenarios (Phase 26A)
+    # ------------------------------------------------------------------
+
+    def add_scenario(self, record: ScenarioRecord) -> None:
+        self._rls.table("scenarios").insert(scenario_to_row(record)).execute()
+
+    def get_scenario(self, scenario_id: UUID) -> ScenarioRecord | None:
+        r = (
+            self._rls.table("scenarios")
+            .select("*")
+            .eq("id", str(scenario_id))
+            .limit(1)
+            .execute()
+        )
+        if not r.data:
+            return None
+        return scenario_from_row(r.data[0])
+
+    def list_scenarios_for_project(self, project_id: UUID) -> list[ScenarioRecord]:
+        r = (
+            self._rls.table("scenarios")
+            .select("*")
+            .eq("project_id", str(project_id))
+            .execute()
+        )
+        return [scenario_from_row(row) for row in (r.data or [])]
+
+    def update_scenario_status(
+        self, scenario_id: UUID, *, status: str
+    ) -> ScenarioRecord | None:
+        from datetime import UTC, datetime
+
+        r = (
+            self._rls.table("scenarios")
+            .update(
+                {
+                    "status": status,
+                    "updated_at": datetime.now(UTC).isoformat(),
+                }
+            )
+            .eq("id", str(scenario_id))
+            .execute()
+        )
+        if not r.data:
+            return None
+        return scenario_from_row(r.data[0])
+
+    def add_scenario_operation(self, record: ScenarioOperationRecord) -> None:
+        self._rls.table("scenario_operations").insert(
+            scenario_operation_to_row(record)
+        ).execute()
+
+    def list_scenario_operations(
+        self, scenario_id: UUID
+    ) -> list[ScenarioOperationRecord]:
+        r = (
+            self._rls.table("scenario_operations")
+            .select("*")
+            .eq("scenario_id", str(scenario_id))
+            .order("order")
+            .execute()
+        )
+        return [scenario_operation_from_row(row) for row in (r.data or [])]
+
+    def save_scenario_result(self, record: ScenarioResultRecord) -> None:
+        self._rls.table("scenario_results").upsert(
+            scenario_result_to_row(record), on_conflict="scenario_id"
+        ).execute()
+
+    def get_scenario_result(self, scenario_id: UUID) -> ScenarioResultRecord | None:
+        r = (
+            self._rls.table("scenario_results")
+            .select("*")
+            .eq("scenario_id", str(scenario_id))
+            .limit(1)
+            .execute()
+        )
+        if not r.data:
+            return None
+        return scenario_result_from_row(r.data[0])
