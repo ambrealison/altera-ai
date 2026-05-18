@@ -28,3 +28,6 @@ build/
 # Supabase
 supabase/.branches/
 supabase/.temp/
+
+# TypeScript build cache
+*.tsbuildinfo
