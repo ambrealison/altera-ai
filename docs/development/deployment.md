@@ -247,6 +247,9 @@ dependency vulnerability notifications.
 
 ### Pre-pilot security checklist
 
+- [ ] **Git history cleaned** — `git filter-repo` rewrite completed for commit `27205ca` (see [runbooks/git-history-secret-cleanup.md](runbooks/git-history-secret-cleanup.md))
+- [ ] `./scripts/verify_no_tracked_secrets.sh` passes
+- [ ] `gitleaks detect --source . --config .gitleaks.toml` passes (full history scan)
 - [ ] `ALTERA_DEV_AUTH_ENABLED=false` in production
 - [ ] `CORS_ALLOWED_ORIGINS` set to production frontend URL only
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` stored in secret manager (not .env file)

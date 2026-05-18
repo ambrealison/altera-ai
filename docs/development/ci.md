@@ -73,19 +73,18 @@ gitleaks detect --source . --config .gitleaks.toml --no-git
 
 ### Git history note
 
-A real OpenAI API key was leaked in commit `27205ca` and has been **revoked** at the OpenAI dashboard. Before pushing this repository to any public remote, the commit must be removed from history:
+A real OpenAI API key was leaked in commit `27205ca` and has been **revoked** at the OpenAI dashboard. The key no longer works, but the literal value still exists in git history. Before pushing to any public or shared remote, history must be rewritten.
+
+See the full step-by-step runbook:
+[`docs/development/runbooks/git-history-secret-cleanup.md`](runbooks/git-history-secret-cleanup.md)
+
+Quick working-tree check (does not scan history):
 
 ```bash
-# 1. Install git-filter-repo: pip install git-filter-repo
-# 2. Create a replacements file:
-echo "sk-proj-CQiwScbwV6cWNAcnNpUcYektx4nO...==>REDACTED" > /tmp/secrets.txt
-# 3. Rewrite history:
-git filter-repo --replace-text /tmp/secrets.txt --force
-# 4. Force-push (requires all collaborators to re-clone):
-git push --force-with-lease origin main
+./scripts/verify_no_tracked_secrets.sh
 ```
 
-To scan git history locally (before making the repo public):
+Full history scan (requires gitleaks installed):
 
 ```bash
 gitleaks detect --source . --config .gitleaks.toml
