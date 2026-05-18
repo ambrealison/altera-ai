@@ -189,6 +189,12 @@ class ProteinTrackerCalculationSummary(DomainBase):
     rows_protein_source_reference_db: int = Field(ge=0)
     out_of_scope_count: int = Field(ge=0)
     unknown_count: int = Field(ge=0)
+    # Phase 23C — enrichment usage counters (default=0/False for backward compat)
+    use_enriched_nutrition: bool = False
+    enriched_nutrition_used_count: int = Field(default=0, ge=0)
+    manual_enrichment_used_count: int = Field(default=0, ge=0)
+    category_average_used_count: int = Field(default=0, ge=0)
+    missing_protein_after_enrichment_count: int = Field(default=0, ge=0)
     methodology: Methodology = Methodology.PROTEIN_TRACKER
     methodology_version: NonEmptyStr
     methodology_source_edition: NonEmptyStr

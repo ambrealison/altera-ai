@@ -24,6 +24,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from altera_api.domain.common import Methodology
+from altera_api.domain.enrichment import NutritionEnrichmentSource
 from altera_api.domain.product import NormalizedProduct, ProteinSource
 from altera_api.domain.protein_tracker import (
     ProteinTrackerCalculationRow,
@@ -80,6 +81,7 @@ def calculate_pt_run(
     versions: PTRunVersions,
     enable_per_product_split: bool = True,
     split_tolerance: Decimal = DEFAULT_SPLIT_TOLERANCE,
+    enrichment_lookup: Mapping[UUID, tuple[Decimal, NutritionEnrichmentSource]] | None = None,
 ) -> PTRunResult:
     """Compute one Protein Tracker run.
 
@@ -87,6 +89,12 @@ def calculate_pt_run(
     ``classifications`` keyed by ``product.id``. Products whose project
     does not enable PT (no ``pt_fields``) are skipped silently — the
     caller is responsible for filtering, but this guard is defensive.
+
+    ``enrichment_lookup`` is an optional pre-resolved map of
+    ``product_id → (protein_pct, source)`` built by the orchestrator.
+    When provided, products with ``None`` protein_pct will use the
+    enriched value if one exists in the map; if no entry exists they
+    are still excluded. The formula is identical regardless of source.
 
     The result is a ``PTRunResult`` with per-row figures and a single
     aggregated ``ProteinTrackerCalculationSummary``.
@@ -106,6 +114,10 @@ def calculate_pt_run(
     rows_reference_db = 0
     out_of_scope_count = 0
     unknown_count = 0
+    enriched_nutrition_used_count = 0
+    manual_enrichment_used_count = 0
+    category_average_used_count = 0
+    missing_protein_after_enrichment_count = 0
 
     for product in products:
         if product.pt_fields is None:
@@ -123,18 +135,39 @@ def calculate_pt_run(
             )
 
         pt_fields = product.pt_fields
-        if pt_fields.protein_pct is None:
-            # protein_pct absent — product awaits enrichment (Phase 23A).
-            # Exclude from protein calculation; contributes zero to all totals.
-            continue
-        volume_kg = _q8(pt_fields.items_purchased * product.weight_per_item_kg)
-        full_protein_kg = _q8(volume_kg * pt_fields.protein_pct / _ONE_HUNDRED)
 
-        # Data-quality counters
-        if pt_fields.protein_source is ProteinSource.LABEL:
-            rows_label += 1
+        # Resolve protein_pct: prefer retailer-provided; fall back to enrichment lookup.
+        if pt_fields.protein_pct is not None:
+            resolved_protein_pct: Decimal = pt_fields.protein_pct
+            used_enrichment = False
+            enrichment_source: NutritionEnrichmentSource | None = None
+        elif enrichment_lookup is not None:
+            lookup_result = enrichment_lookup.get(product.id)
+            if lookup_result is not None:
+                resolved_protein_pct, enrichment_source = lookup_result
+                used_enrichment = True
+                enriched_nutrition_used_count += 1
+                if enrichment_source is NutritionEnrichmentSource.MANUAL_ALTERA:
+                    manual_enrichment_used_count += 1
+                elif enrichment_source is NutritionEnrichmentSource.CATEGORY_AVERAGE:
+                    category_average_used_count += 1
+            else:
+                # Enrichment requested but no valid record — still excluded.
+                missing_protein_after_enrichment_count += 1
+                continue
         else:
-            rows_reference_db += 1
+            # protein_pct absent, no enrichment lookup — skip (Phase 23A behaviour).
+            continue
+
+        volume_kg = _q8(pt_fields.items_purchased * product.weight_per_item_kg)
+        full_protein_kg = _q8(volume_kg * resolved_protein_pct / _ONE_HUNDRED)
+
+        # Data-quality counters (only for retailer-provided values)
+        if not used_enrichment:
+            if pt_fields.protein_source is ProteinSource.LABEL:
+                rows_label += 1
+            else:
+                rows_reference_db += 1
 
         pt_group = classification.pt_group
         in_scope = pt_group.is_methodology_group
@@ -143,7 +176,7 @@ def calculate_pt_run(
         elif pt_group is ProteinTrackerGroup.UNKNOWN:
             unknown_count += 1
 
-        # Per-product split detection (composites only)
+        # Per-product split detection (composites only; uses retailer split pcts)
         used_split = False
         row_plant_kg: Decimal | None = None
         row_animal_kg: Decimal | None = None
@@ -155,7 +188,7 @@ def calculate_pt_run(
             and pt_fields.animal_protein_pct is not None
         ):
             split_sum = pt_fields.plant_protein_pct + pt_fields.animal_protein_pct
-            if abs(split_sum - pt_fields.protein_pct) <= split_tolerance:
+            if abs(split_sum - resolved_protein_pct) <= split_tolerance:
                 row_plant_kg = _q8(volume_kg * pt_fields.plant_protein_pct / _ONE_HUNDRED)
                 row_animal_kg = _q8(volume_kg * pt_fields.animal_protein_pct / _ONE_HUNDRED)
                 used_split = True
@@ -182,7 +215,7 @@ def calculate_pt_run(
                 in_scope=in_scope,
                 pt_group=pt_group,
                 volume_kg=_q8(volume_kg),
-                protein_pct=_q8(pt_fields.protein_pct),
+                protein_pct=_q8(resolved_protein_pct),
                 protein_kg=_q8(row_protein_kg),
                 used_per_product_split=used_split,
                 plant_protein_kg=row_plant_kg,
@@ -256,6 +289,11 @@ def calculate_pt_run(
         rows_protein_source_reference_db=rows_reference_db,
         out_of_scope_count=out_of_scope_count,
         unknown_count=unknown_count,
+        use_enriched_nutrition=enrichment_lookup is not None,
+        enriched_nutrition_used_count=enriched_nutrition_used_count,
+        manual_enrichment_used_count=manual_enrichment_used_count,
+        category_average_used_count=category_average_used_count,
+        missing_protein_after_enrichment_count=missing_protein_after_enrichment_count,
         methodology_version=versions.methodology_version,
         methodology_source_edition=versions.methodology_source_edition,
         taxonomy_version=versions.taxonomy_version,

@@ -49,6 +49,7 @@ class RunRecord:
     summary_payload: dict = field(default_factory=dict)
     rows_count: int = 0
     organisation_id: UUID | None = None
+    use_enriched_nutrition: bool = False
 
 
 @dataclass

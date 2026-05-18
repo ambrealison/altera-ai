@@ -826,6 +826,7 @@ def bulk_action_route(
 # ---------------------------------------------------------------------------
 class RunCreateRequest(BaseModel):
     methodology: Methodology
+    use_enriched_nutrition: bool = False
 
 
 class RunResponse(BaseModel):
@@ -847,11 +848,21 @@ def create_run(
     body: RunCreateRequest,
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
     user_id: Annotated[UUID, Depends(current_user_id)],
 ) -> RunResponse:
+    if body.use_enriched_nutrition and not auth.is_altera_internal:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="use_enriched_nutrition may only be enabled by Altera internal users",
+        )
     try:
         record = run_calculation(
-            store, project=project, methodology=body.methodology, triggered_by=user_id
+            store,
+            project=project,
+            methodology=body.methodology,
+            triggered_by=user_id,
+            use_enriched_nutrition=body.use_enriched_nutrition,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1519,6 +1530,7 @@ def enqueue_classify_upload(
 
 class CalculateJobRequest(BaseModel):
     methodology: Methodology
+    use_enriched_nutrition: bool = False
 
 
 @api_router.post(
@@ -1533,13 +1545,21 @@ def enqueue_calculate(
     auth: Annotated[AuthContext, Depends(authed_user)],
     worker: Annotated[WorkerBackend, Depends(get_worker)],
 ) -> JobResponse:
+    if body.use_enriched_nutrition and not auth.is_altera_internal:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="use_enriched_nutrition may only be enabled by Altera internal users",
+        )
     job, _created = _create_and_dispatch(
         job_type=JobType.RUN_CALCULATION,
         project=project,
         store=store,
         worker=worker,
         auth=auth,
-        payload={"methodology": body.methodology.value},
+        payload={
+            "methodology": body.methodology.value,
+            "use_enriched_nutrition": body.use_enriched_nutrition,
+        },
     )
     return _job_response(job)
 

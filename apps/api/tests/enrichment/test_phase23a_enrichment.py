@@ -465,7 +465,7 @@ class TestCoverageEnrichmentCaveats:
         )
         cov = build_coverage_section(store, run, project)
         caveat_text = " ".join(cov.caveats).lower()
-        assert "enriched" in caveat_text
+        assert "manually-entered" in caveat_text
 
     def test_needed_record_adds_recommendation_caveat(self):
         store = InMemoryStore()

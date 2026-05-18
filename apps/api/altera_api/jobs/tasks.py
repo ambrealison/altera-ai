@@ -233,16 +233,19 @@ def _handle_run_calculation(job: Job, store: StoreProtocol, storage: StorageProt
     """Execute the calculation pipeline and persist a RunRecord.
 
     Payload keys:
-      methodology – "protein_tracker" | "wwf"
+      methodology             – "protein_tracker" | "wwf"
+      use_enriched_nutrition  – bool (default False; Altera-only)
     """
     project = _require_project(job, store)
     methodology = Methodology(job.payload["methodology"])
+    use_enriched_nutrition: bool = job.payload.get("use_enriched_nutrition", False)
 
     record = run_calculation(
         store,
         project=project,
         methodology=methodology,
         triggered_by=job.created_by,
+        use_enriched_nutrition=use_enriched_nutrition,
     )
     return _succeed(
         job,

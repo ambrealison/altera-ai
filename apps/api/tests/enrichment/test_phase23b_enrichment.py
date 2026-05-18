@@ -745,7 +745,7 @@ class TestCoverageEnrichmentCaveats23B:
 
         caveat_text = " ".join(section.caveats)
         assert "manually-entered" in caveat_text
-        assert "not yet applied to the calculation" in caveat_text
+        assert "not yet applied to this calculation" in caveat_text
 
     def test_category_average_enrichment_appears_in_coverage_caveat(self) -> None:
         store = InMemoryStore()
@@ -770,7 +770,7 @@ class TestCoverageEnrichmentCaveats23B:
 
         caveat_text = " ".join(section.caveats)
         assert "category-average" in caveat_text
-        assert "not yet applied to the calculation" in caveat_text
+        assert "not yet applied to this calculation" in caveat_text
 
     def test_needed_record_shows_recommendation_caveat(self) -> None:
         store = InMemoryStore()

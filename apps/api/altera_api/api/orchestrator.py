@@ -58,6 +58,7 @@ from altera_api.domain.wwf import (
     WWFFoodGroup,
     WWFProductClassification,
 )
+from altera_api.enrichment.selection import select_protein_enrichment
 from altera_api.exports import (
     ExportClassificationMeta,
     ExportProductMaster,
@@ -1276,6 +1277,7 @@ def run_calculation(
     project: Project,
     methodology: Methodology,
     triggered_by: UUID,
+    use_enriched_nutrition: bool = False,
 ) -> RunRecord:
     if methodology not in project.methodologies_enabled:
         raise ValueError(f"methodology {methodology.value} is not enabled on project {project.id}")
@@ -1286,12 +1288,29 @@ def run_calculation(
         classifications = {
             p.id: c for p in products if (c := store.get_pt_classification(p.id)) is not None
         }
+
+        # Build enrichment lookup when explicitly requested.
+        # Only products with missing protein_pct are candidates; retailer-provided
+        # values are never overridden.
+        enrichment_lookup = None
+        if use_enriched_nutrition:
+
+            lookup: dict = {}
+            for p in products:
+                if p.pt_fields is not None and p.pt_fields.protein_pct is None:
+                    records = store.get_enrichment_records_for_product(p.id)
+                    result = select_protein_enrichment(records)
+                    if result is not None:
+                        lookup[p.id] = result
+            enrichment_lookup = lookup
+
         pt_result = calculate_pt_run(
             products,
             classifications,
             run_id=uuid4(),
             reporting_period_label=project.reporting_period_label,
             versions=PT_VERSIONS,
+            enrichment_lookup=enrichment_lookup,
         )
         rows_payload = [r.model_dump() for r in pt_result.rows]
         summary_payload = pt_result.summary.model_dump()
@@ -1326,6 +1345,7 @@ def run_calculation(
         rows_payload=rows_payload,
         summary_payload=summary_payload,
         rows_count=rows_count,
+        use_enriched_nutrition=use_enriched_nutrition,
     )
     store.add_run(record)
     return record

@@ -208,18 +208,50 @@ def _wwf_caveats(s: WWFCalculationSummary) -> list[str]:
     return caveats
 
 
-def _enrichment_caveats(store: StoreProtocol, project_id: UUID) -> list[str]:
-    """Disclose enrichment usage and gaps for PT runs (Phase 23A/23B).
+def _enrichment_caveats(
+    store: StoreProtocol,
+    project_id: UUID,
+    *,
+    pt_summary: ProteinTrackerCalculationSummary | None = None,
+) -> list[str]:
+    """Disclose enrichment usage and gaps for PT runs (Phase 23A/23B/23C).
 
-    Returns caveats only when enrichment records exist for the project.
-    Products with retailer-provided protein data produce no caveats.
-    Phase 23B adds per-source breakdown for manual and category-average.
+    When ``pt_summary.use_enriched_nutrition`` is True the caveats are
+    derived from the run-level summary counts (what was actually used in
+    the calculation).  Otherwise they are derived from the project-level
+    enrichment records (what has been stored but not yet applied).
     """
+    caveats: list[str] = []
+
+    if pt_summary is not None and pt_summary.use_enriched_nutrition:
+        # Enrichment WAS applied in this run — use summary counters.
+        s = pt_summary
+        if s.manual_enrichment_used_count > 0:
+            caveats.append(
+                f"{s.manual_enrichment_used_count} product(s) used manually-entered "
+                "protein % values in this calculation (Altera methodology team override). "
+                "Enriched values are not from retailer labels."
+            )
+        if s.category_average_used_count > 0:
+            caveats.append(
+                f"{s.category_average_used_count} product(s) used category-average "
+                "protein % values in this calculation "
+                "(statistical fallback, confidence ≤ 0.60). "
+                "Enriched values are not from retailer labels."
+            )
+        if s.missing_protein_after_enrichment_count > 0:
+            caveats.append(
+                f"{s.missing_protein_after_enrichment_count} product(s) had missing "
+                "protein % and no valid enrichment record; excluded from protein totals."
+            )
+        return caveats
+
+    # Enrichment was NOT applied — show project-level record state.
     try:
         enrichment_records = store.list_enrichment_records_for_project(project_id)
     except AttributeError:
         # Store does not yet implement enrichment methods — safe no-op.
-        return []
+        return caveats
 
     protein_records = [r for r in enrichment_records if r.nutrient == "protein_pct"]
 
@@ -246,7 +278,6 @@ def _enrichment_caveats(store: StoreProtocol, project_id: UUID) -> list[str]:
         )
     )
 
-    caveats: list[str] = []
     if needed > 0:
         caveats.append(
             f"{needed} product(s) are missing label protein %; "
@@ -254,23 +285,21 @@ def _enrichment_caveats(store: StoreProtocol, project_id: UUID) -> list[str]:
         )
     if manual_enriched > 0:
         caveats.append(
-            f"{manual_enriched} product(s) used manually-entered protein % values "
-            "(Altera methodology team override). "
-            "Enriched values are stored separately from retailer labels and are "
-            "not yet applied to the calculation."
+            f"{manual_enriched} product(s) have manually-entered protein % values "
+            "(Altera methodology team override) "
+            "not yet applied to this calculation."
         )
     if category_enriched > 0:
         caveats.append(
-            f"{category_enriched} product(s) used category-average protein % values "
-            "as a statistical fallback (confidence ≤ 0.60). "
-            "Enriched values are stored separately from retailer labels and are "
-            "not yet applied to the calculation."
+            f"{category_enriched} product(s) have category-average protein % values "
+            "(statistical fallback, confidence ≤ 0.60) "
+            "not yet applied to this calculation."
         )
     if other_enriched > 0:
         caveats.append(
-            f"{other_enriched} product(s) used enriched protein % values "
-            "(not from retailer labels). Enrichment source recorded per product. "
-            "Enriched values are stored separately and are not yet applied to the calculation."
+            f"{other_enriched} product(s) have enriched protein % values "
+            "(not from retailer labels) not yet applied to this calculation. "
+            "Enrichment source recorded per product."
         )
     return caveats
 
@@ -429,7 +458,7 @@ def build_coverage_section(
     if is_pt:
         s_pt = ProteinTrackerCalculationSummary.model_validate(run.summary_payload)
         caveats = _pt_caveats(s_pt, products_with_missing_protein or 0)
-        caveats = caveats + _enrichment_caveats(store, project.id)
+        caveats = caveats + _enrichment_caveats(store, project.id, pt_summary=s_pt)
     else:
         s_wwf = WWFCalculationSummary.model_validate(run.summary_payload)
         caveats = _wwf_caveats(s_wwf)
