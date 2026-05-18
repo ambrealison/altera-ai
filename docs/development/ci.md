@@ -73,7 +73,7 @@ gitleaks detect --source . --config .gitleaks.toml --no-git
 
 ### Git history note
 
-A real OpenAI API key was leaked in commit `27205ca` and has been **revoked** at the OpenAI dashboard. The key no longer works, but the literal value still exists in git history. Before pushing to any public or shared remote, history must be rewritten.
+A real OpenAI API key was leaked in commit `27205ca` and was **revoked** at the OpenAI dashboard. The key no longer works. **History has been rewritten** (Phase 31E, 2026-05-19) using `git filter-repo --replace-text` — the key no longer appears in any commit. All commit hashes changed; the pre-rewrite state is archived at `/tmp/altera_backup_pre_cleanup.bundle`.
 
 See the full step-by-step runbook:
 [`docs/development/runbooks/git-history-secret-cleanup.md`](runbooks/git-history-secret-cleanup.md)

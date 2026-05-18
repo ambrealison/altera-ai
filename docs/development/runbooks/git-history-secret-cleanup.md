@@ -1,5 +1,14 @@
 # Runbook: git history secret cleanup
 
+## Status
+
+**Completed 2026-05-19 (Phase 31E).** The history rewrite has been run.
+All commit hashes changed. The key `***REMOVED_OPENAI_KEY***` now appears
+in place of the revoked key in every affected commit. Pre-rewrite state
+is archived at `/tmp/altera_backup_pre_cleanup.bundle`.
+
+---
+
 ## Situation
 
 A real OpenAI API key was committed in commit `27205ca`
@@ -7,9 +16,8 @@ A real OpenAI API key was committed in commit `27205ca`
 
 The key was removed from the working tree in a later commit (Phase 30A),
 and has been **revoked at the OpenAI dashboard**. Revoking the key means
-it can no longer be used to make API calls — but the literal value still
-exists in git history. Any clone of this repository exposes the revoked
-key in plaintext.
+it can no longer be used to make API calls. The literal value has now been
+removed from git history (see Status above).
 
 ## Why revoking is not enough for a public repo
 
@@ -56,11 +64,22 @@ apt install git-filter-repo          # Debian/Ubuntu
 
 ### 1. Back up the repo
 
+A git bundle is the preferred backup — it is self-contained and can be
+used to restore without needing another copy of the repo directory.
+
+```bash
+git bundle create /tmp/altera_backup_$(date +%Y%m%d).bundle --all
+git bundle verify /tmp/altera_backup_$(date +%Y%m%d).bundle
+```
+
+Alternatively, a directory copy also works:
+
 ```bash
 cp -r /path/to/altera-ai /path/to/altera-ai.backup-$(date +%Y%m%d)
 ```
 
-Do not skip this. The rewrite cannot be undone without the backup.
+Do not skip this. `git filter-repo` rewrites all refs — the backup is
+the only way to recover the pre-rewrite state.
 
 ### 2. Confirm the key is gone from the working tree
 
@@ -80,17 +99,22 @@ copy-paste it into a terminal or document.
 ```bash
 # Extract the leaked value from .env.example history.
 # The key is extracted, trimmed, and written directly to a temp file.
+# Use grep -v to exclude the placeholder line that replaced the real key.
 git log --all -p -- .env.example \
-  | grep '^+OPENAI_API_KEY=sk-' \
+  | grep '^+OPENAI_API_KEY=sk-proj-' \
+  | grep -v 'YOUR_KEY_HERE' \
   | head -1 \
   | sed 's/^+OPENAI_API_KEY=//' \
-  | tr -d '[:space:]' \
-  | awk '{ print $0 "==>REDACTED_OPENAI_KEY" }' \
+  | tr -d '\n' \
+  > /tmp/altera_key_raw.txt
+
+# Build the replacements file: LITERAL==>PLACEHOLDER
+printf '%s==>***REMOVED_OPENAI_KEY***\n' "$(cat /tmp/altera_key_raw.txt)" \
   > /tmp/altera-secrets.txt
 
 # Sanity-check the file without printing the key:
-echo "Replacements file size: $(wc -c < /tmp/altera-secrets.txt) bytes"
-# Expected: > 50 bytes (sk-proj- prefix + 40+ chars + ==>REDACTED_OPENAI_KEY)
+echo "Replacements file: $(wc -l < /tmp/altera-secrets.txt) line(s), $(wc -c < /tmp/altera-secrets.txt) bytes"
+# Expected: 1 line, > 180 bytes (sk-proj- prefix + 140+ chars + ==>***REMOVED_OPENAI_KEY***)
 ```
 
 ### 4. Run git-filter-repo
@@ -99,8 +123,12 @@ echo "Replacements file size: $(wc -c < /tmp/altera-secrets.txt) bytes"
 git filter-repo --replace-text /tmp/altera-secrets.txt --force
 ```
 
-This rewrites every commit in history, replacing the exact key string with
-`REDACTED_OPENAI_KEY`. All commit SHAs change — this is expected.
+The `--force` flag is required when running on a non-fresh-clone repo
+(i.e. any repo that has been worked in locally rather than just cloned).
+All commit SHAs change — this is expected.
+
+This replaces the exact key string with `***REMOVED_OPENAI_KEY***` in
+every affected commit blob.
 
 ### 5. Verify the key is gone from history
 
@@ -120,6 +148,7 @@ All three should produce no output / pass.
 ### 6. Shred the replacements file
 
 ```bash
+shred -u /tmp/altera_key_raw.txt 2>/dev/null || rm -f /tmp/altera_key_raw.txt
 shred -u /tmp/altera-secrets.txt 2>/dev/null || rm -f /tmp/altera-secrets.txt
 ```
 
@@ -183,11 +212,11 @@ Prefer `git filter-repo`.
 
 ## Final verification checklist
 
-- [ ] `./scripts/verify_no_tracked_secrets.sh` passes
-- [ ] `git log --all -p | grep 'sk-proj-' | grep -v 'YOUR_KEY_HERE'` prints nothing
-- [ ] `gitleaks detect --source . --config .gitleaks.toml` passes
-- [ ] Key has been confirmed revoked in the OpenAI dashboard
-- [ ] `/tmp/altera-secrets.txt` has been deleted
-- [ ] Backup copy deleted after confirming history is clean
+- [x] `./scripts/verify_no_tracked_secrets.sh` passes _(verified 2026-05-19)_
+- [x] `git log --all -p | grep 'sk-proj-' | grep -v 'YOUR_KEY_HERE'` prints nothing _(verified 2026-05-19)_
+- [ ] `gitleaks detect --source . --config .gitleaks.toml` passes _(gitleaks not yet installed; install with `brew install gitleaks`)_
+- [x] Key has been confirmed revoked in the OpenAI dashboard _(revoked during Phase 30A)_
+- [ ] `/tmp/altera-secrets.txt` and `/tmp/altera_key_raw.txt` deleted
+- [ ] Bundle backup at `/tmp/altera_backup_pre_cleanup.bundle` archived or deleted after confirming history is clean
 - [ ] Force-push completed (if remote exists)
 - [ ] Collaborators notified and re-cloned (if remote has collaborators)
