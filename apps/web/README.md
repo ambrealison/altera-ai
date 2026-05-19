@@ -116,6 +116,12 @@ to see `pnpm-lock.yaml` and `pnpm-workspace.yaml`. A `vercel.json` at the
 repo root pins the install/build commands; Vercel only needs the Root
 Directory pointed at the repo root.
 
+Because Vercel's framework detection scans the Root Directory's
+`package.json` for `next`, the root `package.json` declares
+`next` as a devDependency mirroring `apps/web/package.json`. pnpm
+deduplicates the install across the workspace — there is no extra cost
+beyond the framework hint Vercel needs.
+
 1. Connect the repository in the Vercel dashboard.
 2. Project settings:
    - **Root Directory**: `.` (repo root — leave blank or set to `./`).
