@@ -446,6 +446,7 @@ Or trigger the GitHub Actions smoke test manually:
 
 ### Staging deployment checklist
 
+- [ ] `git log --oneline --decorate -3` shows `HEAD -> main, origin/main` on the commit you intend to deploy — if `origin/main` is absent the commit has not been pushed and Render/Vercel will not see it
 - [ ] CI passes on the branch being deployed (`Actions → CI`)
 - [ ] Git history cleaned (`./scripts/verify_no_tracked_secrets.sh` passes)
 - [ ] All required backend env vars set in the staging secret manager

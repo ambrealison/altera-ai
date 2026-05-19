@@ -1,13 +1,14 @@
 # Staging deployment readiness
 
-> **Status: green — staging deployed 2026-05-19.**
+> **Status: green — staging deployed 2026-05-19. Phase 32A deployed.**
 >
 > | Component | URL | Notes |
 > |---|---|---|
 > | Backend (Render) | https://altera-ai.onrender.com | `/health`, `/version`, `/api/v1/me` all 2xx |
 > | Frontend (Vercel) | https://altera-ai-web.vercel.app | Login + create-project verified end-to-end |
 > | Supabase staging | (project-internal) | All 27 migrations applied; `uploads` + `exports` buckets private; first Altera admin bootstrapped |
-> | GitHub Actions smoke | `staging-smoke.yml` | Green on commit `7f11366` |
+> | GitHub Actions smoke | `staging-smoke.yml` | Green on commit `1cd9a20` (Phase 32A) |
+> | Admin page | `/admin` | Available; org creation + invite flow **pending end-to-end test** |
 >
 > Use this checklist as the playbook for *future* environments
 > (production, secondary regions). The fixes shipped while bringing
@@ -25,6 +26,16 @@ Related docs:
 ---
 
 ## 0. Pre-deployment gate
+
+```bash
+# Verify your local branch is in sync with origin before expecting
+# Render/Vercel to pick up the commit.
+git log --oneline --decorate -3
+```
+
+Expected output includes `HEAD -> main, origin/main` on the latest commit.
+If `origin/main` is absent, the commit has not been pushed — run `git push`
+before triggering a deploy.
 
 ```bash
 # Must be green before proceeding.
@@ -377,6 +388,7 @@ WEB_BASE_URL=https://altera-ai-git-main-xxx.vercel.app \
 
 ## 6. Full staging deployment checklist
 
+- [ ] `git log --oneline --decorate -3` shows `HEAD -> main, origin/main` on latest commit
 - [ ] CI green (`gh run list --limit 3`)
 - [ ] `verify_no_tracked_secrets.sh` passes
 - [ ] Supabase project created, region matches Render
@@ -463,3 +475,102 @@ these as **repository secrets** (`Settings → Secrets and variables → Actions
 |---|---|
 | `STAGING_API_URL` | `https://altera-api.onrender.com` |
 | `STAGING_WEB_URL` | `https://staging.altera-ai.com` |
+
+---
+
+## 11. Client onboarding flow (Phase 32A)
+
+Phase 32A shipped the Altera-admin org creation and invite flow. Use the
+steps below to verify it end-to-end in staging after deployment.
+
+### Prerequisites
+
+- The first `altera_admin` user is bootstrapped and you can log in as them.
+- `SUPABASE_SERVICE_ROLE_KEY` is set in the Render environment.
+- A valid redirect URL (`https://altera-ai-web.vercel.app/auth/callback`)
+  is registered in Supabase → Authentication → URL Configuration.
+
+### 11a. Create a client organisation
+
+1. Log in as `altera_admin` at `https://altera-ai-web.vercel.app`.
+2. Navigate to **Admin** in the sidebar.
+3. In **Create Organisation**, enter a name (e.g. `Acme Retail`) and slug
+   (`acme-retail`). Click **Create**.
+4. Expected: the org appears in the list below.
+
+Or via API:
+
+```bash
+TOKEN="<altera-admin-jwt>"
+curl -s -X POST https://altera-ai.onrender.com/api/v1/admin/organisations \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Acme Retail", "slug": "acme-retail"}' | python3 -m json.tool
+# Expected: 201 with id, name, slug, organisation_type="gms_client"
+```
+
+### 11b. Invite a client user
+
+1. On the `/admin` page, click **Invite user** next to the new org.
+2. Enter an email (e.g. `client@acme.com`) and role (`client_owner`).
+3. Click **Send invite**.
+4. Expected response includes `invite_sent: true`.
+
+The invited user receives a Supabase magic link at their email.
+
+Or via API:
+
+```bash
+ORG_ID="<uuid-from-step-11a>"
+curl -s -X POST "https://altera-ai.onrender.com/api/v1/admin/organisations/${ORG_ID}/invite" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "client@acme.com", "role": "client_owner"}' | python3 -m json.tool
+# Expected: 201 with user_id, email, organisation_id, role, invite_sent=true
+```
+
+### 11c. Accept invite and set password
+
+1. The invited user clicks the link in their email.
+2. The browser navigates to `/auth/callback#type=invite&access_token=...`.
+3. The callback page detects `type=invite`, waits for the Supabase session,
+   and redirects to `/reset-password`.
+4. The user enters a new password (≥ 8 chars) and submits.
+5. Expected: redirected to `/projects`.
+
+### 11d. Verify first login
+
+```bash
+# After the invited user sets their password, log in and call /me.
+NEW_USER_TOKEN="<jwt-for-client-user>"
+curl -s https://altera-ai.onrender.com/api/v1/me \
+  -H "Authorization: Bearer $NEW_USER_TOKEN" | python3 -m json.tool
+# Expected:
+# {
+#   "user_id": "<uuid>",
+#   "email": "client@acme.com",
+#   "organisation_id": "<org-uuid>",
+#   "role": "client_owner",
+#   "organisation_type": "gms_client"
+# }
+```
+
+### 11e. Forgot password flow
+
+1. Visit `/login` while not logged in.
+2. Click **Forgot password?** (visible only when Supabase is configured).
+3. Enter the email; click **Send reset link**.
+4. Expected: "Reset link sent" confirmation.
+5. Click the link in the email → `/auth/callback#type=recovery` → `/reset-password`.
+6. Set a new password; expect redirect to `/projects`.
+
+### 11f. Confirm checklist
+
+- [ ] `/admin` page loads for `altera_admin` user
+- [ ] Client org creation returns 201 and org appears in list
+- [ ] Invite endpoint returns `invite_sent: true` and invite email arrives
+- [ ] Clicking invite link → `/auth/callback` → `/reset-password`
+- [ ] Password set → redirect to `/projects`
+- [ ] `GET /api/v1/me` for the new user returns correct org + `client_owner` role
+- [ ] Non-admin user receives 403 on all `/api/v1/admin/` endpoints
+- [ ] Forgot password email flow works (reset link → `/reset-password`)

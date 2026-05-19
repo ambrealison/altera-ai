@@ -61,27 +61,29 @@ and approves reports before client download.
 | 31F   | Private GitHub remote setup and CI verification       | **Done.** (1) gitleaks `[allowlist]` updated to include `.next/` and `.env.local` variants (gitignored build artifacts / local dev files generating false positives); guard test tightened to reject tracked source files rather than any allowlist section. (2) Repo created as private at `https://github.com/ambrealison/altera-ai`; `main` branch and `backup-pre-history-cleanup` tag pushed. (3) Frontend CI job: Node version bumped from 20 → 22 (`pnpm@11.1.2` requires Node ≥22.13; Node 20 crashed with `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite`). (4) All three CI jobs pass: backend ✅ security ✅ frontend ✅. `docs/development/ci.md` updated with remote URL, Node version rationale. |
 | 31D   | First Altera admin bootstrap tooling                  | **Done.** (1) `apps/api/scripts/bootstrap_altera_admin.py`: idempotent CLI script with `--confirm`/`BOOTSTRAP_CONFIRM` safety gate, `_validate_slug`/`_validate_uuid` input validation, injectable `client` for testing. Three operations: `upsert_organisation` (by slug; returns `(id, created)` tuple), `upsert_user_profile` (upsert on `user_id`), `upsert_membership` (upsert on `user_id, organisation_id`). FK violation printed with dashboard hint. (2) `apps/api/tests/test_bootstrap.py`: 32 tests covering validation helpers, each upsert function independently, `run()` safety gate, full flow, idempotency, display name defaulting, DB error exit, and service role key not leaked to stdout. Per-table mock caching via `side_effect` ensures table call assertions are independent. (3) `docs/development/runbooks/bootstrap-first-admin.md`: three Auth user creation options (dashboard invite, CLI, Admin API), all CLI options table, expected output, idempotency behaviour, troubleshooting (FK error, slug guard, missing env), rollback SQL, adding more Altera users. (4) `docs/development/deployment.md` bootstrap section replaced with script reference; `apps/api/README.md` Bootstrap section added. |
 | 31H   | Staging deployment execution                          | **Done 2026-05-19.** Backend live at `https://altera-ai.onrender.com`; frontend live at `https://altera-ai-web.vercel.app`. Smoke test workflow green; manual login + project creation verified. Deploy-time fixes shipped along the way: (a) migration `0002` removed an invalid CHECK subquery; the slug-reserved trigger is the sole enforcement. (b) migration `0019` + `0025`: `user_profiles.organisation_type` references rewritten to `visible_organisation_ids()` / `current_user_is_altera()` (column lives on `organisations`, added in `0015`). (c) migration `0023` + `0024`: replaced non-existent `organisation_members` with `current_user_is_altera()` + `current_user_organisations()` helpers. (d) migration `0027` (new): widened every legacy write policy to the namespaced roles via `user_role_can_{admin,write,review}_org_data` helpers — fixes `42501: new row violates row-level security policy` on project creation for `altera_admin`. (e) `apps/api/Dockerfile` now COPYs `README.md` before `uv sync` (pyproject references it). (f) `apps/api/render.yaml` aligned with Root Directory = `apps/api` (path relative to root). (g) Vercel: deploy from repo root via `vercel.json`; `next` declared at root `package.json` so framework detection works; root `engines.node` bumped to `>=22.13` (pnpm 11 requires Node 22.13 for `node:sqlite`). (h) auth: web login race fixed via `AuthContext.signIn` that awaits `/me` before resolving (no more `/login?next=%2F` loop). (i) auth verifier rewritten to accept Supabase ES256/JWKS tokens with the `apikey` header against `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`; HS256 path preserved. (j) FastAPI handler translates PostgREST `APIError(42501)` to a structured `403 rls_denied` instead of a bare 500. Backend suite: 1382 passed. Outstanding minor warnings (not blocking): GitHub `actions/checkout@v4` deprecation notice for Node 20 (follow-up tracked in `docs/development/ci.md`); rate limiter still in-memory (per known-limitations table in `staging-readiness.md`). |
+| 32A   | Client onboarding: org creation + invite flow         | **Done 2026-05-19.** `GET/POST /api/v1/admin/organisations` (list all orgs; create GMS client org with slug validation + 409 on duplicate) and `POST .../organisations/{org_id}/invite` (server-side Supabase Auth Admin API invite; pre-provisions `user_profiles` row so first login resolves to the correct org + role). All endpoints gated to `altera_admin`. `supabase_admin.py` wraps the service-role `invite_user_by_email` call; dev-mode UUID fallback when Supabase not configured (`invite_sent: false`). `create_organisation` / `list_organisations` added to `StoreProtocol`, `InMemoryStore`, and `PostgresRepository`. Frontend: `/admin` org-management page (org list, create-org form, per-org invite form), `/auth/callback` (handles `#type=invite` and `#type=recovery` hash fragments), `/reset-password` (password-set form), forgot-password toggle on `/login`, Admin nav item visible only to `isAltera` users. 11 new tests (1393 total). **Pending verification in staging:** end-to-end invite → accept invite email → set password → first login flow. Note: `ORG_CREATED` / `ORG_MEMBER_INVITED` audit events not yet emitted — wiring deferred (see Phase 32B). |
 
 ## Roadmap
 
-All phases through 31H are complete (see status table above).
-The remaining roadmap runs from Phase 32 to pilot readiness.
+All phases through 32A are complete (see status table above).
+The remaining roadmap runs from Phase 32B to pilot readiness.
 
-**Recommended next phase: Phase 32** — the audit log UI is the highest
-leverage item for Altera-internal operators and is a hard requirement
-for the pilot sign-off (methodology leads need an immutable audit trail
-visible in the UI before any client report is delivered).
+**Recommended next phase: Phase 32B — Audit log UI** — the highest-leverage
+item for Altera-internal operators and a hard requirement for pilot sign-off
+(methodology leads need an immutable audit trail visible in the UI before any
+client report is delivered). Org management endpoints now exist (Phase 32A),
+so `ORG_CREATED` / `ORG_MEMBER_INVITED` audit events can be wired as part of
+this phase.
 
-### Phase 31 — Audit log UI
+### Phase 32B — Audit log UI
 
 - Internal UI surface for `audit_events`: who approved what and when,
   methodology version stamped on each decision, review decision history.
 - Client-facing audit summary panel on the approved report header
   (methodology version, approval date, approver role).
-- Note: `ORG_CREATED`, `ORG_MEMBER_INVITED`, `ORG_ROLE_CHANGED` audit
-  events are defined but not yet emitted (no app-level org management
-  endpoints — provisioning happens via Supabase Auth). These will be
-  wired when org management endpoints are added.
+- Wire `ORG_CREATED` and `ORG_MEMBER_INVITED` audit events from the org
+  management endpoints added in Phase 32A. (`ORG_ROLE_CHANGED` deferred.)
+  Previously deferred because no app-level provisioning endpoints existed.
 
 ### Phase 32 — Methodology version pinning + replay
 
@@ -133,20 +135,3 @@ visible in the UI before any client report is delivered).
 
 - Decision gate for GA based on pilot feedback and SLO data.
 
-## Recommended next implementation phase
-
-**Phase 28B** — operational baseline.
-
-All product features through Phase 28A-4 are working and tested.
-The critical gap before a production pilot is observability and
-operational resilience:
-
-1. Structured logging and Sentry give visibility into production errors.
-2. The startup RLS check prevents a misconfigured deployment from
-   silently leaking cross-org data.
-3. The job backend SLA decision unblocks the transition from
-   in-process dev runner to a production-grade worker.
-4. Staging integration tests close the gap between the InMemoryStore
-   test suite and real Postgres/RLS behaviour.
-
-These four items can be parallelised within a single sprint.
