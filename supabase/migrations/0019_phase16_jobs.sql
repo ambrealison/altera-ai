@@ -110,15 +110,4 @@ ALTER TABLE audit_events
 ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY jobs_org_isolation ON jobs
-    USING (
-        organisation_id = (
-            SELECT organisation_id
-            FROM user_profiles
-            WHERE user_id = auth.uid()
-        )
-        OR EXISTS (
-            SELECT 1 FROM user_profiles
-            WHERE user_id = auth.uid()
-              AND organisation_type = 'altera_internal'
-        )
-    );
+    USING (organisation_id IN (SELECT public.visible_organisation_ids()));

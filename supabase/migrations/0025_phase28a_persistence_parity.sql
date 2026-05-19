@@ -33,20 +33,8 @@ alter table review_decisions enable row level security;
 -- Altera internal: full access
 create policy "altera_full_access_review_decisions"
     on review_decisions for all
-    using (
-        exists (
-            select 1 from user_profiles
-            where user_id = auth.uid()
-              and organisation_type = 'altera_internal'
-        )
-    )
-    with check (
-        exists (
-            select 1 from user_profiles
-            where user_id = auth.uid()
-              and organisation_type = 'altera_internal'
-        )
-    );
+    using (public.current_user_is_altera())
+    with check (public.current_user_is_altera());
 
 -- ---------------------------------------------------------------------------
 -- nutrition_enrichment_records (Phase 23A)
@@ -77,17 +65,5 @@ alter table nutrition_enrichment_records enable row level security;
 -- Altera internal: full access
 create policy "altera_full_access_enrichment"
     on nutrition_enrichment_records for all
-    using (
-        exists (
-            select 1 from user_profiles
-            where user_id = auth.uid()
-              and organisation_type = 'altera_internal'
-        )
-    )
-    with check (
-        exists (
-            select 1 from user_profiles
-            where user_id = auth.uid()
-              and organisation_type = 'altera_internal'
-        )
-    );
+    using (public.current_user_is_altera())
+    with check (public.current_user_is_altera());
