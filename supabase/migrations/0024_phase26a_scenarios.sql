@@ -68,90 +68,36 @@ alter table scenario_results enable row level security;
 -- Altera internal users can read/write all scenarios in any organisation.
 create policy "altera_full_access_scenarios"
     on scenarios for all
-    using (
-        exists (
-            select 1 from organisation_members om
-            join organisations o on o.id = om.organisation_id
-            where om.user_id = auth.uid()
-              and o.organisation_type = 'altera_internal'
-        )
-    )
-    with check (
-        exists (
-            select 1 from organisation_members om
-            join organisations o on o.id = om.organisation_id
-            where om.user_id = auth.uid()
-              and o.organisation_type = 'altera_internal'
-        )
-    );
+    using (public.current_user_is_altera())
+    with check (public.current_user_is_altera());
 
 -- Clients can only read active scenarios for their own organisation.
 create policy "clients_see_active_scenarios"
     on scenarios for select
     using (
         status = 'active'
-        and exists (
-            select 1 from organisation_members om
-            where om.user_id = auth.uid()
-              and om.organisation_id = scenarios.organisation_id
-        )
+        and organisation_id in (select public.current_user_organisations())
     );
 
--- Operations and results inherit from parent scenario via Altera policy.
+-- Operations and results: Altera staff have full access.
 create policy "altera_full_access_scenario_operations"
     on scenario_operations for all
-    using (
-        exists (
-            select 1 from scenarios s
-            join organisation_members om on om.organisation_id = s.organisation_id
-            join organisations o on o.id = om.organisation_id
-            where s.id = scenario_operations.scenario_id
-              and om.user_id = auth.uid()
-              and o.organisation_type = 'altera_internal'
-        )
-    )
-    with check (
-        exists (
-            select 1 from scenarios s
-            join organisation_members om on om.organisation_id = s.organisation_id
-            join organisations o on o.id = om.organisation_id
-            where s.id = scenario_operations.scenario_id
-              and om.user_id = auth.uid()
-              and o.organisation_type = 'altera_internal'
-        )
-    );
+    using (public.current_user_is_altera())
+    with check (public.current_user_is_altera());
 
 create policy "altera_full_access_scenario_results"
     on scenario_results for all
-    using (
-        exists (
-            select 1 from scenarios s
-            join organisation_members om on om.organisation_id = s.organisation_id
-            join organisations o on o.id = om.organisation_id
-            where s.id = scenario_results.scenario_id
-              and om.user_id = auth.uid()
-              and o.organisation_type = 'altera_internal'
-        )
-    )
-    with check (
-        exists (
-            select 1 from scenarios s
-            join organisation_members om on om.organisation_id = s.organisation_id
-            join organisations o on o.id = om.organisation_id
-            where s.id = scenario_results.scenario_id
-              and om.user_id = auth.uid()
-              and o.organisation_type = 'altera_internal'
-        )
-    );
+    using (public.current_user_is_altera())
+    with check (public.current_user_is_altera());
 
+-- Clients can read results for active scenarios in their own organisation.
 create policy "clients_see_active_scenario_results"
     on scenario_results for select
     using (
         exists (
             select 1 from scenarios s
-            join organisation_members om on om.organisation_id = s.organisation_id
             where s.id = scenario_results.scenario_id
               and s.status = 'active'
-              and om.user_id = auth.uid()
+              and s.organisation_id in (select public.current_user_organisations())
         )
     );

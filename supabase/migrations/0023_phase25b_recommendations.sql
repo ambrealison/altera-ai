@@ -48,50 +48,24 @@ create index if not exists recommendations_status_idx
 -- Row-Level Security
 alter table recommendations enable row level security;
 
--- Altera internal users see all rows in their organisation
+-- Altera internal users see all recommendations across organisations.
 create policy "altera_can_read_all_recommendations"
     on recommendations for select
-    using (
-        exists (
-            select 1 from organisation_members om
-            join organisations o on o.id = om.organisation_id
-            where om.user_id = auth.uid()
-              and om.organisation_id = recommendations.organisation_id
-              and o.organisation_type = 'altera_internal'
-        )
-    );
+    using (public.current_user_is_altera());
 
--- Clients only see proposed/accepted recommendations for their organisation
+-- Clients only see proposed/accepted recommendations for their organisation.
 create policy "clients_see_proposed_and_accepted"
     on recommendations for select
     using (
         status in ('proposed', 'accepted')
-        and exists (
-            select 1 from organisation_members om
-            where om.user_id = auth.uid()
-              and om.organisation_id = recommendations.organisation_id
-        )
+        and organisation_id in (select public.current_user_organisations())
     );
 
--- Only Altera internal users can insert/update
+-- Only Altera internal users can insert/update.
 create policy "altera_can_write_recommendations"
     on recommendations for insert
-    with check (
-        exists (
-            select 1 from organisation_members om
-            join organisations o on o.id = om.organisation_id
-            where om.user_id = auth.uid()
-              and o.organisation_type = 'altera_internal'
-        )
-    );
+    with check (public.current_user_is_altera());
 
 create policy "altera_can_update_recommendations"
     on recommendations for update
-    using (
-        exists (
-            select 1 from organisation_members om
-            join organisations o on o.id = om.organisation_id
-            where om.user_id = auth.uid()
-              and o.organisation_type = 'altera_internal'
-        )
-    );
+    using (public.current_user_is_altera());
