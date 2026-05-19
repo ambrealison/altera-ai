@@ -53,6 +53,15 @@ def _coerce_str_or_none(value: Any) -> str | None:
     return s if s else None
 
 
+def _bad_number_msg(row: dict[str, Any], *fields: str) -> str:
+    """Build a clear 'expected a number' message including the offending raw value."""
+    for f in fields:
+        val = row.get(f)
+        if val is not None and str(val).strip() != "":
+            return f"{fields[0]}: expected a number, got {str(val).strip()!r}"
+    return f"{fields[0]}: expected a number"
+
+
 def parse_row(
     row: dict[str, Any],
     *,
@@ -92,24 +101,38 @@ def parse_row(
     # --- Weight (canonical kg, with g/lb/oz accepted) ---
     weight_kg, weight_err = normalise_weight_kg(row)
     if weight_err is not None:
+        _weight_messages = {
+            "invalid_type": _bad_number_msg(row, "weight_per_item_kg", "weight_per_item_g", "weight_per_item_lb", "weight_per_item_oz"),
+            "weight_non_positive": "weight_per_item_kg: must be greater than 0",
+            "weight_too_large": "weight_per_item_kg: value too large (maximum is 50 kg)",
+            "mixed_weight_units": "weight_per_item_kg: multiple weight columns populated — use only one",
+        }
         errors.append(
             ValidationError(
                 row_number=row_number,
                 field="weight_per_item_kg",
                 code=weight_err,
-                message=f"weight_per_item_kg: {weight_err}",
+                message=_weight_messages.get(weight_err, f"weight_per_item_kg: {weight_err}"),
             )
         )
 
     # --- Protein (PT-only field; missing is allowed at parse time) ---
     protein_pct, protein_err = normalise_protein_pct(row)
     if protein_err is not None:
+        _protein_messages = {
+            "invalid_type": _bad_number_msg(row, "protein_pct", "protein_g_per_100g"),
+            "energy_not_protein": "protein_pct: energy units (kJ/kcal) are not accepted; provide g per 100 g instead",
+            "mixed_protein_inputs": "protein_pct: multiple protein columns populated — use only one",
+            "missing_density": "protein_pct: protein_g_per_100ml requires density_g_per_ml",
+            "missing_serving_g": "protein_pct: protein_g_per_serving requires serving_g (> 0)",
+            "protein_out_of_range": "protein_pct: must be between 0 and 100",
+        }
         errors.append(
             ValidationError(
                 row_number=row_number,
                 field="protein_pct",
                 code=protein_err,
-                message=f"protein_pct: {protein_err}",
+                message=_protein_messages.get(protein_err, f"protein_pct: {protein_err}"),
             )
         )
 
@@ -121,7 +144,7 @@ def parse_row(
                 row_number=row_number,
                 field="items_purchased",
                 code="invalid_type",
-                message="items_purchased is not numeric",
+                message=_bad_number_msg(row, "items_purchased"),
             )
         )
         items_purchased = None
@@ -153,7 +176,7 @@ def parse_row(
                 row_number=row_number,
                 field="items_sold",
                 code="invalid_type",
-                message="items_sold is not numeric",
+                message=_bad_number_msg(row, "items_sold"),
             )
         )
         items_sold = None
@@ -202,12 +225,13 @@ def parse_row(
     # --- Optional / enum / boolean fields ---
     is_own_brand = _coerce_bool(row.get("is_own_brand"))
     if row.get("is_own_brand") not in (None, "") and is_own_brand is None:
+        raw_bool = str(row.get("is_own_brand", "")).strip()
         errors.append(
             ValidationError(
                 row_number=row_number,
                 field="is_own_brand",
                 code="invalid_type",
-                message="is_own_brand must be true/false",
+                message=f"is_own_brand: expected true/false, yes/no, oui/non, or 1/0, got {raw_bool!r}",
             )
         )
 
@@ -277,12 +301,13 @@ def _decimal_or_error(
 ) -> tuple[Decimal | None, bool]:
     coerced = _coerce_decimal(value)
     if coerced is not None and coerced.is_nan():
+        raw = str(value).strip() if value is not None else ""
         errors.append(
             ValidationError(
                 row_number=row_number,
                 field=field,
                 code="invalid_type",
-                message=f"{field} is not numeric",
+                message=f"{field}: expected a number, got {raw!r}",
             )
         )
         return None, True

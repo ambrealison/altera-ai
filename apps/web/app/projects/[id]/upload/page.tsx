@@ -526,6 +526,9 @@ export default function UploadPage() {
                 <summary className="cursor-pointer text-sm font-medium text-rose-700">
                   Errors ({result.errors.length})
                 </summary>
+                <p className="mt-2 text-xs text-rose-700">
+                  Rows with errors were not ingested. Fix the CSV and re-upload.
+                </p>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-rose-800">
                   {result.errors.slice(0, 20).map((e, i) => (
                     <li key={i}>

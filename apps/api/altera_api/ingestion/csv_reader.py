@@ -73,6 +73,9 @@ def read_table_bytes(data: bytes, *, config: CSVReadConfig | None = None) -> Par
     for row_idx, raw_row in enumerate(reader, start=2):  # data rows are 2-indexed in CSV terms
         if len(rows) >= cfg.max_rows:
             raise CSVReadError(f"file exceeds row limit {cfg.max_rows} at line {row_idx}")
+        # Skip comment rows — first cell starts with "#" (used by templates for notes).
+        if raw_row and raw_row[0].lstrip().startswith("#"):
+            continue
         # Tolerate short/long rows: pad with "" or truncate.
         padded = list(raw_row) + [""] * max(0, len(headers) - len(raw_row))
         padded = padded[: len(headers)]

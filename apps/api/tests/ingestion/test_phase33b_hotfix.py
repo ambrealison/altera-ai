@@ -483,3 +483,191 @@ class TestMapperProteinPctNone:
         )
         assert restored.pt_fields is not None
         assert restored.pt_fields.protein_pct is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 33C — comment rows skipped, template ingestion, improved messages
+# ---------------------------------------------------------------------------
+
+
+class TestCommentRowSkipping:
+    def test_hash_row_skipped(self) -> None:
+        from altera_api.ingestion.csv_reader import read_table_bytes
+
+        data = b"external_product_id,product_name\n# comment row\nSKU1,Widget\n"
+        table = read_table_bytes(data)
+        assert len(table.rows) == 1
+        assert table.rows[0]["external_product_id"] == "SKU1"
+
+    def test_hash_row_with_leading_space_skipped(self) -> None:
+        from altera_api.ingestion.csv_reader import read_table_bytes
+
+        data = b"external_product_id,product_name\n  # comment\nSKU1,Widget\n"
+        table = read_table_bytes(data)
+        assert len(table.rows) == 1
+
+    def test_multiple_hash_rows_all_skipped(self) -> None:
+        from altera_api.ingestion.csv_reader import read_table_bytes
+
+        data = b"a,b\n# row1\n# row2\nval1,val2\n"
+        table = read_table_bytes(data)
+        assert len(table.rows) == 1
+
+    def test_non_hash_row_not_skipped(self) -> None:
+        from altera_api.ingestion.csv_reader import read_table_bytes
+
+        data = b"external_product_id,product_name\nSKU1,Widget\n"
+        table = read_table_bytes(data)
+        assert len(table.rows) == 1
+
+
+def _build_csv_bytes(*rows: list[str]) -> bytes:
+    import csv
+    import io
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\r\n")
+    for row in rows:
+        writer.writerow(row)
+    return buf.getvalue().encode()
+
+
+class TestPTTemplateIngestion:
+    def _template_bytes(self) -> bytes:
+        from altera_api.api.templates import (
+            _PT_EXAMPLE1,
+            _PT_EXAMPLE2,
+            _PT_EXAMPLE3,
+            _PT_HEADER,
+            _PT_NOTES,
+        )
+
+        return _build_csv_bytes(_PT_HEADER, _PT_NOTES, _PT_EXAMPLE1, _PT_EXAMPLE2, _PT_EXAMPLE3)
+
+    def test_pt_template_three_products_no_errors(self) -> None:
+        result = ingest_csv_bytes(
+            self._template_bytes(),
+            upload_id=uuid4(),
+            project_id=uuid4(),
+            organisation_id=uuid4(),
+            methodologies_enabled=frozenset({Methodology.PROTEIN_TRACKER}),
+        )
+        assert result.read_error is None
+        assert result.report.error_count == 0
+        assert len(result.products) == 3
+
+    def test_pt_template_example3_has_enrichment_needed_warning(self) -> None:
+        result = ingest_csv_bytes(
+            self._template_bytes(),
+            upload_id=uuid4(),
+            project_id=uuid4(),
+            organisation_id=uuid4(),
+            methodologies_enabled=frozenset({Methodology.PROTEIN_TRACKER}),
+        )
+        assert any(
+            w.code == "enrichment_needed" and w.field == "protein_pct"
+            for w in result.report.warnings
+        )
+
+    def test_pt_notes_row_not_treated_as_data(self) -> None:
+        """Notes row beginning with '#' must be skipped — not produce invalid_type errors."""
+        result = ingest_csv_bytes(
+            self._template_bytes(),
+            upload_id=uuid4(),
+            project_id=uuid4(),
+            organisation_id=uuid4(),
+            methodologies_enabled=frozenset({Methodology.PROTEIN_TRACKER}),
+        )
+        assert not any(e.code == "invalid_type" for e in result.report.errors)
+
+
+class TestWWFTemplateIngestion:
+    def _template_bytes(self) -> bytes:
+        from altera_api.api.templates import (
+            _WWF_EXAMPLE1,
+            _WWF_EXAMPLE2,
+            _WWF_HEADER,
+            _WWF_NOTES,
+        )
+
+        return _build_csv_bytes(_WWF_HEADER, _WWF_NOTES, _WWF_EXAMPLE1, _WWF_EXAMPLE2)
+
+    def test_wwf_template_two_products_no_errors(self) -> None:
+        result = ingest_csv_bytes(
+            self._template_bytes(),
+            upload_id=uuid4(),
+            project_id=uuid4(),
+            organisation_id=uuid4(),
+            methodologies_enabled=frozenset({Methodology.WWF}),
+        )
+        assert result.read_error is None
+        assert result.report.error_count == 0
+        assert len(result.products) == 2
+
+    def test_wwf_notes_row_not_treated_as_data(self) -> None:
+        result = ingest_csv_bytes(
+            self._template_bytes(),
+            upload_id=uuid4(),
+            project_id=uuid4(),
+            organisation_id=uuid4(),
+            methodologies_enabled=frozenset({Methodology.WWF}),
+        )
+        assert not any(e.code == "invalid_type" for e in result.report.errors)
+
+
+class TestImprovedValidationMessages:
+    def test_bad_number_msg_includes_raw_value(self) -> None:
+        from altera_api.ingestion.parser import _bad_number_msg
+
+        msg = _bad_number_msg({"items_purchased": "abc"}, "items_purchased")
+        assert "abc" in msg
+        assert "expected a number" in msg
+
+    def test_bad_number_msg_empty_row_fallback(self) -> None:
+        from altera_api.ingestion.parser import _bad_number_msg
+
+        msg = _bad_number_msg({}, "items_purchased")
+        assert "expected a number" in msg
+
+    def test_is_own_brand_bad_value_message(self) -> None:
+        data = _make_csv(
+            {
+                "external_product_id": "SKU1",
+                "product_name": "Widget",
+                "weight_per_item_kg": "0.4",
+                "items_purchased": "100",
+                "is_own_brand": "maybe",
+            }
+        )
+        result = ingest_csv_bytes(
+            data,
+            upload_id=uuid4(),
+            project_id=uuid4(),
+            organisation_id=uuid4(),
+            methodologies_enabled=frozenset({Methodology.PROTEIN_TRACKER}),
+        )
+        err = next((e for e in result.report.errors if e.field == "is_own_brand"), None)
+        assert err is not None
+        assert "maybe" in err.message
+        assert "true/false" in err.message
+
+    def test_bad_weight_message_includes_raw_value(self) -> None:
+        data = _make_csv(
+            {
+                "external_product_id": "SKU1",
+                "product_name": "Widget",
+                "weight_per_item_kg": "heavy",
+                "items_purchased": "100",
+            }
+        )
+        result = ingest_csv_bytes(
+            data,
+            upload_id=uuid4(),
+            project_id=uuid4(),
+            organisation_id=uuid4(),
+            methodologies_enabled=frozenset({Methodology.PROTEIN_TRACKER}),
+        )
+        err = next((e for e in result.report.errors if e.field == "weight_per_item_kg"), None)
+        assert err is not None
+        assert "heavy" in err.message
+        assert "expected a number" in err.message
