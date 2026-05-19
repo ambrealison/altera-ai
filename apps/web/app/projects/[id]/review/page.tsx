@@ -11,6 +11,7 @@ import {
   type ManualReviewReason,
   type ManualReviewStatus,
   type Methodology,
+  type Project,
   type ReviewFilters,
   type ReviewItem,
   type ReviewPriority,
@@ -54,6 +55,7 @@ export default function ReviewPage() {
   const api = useMemo(() => createApi(accessToken), [accessToken]);
 
   const [items, setItems] = useState<ReviewItem[] | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Filters — only used by Altera staff
@@ -79,7 +81,12 @@ export default function ReviewPage() {
     if (filterSearch.trim()) filters.product_search = filterSearch.trim();
     if (sortOrder !== "oldest") filters.sort = sortOrder;
     try {
-      setItems((await api.listReview(projectId, filters)).items);
+      const [reviewData, proj] = await Promise.all([
+        api.listReview(projectId, filters),
+        api.getProject(projectId),
+      ]);
+      setItems(reviewData.items);
+      setProject(proj);
       setSelected(new Set()); // clear selection on refresh
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -227,7 +234,9 @@ export default function ReviewPage() {
             description={
               filterMethodology || filterStatus || filterReason || filterPriority || filterSearch
                 ? "No items match the current filters."
-                : "Everything in this project is currently classified."
+                : (project?.unclassified_pt_count ?? 0) > 0
+                ? `No items awaiting manual review, but ${project!.unclassified_pt_count} product${project!.unclassified_pt_count === 1 ? "" : "s"} have not been classified yet.`
+                : "Everything in this project is classified. Ready to run a calculation."
             }
             action={
               filterMethodology || filterStatus || filterReason || filterPriority || filterSearch ? (
@@ -242,6 +251,10 @@ export default function ReviewPage() {
                   }}
                 >
                   Clear filters
+                </Button>
+              ) : (project?.unclassified_pt_count ?? 0) > 0 ? (
+                <Button onClick={() => router.push(`/projects/${projectId}/upload`)}>
+                  Go to Upload &amp; Classify
                 </Button>
               ) : (
                 <Button onClick={() => router.push(`/projects/${projectId}/runs`)}>
