@@ -219,15 +219,23 @@ These are baked into the client bundle at build time. Do **not** add
 
 ### 3b. Create the Vercel project
 
+This is a pnpm workspace — install must run from the repo root so pnpm
+can resolve `pnpm-workspace.yaml` and the root `pnpm-lock.yaml`. The
+exact commands are committed at [vercel.json](../../vercel.json); the
+dashboard only needs the Root Directory and Node version.
+
 1. In the Vercel dashboard → **Add New → Project**.
 2. Import from GitHub: `ambrealison/altera-ai`.
-3. **Root Directory**: `apps/web`
-4. Framework: **Next.js** (auto-detected).
-5. Build command: leave blank (uses `next build` from `package.json`).
-6. Install command: `pnpm install --frozen-lockfile` (or leave blank if Vercel detects pnpm).
-7. Output directory: `.next` (auto-detected).
-8. Set the three env vars above.
-9. Deploy.
+3. **Root Directory**: `.` (repo root — leave the field blank or set `./`).
+4. **Framework Preset**: Next.js (`vercel.json` already sets this).
+5. **Node.js Version**: 22.x — required by `pnpm@11.1.2`.
+6. **Install Command** / **Build Command** / **Output Directory**:
+   leave blank in the dashboard. `vercel.json` pins them to:
+   - install: `corepack enable && pnpm install --frozen-lockfile`
+   - build: `pnpm --filter @altera-ai/web build`
+   - output: `apps/web/.next`
+7. Set the three env vars above.
+8. Deploy.
 
 ### 3c. After deploy — update Auth redirect URLs
 
@@ -248,7 +256,8 @@ API_BASE_URL=https://altera-api.onrender.com \
 ### 3e. Confirm checklist
 
 - [ ] Vercel project connected to `ambrealison/altera-ai`
-- [ ] Root directory set to `apps/web`
+- [ ] Root directory left at `.` (repo root) so `vercel.json` is honoured
+- [ ] Node.js version set to 22.x
 - [ ] All three env vars set
 - [ ] Deployment succeeded
 - [ ] Auth redirect URL added in Supabase
@@ -367,7 +376,7 @@ WEB_BASE_URL=https://altera-ai-git-main-xxx.vercel.app \
 - [ ] Render service deployed and health check green
 - [ ] `staging_smoke.sh` passes (backend)
 - [ ] `ALTERA_DEV_AUTH_ENABLED=false` in Render logs
-- [ ] Vercel project connected, root dir `apps/web`
+- [ ] Vercel project connected, root dir `.` (repo root) so `vercel.json` is honoured
 - [ ] Frontend env vars set in Vercel (3 vars)
 - [ ] Frontend deployed, login page loads
 - [ ] Supabase Auth redirect URL includes Vercel domain

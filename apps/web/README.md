@@ -111,10 +111,27 @@ pnpm --filter @altera-ai/web typecheck
 
 ## Vercel deployment
 
+This is a pnpm workspace, so Vercel must run install from the repo root
+to see `pnpm-lock.yaml` and `pnpm-workspace.yaml`. A `vercel.json` at the
+repo root pins the install/build commands; Vercel only needs the Root
+Directory pointed at the repo root.
+
 1. Connect the repository in the Vercel dashboard.
-2. Set **Root Directory** to `apps/web`.
-3. Framework is auto-detected as Next.js.
-4. Set environment variables in the Vercel project settings:
+2. Project settings:
+   - **Root Directory**: `.` (repo root — leave blank or set to `./`).
+   - **Framework Preset**: Next.js (set automatically by `vercel.json`).
+   - **Node.js Version**: 22.x (matches CI; required by `pnpm@11.1.2`).
+   - **Install Command**, **Build Command**, **Output Directory**:
+     leave the dashboard fields blank — they are pinned in `vercel.json`:
+
+     ```json
+     {
+       "installCommand": "corepack enable && pnpm install --frozen-lockfile",
+       "buildCommand": "pnpm --filter @altera-ai/web build",
+       "outputDirectory": "apps/web/.next"
+     }
+     ```
+3. Set environment variables in the Vercel project settings:
 
    | Variable | Description |
    |---|---|
