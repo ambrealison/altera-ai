@@ -23,7 +23,10 @@ export default function ProjectsPage() {
         if (active) setProjects(r.items);
       })
       .catch((e: Error) => {
-        if (active) setError(e.message);
+        if (active) {
+          setError(e.message);
+          setProjects([]);
+        }
       });
     return () => {
       active = false;
