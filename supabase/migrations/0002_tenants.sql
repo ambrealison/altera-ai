@@ -39,13 +39,8 @@ insert into public.reserved_slugs (slug) values
   ('dashboard'), ('docs'), ('login'), ('logout'), ('public'), ('settings'),
   ('signup'), ('signin'), ('signout'), ('static'), ('support'), ('system');
 
-alter table public.organisations
-  add constraint organisations_slug_not_reserved
-  check (slug not in (select slug from public.reserved_slugs))
-  not valid;  -- check trigger added below; the NOT VALID skips existing rows
--- A SQL check can't reference another table, so we additionally guard via
--- a trigger. The constraint above stays for documentation; the trigger
--- below enforces it.
+-- Postgres does not allow subqueries in CHECK constraints.
+-- Reserved-slug enforcement is handled entirely by the trigger below.
 
 create or replace function public.guard_organisation_slug()
 returns trigger
