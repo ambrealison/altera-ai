@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { createApi } from "@/lib/api";
+import { getApiBaseUrl } from "@/lib/api";
 import { Card, CardHeader } from "@/components/ui";
 
 // ---------------------------------------------------------------------------
@@ -49,18 +48,12 @@ const TEMPLATES: TemplateInfo[] = [
 
 export default function DataRequirementsPage() {
   const { accessToken } = useAuth();
-  const api = useMemo(() => createApi(accessToken), [accessToken]);
 
   async function downloadTemplate(template: TemplateInfo) {
     try {
-      // Use the API client's base URL logic by fetching directly with the token
-      const baseUrl =
-        typeof window !== "undefined" && process.env.NEXT_PUBLIC_API_URL
-          ? process.env.NEXT_PUBLIC_API_URL
-          : "";
       const headers: Record<string, string> = {};
       if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-      const res = await fetch(`${baseUrl}${template.path}`, { headers });
+      const res = await fetch(`${getApiBaseUrl()}${template.path}`, { headers });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
