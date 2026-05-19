@@ -9,11 +9,22 @@ domain evolves.
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, Field
 
 from altera_api.api.dependencies import current_user_id, get_data_store, get_project
@@ -252,6 +263,10 @@ async def upload_csv(
     store: Annotated[StoreProtocol, Depends(get_data_store)],
     user_id: Annotated[UUID, Depends(current_user_id)],
     file: Annotated[UploadFile, File(description="CSV file")],
+    column_mapping: Annotated[
+        str | None,
+        Form(description="JSON-encoded dict mapping normalised_header → canonical_field | 'ignore'"),
+    ] = None,
 ) -> UploadResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="file is required")
@@ -259,6 +274,12 @@ async def upload_csv(
     pre_errors = validate_upload(file.filename, payload, content_type=file.content_type)
     if pre_errors:
         raise HTTPException(status_code=400, detail="; ".join(pre_errors))
+    parsed_mapping: dict[str, str] | None = None
+    if column_mapping:
+        try:
+            parsed_mapping = json.loads(column_mapping)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"column_mapping is not valid JSON: {exc}") from exc
     summary = ingest_upload(
         store,
         project=project,
@@ -266,6 +287,7 @@ async def upload_csv(
         original_filename=file.filename,
         uploaded_by=user_id,
         content_type=file.content_type,
+        column_mapping=parsed_mapping,
     )
     return _upload_response(summary)
 
@@ -409,6 +431,7 @@ def prepare_upload_route(
 class IngestFromStorageRequest(BaseModel):
     storage_path: str
     original_filename: str
+    column_mapping: dict[str, str] | None = None
 
 
 @api_router.post(
@@ -447,6 +470,7 @@ def ingest_from_storage_route(
         uploaded_by=user_id,
         upload_id=upload_id,
         storage_path=body.storage_path,
+        column_mapping=body.column_mapping,
     )
     return _upload_response(summary)
 

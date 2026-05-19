@@ -7,12 +7,42 @@ import { useAuth } from "@/lib/auth-context";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import {
   createApi,
+  type ColumnMappingEntry,
   type Job,
   type JobResult,
+  type MappingPreviewResult,
   type Methodology,
   type UploadResult,
   type WWFStep2UploadResult,
 } from "@/lib/api";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const CANONICAL_FIELDS = [
+  "external_product_id",
+  "product_name",
+  "weight_per_item_kg",
+  "brand",
+  "retailer_category",
+  "retailer_subcategory",
+  "ingredients_text",
+  "is_own_brand",
+  "ean",
+  "labels",
+  "country",
+  "language",
+  "reporting_period",
+  "items_purchased",
+  "protein_pct",
+  "items_sold",
+  "retail_channel",
+] as const;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -20,18 +50,96 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-async function uploadViaStorage(
-  file: File,
-  signedUrl: string,
-): Promise<void> {
+async function uploadViaStorage(file: File, signedUrl: string): Promise<void> {
   const res = await fetch(signedUrl, {
     method: "PUT",
     body: file,
     headers: { "Content-Type": file.type || "text/csv" },
   });
-  if (!res.ok) {
-    throw new Error(`Storage upload failed: ${res.status} ${res.statusText}`);
-  }
+  if (!res.ok) throw new Error(`Storage upload failed: ${res.status} ${res.statusText}`);
+}
+
+async function parseHeadersFromFile(file: File): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) ?? "";
+      const firstLine = text.split(/\r?\n/).find((l) => l.trim()) ?? "";
+      const sep = firstLine.includes("\t") ? "\t" : ",";
+      resolve(firstLine.split(sep).map((h) => h.replace(/^"|"$/g, "").trim()).filter(Boolean));
+    };
+    reader.onerror = () => reject(new Error("Could not read file headers"));
+    reader.readAsText(file.slice(0, 8192));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function ConfidenceBadge({ confidence }: { confidence: ColumnMappingEntry["confidence"] }) {
+  if (confidence === "exact")
+    return <Pill tone="ok">exact</Pill>;
+  if (confidence === "synonym")
+    return <Pill tone="warn">synonym</Pill>;
+  return <Pill tone="neutral">unmatched</Pill>;
+}
+
+function MappingTable({
+  entries,
+  overrides,
+  onChange,
+}: {
+  entries: ColumnMappingEntry[];
+  overrides: Record<string, string>;
+  onChange: (normHeader: string, value: string) => void;
+}) {
+  return (
+    <div className="mt-4 overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-gray-200 text-left text-gray-500 uppercase tracking-wider">
+            <th className="pb-2 pr-4 font-medium">CSV header</th>
+            <th className="pb-2 pr-4 font-medium">Map to field</th>
+            <th className="pb-2 font-medium">Confidence</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {entries.map((entry) => {
+            const current = overrides[entry.normalised_header] ?? entry.canonical_field ?? "__none__";
+            return (
+              <tr key={entry.normalised_header} className="py-1">
+                <td className="py-2 pr-4 font-mono text-gray-800 align-middle">
+                  {entry.raw_header}
+                  {entry.enrichment_needed && (
+                    <span className="ml-1.5 text-blue-600 text-xs">(enrichable)</span>
+                  )}
+                </td>
+                <td className="py-2 pr-4 align-middle">
+                  <select
+                    value={current}
+                    onChange={(e) => onChange(entry.normalised_header, e.target.value)}
+                    className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+                  >
+                    <option value="__none__">— skip / use as-is —</option>
+                    <option value="ignore">ignore (drop column)</option>
+                    {CANONICAL_FIELDS.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="py-2 align-middle">
+                  <ConfidenceBadge confidence={entry.confidence} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function ClassifyResultSummary({ result }: { result: JobResult }) {
@@ -47,13 +155,12 @@ function ClassifyResultSummary({ result }: { result: JobResult }) {
           <div className="text-xs uppercase tracking-wider text-gray-500">Rules matched</div>
           <div className="mt-1 text-lg font-semibold">{result.matched ?? 0}</div>
         </div>
-        {hasAi && (
+        {hasAi ? (
           <div>
             <div className="text-xs uppercase tracking-wider text-gray-500">AI accepted</div>
             <div className="mt-1 text-lg font-semibold">{aiAccepted}</div>
           </div>
-        )}
-        {!hasAi && (
+        ) : (
           <div>
             <div className="text-xs uppercase tracking-wider text-gray-500">Pass-through</div>
             <div className="mt-1 text-lg font-semibold">{result.pass_through ?? 0}</div>
@@ -83,6 +190,10 @@ function ClassifyResultSummary({ result }: { result: JobResult }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default function UploadPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -91,51 +202,111 @@ export default function UploadPage() {
   const api = useMemo(() => createApi(accessToken), [accessToken]);
   const useStorageFlow = isSupabaseConfigured();
 
+  // Step 1 — file selection + header preview
   const [file, setFile] = useState<File | null>(null);
+  const [mappingPreview, setMappingPreview] = useState<MappingPreviewResult | null>(null);
+  const [mappingOverrides, setMappingOverrides] = useState<Record<string, string>>({});
+  const [mappingBusy, setMappingBusy] = useState(false);
+  const [mappingError, setMappingError] = useState<string | null>(null);
+
+  // Step 2 — upload + ingestion
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState("Uploading…");
+
+  // Step 3 — classify
   const [classifyBusy, setClassifyBusy] = useState<Methodology | null>(null);
   const [classifyJob, setClassifyJob] = useState<Job | null>(null);
   const [lastClassifiedMethodology, setLastClassifiedMethodology] = useState<Methodology | null>(null);
 
+  // Step 4 — WWF Step 2
   const [wwfStep2File, setWwfStep2File] = useState<File | null>(null);
   const [wwfStep2Result, setWwfStep2Result] = useState<WWFStep2UploadResult | null>(null);
   const [wwfStep2Busy, setWwfStep2Busy] = useState(false);
   const [wwfStep2Error, setWwfStep2Error] = useState<string | null>(null);
 
-  async function onUpload(e: React.FormEvent) {
-    e.preventDefault();
+  // -------------------------------------------------------------------------
+  // Handlers
+  // -------------------------------------------------------------------------
+
+  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0] ?? null;
+    setFile(picked);
+    setMappingPreview(null);
+    setMappingOverrides({});
+    setMappingError(null);
+    setResult(null);
+    setError(null);
+
+    if (!picked) return;
+    setMappingBusy(true);
+    try {
+      const rawHeaders = await parseHeadersFromFile(picked);
+      const preview = await api.previewMapping(rawHeaders);
+      setMappingPreview(preview);
+      // Seed overrides from inferred mapping
+      const initial: Record<string, string> = {};
+      for (const entry of preview.entries) {
+        if (entry.canonical_field) initial[entry.normalised_header] = entry.canonical_field;
+      }
+      setMappingOverrides(initial);
+    } catch (err) {
+      setMappingError(err instanceof Error ? err.message : "Could not preview column mapping");
+    } finally {
+      setMappingBusy(false);
+    }
+  }
+
+  function onMappingChange(normHeader: string, value: string) {
+    setMappingOverrides((prev) => ({ ...prev, [normHeader]: value }));
+  }
+
+  // Build the effective column_mapping dict to pass to ingest:
+  // - only entries that differ from or fill a canonical field
+  // - "__none__" = skip (don't include, let pipeline use original key)
+  function buildColumnMapping(): Record<string, string> | undefined {
+    if (!mappingPreview) return undefined;
+    const mapping: Record<string, string> = {};
+    for (const entry of mappingPreview.entries) {
+      const chosen = mappingOverrides[entry.normalised_header];
+      if (!chosen || chosen === "__none__") continue;
+      // Only include if it differs from the raw normalised key (or is "ignore")
+      if (chosen !== entry.normalised_header) {
+        mapping[entry.normalised_header] = chosen;
+      }
+    }
+    return Object.keys(mapping).length > 0 ? mapping : undefined;
+  }
+
+  async function onUpload() {
     if (!file) return;
     setError(null);
     setBusy(true);
+    const columnMapping = buildColumnMapping();
 
     try {
       if (useStorageFlow) {
-        // Two-step: reserve upload ID → PUT to signed URL → ingest from storage
         setBusyLabel("Preparing…");
         const prep = await api.prepareUpload(projectId, file.name);
-
         setBusyLabel("Uploading to storage…");
         await uploadViaStorage(file, prep.signed_url);
-
         setBusyLabel("Processing…");
         const r = await api.ingestUpload(
           projectId,
           prep.upload_id,
           prep.storage_path,
           file.name,
+          columnMapping,
         );
         setResult(r);
       } else {
-        // Dev fallback: POST multipart directly to the API
         setBusyLabel("Uploading…");
-        const r = await api.uploadCsv(projectId, file);
+        const r = await api.uploadCsv(projectId, file, columnMapping);
         setResult(r);
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setBusy(false);
       setBusyLabel("Uploading…");
@@ -147,8 +318,6 @@ export default function UploadPage() {
     setClassifyBusy(m);
     setError(null);
     try {
-      // Enqueue classify job; SyncDevRunner completes it synchronously.
-      // For future async workers, pollJob() will wait for completion.
       const job = await api.enqueueClassify(projectId, result.id, m);
       const finalJob =
         job.status === "queued" || job.status === "running"
@@ -156,11 +325,9 @@ export default function UploadPage() {
           : job;
       setClassifyJob(finalJob);
       setLastClassifiedMethodology(m);
-      if (finalJob.status === "failed") {
-        setError(finalJob.error_message ?? "Classification failed");
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Classification failed");
+      if (finalJob.status === "failed") setError(finalJob.error_message ?? "Classification failed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Classification failed");
     } finally {
       setClassifyBusy(null);
     }
@@ -182,23 +349,32 @@ export default function UploadPage() {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------------
+
+  const hasMissingPt = mappingPreview && mappingPreview.missing_required_pt.length > 0;
+  const hasMissingWwf = mappingPreview && mappingPreview.missing_required_wwf.length > 0;
+  const hasDuplicates = mappingPreview && mappingPreview.duplicate_normalised.length > 0;
+
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-semibold tracking-tight">Upload data</h1>
       <p className="mt-1 text-sm text-gray-600">
-        Upload a CSV. The pipeline drops commercial columns at the boundary,
-        normalises units, and validates per methodology.
+        Upload a CSV. The pipeline drops commercial columns at the boundary, normalises units, and
+        validates per methodology.
       </p>
 
+      {/* Step 1 — file selection */}
       <div className="mt-8">
         <Card>
           <CardHeader title="1. Pick a CSV file" />
-          <form onSubmit={onUpload} className="mt-4 space-y-4">
+          <div className="mt-4 space-y-4">
             <Field label="CSV / TSV / TXT file">
               <input
                 type="file"
                 accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={onFileChange}
                 className="block w-full text-sm"
               />
               {file && (
@@ -207,13 +383,65 @@ export default function UploadPage() {
                 </p>
               )}
             </Field>
-            <Button type="submit" disabled={!file || busy}>
-              {busy ? busyLabel : "Upload"}
-            </Button>
-          </form>
+            {mappingBusy && (
+              <p className="text-sm text-gray-500">Parsing column headers…</p>
+            )}
+            {mappingError && (
+              <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                {mappingError}
+              </div>
+            )}
+          </div>
         </Card>
       </div>
 
+      {/* Step 1b — column mapping */}
+      {mappingPreview && !mappingBusy && (
+        <div className="mt-6">
+          <Card>
+            <CardHeader
+              title="1b. Column mapping"
+              subtitle="Review suggested field mappings. Adjust any that look wrong before uploading."
+            />
+
+            {hasDuplicates && (
+              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Duplicate column headers detected: {mappingPreview.duplicate_normalised.join(", ")}.
+                Only the last value will be kept per row.
+              </div>
+            )}
+
+            {(hasMissingPt || hasMissingWwf) && (
+              <div className="mt-3 space-y-1">
+                {hasMissingPt && (
+                  <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                    Missing required PT fields: {mappingPreview.missing_required_pt.join(", ")}
+                  </div>
+                )}
+                {hasMissingWwf && (
+                  <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                    Missing required WWF fields: {mappingPreview.missing_required_wwf.join(", ")}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <MappingTable
+              entries={mappingPreview.entries}
+              overrides={mappingOverrides}
+              onChange={onMappingChange}
+            />
+
+            <div className="mt-4">
+              <Button onClick={onUpload} disabled={busy}>
+                {busy ? busyLabel : "Upload with this mapping"}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Step 2 — ingestion report */}
       {result && (
         <div className="mt-6">
           <Card>
@@ -293,6 +521,7 @@ export default function UploadPage() {
         </div>
       )}
 
+      {/* Step 3 — classify */}
       {result && (result.status === "ready_for_classification" || result.status === "valid") && (
         <div className="mt-6">
           <Card>
@@ -301,10 +530,17 @@ export default function UploadPage() {
               subtitle="Runs the deterministic rules engine. Unmatched products are queued for Altera review."
             />
             <div className="mt-4 flex gap-2">
-              <Button onClick={() => onClassify("protein_tracker")} disabled={classifyBusy !== null}>
+              <Button
+                onClick={() => onClassify("protein_tracker")}
+                disabled={classifyBusy !== null}
+              >
                 {classifyBusy === "protein_tracker" ? "Classifying…" : "Classify as Protein Tracker"}
               </Button>
-              <Button variant="secondary" onClick={() => onClassify("wwf")} disabled={classifyBusy !== null}>
+              <Button
+                variant="secondary"
+                onClick={() => onClassify("wwf")}
+                disabled={classifyBusy !== null}
+              >
                 {classifyBusy === "wwf" ? "Classifying…" : "Classify as WWF"}
               </Button>
             </div>
@@ -333,6 +569,7 @@ export default function UploadPage() {
         </div>
       )}
 
+      {/* Step 4 — WWF Step 2 */}
       {classifyJob?.status === "succeeded" && lastClassifiedMethodology === "wwf" && (
         <div className="mt-6">
           <Card>
@@ -341,10 +578,9 @@ export default function UploadPage() {
               subtitle="Optional: upload a JSON file mapping own-brand composite products to their ingredients."
             />
             <p className="mt-3 text-sm text-gray-600">
-              Step 2 applies to <strong>own-brand composite products only</strong>. Branded
-              composites are always reported at Step 1 (whole product weight) and are unaffected by
-              this file. Uploading a new file replaces any previously stored Step 2 data for this
-              project.
+              Step 2 applies to <strong>own-brand composite products only</strong>. Branded composites
+              are always reported at Step 1 (whole product weight) and are unaffected by this file.
+              Uploading a new file replaces any previously stored Step 2 data for this project.
             </p>
             <form onSubmit={onWwfStep2Upload} className="mt-4 space-y-4">
               <Field label="Ingredient JSON file (.json, max 50 MB)">
@@ -413,8 +649,8 @@ export default function UploadPage() {
                     )}
                     {wwfStep2Result.branded_composite_count > 0 && (
                       <div>
-                        {wwfStep2Result.branded_composite_count} branded composite(s): ingredients not stored.
-                        These products remain at Step 1 (whole product weight) only.
+                        {wwfStep2Result.branded_composite_count} branded composite(s): ingredients not stored. These
+                        products remain at Step 1 (whole product weight) only.
                       </div>
                     )}
                   </div>
@@ -433,9 +669,7 @@ export default function UploadPage() {
                           })),
                         )
                         .slice(0, 20)
-                        .map((e) => (
-                          <li key={e.key}>{e.text}</li>
-                        ))}
+                        .map((e) => <li key={e.key}>{e.text}</li>)}
                     </ul>
                   </details>
                 )}
@@ -455,18 +689,16 @@ export default function UploadPage() {
         <Button variant="ghost" onClick={() => router.push(`/projects/${projectId}`)}>
           ← Back to project
         </Button>
-        {classifyJob?.status === "succeeded" &&
-          (classifyJob.result?.queued_for_review ?? 0) > 0 && (
-            <Button onClick={() => router.push(`/projects/${projectId}/review`)}>
-              Review queue ({classifyJob.result!.queued_for_review}) →
-            </Button>
-          )}
-        {classifyJob?.status === "succeeded" &&
-          (classifyJob.result?.queued_for_review ?? 1) === 0 && (
-            <Button onClick={() => router.push(`/projects/${projectId}/runs`)}>
-              Calculate →
-            </Button>
-          )}
+        {classifyJob?.status === "succeeded" && (classifyJob.result?.queued_for_review ?? 0) > 0 && (
+          <Button onClick={() => router.push(`/projects/${projectId}/review`)}>
+            Review queue ({classifyJob.result!.queued_for_review}) →
+          </Button>
+        )}
+        {classifyJob?.status === "succeeded" && (classifyJob.result?.queued_for_review ?? 1) === 0 && (
+          <Button onClick={() => router.push(`/projects/${projectId}/runs`)}>
+            Calculate →
+          </Button>
+        )}
       </div>
     </div>
   );

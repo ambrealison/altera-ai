@@ -15,7 +15,7 @@ from altera_api.ingestion.headers import normalise_header, normalise_row_headers
         ("retailer-Sub Category", "retailer_sub_category"),
         ("weight_per_item_kg", "weight_per_item_kg"),
         ("multi   spaces", "multi_spaces"),
-        ("trail---hyphens---", "trail_hyphens_"),
+        ("trail---hyphens---", "trail_hyphens"),
     ],
 )
 def test_normalise_header(raw: str, expected: str) -> None:

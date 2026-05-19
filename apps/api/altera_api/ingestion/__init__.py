@@ -18,6 +18,13 @@ from altera_api.ingestion.csv_reader import (
     read_table_bytes,
 )
 from altera_api.ingestion.headers import normalise_header, normalise_row_headers
+from altera_api.ingestion.mapping import (
+    ColumnMappingEntry,
+    MappingPreviewRequest,
+    MappingPreviewResult,
+    apply_column_mapping,
+    infer_mapping,
+)
 from altera_api.ingestion.normalizer import normalize_product
 from altera_api.ingestion.parser import parse_row
 from altera_api.ingestion.pipeline import IngestResult, ingest_csv_bytes
@@ -30,14 +37,20 @@ from altera_api.ingestion.units import (
 )
 
 __all__ = [
+    "CANONICAL_FIELDS",
     "CSVReadConfig",
     "CSVReadError",
+    "ColumnMappingEntry",
     "FORBIDDEN_COLUMN_PATTERNS",
     "G_TO_KG",
     "IngestResult",
     "LB_TO_KG",
+    "MappingPreviewRequest",
+    "MappingPreviewResult",
     "OZ_TO_KG",
+    "apply_column_mapping",
     "filter_commercial_columns",
+    "infer_mapping",
     "ingest_csv_bytes",
     "normalise_header",
     "normalise_protein_pct",

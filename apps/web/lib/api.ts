@@ -643,6 +643,23 @@ export interface InviteUserResponse {
   invite_sent: boolean;
 }
 
+// Phase 33B — column mapping types
+
+export interface ColumnMappingEntry {
+  raw_header: string;
+  normalised_header: string;
+  canonical_field: string | null;
+  confidence: "exact" | "synonym" | "none";
+  enrichment_needed: boolean;
+}
+
+export interface MappingPreviewResult {
+  entries: ColumnMappingEntry[];
+  missing_required_pt: string[];
+  missing_required_wwf: string[];
+  duplicate_normalised: string[];
+}
+
 // Phase 32B — member management types
 
 export interface MemberResponse {
@@ -729,9 +746,21 @@ export function createApi(accessToken: string | null) {
         { method: "GET" },
         accessToken,
       ),
-    uploadCsv: async (projectId: string, file: File): Promise<UploadResult> => {
+    previewMapping: (headers: string[]): Promise<MappingPreviewResult> =>
+      request<MappingPreviewResult>(
+        "/api/v1/uploads/preview-mapping",
+        { method: "POST", body: JSON.stringify({ headers }) },
+        accessToken,
+      ),
+
+    uploadCsv: async (
+      projectId: string,
+      file: File,
+      columnMapping?: Record<string, string>,
+    ): Promise<UploadResult> => {
       const fd = new FormData();
       fd.append("file", file);
+      if (columnMapping) fd.append("column_mapping", JSON.stringify(columnMapping));
       return request<UploadResult>(
         `/api/v1/projects/${projectId}/uploads`,
         { method: "POST", body: fd },
@@ -751,6 +780,7 @@ export function createApi(accessToken: string | null) {
       uploadId: string,
       storagePath: string,
       originalFilename: string,
+      columnMapping?: Record<string, string>,
     ): Promise<UploadResult> =>
       request<UploadResult>(
         `/api/v1/projects/${projectId}/uploads/${uploadId}/ingest`,
@@ -759,6 +789,7 @@ export function createApi(accessToken: string | null) {
           body: JSON.stringify({
             storage_path: storagePath,
             original_filename: originalFilename,
+            ...(columnMapping ? { column_mapping: columnMapping } : {}),
           }),
         },
         accessToken,

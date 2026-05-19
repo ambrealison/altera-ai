@@ -1,6 +1,6 @@
 # Staging deployment readiness
 
-> **Status: green — staging deployed 2026-05-19. Phase 33A deployed.**
+> **Status: green — staging deployed 2026-05-19. Phase 33B deployed.**
 >
 > | Component | URL | Notes |
 > |---|---|---|

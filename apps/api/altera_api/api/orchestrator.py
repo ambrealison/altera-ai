@@ -221,6 +221,7 @@ def ingest_upload(
     upload_id: UUID | None = None,
     storage_path: str | None = None,
     content_type: str | None = None,
+    column_mapping: dict[str, str] | None = None,
 ) -> IngestSummary:
     """Run the full ingestion pipeline on raw file bytes.
 
@@ -253,6 +254,7 @@ def ingest_upload(
         project_id=project.id,
         organisation_id=project.organisation_id,
         methodologies_enabled=project.methodologies_enabled,
+        column_mapping=column_mapping or None,
         now=now,
     )
     validation_end = datetime.now(UTC)

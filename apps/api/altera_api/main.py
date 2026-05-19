@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from altera_api.api import api_router
 from altera_api.api.admin import admin_router
+from altera_api.api.mapping import mapping_router
 from altera_api.api.templates import templates_router
 from altera_api.observability import (
     RequestLoggingMiddleware,
@@ -160,6 +161,7 @@ def create_app() -> FastAPI:
 
     app.include_router(api_router)
     app.include_router(admin_router)
+    app.include_router(mapping_router)
     app.include_router(templates_router)
 
     return app

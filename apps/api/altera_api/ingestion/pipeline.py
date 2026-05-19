@@ -22,6 +22,7 @@ from altera_api.ingestion.csv_reader import (
     CSVReadError,
     read_table_bytes,
 )
+from altera_api.ingestion.mapping import apply_column_mapping
 from altera_api.ingestion.normalizer import normalize_product
 from altera_api.ingestion.parser import parse_row
 
@@ -47,9 +48,19 @@ def ingest_csv_bytes(
     organisation_id: UUID,
     methodologies_enabled: frozenset[Methodology],
     config: CSVReadConfig | None = None,
+    column_mapping: dict[str, str] | None = None,
     now: datetime | None = None,
 ) -> IngestResult:
-    """Run the full ingestion pipeline on raw CSV bytes."""
+    """Run the full ingestion pipeline on raw CSV bytes.
+
+    Parameters
+    ----------
+    column_mapping:
+        Optional mapping from normalised original headers to canonical
+        field names (or ``"ignore"`` to drop). Applied before
+        ``filter_commercial_columns`` so commercial columns are still
+        stripped even when they have a recognisable synonym.
+    """
     timestamp = now or datetime.now(UTC)
 
     try:
@@ -72,6 +83,8 @@ def ingest_csv_bytes(
 
     for offset, row in enumerate(table.rows):
         row_number = offset + 1  # 1-indexed across data rows
+        if column_mapping:
+            row = apply_column_mapping(row, column_mapping)
         kept, dropped = filter_commercial_columns(row)
         all_dropped.update(dropped)
 
