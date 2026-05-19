@@ -32,7 +32,6 @@ class AuthSettings(BaseSettings):
     supabase_jwt_secret: str | None = None
     supabase_service_role_key: str | None = None
     supabase_jwt_audience: str = "authenticated"
-    supabase_jwt_algorithm: str = "HS256"
 
     # Development fallback — off unless explicitly enabled.
     altera_dev_auth_enabled: bool = False

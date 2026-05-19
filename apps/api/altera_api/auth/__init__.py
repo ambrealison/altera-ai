@@ -2,8 +2,9 @@
 
 Phase 13C ships:
 
-* Supabase JWT bearer-token verification (HS256 with the project's
-  ``SUPABASE_JWT_SECRET``).
+* Supabase JWT bearer-token verification. HS256 tokens are verified
+  against ``SUPABASE_JWT_SECRET``; ES256/RS256 tokens are verified
+  against the project JWKS at ``{SUPABASE_URL}/auth/v1/.well-known/jwks.json``.
 * An :class:`AuthContext` attached to every authenticated request,
   carrying ``user_id``, ``email``, ``organisation_id``, and ``role``.
 * An explicit dev fallback (``ALTERA_DEV_AUTH_ENABLED=true``) for
