@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Card, CardHeader, Field, Pill } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
@@ -12,6 +12,7 @@ import {
   type JobResult,
   type MappingPreviewResult,
   type Methodology,
+  type Project,
   type UploadResult,
   type WWFStep2UploadResult,
 } from "@/lib/api";
@@ -202,6 +203,12 @@ export default function UploadPage() {
   const api = useMemo(() => createApi(accessToken), [accessToken]);
   const useStorageFlow = isSupabaseConfigured();
 
+  // Project context (needed to pass methodologies to preview-mapping)
+  const [project, setProject] = useState<Project | null>(null);
+  useEffect(() => {
+    api.getProject(projectId).then(setProject).catch(() => null);
+  }, [api, projectId]);
+
   // Step 1 — file selection + header preview
   const [file, setFile] = useState<File | null>(null);
   const [mappingPreview, setMappingPreview] = useState<MappingPreviewResult | null>(null);
@@ -243,12 +250,16 @@ export default function UploadPage() {
     setMappingBusy(true);
     try {
       const rawHeaders = await parseHeadersFromFile(picked);
-      const preview = await api.previewMapping(rawHeaders);
+      const preview = await api.previewMapping(rawHeaders, project?.methodologies_enabled);
       setMappingPreview(preview);
-      // Seed overrides from inferred mapping
+      // Seed overrides from inferred mapping; auto_ignore columns are pre-set to "ignore"
       const initial: Record<string, string> = {};
       for (const entry of preview.entries) {
-        if (entry.canonical_field) initial[entry.normalised_header] = entry.canonical_field;
+        if (entry.auto_ignore) {
+          initial[entry.normalised_header] = "ignore";
+        } else if (entry.canonical_field) {
+          initial[entry.normalised_header] = entry.canonical_field;
+        }
       }
       setMappingOverrides(initial);
     } catch (err) {
@@ -353,8 +364,15 @@ export default function UploadPage() {
   // Render
   // -------------------------------------------------------------------------
 
-  const hasMissingPt = mappingPreview && mappingPreview.missing_required_pt.length > 0;
-  const hasMissingWwf = mappingPreview && mappingPreview.missing_required_wwf.length > 0;
+  const projectMethodologies = project?.methodologies_enabled ?? [];
+  const hasMissingPt =
+    mappingPreview &&
+    mappingPreview.missing_required_pt.length > 0 &&
+    projectMethodologies.includes("protein_tracker");
+  const hasMissingWwf =
+    mappingPreview &&
+    mappingPreview.missing_required_wwf.length > 0 &&
+    projectMethodologies.includes("wwf");
   const hasDuplicates = mappingPreview && mappingPreview.duplicate_normalised.length > 0;
 
   return (

@@ -651,6 +651,7 @@ export interface ColumnMappingEntry {
   canonical_field: string | null;
   confidence: "exact" | "synonym" | "none";
   enrichment_needed: boolean;
+  auto_ignore: boolean;
 }
 
 export interface MappingPreviewResult {
@@ -746,10 +747,13 @@ export function createApi(accessToken: string | null) {
         { method: "GET" },
         accessToken,
       ),
-    previewMapping: (headers: string[]): Promise<MappingPreviewResult> =>
+    previewMapping: (headers: string[], methodologies?: string[]): Promise<MappingPreviewResult> =>
       request<MappingPreviewResult>(
         "/api/v1/uploads/preview-mapping",
-        { method: "POST", body: JSON.stringify({ headers }) },
+        {
+          method: "POST",
+          body: JSON.stringify({ headers, methodologies: methodologies ?? null }),
+        },
         accessToken,
       ),
 

@@ -35,4 +35,4 @@ def preview_mapping(
     synonym registry, along with lists of missing required fields for PT
     and WWF, and any duplicate normalised headers in the uploaded file.
     """
-    return infer_mapping(body.headers)
+    return infer_mapping(body.headers, body.methodologies)

@@ -20,7 +20,7 @@ from altera_api.domain.product import (
     RawProduct,
     WWFProductFields,
 )
-from altera_api.domain.validation import ValidationError
+from altera_api.domain.validation import ValidationError, ValidationWarning
 
 
 def _missing(row_number: int, field: str, methodology: Methodology) -> ValidationError:
@@ -40,13 +40,14 @@ def normalize_product(
     methodologies_enabled: frozenset[Methodology],
     now: datetime,
     product_id: UUID | None = None,
-) -> tuple[NormalizedProduct | None, tuple[ValidationError, ...]]:
+) -> tuple[NormalizedProduct | None, tuple[ValidationError, ...], tuple[ValidationWarning, ...]]:
     """Build a ``NormalizedProduct`` from a ``RawProduct``.
 
     Returns ``(product, errors)``. If errors is non-empty, ``product`` is
     ``None`` — the row is excluded from the normalised set.
     """
     errors: list[ValidationError] = []
+    warnings: list[ValidationWarning] = []
 
     if raw.weight_per_item_kg is None:
         errors.append(
@@ -65,8 +66,18 @@ def normalize_product(
         if raw.items_purchased is None:
             errors.append(_missing(raw.row_number, "items_purchased", Methodology.PROTEIN_TRACKER))
         if raw.protein_pct is None:
-            errors.append(_missing(raw.row_number, "protein_pct", Methodology.PROTEIN_TRACKER))
-        if raw.items_purchased is not None and raw.protein_pct is not None:
+            warnings.append(
+                ValidationWarning(
+                    row_number=raw.row_number,
+                    field="protein_pct",
+                    code="enrichment_needed",
+                    message=(
+                        "protein_pct is missing; product will be excluded from PT totals "
+                        "unless nutrition enrichment is applied"
+                    ),
+                )
+            )
+        if raw.items_purchased is not None:
             try:
                 pt_fields = PTProductFields(
                     items_purchased=raw.items_purchased,
@@ -105,7 +116,7 @@ def normalize_product(
             )
 
     if errors:
-        return None, tuple(errors)
+        return None, tuple(errors), tuple(warnings)
 
     assert raw.weight_per_item_kg is not None  # checked above
 
@@ -142,6 +153,6 @@ def normalize_product(
                     message=err["msg"],
                 )
             )
-        return None, tuple(errors)
+        return None, tuple(errors), tuple(warnings)
 
-    return product, ()
+    return product, (), tuple(warnings)

@@ -96,7 +96,7 @@ def ingest_csv_bytes(
         if raw is None:
             continue
 
-        product, normalise_errors = normalize_product(
+        product, normalise_errors, normalise_warnings = normalize_product(
             raw,
             project_id=project_id,
             organisation_id=organisation_id,
@@ -104,6 +104,7 @@ def ingest_csv_bytes(
             now=timestamp,
         )
         errors.extend(normalise_errors)
+        warnings.extend(normalise_warnings)
         if product is not None:
             products.append(product)
 

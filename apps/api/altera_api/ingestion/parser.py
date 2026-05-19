@@ -30,9 +30,9 @@ def _coerce_bool(value: Any) -> bool | None:
     s = str(value).strip().lower()
     if s == "":
         return None
-    if s in {"true", "1", "yes", "y"}:
+    if s in {"true", "1", "yes", "y", "oui", "o", "vrai"}:
         return True
-    if s in {"false", "0", "no", "n"}:
+    if s in {"false", "0", "no", "n", "non", "faux"}:
         return False
     return None  # caller treats as missing; downstream may emit an error
 

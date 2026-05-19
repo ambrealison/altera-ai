@@ -27,7 +27,7 @@ def _raw_full(upload_id: UUID) -> RawProduct:
 
 def test_pt_only_happy_path(upload_id: UUID, project_id: UUID, org_id: UUID, now: datetime) -> None:
     raw = _raw_full(upload_id)
-    product, errors = normalize_product(
+    product, errors, warnings = normalize_product(
         raw,
         project_id=project_id,
         organisation_id=org_id,
@@ -45,7 +45,7 @@ def test_wwf_only_happy_path(
     upload_id: UUID, project_id: UUID, org_id: UUID, now: datetime
 ) -> None:
     raw = _raw_full(upload_id)
-    product, errors = normalize_product(
+    product, errors, warnings = normalize_product(
         raw,
         project_id=project_id,
         organisation_id=org_id,
@@ -63,7 +63,7 @@ def test_both_methodologies_happy_path(
     upload_id: UUID, project_id: UUID, org_id: UUID, now: datetime
 ) -> None:
     raw = _raw_full(upload_id)
-    product, errors = normalize_product(
+    product, errors, warnings = normalize_product(
         raw,
         project_id=project_id,
         organisation_id=org_id,
@@ -79,7 +79,7 @@ def test_wwf_missing_items_sold(
     upload_id: UUID, project_id: UUID, org_id: UUID, now: datetime
 ) -> None:
     raw = _raw_full(upload_id).model_copy(update={"items_sold": None})
-    product, errors = normalize_product(
+    product, errors, warnings = normalize_product(
         raw,
         project_id=project_id,
         organisation_id=org_id,
@@ -90,26 +90,32 @@ def test_wwf_missing_items_sold(
     assert any(e.code == "missing_for_methodology" and e.field == "items_sold" for e in errors)
 
 
-def test_pt_missing_protein_pct(
+def test_pt_missing_protein_pct_yields_warning(
     upload_id: UUID, project_id: UUID, org_id: UUID, now: datetime
 ) -> None:
+    """Missing protein_pct produces a warning and the product is still created."""
     raw = _raw_full(upload_id).model_copy(update={"protein_pct": None})
-    product, errors = normalize_product(
+    product, errors, warnings = normalize_product(
         raw,
         project_id=project_id,
         organisation_id=org_id,
         methodologies_enabled=frozenset({Methodology.PROTEIN_TRACKER}),
         now=now,
     )
-    assert product is None
-    assert any(e.code == "missing_for_methodology" and e.field == "protein_pct" for e in errors)
+    assert errors == ()
+    assert product is not None
+    assert product.pt_fields is not None
+    assert product.pt_fields.protein_pct is None
+    assert any(
+        w.code == "enrichment_needed" and w.field == "protein_pct" for w in warnings
+    )
 
 
 def test_missing_weight_blocks(
     upload_id: UUID, project_id: UUID, org_id: UUID, now: datetime
 ) -> None:
     raw = _raw_full(upload_id).model_copy(update={"weight_per_item_kg": None})
-    product, errors = normalize_product(
+    product, errors, warnings = normalize_product(
         raw,
         project_id=project_id,
         organisation_id=org_id,

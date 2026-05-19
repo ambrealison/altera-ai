@@ -30,6 +30,12 @@ def _coerce_decimal(value: Any) -> Decimal | None:
     Returns ``None`` for blank strings and ``None`` inputs. Returns the
     sentinel ``Decimal("NaN")`` for unparseable input — the caller maps
     that to an `invalid_type` error code.
+
+    Handles locale-specific formats:
+    - French decimal separator: "15,3" → 15.3 (one comma, no period)
+    - European thousands+decimal: "1.234,5" → 1234.5 (period=thousands, comma=decimal)
+    - English thousands (ignored — "1,234" treated as 1.234 since ambiguous;
+      food product counts > 999 should be sent without separators)
     """
     if value is None:
         return None
@@ -38,6 +44,15 @@ def _coerce_decimal(value: Any) -> Decimal | None:
     s = str(value).strip()
     if s == "":
         return None
+    # Normalise locale-specific decimal/thousands separators before parsing.
+    comma_count = s.count(",")
+    period_count = s.count(".")
+    if comma_count == 1 and period_count == 0:
+        # Single comma only → treat as decimal separator (e.g. "15,3")
+        s = s.replace(",", ".")
+    elif comma_count == 1 and period_count >= 1 and s.index(".") < s.index(","):
+        # Period(s) before comma → period=thousands, comma=decimal (e.g. "1.234,5")
+        s = s.replace(".", "").replace(",", ".")
     try:
         return Decimal(s)
     except InvalidOperation:
