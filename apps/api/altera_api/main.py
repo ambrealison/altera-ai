@@ -16,8 +16,9 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from altera_api.api import api_router
@@ -118,6 +119,42 @@ def create_app() -> FastAPI:
     @app.get("/version", response_model=VersionInfo, tags=["meta"])
     def version() -> VersionInfo:
         return get_version_info()
+
+    # PostgREST surfaces RLS denials as APIError(code='42501'). The
+    # caller already passed our route-level permission check, so the
+    # only path to this is a write that RLS forbids — return a clean
+    # 403 with a JSON body instead of a bare 500.
+    try:
+        from postgrest.exceptions import APIError as _PostgrestAPIError
+    except ImportError:  # supabase-py not installed (in-memory-only deployments)
+        _PostgrestAPIError = None  # type: ignore[assignment]
+
+    if _PostgrestAPIError is not None:
+
+        @app.exception_handler(_PostgrestAPIError)
+        async def _handle_postgrest_api_error(  # noqa: ANN202
+            _request: Request, exc: _PostgrestAPIError
+        ) -> JSONResponse:
+            code = getattr(exc, "code", None)
+            message = getattr(exc, "message", None)
+            if code == "42501":
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={
+                        "detail": (
+                            "operation not permitted by row-level security; "
+                            "your role does not allow this write"
+                        ),
+                        "code": "rls_denied",
+                    },
+                )
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={
+                    "detail": message or "database error",
+                    "code": code or "postgrest_error",
+                },
+            )
 
     app.include_router(api_router)
 
