@@ -1,5 +1,19 @@
 # Staging deployment readiness
 
+> **Status: green — staging deployed 2026-05-19.**
+>
+> | Component | URL | Notes |
+> |---|---|---|
+> | Backend (Render) | https://altera-ai.onrender.com | `/health`, `/version`, `/api/v1/me` all 2xx |
+> | Frontend (Vercel) | https://altera-ai-web.vercel.app | Login + create-project verified end-to-end |
+> | Supabase staging | (project-internal) | All 27 migrations applied; `uploads` + `exports` buckets private; first Altera admin bootstrapped |
+> | GitHub Actions smoke | `staging-smoke.yml` | Green on commit `7f11366` |
+>
+> Use this checklist as the playbook for *future* environments
+> (production, secondary regions). The fixes shipped while bringing
+> staging up are catalogued in the Phase 31H entry of
+> [ROADMAP.md](ROADMAP.md).
+
 Follow this checklist top-to-bottom on first staging deployment.
 Each section is self-contained; earlier sections must complete before later ones.
 
@@ -52,13 +66,13 @@ In the [Supabase dashboard](https://supabase.com/dashboard):
 # One-time: link your local Supabase CLI to the staging project.
 supabase link --project-ref <STAGING_REF>
 
-# Apply all 26 migrations.
+# Apply all 27 migrations.
 supabase db push --project-ref <STAGING_REF>
 ```
 
 Migrations applied (in order):
 ```
-0001_extensions_and_helpers.sql  →  0026_phase28a3_audit_actions.sql
+0001_extensions_and_helpers.sql  →  0027_phase14b_write_role_namespaces.sql
 ```
 
 Verify:
@@ -107,7 +121,7 @@ known; update again after pointing a custom domain.
 ### 1f. Confirm checklist
 
 - [ ] Project created and project ref noted
-- [ ] All 26 migrations applied (`supabase db push`)
+- [ ] All 27 migrations applied (`supabase db push`)
 - [ ] `supabase db diff` shows no pending changes
 - [ ] RLS audit pytest passes
 - [ ] `uploads` bucket created and PRIVATE
@@ -366,7 +380,7 @@ WEB_BASE_URL=https://altera-ai-git-main-xxx.vercel.app \
 - [ ] CI green (`gh run list --limit 3`)
 - [ ] `verify_no_tracked_secrets.sh` passes
 - [ ] Supabase project created, region matches Render
-- [ ] All 26 migrations applied
+- [ ] All 27 migrations applied
 - [ ] RLS audit pytest passes
 - [ ] `uploads` bucket created and PRIVATE
 - [ ] `exports` bucket created and PRIVATE

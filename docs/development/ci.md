@@ -133,6 +133,16 @@ The frontend job runs on **Node 22** (bumped from 20 in Phase 31F). `pnpm@11.1.2
 requires Node ≥ 22.13 and will crash on Node 20 with `ERR_UNKNOWN_BUILTIN_MODULE:
 node:sqlite`. If updating pnpm, check the minimum Node version before bumping.
 
+## Known follow-ups
+
+- **`actions/checkout` Node 20 deprecation warning** — GitHub Actions logs
+  show a deprecation notice for `actions/checkout@v4` running on Node 20.
+  The action itself still works; non-blocking. Follow up by bumping all
+  workflows to whichever `actions/checkout` major release ships the Node
+  20 → 22 transition (track <https://github.com/actions/checkout/releases>).
+  When bumping, do every workflow in one PR: `ci.yml`, `staging-smoke.yml`,
+  and anything added since.
+
 ## Adding a new check
 
 1. Add the command to `.github/workflows/ci.yml` under the appropriate job.
