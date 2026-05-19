@@ -1,10 +1,11 @@
-"""Enrichment record selection logic (Phase 23C).
+"""Enrichment record selection logic (Phase 23C / 33A).
 
 Pure function — no I/O, no store access.
 
 Priority order (lower = preferred):
   0  MANUAL_ALTERA      — Altera team override; highest non-retailer trust
-  1  CATEGORY_AVERAGE   — statistical fallback
+  1  CIQUAL             — ANSES reference database; analytically measured averages
+  2  CATEGORY_AVERAGE   — statistical fallback
 
 Only records with ``status=ENRICHED`` and a non-None ``enriched_value``
 are eligible. NEEDED / FAILED / NEEDS_MANUAL_REVIEW records are ignored.
@@ -24,7 +25,8 @@ from altera_api.domain.enrichment import (
 #: Lower priority number = preferred source.
 _SOURCE_PRIORITY: dict[NutritionEnrichmentSource, int] = {
     NutritionEnrichmentSource.MANUAL_ALTERA: 0,
-    NutritionEnrichmentSource.CATEGORY_AVERAGE: 1,
+    NutritionEnrichmentSource.CIQUAL: 1,
+    NutritionEnrichmentSource.CATEGORY_AVERAGE: 2,
 }
 
 

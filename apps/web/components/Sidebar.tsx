@@ -12,6 +12,7 @@ type NavItem = {
 const BASE_NAV: NavItem[] = [
   { label: "Dashboard", href: "/" },
   { label: "Projects", href: "/projects" },
+  { label: "Data Requirements", href: "/data-requirements" },
   { label: "Settings", href: "/settings" },
 ];
 

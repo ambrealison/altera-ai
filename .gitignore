@@ -31,3 +31,10 @@ supabase/.temp/
 
 # TypeScript build cache
 *.tsbuildinfo
+
+# CIQUAL source files — do not commit raw reference data
+# Download from https://ciqual.anses.fr/ and import with scripts/import_ciqual.py
+Table\ Ciqual\ *.xlsx
+Table_Ciqual_*.xlsx
+ciqual_*.xlsx
+ciqual_*.csv

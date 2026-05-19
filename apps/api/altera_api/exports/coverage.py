@@ -262,6 +262,12 @@ def _enrichment_caveats(
         if r.status is NutritionEnrichmentStatus.ENRICHED
         and r.source is NutritionEnrichmentSource.MANUAL_ALTERA
     )
+    ciqual_enriched = sum(
+        1
+        for r in protein_records
+        if r.status is NutritionEnrichmentStatus.ENRICHED
+        and r.source is NutritionEnrichmentSource.CIQUAL
+    )
     category_enriched = sum(
         1
         for r in protein_records
@@ -274,6 +280,7 @@ def _enrichment_caveats(
         if r.status is NutritionEnrichmentStatus.ENRICHED
         and r.source not in (
             NutritionEnrichmentSource.MANUAL_ALTERA,
+            NutritionEnrichmentSource.CIQUAL,
             NutritionEnrichmentSource.CATEGORY_AVERAGE,
         )
     )
@@ -288,6 +295,13 @@ def _enrichment_caveats(
             f"{manual_enriched} product(s) have manually-entered protein % values "
             "(Altera methodology team override) "
             "not yet applied to this calculation."
+        )
+    if ciqual_enriched > 0:
+        caveats.append(
+            f"{ciqual_enriched} product(s) have protein % values from the ANSES CIQUAL "
+            "2025 reference table (Anses. 2025. Ciqual French food composition table). "
+            "CIQUAL values are reference averages for food categories, not retailer label data. "
+            "Not yet applied to this calculation."
         )
     if category_enriched > 0:
         caveats.append(

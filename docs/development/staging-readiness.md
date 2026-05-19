@@ -1,14 +1,20 @@
 # Staging deployment readiness
 
-> **Status: green — staging deployed 2026-05-19. Phase 32B deployed.**
+> **Status: green — staging deployed 2026-05-19. Phase 33A deployed.**
 >
 > | Component | URL | Notes |
 > |---|---|---|
 > | Backend (Render) | https://altera-ai.onrender.com | `/health`, `/version`, `/api/v1/me` all 2xx |
 > | Frontend (Vercel) | https://altera-ai-web.vercel.app | Login + create-project verified end-to-end |
-> | Supabase staging | (project-internal) | All 28 migrations applied; `uploads` + `exports` buckets private; first Altera admin bootstrapped |
+> | Supabase staging | (project-internal) | All 29 migrations applied; `uploads` + `exports` buckets private; first Altera admin bootstrapped |
 > | GitHub Actions smoke | `staging-smoke.yml` | Green on commit `1cd9a20` (Phase 32A) |
 > | Admin page | `/admin` | Available; org creation + invite flow verified; member list/resend/role-change/remove **pending end-to-end test** |
+> | Data Requirements page | `/data-requirements` | Available; template download buttons require authentication; CIQUAL table requires migration `0029` + importer run |
+>
+> **Phase 33A post-deploy checklist:**
+> - Run `scripts/import_ciqual.py` against staging DB with the CIQUAL 2025 Excel file to populate `ciqual_reference`.
+> - Verify `/api/v1/templates/protein-tracker.csv` returns `200` with correct headers.
+> - Verify `/data-requirements` page loads and download buttons work in browser.
 >
 > Use this checklist as the playbook for *future* environments
 > (production, secondary regions). The fixes shipped while bringing

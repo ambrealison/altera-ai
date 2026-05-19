@@ -1,4 +1,4 @@
-"""Static source registry for nutrition enrichment (Phase 23A).
+"""Static source registry for nutrition enrichment (Phase 23A / 33A).
 
 Lists every planned and currently-available enrichment source with its
 metadata. External sources are registered here so the system can reason
@@ -9,9 +9,9 @@ have data for the same product/nutrient):
 
   0  retailer_provided  — authoritative; never overwritten
   1  manual_altera      — Altera team override; highest non-retailer trust
-  2  category_average   — statistical fallback; available now
-  3  open_food_facts    — planned external
-  4  ciqual             — planned external (ANSES, France)
+  2  ciqual             — ANSES reference database; analytically measured
+  3  category_average   — statistical fallback; available now
+  4  open_food_facts    — planned external
   5  oqali              — planned external (French surveillance DB)
   6  nevo               — planned external (RIVM, Netherlands)
 """
@@ -57,8 +57,21 @@ ENRICHMENT_SOURCE_REGISTRY: tuple[EnrichmentSourceInfo, ...] = (
         notes="Manually entered by the Altera methodology team via the review UI.",
     ),
     EnrichmentSourceInfo(
-        source=NutritionEnrichmentSource.CATEGORY_AVERAGE,
+        source=NutritionEnrichmentSource.CIQUAL,
         priority=2,
+        is_external=False,  # data is imported locally; no runtime API calls
+        is_available=True,
+        expected_confidence=Decimal("0.80"),
+        notes=(
+            "ANSES CIQUAL French food composition table (2025). "
+            "Imported via import_ciqual.py; no runtime external calls. "
+            "Exact name match (0.80) or food-group average (0.55). "
+            "Attribution: Anses. 2025. Ciqual French food composition table."
+        ),
+    ),
+    EnrichmentSourceInfo(
+        source=NutritionEnrichmentSource.CATEGORY_AVERAGE,
+        priority=3,
         is_external=False,
         is_available=True,
         expected_confidence=Decimal("0.60"),
@@ -69,7 +82,7 @@ ENRICHMENT_SOURCE_REGISTRY: tuple[EnrichmentSourceInfo, ...] = (
     ),
     EnrichmentSourceInfo(
         source=NutritionEnrichmentSource.OPEN_FOOD_FACTS,
-        priority=3,
+        priority=4,
         is_external=True,
         is_available=False,
         expected_confidence=Decimal("0.75"),
@@ -77,18 +90,6 @@ ENRICHMENT_SOURCE_REGISTRY: tuple[EnrichmentSourceInfo, ...] = (
             "Open Food Facts open database (openfoodfacts.org). "
             "Planned — not yet implemented. "
             "Matching by barcode or product name; community-contributed data."
-        ),
-    ),
-    EnrichmentSourceInfo(
-        source=NutritionEnrichmentSource.CIQUAL,
-        priority=4,
-        is_external=True,
-        is_available=False,
-        expected_confidence=Decimal("0.80"),
-        notes=(
-            "ANSES CIQUAL French food composition table. "
-            "Planned — not yet implemented. "
-            "Category-level matching; high analytical quality."
         ),
     ),
     EnrichmentSourceInfo(
