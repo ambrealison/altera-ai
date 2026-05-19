@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from altera_api.domain.audit import AuditEvent
-from altera_api.domain.common import Methodology, Role
+from altera_api.domain.common import Methodology, OrganisationType, Role
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
 from altera_api.domain.job import Job, JobStatus, JobType
 from altera_api.domain.organisation import Organisation, UserProfile
@@ -554,6 +554,28 @@ class InMemoryStore:
 
     def get_organisation(self, org_id: UUID) -> Organisation | None:
         return self.organisations.get(org_id)
+
+    def create_organisation(
+        self,
+        *,
+        name: str,
+        slug: str,
+        organisation_type: OrganisationType = OrganisationType.GMS_CLIENT,
+    ) -> Organisation:
+        now = datetime.now(UTC)
+        org = Organisation(
+            id=uuid4(),
+            name=name,
+            slug=slug,
+            organisation_type=organisation_type,
+            created_at=now,
+        )
+        with self._lock:
+            self.organisations[org.id] = org
+        return org
+
+    def list_organisations(self) -> list[Organisation]:
+        return list(self.organisations.values())
 
     # ------------------------------------------------------------------
     # Jobs (Phase 16)

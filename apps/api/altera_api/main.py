@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from altera_api.api import api_router
+from altera_api.api.admin import admin_router
 from altera_api.observability import (
     RequestLoggingMiddleware,
     SecurityHeadersMiddleware,
@@ -157,6 +158,7 @@ def create_app() -> FastAPI:
             )
 
     app.include_router(api_router)
+    app.include_router(admin_router)
 
     return app
 

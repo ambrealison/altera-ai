@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { Button, Card, CardHeader, Field } from "@/components/ui";
 
@@ -25,6 +25,8 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,11 +50,34 @@ function LoginForm() {
     router.refresh();
   }
 
+  async function onForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabaseConfigured) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    setBusy(true);
+    setError(null);
+    // redirectTo must be registered in Supabase dashboard → Auth → URL Configuration
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    });
+    setBusy(false);
+    if (resetErr) {
+      setError(resetErr.message);
+      return;
+    }
+    setResetSent(true);
+  }
+
   return (
     <div className="mx-auto mt-16 max-w-md p-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        {forgotMode ? "Reset password" : "Sign in"}
+      </h1>
       <p className="mt-1 text-sm text-gray-600">
-        Email + password sign-in via Supabase Auth.
+        {forgotMode
+          ? "Enter your email and we'll send a reset link."
+          : "Email + password sign-in via Supabase Auth."}
       </p>
 
       {!supabaseConfigured && (
@@ -65,39 +90,99 @@ function LoginForm() {
       )}
 
       <div className="mt-6">
-        <Card>
-          <CardHeader title="Sign in to Altera AI" />
-          <form onSubmit={onSubmit} className="mt-4 space-y-4">
-            <Field label="Email">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-              />
-            </Field>
-            <Field label="Password">
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-              />
-            </Field>
-            {error && (
-              <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
-                {error}
+        {forgotMode ? (
+          <Card>
+            <CardHeader title="Send reset link" />
+            {resetSent ? (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm text-green-700">
+                  Reset link sent to <strong>{email}</strong>. Check your inbox.
+                </p>
+                <button
+                  onClick={() => { setForgotMode(false); setResetSent(false); }}
+                  className="text-xs text-brand-600 hover:underline"
+                >
+                  Back to sign in
+                </button>
               </div>
+            ) : (
+              <form onSubmit={onForgotPassword} className="mt-4 space-y-4">
+                <Field label="Email">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </Field>
+                {error && (
+                  <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                    {error}
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  <Button type="submit" disabled={busy || !supabaseConfigured}>
+                    {busy ? "Sending…" : "Send reset link"}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setForgotMode(false)}
+                    className="text-xs text-gray-500 hover:underline"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             )}
-            <Button type="submit" disabled={busy || !supabaseConfigured}>
-              {busy ? "Signing in…" : "Sign in"}
-            </Button>
-          </form>
-        </Card>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader title="Sign in to Altera AI" />
+            <form onSubmit={onSubmit} className="mt-4 space-y-4">
+              <Field label="Email">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                />
+              </Field>
+              <Field label="Password">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                />
+              </Field>
+              {error && (
+                <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                  {error}
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <Button type="submit" disabled={busy || !supabaseConfigured}>
+                  {busy ? "Signing in…" : "Sign in"}
+                </Button>
+                {supabaseConfigured && (
+                  <button
+                    type="button"
+                    onClick={() => { setForgotMode(true); setError(null); }}
+                    className="text-xs text-gray-500 hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+            </form>
+          </Card>
+        )}
       </div>
     </div>
   );

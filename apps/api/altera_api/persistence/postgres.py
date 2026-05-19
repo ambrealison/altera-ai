@@ -28,7 +28,7 @@ from altera_api.api.state import (
     UploadRecord,
 )
 from altera_api.domain.audit import AuditEvent
-from altera_api.domain.common import Methodology
+from altera_api.domain.common import Methodology, OrganisationType
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
 from altera_api.domain.job import Job, JobStatus, JobType
 from altera_api.domain.organisation import Organisation, UserProfile
@@ -151,6 +151,39 @@ class PostgresRepository:
         if not r.data:
             return None
         return organisation_from_row(r.data[0])
+
+    def create_organisation(
+        self,
+        *,
+        name: str,
+        slug: str,
+        organisation_type: OrganisationType = OrganisationType.GMS_CLIENT,
+    ) -> Organisation:
+        from datetime import UTC, datetime
+        from uuid import uuid4
+
+        org_id = uuid4()
+        now = datetime.now(UTC)
+        self._svc.table("organisations").insert(
+            {
+                "id": str(org_id),
+                "name": name,
+                "slug": slug,
+                "organisation_type": organisation_type.value,
+                "created_at": now.isoformat(),
+            }
+        ).execute()
+        return Organisation(
+            id=org_id,
+            name=name,
+            slug=slug,
+            organisation_type=organisation_type,
+            created_at=now,
+        )
+
+    def list_organisations(self) -> list[Organisation]:
+        r = self._svc.table("organisations").select("*").order("created_at").execute()
+        return [organisation_from_row(row) for row in (r.data or [])]
 
     # ------------------------------------------------------------------
     # Projects

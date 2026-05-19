@@ -14,7 +14,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Shell } from "@/components/Shell";
 
-const PUBLIC_PATHS = new Set(["/login"]);
+const PUBLIC_PATHS = new Set(["/login", "/auth/callback", "/reset-password"]);
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();

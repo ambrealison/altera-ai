@@ -20,7 +20,7 @@ from altera_api.api.state import (
     UploadRecord,
 )
 from altera_api.domain.audit import AuditEvent
-from altera_api.domain.common import Methodology
+from altera_api.domain.common import Methodology, OrganisationType
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
 from altera_api.domain.job import Job, JobType
 from altera_api.domain.organisation import Organisation, UserProfile
@@ -50,6 +50,14 @@ class StoreProtocol(Protocol):
     def get_user(self, user_id: UUID) -> UserProfile | None: ...
     def upsert_user(self, profile: UserProfile) -> None: ...
     def get_organisation(self, org_id: UUID) -> Organisation | None: ...
+    def create_organisation(
+        self,
+        *,
+        name: str,
+        slug: str,
+        organisation_type: OrganisationType = OrganisationType.GMS_CLIENT,
+    ) -> Organisation: ...
+    def list_organisations(self) -> list[Organisation]: ...
 
     # ------------------------------------------------------------------
     # Projects

@@ -617,6 +617,32 @@ export interface ReportDocument {
   recommendations: RecommendationItem[];
 }
 
+// ---------------------------------------------------------------------------
+// Phase 32A — admin types
+// ---------------------------------------------------------------------------
+
+export interface OrgResponse {
+  id: string;
+  name: string;
+  slug: string;
+  organisation_type: string;
+  created_at: string;
+}
+
+export interface InviteUserRequest {
+  email: string;
+  role?: string;
+  redirect_to?: string;
+}
+
+export interface InviteUserResponse {
+  user_id: string;
+  email: string;
+  organisation_id: string;
+  role: string;
+  invite_sent: boolean;
+}
+
 async function request<T>(
   path: string,
   init: RequestInit,
@@ -1034,6 +1060,27 @@ export function createApi(accessToken: string | null) {
       request<RunComparisonResponse>(
         `/api/v1/projects/${projectId}/comparisons?baseline_run_id=${baselineRunId}&comparison_run_id=${comparisonRunId}`,
         { method: "GET" },
+        accessToken,
+      ),
+
+    // -----------------------------------------------------------------------
+    // Admin (Phase 32A)
+    // -----------------------------------------------------------------------
+
+    listOrgs: () =>
+      request<OrgResponse[]>("/api/v1/admin/organisations", { method: "GET" }, accessToken),
+
+    createOrg: (body: { name: string; slug: string }) =>
+      request<OrgResponse>(
+        "/api/v1/admin/organisations",
+        { method: "POST", body: JSON.stringify(body) },
+        accessToken,
+      ),
+
+    inviteUser: (orgId: string, body: InviteUserRequest) =>
+      request<InviteUserResponse>(
+        `/api/v1/admin/organisations/${orgId}/invite`,
+        { method: "POST", body: JSON.stringify(body) },
         accessToken,
       ),
 

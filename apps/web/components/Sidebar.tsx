@@ -2,20 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 
 type NavItem = {
   label: string;
   href: string;
 };
 
-const NAV: NavItem[] = [
+const BASE_NAV: NavItem[] = [
   { label: "Dashboard", href: "/" },
   { label: "Projects", href: "/projects" },
   { label: "Settings", href: "/settings" },
 ];
 
+const ALTERA_NAV: NavItem[] = [{ label: "Admin", href: "/admin" }];
+
 export function Sidebar() {
   const pathname = usePathname();
+  const { isAltera } = useAuth();
+
+  const nav = isAltera ? [...BASE_NAV, ...ALTERA_NAV] : BASE_NAV;
 
   return (
     <aside className="hidden w-56 shrink-0 border-r border-gray-200 bg-white md:block">
@@ -25,7 +31,7 @@ export function Sidebar() {
         </div>
       </div>
       <nav className="flex flex-col gap-0.5 px-2 pb-4">
-        {NAV.map((item) => {
+        {nav.map((item) => {
           const active =
             item.href === "/"
               ? pathname === "/"
