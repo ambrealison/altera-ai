@@ -50,7 +50,7 @@ def stub_jwks(
         def get_signing_key_from_jwt(self, _token: str) -> _FakeSigningKey:
             return _FakeSigningKey(public_key)
 
-    def _stub(_supabase_url: str) -> _FakeJWKSClient:
+    def _stub(_supabase_url: str, _anon_key: str | None) -> _FakeJWKSClient:
         return _FakeJWKSClient()
 
     verifier_module._jwks_clients.clear()
@@ -176,3 +176,106 @@ def test_no_token_returns_authentication_required(client: TestClient) -> None:
     r = client.get("/api/v1/me")
     assert r.status_code == 401
     assert r.json()["detail"] == "authentication required"
+
+
+class TestJWKSClientConstruction:
+    """Verify ``_get_jwks_client`` configures PyJWKClient with the Supabase
+    apikey header and caches per (url, anon-key) pair."""
+
+    def test_anon_key_passed_as_apikey_header(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict[str, Any] = {}
+
+        class _SpyClient:
+            def __init__(self, uri: str, **kwargs: Any) -> None:
+                captured["uri"] = uri
+                captured["headers"] = kwargs.get("headers")
+                captured["lifespan"] = kwargs.get("lifespan")
+
+        verifier_module._jwks_clients.clear()
+        monkeypatch.setattr(verifier_module, "PyJWKClient", _SpyClient)
+
+        verifier_module._get_jwks_client(STAGING_SUPABASE_URL, "sb_anon_abc")
+
+        assert captured["uri"] == (
+            f"{STAGING_SUPABASE_URL}/auth/v1/.well-known/jwks.json"
+        )
+        assert captured["headers"] == {"apikey": "sb_anon_abc"}
+        assert captured["lifespan"] == 600
+        verifier_module._jwks_clients.clear()
+
+    def test_no_apikey_header_when_anon_key_missing(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict[str, Any] = {}
+
+        class _SpyClient:
+            def __init__(self, _uri: str, **kwargs: Any) -> None:
+                captured["headers"] = kwargs.get("headers")
+
+        verifier_module._jwks_clients.clear()
+        monkeypatch.setattr(verifier_module, "PyJWKClient", _SpyClient)
+
+        verifier_module._get_jwks_client(STAGING_SUPABASE_URL, None)
+        assert captured["headers"] is None
+        verifier_module._jwks_clients.clear()
+
+    def test_client_cached_across_calls(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        construct_count = 0
+
+        class _CountingClient:
+            def __init__(self, _uri: str, **_kwargs: Any) -> None:
+                nonlocal construct_count
+                construct_count += 1
+
+        verifier_module._jwks_clients.clear()
+        monkeypatch.setattr(verifier_module, "PyJWKClient", _CountingClient)
+
+        verifier_module._get_jwks_client(STAGING_SUPABASE_URL, "sb_anon_abc")
+        verifier_module._get_jwks_client(STAGING_SUPABASE_URL, "sb_anon_abc")
+        assert construct_count == 1
+
+        # Different anon key → different cache entry → reconstruct.
+        verifier_module._get_jwks_client(STAGING_SUPABASE_URL, "sb_anon_xyz999")
+        assert construct_count == 2
+        verifier_module._jwks_clients.clear()
+
+    def test_jwks_fetch_failure_surfaces_clear_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        ec_keypair: ec.EllipticCurvePrivateKey,
+    ) -> None:
+        from jwt.exceptions import PyJWKClientError
+
+        class _FailingClient:
+            def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+                pass
+
+            def get_signing_key_from_jwt(self, _token: str) -> Any:
+                raise PyJWKClientError(
+                    'Fail to fetch data from the url, err: '
+                    '"HTTP Error 401: Unauthorized"'
+                )
+
+        def _failing_factory(
+            _url: str, _key: str | None
+        ) -> _FailingClient:
+            return _FailingClient()
+
+        verifier_module._jwks_clients.clear()
+        monkeypatch.setattr(verifier_module, "_get_jwks_client", _failing_factory)
+        monkeypatch.setenv("SUPABASE_URL", STAGING_SUPABASE_URL)
+        token = _mint_es256(
+            ec_keypair, issuer=f"{STAGING_SUPABASE_URL}/auth/v1"
+        )
+        with pytest.raises(
+            InvalidTokenError, match="could not resolve signing key"
+        ):
+            verify_supabase_jwt(token)
+        verifier_module._jwks_clients.clear()

@@ -31,6 +31,9 @@ class AuthSettings(BaseSettings):
     supabase_url: str | None = None
     supabase_jwt_secret: str | None = None
     supabase_service_role_key: str | None = None
+    # Anon/publishable key — used as the ``apikey`` header when fetching
+    # the project JWKS endpoint, which Supabase gates behind this key.
+    supabase_anon_key: str | None = None
     supabase_jwt_audience: str = "authenticated"
 
     # Development fallback — off unless explicitly enabled.

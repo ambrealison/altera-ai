@@ -16,6 +16,7 @@ per Supabase URL so we don't refetch on every request.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 import jwt
@@ -31,10 +32,10 @@ _ASYMMETRIC_ALGORITHMS = frozenset({"ES256", "RS256"})
 #: Algorithms verified against ``SUPABASE_JWT_SECRET``.
 _SYMMETRIC_ALGORITHMS = frozenset({"HS256"})
 
-#: Process-wide JWKS client cache keyed by JWKS URL. PyJWKClient already
-#: caches the fetched keys internally (default 5 minutes); we just want
-#: to avoid recreating the client object on every request.
-_jwks_clients: dict[str, PyJWKClient] = {}
+#: Process-wide JWKS client cache. Keyed by (JWKS URL, anon-key marker)
+#: so an apikey rotation in env vars produces a fresh client instead of
+#: a stale one. PyJWKClient itself caches fetched keys for 10 minutes.
+_jwks_clients: dict[tuple[str, str], PyJWKClient] = {}
 
 
 def _jwks_url(supabase_url: str) -> str:
@@ -45,12 +46,29 @@ def _issuer(supabase_url: str) -> str:
     return f"{supabase_url.rstrip('/')}/auth/v1"
 
 
-def _get_jwks_client(supabase_url: str) -> PyJWKClient:
+def _get_jwks_client(supabase_url: str, anon_key: str | None) -> PyJWKClient:
     url = _jwks_url(supabase_url)
-    client = _jwks_clients.get(url)
+    # Hash the anon key so the cache distinguishes rotations without
+    # holding the secret in the cache key itself.
+    key_fingerprint = (
+        hashlib.sha256(anon_key.encode("utf-8")).hexdigest() if anon_key else ""
+    )
+    cache_key = (url, key_fingerprint)
+    client = _jwks_clients.get(cache_key)
     if client is None:
-        client = PyJWKClient(url, cache_keys=True, lifespan=600)
-        _jwks_clients[url] = client
+        # Supabase's JWKS endpoint requires the project anon key as the
+        # ``apikey`` header; without it the gateway returns 401 before
+        # GoTrue can serve the JWKS payload.
+        headers: dict[str, str] | None = (
+            {"apikey": anon_key} if anon_key else None
+        )
+        client = PyJWKClient(
+            url,
+            cache_keys=True,
+            lifespan=600,
+            headers=headers,
+        )
+        _jwks_clients[cache_key] = client
     return client
 
 
@@ -86,7 +104,9 @@ def verify_supabase_jwt(token: str) -> dict[str, Any]:
                 f"server is not configured for {alg} auth (SUPABASE_URL missing)"
             )
         try:
-            jwks_client = _get_jwks_client(settings.supabase_url)
+            jwks_client = _get_jwks_client(
+                settings.supabase_url, settings.supabase_anon_key
+            )
             signing_key = jwks_client.get_signing_key_from_jwt(token)
         except PyJWKClientError as exc:
             raise InvalidTokenError(f"could not resolve signing key: {exc}") from exc
