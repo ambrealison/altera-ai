@@ -60,6 +60,26 @@ export type ManualReviewReason =
 
 export type DecisionType = "accepted" | "changed" | "deferred";
 
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: unknown;
+  constructor(status: number, detail: unknown) {
+    const msg =
+      typeof detail === "string"
+        ? `${status} ${detail}`
+        : typeof detail === "object" &&
+          detail !== null &&
+          "message" in detail &&
+          typeof (detail as { message: unknown }).message === "string"
+        ? `${status} ${(detail as { message: string }).message}`
+        : `${status} Error`;
+    super(msg);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 export interface Project {
   id: string;
   organisation_id: string;
@@ -70,6 +90,13 @@ export interface Project {
   upload_count: number;
   review_queue_count: number;
   run_count: number;
+  unclassified_pt_count: number;
+}
+
+export interface ClassificationRequiredError {
+  error_code: "classification_required";
+  message: string;
+  unclassified_count: number;
 }
 
 export interface ValidationEntry {
@@ -702,14 +729,14 @@ async function request<T>(
     credentials: "omit",
   });
   if (!res.ok) {
-    let detail = res.statusText;
+    let detail: unknown = res.statusText;
     try {
       const body = await res.json();
-      if (body?.detail) detail = body.detail;
+      if (body?.detail !== undefined) detail = body.detail;
     } catch {
       // ignore
     }
-    throw new Error(`${res.status} ${detail}`);
+    throw new ApiError(res.status, detail);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

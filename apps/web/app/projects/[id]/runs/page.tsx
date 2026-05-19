@@ -4,14 +4,25 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
+  ApiError,
+  type ClassificationRequiredError,
   createApi,
   type Methodology,
+  type Project,
   type PTGroupComparisonResponse,
   type Run,
   type RunComparisonResponse,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Button, Card, CardHeader, EmptyState, Pill, Stat } from "@/components/ui";
+
+function isClassificationRequired(detail: unknown): detail is ClassificationRequiredError {
+  return (
+    typeof detail === "object" &&
+    detail !== null &&
+    (detail as ClassificationRequiredError).error_code === "classification_required"
+  );
+}
 
 export default function RunsPage() {
   const params = useParams<{ id: string }>();
@@ -20,18 +31,20 @@ export default function RunsPage() {
   const { accessToken } = useAuth();
   const api = useMemo(() => createApi(accessToken), [accessToken]);
   const [runs, setRuns] = useState<Run[] | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [classificationError, setClassificationError] =
+    useState<ClassificationRequiredError | null>(null);
   const [busy, setBusy] = useState<Methodology | null>(null);
-  const [enabled, setEnabled] = useState<Methodology[]>([]);
 
   const refresh = useCallback(async () => {
     try {
-      const [list, project] = await Promise.all([
+      const [list, proj] = await Promise.all([
         api.listRuns(projectId),
         api.getProject(projectId),
       ]);
       setRuns(list.items);
-      setEnabled(project.methodologies_enabled);
+      setProject(proj);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     }
@@ -41,18 +54,33 @@ export default function RunsPage() {
     refresh();
   }, [refresh]);
 
+  const enabled = project?.methodologies_enabled ?? [];
+  const unclassifiedPt = project?.unclassified_pt_count ?? 0;
+
+  function ptBlocked(m: Methodology) {
+    return m === "protein_tracker" && unclassifiedPt > 0;
+  }
+
   async function trigger(methodology: Methodology) {
     setBusy(methodology);
     setError(null);
+    setClassificationError(null);
     try {
       const run = await api.createRun(projectId, methodology);
       router.push(`/projects/${projectId}/runs/${run.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Run failed");
+      if (e instanceof ApiError && isClassificationRequired(e.detail)) {
+        setClassificationError(e.detail);
+      } else {
+        setError(e instanceof Error ? e.message : "Run failed");
+      }
     } finally {
       setBusy(null);
     }
   }
+
+  const ptNeedsClassification =
+    enabled.includes("protein_tracker") && unclassifiedPt > 0;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -73,15 +101,51 @@ export default function RunsPage() {
         </div>
       )}
 
+      {(ptNeedsClassification || classificationError) && (
+        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-medium text-amber-800">
+            Classification required before calculation
+          </p>
+          <p className="mt-1 text-xs text-amber-700">
+            {classificationError
+              ? classificationError.message
+              : `${unclassifiedPt} product${unclassifiedPt !== 1 ? "s" : ""} have not been classified yet.`}
+          </p>
+          <p className="mt-1 text-xs text-amber-700">
+            Upload your CSV, run classification, then complete any manual review before
+            triggering a calculation.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-3">
+            <Link
+              href={`/projects/${projectId}/upload`}
+              className="text-xs font-medium text-amber-900 underline underline-offset-2"
+            >
+              Go to Upload &amp; Classify
+            </Link>
+            <Link
+              href={`/projects/${projectId}/review`}
+              className="text-xs font-medium text-amber-900 underline underline-offset-2"
+            >
+              Open review queue
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6">
         <Card>
           <CardHeader title="Trigger a calculation" />
+          {ptNeedsClassification && (
+            <p className="mt-2 text-xs text-amber-700">
+              Protein Tracker calculation is disabled until all products are classified.
+            </p>
+          )}
           <div className="mt-4 flex flex-wrap gap-2">
             {enabled.map((m) => (
               <Button
                 key={m}
                 onClick={() => trigger(m)}
-                disabled={busy !== null}
+                disabled={busy !== null || ptBlocked(m)}
                 variant={m === "protein_tracker" ? "primary" : "secondary"}
               >
                 {busy === m ? "Running…" : `Run ${m}`}

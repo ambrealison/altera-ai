@@ -131,9 +131,22 @@ class ProjectResponse(BaseModel):
     upload_count: int
     review_queue_count: int
     run_count: int
+    unclassified_pt_count: int = 0
 
 
 def _project_response(store: StoreProtocol, project: Project) -> ProjectResponse:
+    if Methodology.PROTEIN_TRACKER in project.methodologies_enabled:
+        products = store.list_products_for_project(project.id)
+        unclassified_pt_count = sum(
+            1
+            for p in products
+            if p.pt_fields is not None
+            and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
+            and store.get_pt_classification(p.id) is None
+        )
+    else:
+        unclassified_pt_count = 0
+
     return ProjectResponse(
         id=project.id,
         organisation_id=project.organisation_id,
@@ -144,6 +157,7 @@ def _project_response(store: StoreProtocol, project: Project) -> ProjectResponse
         upload_count=len(store.list_uploads_for_project(project.id)),
         review_queue_count=len(store.list_review_items_for_project(project.id)),
         run_count=len(store.list_runs_for_project(project.id)),
+        unclassified_pt_count=unclassified_pt_count,
     )
 
 
@@ -883,6 +897,28 @@ def create_run(
 ) -> RunResponse:
     if body.use_enriched_nutrition and not auth.is_altera_internal:
         raise_forbidden("use_enriched_nutrition may only be enabled by Altera internal users")
+
+    if body.methodology is Methodology.PROTEIN_TRACKER:
+        pt_products = [
+            p
+            for p in store.list_products_for_project(project.id)
+            if p.pt_fields is not None
+            and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
+        ]
+        unclassified = [p for p in pt_products if store.get_pt_classification(p.id) is None]
+        if unclassified:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error_code": "classification_required",
+                    "message": (
+                        "Classification must be completed before calculation. "
+                        f"{len(unclassified)} product(s) have no PT classification."
+                    ),
+                    "unclassified_count": len(unclassified),
+                },
+            )
+
     try:
         record = run_calculation(
             store,
