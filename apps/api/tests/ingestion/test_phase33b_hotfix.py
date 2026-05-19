@@ -9,23 +9,23 @@ Covers:
 - Output/diagnostic columns get auto_ignore=True from infer_mapping
 - Missing protein_pct produces a ValidationWarning, not a ValidationError
 - Pipeline: product is created even when protein_pct is absent
+- Mapper: product_to_row / product_from_row handle protein_pct=None (storage 500 fix)
 """
 
 from __future__ import annotations
 
 import csv
 import io
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
-
 from altera_api.domain.common import Methodology
+from altera_api.domain.product import ProteinSource, PTProductFields
 from altera_api.ingestion.mapping import infer_mapping
-from altera_api.ingestion.parser import _coerce_bool, parse_row
+from altera_api.ingestion.parser import _coerce_bool
 from altera_api.ingestion.pipeline import ingest_csv_bytes
 from altera_api.ingestion.units import _coerce_decimal
-
 
 # ---------------------------------------------------------------------------
 # Methodology-aware required-field reporting
@@ -423,3 +423,63 @@ class TestOfficialPTTemplateEndToEnd:
         assert len(result.products) == 1
         assert result.products[0].wwf_fields is not None
         assert result.products[0].wwf_fields.is_own_brand is True
+
+
+# ---------------------------------------------------------------------------
+# Mapper: product_to_row / product_from_row with protein_pct=None
+# ---------------------------------------------------------------------------
+
+
+class TestMapperProteinPctNone:
+    """Regression: product_to_row crashed with TypeError when protein_pct is None."""
+
+    def _make_product(self, protein_pct: Decimal | None):
+        from altera_api.domain.product import NormalizedProduct
+
+        return NormalizedProduct(
+            id=uuid4(),
+            upload_id=uuid4(),
+            project_id=uuid4(),
+            organisation_id=uuid4(),
+            row_number=1,
+            external_product_id="P-001",
+            product_name="Test Widget",
+            weight_per_item_kg=Decimal("0.4"),
+            methodologies_enabled=frozenset({Methodology.PROTEIN_TRACKER}),
+            pt_fields=PTProductFields(
+                items_purchased=Decimal("100"),
+                protein_pct=protein_pct,
+                protein_source=ProteinSource.REFERENCE_DB,
+            ),
+            created_at=datetime(2025, 1, 1, tzinfo=UTC),
+        )
+
+    def test_product_to_row_protein_pct_none_does_not_crash(self) -> None:
+        from altera_api.persistence.mappers import product_to_row  # local import avoids circular
+        product = self._make_product(protein_pct=None)
+        row = product_to_row(product)
+        assert row["protein_pct"] is None
+        assert row["items_purchased"] == 100.0
+
+    def test_product_to_row_protein_pct_value_preserved(self) -> None:
+        from altera_api.persistence.mappers import product_to_row
+        product = self._make_product(protein_pct=Decimal("15.3"))
+        row = product_to_row(product)
+        assert row["protein_pct"] == 15.3
+
+    def test_product_from_row_protein_pct_null_does_not_crash(self) -> None:
+        from altera_api.persistence.mappers import product_from_row, product_to_row
+        product = self._make_product(protein_pct=None)
+        row = product_to_row(product)
+        row["id"] = str(uuid4())
+        row["upload_id"] = str(uuid4())
+        row["project_id"] = str(uuid4())
+        row["organisation_id"] = str(uuid4())
+        row["created_at"] = "2025-01-01T00:00:00+00:00"
+        # Simulate reading back from DB with NULL protein_pct
+        row["protein_pct"] = None
+        restored = product_from_row(
+            row, methodologies_enabled=frozenset({Methodology.PROTEIN_TRACKER})
+        )
+        assert restored.pt_fields is not None
+        assert restored.pt_fields.protein_pct is None

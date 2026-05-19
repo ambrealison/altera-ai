@@ -269,7 +269,9 @@ def product_from_row(
     ):
         pt_fields = PTProductFields(
             items_purchased=Decimal(str(row["items_purchased"])),
-            protein_pct=Decimal(str(row["protein_pct"])),
+            protein_pct=(
+                Decimal(str(row["protein_pct"])) if row.get("protein_pct") is not None else None
+            ),
             protein_source=ProteinSource(row.get("protein_source") or "reference_db"),
             plant_protein_pct=(
                 Decimal(str(row["plant_protein_pct"]))
@@ -340,7 +342,7 @@ def product_to_row(product: NormalizedProduct) -> dict:
         row.update(
             {
                 "items_purchased": float(f.items_purchased),
-                "protein_pct": float(f.protein_pct),
+                "protein_pct": float(f.protein_pct) if f.protein_pct is not None else None,
                 "protein_source": f.protein_source.value,
                 "plant_protein_pct": (
                     float(f.plant_protein_pct) if f.plant_protein_pct is not None else None
