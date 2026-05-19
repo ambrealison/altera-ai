@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { createApi } from "@/lib/api";
-import type { OrgResponse } from "@/lib/api";
+import type { MemberResponse, OrgResponse } from "@/lib/api";
 import { Button, Card, CardHeader, Field } from "@/components/ui";
 
 export default function AdminPage() {
@@ -22,7 +22,7 @@ export default function AdminPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Create client organisations and invite users.
+          Create client organisations and manage members.
         </p>
       </div>
       <OrgList accessToken={accessToken} />
@@ -39,7 +39,7 @@ function OrgList({ accessToken }: { accessToken: string | null }) {
   const [orgs, setOrgs] = useState<OrgResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [inviteOrgId, setInviteOrgId] = useState<string | null>(null);
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
 
   async function loadOrgs() {
     setLoading(true);
@@ -58,6 +58,8 @@ function OrgList({ accessToken }: { accessToken: string | null }) {
     loadOrgs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
+
+  const selectedOrg = orgs.find((o) => o.id === selectedOrgId) ?? null;
 
   return (
     <div className="space-y-6">
@@ -91,11 +93,11 @@ function OrgList({ accessToken }: { accessToken: string | null }) {
                     {org.organisation_type === "gms_client" && (
                       <button
                         onClick={() =>
-                          setInviteOrgId(inviteOrgId === org.id ? null : org.id)
+                          setSelectedOrgId(selectedOrgId === org.id ? null : org.id)
                         }
                         className="text-xs text-brand-600 hover:underline"
                       >
-                        {inviteOrgId === org.id ? "Cancel" : "Invite user"}
+                        {selectedOrgId === org.id ? "Close" : "Manage members"}
                       </button>
                     )}
                   </td>
@@ -106,11 +108,11 @@ function OrgList({ accessToken }: { accessToken: string | null }) {
         )}
       </Card>
 
-      {inviteOrgId && (
-        <InviteUserForm
-          orgId={inviteOrgId}
+      {selectedOrg && (
+        <OrgMembersPanel
+          org={selectedOrg}
           accessToken={accessToken}
-          onDone={() => setInviteOrgId(null)}
+          onClose={() => setSelectedOrgId(null)}
         />
       )}
     </div>
@@ -207,7 +209,215 @@ function CreateOrgForm({
 }
 
 // ---------------------------------------------------------------------------
-// Invite user form
+// Members panel — list + invite + per-member actions
+// ---------------------------------------------------------------------------
+
+function OrgMembersPanel({
+  org,
+  accessToken,
+  onClose,
+}: {
+  org: OrgResponse;
+  accessToken: string | null;
+  onClose: () => void;
+}) {
+  const api = createApi(accessToken);
+  const [members, setMembers] = useState<MemberResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showInvite, setShowInvite] = useState(false);
+
+  const loadMembers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.listMembers(org.id);
+      setMembers(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org.id, accessToken]);
+
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
+
+  return (
+    <Card>
+      <div className="flex items-start justify-between">
+        <CardHeader title={`${org.name} — Members`} />
+        <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600">
+          Close
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="mt-3 text-sm text-gray-500">Loading members…</p>
+      ) : error ? (
+        <p className="mt-3 text-sm text-rose-600">{error}</p>
+      ) : members.length === 0 ? (
+        <p className="mt-3 text-sm text-gray-500">No members yet.</p>
+      ) : (
+        <table className="mt-3 w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <th className="pb-2 pr-4">Email</th>
+              <th className="pb-2 pr-4">Name</th>
+              <th className="pb-2 pr-4">Role</th>
+              <th className="pb-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {members.map((m) => (
+              <MemberRow
+                key={m.user_id}
+                member={m}
+                orgId={org.id}
+                accessToken={accessToken}
+                onChanged={loadMembers}
+              />
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <div className="mt-4">
+        {showInvite ? (
+          <InviteUserForm
+            orgId={org.id}
+            accessToken={accessToken}
+            onDone={() => {
+              setShowInvite(false);
+              loadMembers();
+            }}
+          />
+        ) : (
+          <button
+            onClick={() => setShowInvite(true)}
+            className="text-xs text-brand-600 hover:underline"
+          >
+            + Invite new user
+          </button>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Individual member row — inline role change, resend invite, remove
+// ---------------------------------------------------------------------------
+
+const ROLE_LABELS: Record<string, string> = {
+  client_owner: "Owner",
+  client_admin: "Admin",
+  client_viewer: "Viewer",
+};
+
+function MemberRow({
+  member,
+  orgId,
+  accessToken,
+  onChanged,
+}: {
+  member: MemberResponse;
+  orgId: string;
+  accessToken: string | null;
+  onChanged: () => void;
+}) {
+  const api = createApi(accessToken);
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  async function handleRoleChange(newRole: string) {
+    if (newRole === member.role) return;
+    setBusy(true);
+    setFeedback(null);
+    try {
+      await api.updateMemberRole(orgId, member.user_id, { role: newRole });
+      setFeedback("Role updated.");
+      onChanged();
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleResend() {
+    setBusy(true);
+    setFeedback(null);
+    try {
+      const res = await api.resendInvite(orgId, member.user_id);
+      setFeedback(res.invite_sent ? "Invite resent." : "Queued (dev mode).");
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove() {
+    if (!confirm(`Remove ${member.email} from this organisation?`)) return;
+    setBusy(true);
+    setFeedback(null);
+    try {
+      await api.removeMember(orgId, member.user_id);
+      onChanged();
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <tr>
+      <td className="py-2 pr-4">{member.email}</td>
+      <td className="py-2 pr-4 text-gray-500">{member.display_name}</td>
+      <td className="py-2 pr-4">
+        <select
+          value={member.role}
+          onChange={(e) => handleRoleChange(e.target.value)}
+          disabled={busy}
+          className="rounded border border-gray-200 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-50"
+        >
+          {Object.entries(ROLE_LABELS).map(([val, label]) => (
+            <option key={val} value={val}>
+              {label}
+            </option>
+          ))}
+        </select>
+        {feedback && (
+          <span className="ml-2 text-xs text-gray-500">{feedback}</span>
+        )}
+      </td>
+      <td className="py-2 text-right">
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={handleResend}
+            disabled={busy}
+            className="text-xs text-brand-600 hover:underline disabled:opacity-40"
+          >
+            Resend invite
+          </button>
+          <button
+            onClick={handleRemove}
+            disabled={busy}
+            className="text-xs text-rose-600 hover:underline disabled:opacity-40"
+          >
+            Remove
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Invite user form (inline inside members panel)
 // ---------------------------------------------------------------------------
 
 function InviteUserForm({
@@ -242,27 +452,26 @@ function InviteUserForm({
 
   if (result) {
     return (
-      <Card>
-        <CardHeader title="Invite sent" />
-        <div className="mt-3 space-y-2 text-sm">
-          <p className="text-green-700">
-            {result.invite_sent
-              ? `Invite email sent to ${result.email}.`
-              : `User pre-provisioned for ${result.email} (no email — dev mode).`}
-          </p>
-          <button onClick={onDone} className="text-xs text-brand-600 hover:underline">
-            Done
-          </button>
-        </div>
-      </Card>
+      <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm">
+        <p className="text-green-700">
+          {result.invite_sent
+            ? `Invite email sent to ${result.email}.`
+            : `User pre-provisioned for ${result.email} (dev mode — no email sent).`}
+        </p>
+        <button onClick={onDone} className="mt-1 text-xs text-brand-600 hover:underline">
+          Done
+        </button>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader title="Invite user" />
-      <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-        <Field label="Email address">
+    <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
+      <p className="mb-3 text-xs font-medium uppercase tracking-wider text-gray-500">
+        Invite new user
+      </p>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="flex gap-3">
           <input
             type="email"
             value={email}
@@ -270,38 +479,34 @@ function InviteUserForm({
             required
             autoComplete="off"
             placeholder="user@client.com"
-            className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           />
-        </Field>
-        <Field label="Role">
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           >
-            <option value="client_owner">Client Owner</option>
-            <option value="client_admin">Client Admin</option>
-            <option value="client_viewer">Client Viewer</option>
+            <option value="client_owner">Owner</option>
+            <option value="client_admin">Admin</option>
+            <option value="client_viewer">Viewer</option>
           </select>
-        </Field>
-        {error && (
-          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
-            {error}
-          </div>
-        )}
-        <div className="flex gap-2">
           <Button type="submit" disabled={busy}>
             {busy ? "Sending…" : "Send invite"}
           </Button>
           <button
             type="button"
             onClick={onDone}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
           >
             Cancel
           </button>
         </div>
+        {error && (
+          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+            {error}
+          </div>
+        )}
       </form>
-    </Card>
+    </div>
   );
 }

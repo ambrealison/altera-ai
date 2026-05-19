@@ -146,6 +146,46 @@ class PostgresRepository:
             on_conflict="user_id,organisation_id",
         ).execute()
 
+    def list_members(self, org_id: UUID) -> list[UserProfile]:
+        m = (
+            self._svc.table("memberships")
+            .select("user_id, role, created_at")
+            .eq("organisation_id", str(org_id))
+            .execute()
+        )
+        if not m.data:
+            return []
+        user_ids = [row["user_id"] for row in m.data]
+        p = (
+            self._svc.table("user_profiles")
+            .select("*")
+            .in_("user_id", user_ids)
+            .execute()
+        )
+        profile_map = {row["user_id"]: row for row in (p.data or [])}
+        result = []
+        for membership in m.data:
+            uid = membership["user_id"]
+            profile_row = profile_map.get(uid)
+            if profile_row is None:
+                continue
+            result.append(
+                user_profile_from_rows(
+                    profile_row,
+                    {"organisation_id": str(org_id), "role": membership["role"]},
+                )
+            )
+        return result
+
+    def remove_member(self, user_id: UUID, org_id: UUID) -> None:
+        (
+            self._svc.table("memberships")
+            .delete()
+            .eq("user_id", str(user_id))
+            .eq("organisation_id", str(org_id))
+            .execute()
+        )
+
     def get_organisation(self, org_id: UUID) -> Organisation | None:
         r = self._svc.table("organisations").select("*").eq("id", str(org_id)).limit(1).execute()
         if not r.data:

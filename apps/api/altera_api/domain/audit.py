@@ -23,6 +23,7 @@ class AuditEventType(StrEnum):
     ORG_CREATED = "organisation.created"
     ORG_MEMBER_INVITED = "organisation.member_invited"
     ORG_ROLE_CHANGED = "organisation.role_changed"
+    ORG_MEMBER_REMOVED = "organisation.member_removed"
 
     # Project lifecycle
     PROJECT_CREATED = "project.created"

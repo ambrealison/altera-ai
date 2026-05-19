@@ -25,6 +25,27 @@ class SupabaseAdminClient:
 
         self._client = create_client(url, service_role_key)
 
+    def resend_invite(
+        self,
+        email: str,
+        *,
+        redirect_to: str | None = None,
+    ) -> None:
+        """Send a password-recovery link to an existing Supabase Auth user.
+
+        Used for "resend invite" — functionally identical to the original
+        invite link: the user clicks it, lands on /auth/callback, and is
+        redirected to /reset-password to set their password.
+
+        Uses generate_link(type="recovery") rather than a second
+        invite_user_by_email call because the latter fails for users who
+        have already confirmed their email.
+        """
+        params: dict = {"type": "recovery", "email": email}
+        if redirect_to:
+            params["redirect_to"] = redirect_to
+        self._client.auth.admin.generate_link(params)
+
     def invite_user_by_email(
         self,
         email: str,

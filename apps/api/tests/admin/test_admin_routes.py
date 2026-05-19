@@ -239,3 +239,296 @@ class TestInviteUser:
                 json={"email": f"{role}@client.com", "role": role},
             )
             assert r.status_code == 201, f"expected 201 for role={role}, got {r.status_code}"
+
+
+# ---------------------------------------------------------------------------
+# Tests — list members (Phase 32B)
+# ---------------------------------------------------------------------------
+
+
+class TestListMembers:
+    def _setup_org_with_members(
+        self, store: InMemoryStore, *, member_count: int = 2
+    ) -> Organisation:
+        org = store.create_organisation(name="Member Org", slug="member-org")
+        for i in range(member_count):
+            profile = UserProfile(
+                user_id=uuid4(),
+                organisation_id=org.id,
+                email=f"user{i}@client.com",
+                display_name=f"User {i}",
+                role=ClientRole.CLIENT_VIEWER,
+                created_at=datetime.now(UTC),
+            )
+            store.upsert_user(profile)
+        return org
+
+    def test_admin_can_list_members(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org = self._setup_org_with_members(store, member_count=3)
+        r = admin_client.get(f"/api/v1/admin/organisations/{org.id}/members")
+        assert r.status_code == 200
+        body = r.json()
+        assert isinstance(body, list)
+        assert len(body) == 3
+        member = body[0]
+        assert "user_id" in member
+        assert "email" in member
+        assert "role" in member
+        assert "organisation_id" in member
+
+    def test_empty_org_returns_empty_list(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org = store.create_organisation(name="Empty Org", slug="empty-org")
+        r = admin_client.get(f"/api/v1/admin/organisations/{org.id}/members")
+        assert r.status_code == 200
+        assert r.json() == []
+
+    def test_unknown_org_returns_404(self, admin_client: TestClient) -> None:
+        r = admin_client.get(f"/api/v1/admin/organisations/{uuid4()}/members")
+        assert r.status_code == 404
+
+    def test_non_admin_gets_403(
+        self, analyst_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org = store.create_organisation(name="X", slug="x-org")
+        r = analyst_client.get(f"/api/v1/admin/organisations/{org.id}/members")
+        assert r.status_code == 403
+        assert r.json()["detail"]["error_code"] == "admin_required"
+
+
+# ---------------------------------------------------------------------------
+# Tests — resend invite (Phase 32B)
+# ---------------------------------------------------------------------------
+
+
+class TestResendInvite:
+    def _org_with_member(self, store: InMemoryStore) -> tuple[Organisation, UserProfile]:
+        org = store.create_organisation(name="Resend Org", slug="resend-org")
+        profile = UserProfile(
+            user_id=uuid4(),
+            organisation_id=org.id,
+            email="pending@client.com",
+            display_name="pending",
+            role=ClientRole.CLIENT_OWNER,
+            created_at=datetime.now(UTC),
+        )
+        store.upsert_user(profile)
+        return org, profile
+
+    def test_resend_returns_200_invite_sent_false_in_dev(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org, member = self._org_with_member(store)
+        r = admin_client.post(
+            f"/api/v1/admin/organisations/{org.id}/members/{member.user_id}/resend-invite"
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["user_id"] == str(member.user_id)
+        assert body["email"] == "pending@client.com"
+        assert body["organisation_id"] == str(org.id)
+        assert body["invite_sent"] is False  # dev mode — no Supabase
+
+    def test_unknown_org_returns_404(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        r = admin_client.post(
+            f"/api/v1/admin/organisations/{uuid4()}/members/{uuid4()}/resend-invite"
+        )
+        assert r.status_code == 404
+
+    def test_unknown_member_returns_404(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org = store.create_organisation(name="Y", slug="y-org")
+        r = admin_client.post(
+            f"/api/v1/admin/organisations/{org.id}/members/{uuid4()}/resend-invite"
+        )
+        assert r.status_code == 404
+
+    def test_non_admin_gets_403(
+        self, analyst_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org = store.create_organisation(name="Z", slug="z-org")
+        member_id = uuid4()
+        r = analyst_client.post(
+            f"/api/v1/admin/organisations/{org.id}/members/{member_id}/resend-invite"
+        )
+        assert r.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Tests — change role (Phase 32B)
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateMemberRole:
+    def _org_with_member(
+        self, store: InMemoryStore, *, role: ClientRole = ClientRole.CLIENT_VIEWER
+    ) -> tuple[Organisation, UserProfile]:
+        org = store.create_organisation(name="Role Org", slug="role-org")
+        profile = UserProfile(
+            user_id=uuid4(),
+            organisation_id=org.id,
+            email="user@client.com",
+            display_name="user",
+            role=role,
+            created_at=datetime.now(UTC),
+        )
+        store.upsert_user(profile)
+        return org, profile
+
+    def test_admin_can_change_role(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org, member = self._org_with_member(store, role=ClientRole.CLIENT_VIEWER)
+        r = admin_client.patch(
+            f"/api/v1/admin/organisations/{org.id}/members/{member.user_id}",
+            json={"role": "client_owner"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["role"] == "client_owner"
+        assert body["user_id"] == str(member.user_id)
+
+    def test_role_persisted_in_store(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org, member = self._org_with_member(store, role=ClientRole.CLIENT_VIEWER)
+        admin_client.patch(
+            f"/api/v1/admin/organisations/{org.id}/members/{member.user_id}",
+            json={"role": "client_admin"},
+        )
+        updated = store.get_user(member.user_id)
+        assert updated is not None
+        assert updated.role == ClientRole.CLIENT_ADMIN
+
+    def test_invalid_role_returns_400(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org, member = self._org_with_member(store)
+        r = admin_client.patch(
+            f"/api/v1/admin/organisations/{org.id}/members/{member.user_id}",
+            json={"role": "super_admin"},
+        )
+        assert r.status_code == 400
+        assert r.json()["detail"]["error_code"] == "invalid_role"
+
+    def test_altera_role_rejected_400(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org, member = self._org_with_member(store)
+        r = admin_client.patch(
+            f"/api/v1/admin/organisations/{org.id}/members/{member.user_id}",
+            json={"role": "altera_admin"},
+        )
+        assert r.status_code == 400
+        assert r.json()["detail"]["error_code"] == "invalid_role"
+
+    def test_unknown_org_returns_404(self, admin_client: TestClient) -> None:
+        r = admin_client.patch(
+            f"/api/v1/admin/organisations/{uuid4()}/members/{uuid4()}",
+            json={"role": "client_owner"},
+        )
+        assert r.status_code == 404
+
+    def test_unknown_member_returns_404(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org = store.create_organisation(name="Patch Org", slug="patch-org")
+        r = admin_client.patch(
+            f"/api/v1/admin/organisations/{org.id}/members/{uuid4()}",
+            json={"role": "client_owner"},
+        )
+        assert r.status_code == 404
+
+    def test_non_admin_gets_403(
+        self, analyst_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org = store.create_organisation(name="Analyst Org", slug="analyst-org")
+        r = analyst_client.patch(
+            f"/api/v1/admin/organisations/{org.id}/members/{uuid4()}",
+            json={"role": "client_owner"},
+        )
+        assert r.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Tests — remove member (Phase 32B)
+# ---------------------------------------------------------------------------
+
+
+class TestRemoveMember:
+    def _org_with_member(self, store: InMemoryStore) -> tuple[Organisation, UserProfile]:
+        org = store.create_organisation(name="Remove Org", slug="remove-org")
+        profile = UserProfile(
+            user_id=uuid4(),
+            organisation_id=org.id,
+            email="leaving@client.com",
+            display_name="leaving",
+            role=ClientRole.CLIENT_VIEWER,
+            created_at=datetime.now(UTC),
+        )
+        store.upsert_user(profile)
+        return org, profile
+
+    def test_admin_can_remove_member(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org, member = self._org_with_member(store)
+        r = admin_client.delete(
+            f"/api/v1/admin/organisations/{org.id}/members/{member.user_id}"
+        )
+        assert r.status_code == 204
+
+    def test_removed_member_no_longer_in_list(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org, member = self._org_with_member(store)
+        admin_client.delete(
+            f"/api/v1/admin/organisations/{org.id}/members/{member.user_id}"
+        )
+        remaining = store.list_members(org.id)
+        user_ids = [p.user_id for p in remaining]
+        assert member.user_id not in user_ids
+
+    def test_unknown_org_returns_404(self, admin_client: TestClient) -> None:
+        r = admin_client.delete(
+            f"/api/v1/admin/organisations/{uuid4()}/members/{uuid4()}"
+        )
+        assert r.status_code == 404
+
+    def test_unknown_member_returns_404(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org = store.create_organisation(name="Del Org", slug="del-org")
+        r = admin_client.delete(
+            f"/api/v1/admin/organisations/{org.id}/members/{uuid4()}"
+        )
+        assert r.status_code == 404
+
+    def test_non_admin_gets_403(
+        self, analyst_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org = store.create_organisation(name="No Del", slug="no-del-org")
+        r = analyst_client.delete(
+            f"/api/v1/admin/organisations/{org.id}/members/{uuid4()}"
+        )
+        assert r.status_code == 403
+
+    def test_audit_event_emitted(
+        self, admin_client: TestClient, store: InMemoryStore
+    ) -> None:
+        org, member = self._org_with_member(store)
+        admin_client.delete(
+            f"/api/v1/admin/organisations/{org.id}/members/{member.user_id}"
+        )
+        events = store.audit_events
+        assert any(
+            e.action.value == "organisation.member_removed"
+            and e.target_id == member.user_id
+            for e in events
+        )

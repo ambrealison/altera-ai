@@ -643,6 +643,27 @@ export interface InviteUserResponse {
   invite_sent: boolean;
 }
 
+// Phase 32B — member management types
+
+export interface MemberResponse {
+  user_id: string;
+  email: string;
+  display_name: string;
+  role: string;
+  organisation_id: string;
+}
+
+export interface ResendInviteResponse {
+  user_id: string;
+  email: string;
+  organisation_id: string;
+  invite_sent: boolean;
+}
+
+export interface UpdateMemberRequest {
+  role: string;
+}
+
 async function request<T>(
   path: string,
   init: RequestInit,
@@ -1081,6 +1102,34 @@ export function createApi(accessToken: string | null) {
       request<InviteUserResponse>(
         `/api/v1/admin/organisations/${orgId}/invite`,
         { method: "POST", body: JSON.stringify(body) },
+        accessToken,
+      ),
+
+    listMembers: (orgId: string) =>
+      request<MemberResponse[]>(
+        `/api/v1/admin/organisations/${orgId}/members`,
+        { method: "GET" },
+        accessToken,
+      ),
+
+    resendInvite: (orgId: string, userId: string) =>
+      request<ResendInviteResponse>(
+        `/api/v1/admin/organisations/${orgId}/members/${userId}/resend-invite`,
+        { method: "POST" },
+        accessToken,
+      ),
+
+    updateMemberRole: (orgId: string, userId: string, body: UpdateMemberRequest) =>
+      request<MemberResponse>(
+        `/api/v1/admin/organisations/${orgId}/members/${userId}`,
+        { method: "PATCH", body: JSON.stringify(body) },
+        accessToken,
+      ),
+
+    removeMember: (orgId: string, userId: string) =>
+      request<void>(
+        `/api/v1/admin/organisations/${orgId}/members/${userId}`,
+        { method: "DELETE" },
         accessToken,
       ),
 

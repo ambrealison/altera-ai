@@ -552,6 +552,15 @@ class InMemoryStore:
         with self._lock:
             self.users[profile.user_id] = profile
 
+    def list_members(self, org_id: UUID) -> list[UserProfile]:
+        return [p for p in self.users.values() if p.organisation_id == org_id]
+
+    def remove_member(self, user_id: UUID, org_id: UUID) -> None:
+        with self._lock:
+            profile = self.users.get(user_id)
+            if profile is not None and profile.organisation_id == org_id:
+                del self.users[user_id]
+
     def get_organisation(self, org_id: UUID) -> Organisation | None:
         return self.organisations.get(org_id)
 

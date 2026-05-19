@@ -1,14 +1,14 @@
 # Staging deployment readiness
 
-> **Status: green — staging deployed 2026-05-19. Phase 32A deployed.**
+> **Status: green — staging deployed 2026-05-19. Phase 32B deployed.**
 >
 > | Component | URL | Notes |
 > |---|---|---|
 > | Backend (Render) | https://altera-ai.onrender.com | `/health`, `/version`, `/api/v1/me` all 2xx |
 > | Frontend (Vercel) | https://altera-ai-web.vercel.app | Login + create-project verified end-to-end |
-> | Supabase staging | (project-internal) | All 27 migrations applied; `uploads` + `exports` buckets private; first Altera admin bootstrapped |
+> | Supabase staging | (project-internal) | All 28 migrations applied; `uploads` + `exports` buckets private; first Altera admin bootstrapped |
 > | GitHub Actions smoke | `staging-smoke.yml` | Green on commit `1cd9a20` (Phase 32A) |
-> | Admin page | `/admin` | Available; org creation + invite flow **pending end-to-end test** |
+> | Admin page | `/admin` | Available; org creation + invite flow verified; member list/resend/role-change/remove **pending end-to-end test** |
 >
 > Use this checklist as the playbook for *future* environments
 > (production, secondary regions). The fixes shipped while bringing
@@ -564,7 +564,7 @@ curl -s https://altera-ai.onrender.com/api/v1/me \
 5. Click the link in the email → `/auth/callback#type=recovery` → `/reset-password`.
 6. Set a new password; expect redirect to `/projects`.
 
-### 11f. Confirm checklist
+### 11f. Confirm checklist (Phase 32A)
 
 - [ ] `/admin` page loads for `altera_admin` user
 - [ ] Client org creation returns 201 and org appears in list
@@ -574,3 +574,64 @@ curl -s https://altera-ai.onrender.com/api/v1/me \
 - [ ] `GET /api/v1/me` for the new user returns correct org + `client_owner` role
 - [ ] Non-admin user receives 403 on all `/api/v1/admin/` endpoints
 - [ ] Forgot password email flow works (reset link → `/reset-password`)
+
+---
+
+## 12. Client account management (Phase 32B)
+
+Phase 32B adds member management to the admin page. Verify after deployment.
+
+### 12a. List members
+
+1. Log in as `altera_admin`.
+2. Navigate to **Admin** → find a client org → click **Manage members**.
+3. Expected: members table appears with email, display name, role, and action buttons.
+
+```bash
+ORG_ID="<uuid>"
+curl -s "https://altera-ai.onrender.com/api/v1/admin/organisations/${ORG_ID}/members" \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+# Expected: array of {user_id, email, display_name, role, organisation_id}
+```
+
+### 12b. Resend invite
+
+```bash
+USER_ID="<uuid>"
+curl -s -X POST \
+  "https://altera-ai.onrender.com/api/v1/admin/organisations/${ORG_ID}/members/${USER_ID}/resend-invite" \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+# Expected: {user_id, email, organisation_id, invite_sent: true}
+# Invited user should receive a password-reset email.
+```
+
+### 12c. Change role
+
+```bash
+curl -s -X PATCH \
+  "https://altera-ai.onrender.com/api/v1/admin/organisations/${ORG_ID}/members/${USER_ID}" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "client_admin"}' | python3 -m json.tool
+# Expected: 200 with updated role field.
+```
+
+### 12d. Remove member
+
+```bash
+curl -s -X DELETE \
+  "https://altera-ai.onrender.com/api/v1/admin/organisations/${ORG_ID}/members/${USER_ID}" \
+  -H "Authorization: Bearer $TOKEN"
+# Expected: 204 No Content.
+# Member should no longer appear in GET /members.
+```
+
+### 12e. Confirm checklist (Phase 32B)
+
+- [ ] Member list loads in UI for `altera_admin`
+- [ ] Role change dropdown saves and reflects new role on reload
+- [ ] Resend invite email arrives (recovery link works)
+- [ ] Remove member → member disappears from list; auth user preserved
+- [ ] `PATCH` with `altera_admin` role returns 400
+- [ ] All four endpoints return 403 for non-admin users
+- [ ] migration `0028` applied (check Supabase → SQL editor → `\d audit_events`)
