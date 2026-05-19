@@ -2,7 +2,8 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth-context";
 import { Button, Card, CardHeader, Field } from "@/components/ui";
 
 export default function LoginPage() {
@@ -18,6 +19,7 @@ function LoginForm() {
   const params = useSearchParams();
   const next = params.get("next") ?? "/";
   const supabaseConfigured = isSupabaseConfigured();
+  const { signIn } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,22 +38,13 @@ function LoginForm() {
     }
     setBusy(true);
     setError(null);
-    const client = getSupabaseClient();
-    if (!client) {
-      setError("Supabase client unavailable.");
-      setBusy(false);
-      return;
-    }
-    const { error: signInError } = await client.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error: signInError } = await signIn(email, password);
     if (signInError) {
       setError(signInError.message);
       setBusy(false);
       return;
     }
-    router.push(next);
+    router.replace(next);
     router.refresh();
   }
 

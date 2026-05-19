@@ -51,6 +51,13 @@ interface AuthContextValue {
   isDevMode: boolean;
   /** True iff the current user belongs to the Altera internal organisation. */
   isAltera: boolean;
+  /**
+   * Sign in with email/password. Resolves only after the session AND
+   * the backend-loaded `currentUser` have been written into context,
+   * so callers can navigate without racing the async auth-state
+   * listener.
+   */
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   /** Sign out and clear local state. */
   signOut: () => Promise<void>;
   /** Refresh /me — call after server-side state changes. */
@@ -137,6 +144,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const signIn = useCallback(
+    async (email: string, password: string): Promise<{ error: Error | null }> => {
+      const client = getSupabaseClient();
+      if (!client) {
+        return { error: new Error("Supabase is not configured.") };
+      }
+      const { data, error } = await client.auth.signInWithPassword({ email, password });
+      if (error) return { error };
+
+      // Synchronously hydrate context state so callers can navigate
+      // without racing the async onAuthStateChange listener.
+      setSession(data.session);
+      const me = await fetchCurrentUser(data.session?.access_token ?? null);
+      setCurrentUser(me);
+      if (!me) {
+        return {
+          error: new Error(
+            "Sign-in succeeded but the backend did not accept the session.",
+          ),
+        };
+      }
+      return { error: null };
+    },
+    [],
+  );
+
   const signOut = useCallback(async () => {
     const client = getSupabaseClient();
     if (client) {
@@ -153,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     accessToken,
     isDevMode: !supabaseConfigured,
     isAltera: currentUser?.organisation_type === "altera_internal",
+    signIn,
     signOut,
     refreshCurrentUser,
   };
