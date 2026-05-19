@@ -21,7 +21,9 @@ FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
 WORKDIR /app
 
 # Copy only dependency manifests first — maximises layer cache reuse.
-COPY pyproject.toml uv.lock ./
+# README.md is referenced by pyproject.toml (readme = "README.md") and must
+# be present before `uv sync` resolves the workspace metadata.
+COPY pyproject.toml uv.lock README.md ./
 
 # Install production dependencies into .venv, skip dev extras.
 RUN uv sync --frozen --no-dev

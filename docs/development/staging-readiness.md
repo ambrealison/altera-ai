@@ -163,8 +163,8 @@ RATE_LIMIT_MAX_BUCKETS=100000
 2. Connect the GitHub repo: `ambrealison/altera-ai`.
 3. Select **Deploy from Render YAML** if prompted, or configure manually:
    - **Runtime**: Docker
-   - **Dockerfile path**: `apps/api/Dockerfile` ← relative to repo root
-   - **Docker build context**: `apps/api`
+   - **Root Directory**: `apps/api` ← the service builds from this subdirectory
+   - **Dockerfile path**: `Dockerfile` ← relative to Root Directory
    - **Health check path**: `/health`
    - **Plan**: Starter (upgrade later)
    - **Region**: Oregon (match Supabase)
