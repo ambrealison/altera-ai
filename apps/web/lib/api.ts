@@ -833,6 +833,13 @@ export function createApi(accessToken: string | null) {
         accessToken,
       ),
 
+    deleteUpload: (projectId: string, uploadId: string) =>
+      request<void>(
+        `/api/v1/projects/${projectId}/uploads/${uploadId}`,
+        { method: "DELETE" },
+        accessToken,
+      ),
+
     listReview: (projectId: string, filters: ReviewFilters = {}) => {
       const params = new URLSearchParams();
       if (filters.methodology) params.set("methodology", filters.methodology);

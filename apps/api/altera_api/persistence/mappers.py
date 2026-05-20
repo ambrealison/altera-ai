@@ -532,6 +532,29 @@ def run_record_from_row(row: dict) -> RunRecord:
     )
 
 
+def _json_safe(value):
+    """Recursively convert a value into JSON-serialisable primitives.
+
+    pydantic's default ``model_dump()`` keeps ``Decimal``/``UUID``/
+    ``datetime`` as Python objects. supabase-py then calls ``json.dumps``
+    on the insert payload and raises ``TypeError`` — the root cause of
+    the Phase 33F run-persistence 500. Encoding once at the persistence
+    boundary keeps in-memory semantics untouched while guaranteeing the
+    JSONB columns receive primitives.
+    """
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
+
+
 def run_record_to_row(record: RunRecord) -> dict:
     summary = record.summary_payload
     return {
@@ -548,8 +571,8 @@ def run_record_to_row(record: RunRecord) -> dict:
         "started_at": record.started_at.isoformat(),
         "finished_at": record.finished_at.isoformat(),
         "triggered_by": str(record.triggered_by) if record.triggered_by != UUID(int=0) else None,
-        "summary_payload": record.summary_payload,
-        "rows_payload": record.rows_payload,
+        "summary_payload": _json_safe(record.summary_payload),
+        "rows_payload": _json_safe(record.rows_payload),
     }
 
 

@@ -655,6 +655,13 @@ class PostgresRepository:
             return None
         return upload_record_from_rows(r.data[0], []).upload
 
+    def delete_upload(self, upload_id: UUID) -> None:
+        """Delete an upload row. Schema FKs cascade products → classifications,
+        manual_reviews, enrichment records. Calculation runs are unaffected
+        (no FK to uploads). RLS policy on uploads gates the delete.
+        """
+        self._rls.table("uploads").delete().eq("id", str(upload_id)).execute()
+
     # ------------------------------------------------------------------
     # WWF ingredients — missing write/clear methods (Phase 24A)
     # ------------------------------------------------------------------

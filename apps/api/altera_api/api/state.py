@@ -324,6 +324,33 @@ class InMemoryStore:
     def list_uploads_for_project(self, project_id: UUID) -> list[UploadRecord]:
         return [u for u in self.uploads.values() if u.upload.project_id == project_id]
 
+    def delete_upload(self, upload_id: UUID) -> None:
+        """Remove an upload and every record that references it.
+
+        Cleans up products, their PT/WWF classifications, manual review
+        items, enrichment records, and the upload itself. Calculation
+        runs are NOT touched — completed runs remain in history even if
+        their source upload is deleted.
+        """
+        with self._lock:
+            rec = self.uploads.pop(upload_id, None)
+            if rec is None:
+                return
+            product_ids = set(rec.product_ids)
+            for product_id in product_ids:
+                self.products.pop(product_id, None)
+                self.pt_classifications.pop(product_id, None)
+                self.wwf_classifications.pop(product_id, None)
+                self.enrichment_records.pop(product_id, None)
+            # Review queue is keyed by (product_id, methodology) hash — purge
+            # by scanning since we don't have a reverse index.
+            doomed_keys = [
+                key for key, item in self.review_queue.items()
+                if item.product_id in product_ids
+            ]
+            for key in doomed_keys:
+                self.review_queue.pop(key, None)
+
     def add_product(self, product: NormalizedProduct) -> None:
         with self._lock:
             self.products[product.id] = product

@@ -20,6 +20,8 @@ export default function ProjectDetail() {
   const [classifyBusy, setClassifyBusy] = useState(false);
   const [classifyResult, setClassifyResult] = useState<ClassifySummary | null>(null);
   const [classifyError, setClassifyError] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading || !id) return;
@@ -38,6 +40,32 @@ export default function ProjectDetail() {
       active = false;
     };
   }, [api, authLoading, id]);
+
+  async function onDeleteUpload(uploadId: string, filename: string) {
+    if (!confirm(`Delete upload "${filename}" and all its products?\nThis also removes related classifications and review items.`)) {
+      return;
+    }
+    setDeleteBusy(uploadId);
+    setDeleteError(null);
+    try {
+      await api.deleteUpload(id, uploadId);
+      // Refresh project + uploads + runs.
+      const [p, u, r] = await Promise.all([
+        api.getProject(id),
+        api.listUploads(id),
+        api.listRuns(id),
+      ]);
+      setProject(p);
+      setUploads(u.items);
+      setRuns(r.items);
+      // Clear any stale classify summary so the card updates correctly.
+      setClassifyResult(null);
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeleteBusy(null);
+    }
+  }
 
   async function onClassifyAll(methodology: Methodology) {
     if (!uploads) return;
@@ -121,6 +149,11 @@ export default function ProjectDetail() {
               </Link>
             }
           />
+          {deleteError && (
+            <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              {deleteError}
+            </div>
+          )}
           {uploads.length === 0 ? (
             <div className="mt-4">
               <EmptyState title="No uploads yet" description="Upload a CSV to start the pipeline." />
@@ -135,7 +168,18 @@ export default function ProjectDetail() {
                       {u.row_count ?? "—"} rows · {u.products_count} products
                     </span>
                   </div>
-                  <Pill tone={u.status === "valid" ? "ok" : "warn"}>{u.status}</Pill>
+                  <div className="flex items-center gap-2">
+                    <Pill tone={u.status === "valid" ? "ok" : "warn"}>{u.status}</Pill>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteUpload(u.id, u.original_filename)}
+                      disabled={deleteBusy !== null}
+                      className="text-xs text-rose-600 hover:text-rose-800 hover:underline disabled:opacity-50"
+                      aria-label={`Delete upload ${u.original_filename}`}
+                    >
+                      {deleteBusy === u.id ? "Deleting…" : "Delete"}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

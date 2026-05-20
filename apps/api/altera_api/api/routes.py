@@ -25,6 +25,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from postgrest.exceptions import APIError
 from pydantic import BaseModel, Field
 
 from altera_api.api.dependencies import current_user_id, get_data_store, get_project
@@ -386,6 +387,41 @@ def get_upload_route(
         if rec.upload.ingestion_completed_at
         else None,
     )
+
+
+@api_router.delete(
+    "/projects/{project_id}/uploads/{upload_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_upload_route(
+    upload_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> Response:
+    """Delete an upload and every record that references it.
+
+    Removes the upload, its products, their PT/WWF classifications, manual
+    review items, and enrichment records. Calculation runs are preserved
+    because they're not tied to a specific upload via FK.
+    """
+    if not auth.can_write_data:
+        raise_forbidden("deleting uploads requires analyst, admin, or owner")
+    rec = store.get_upload(upload_id)
+    if rec is None or rec.upload.project_id != project.id:
+        raise HTTPException(status_code=404, detail="upload not found")
+    try:
+        store.delete_upload(upload_id)
+    except APIError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error_code": "upload_delete_failed",
+                "message": f"Upload could not be deleted: {exc.message}",
+                "postgrest_code": getattr(exc, "code", None),
+            },
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ---------------------------------------------------------------------------
@@ -929,6 +965,20 @@ def create_run(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except APIError as exc:
+        # Surface PostgREST/PostgreSQL failures as structured JSON rather
+        # than letting them propagate as a raw 500. The original message
+        # (which may contain RLS/check-constraint details) is included so
+        # the frontend and Render logs both see the same payload.
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error_code": "run_persistence_failed",
+                "message": f"Run computed but could not be persisted: {exc.message}",
+                "postgrest_code": getattr(exc, "code", None),
+                "postgrest_hint": getattr(exc, "hint", None),
+            },
+        ) from exc
     return RunResponse(
         id=record.id,
         project_id=record.project_id,
