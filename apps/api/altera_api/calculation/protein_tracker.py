@@ -119,6 +119,8 @@ def calculate_pt_run(
     manual_enrichment_used_count = 0
     nevo_enrichment_used_count = 0
     ciqual_enrichment_used_count = 0
+    nevo_ai_assisted_count = 0
+    ciqual_ai_assisted_count = 0
     category_average_used_count = 0
     missing_protein_after_enrichment_count = 0
     # Phase 33H — products whose plant/animal kg came from an enrichment
@@ -165,8 +167,12 @@ def calculate_pt_run(
                     manual_enrichment_used_count += 1
                 elif enrichment_source is NutritionEnrichmentSource.NEVO:
                     nevo_enrichment_used_count += 1
+                    if lookup_result.match_method == "ai_assisted":
+                        nevo_ai_assisted_count += 1
                 elif enrichment_source is NutritionEnrichmentSource.CIQUAL:
                     ciqual_enrichment_used_count += 1
+                    if lookup_result.match_method == "ai_assisted":
+                        ciqual_ai_assisted_count += 1
                 elif enrichment_source is NutritionEnrichmentSource.CATEGORY_AVERAGE:
                     category_average_used_count += 1
             else:
@@ -333,6 +339,8 @@ def calculate_pt_run(
         manual_enrichment_used_count=manual_enrichment_used_count,
         nevo_enrichment_used_count=nevo_enrichment_used_count,
         ciqual_enrichment_used_count=ciqual_enrichment_used_count,
+        nevo_ai_assisted_count=nevo_ai_assisted_count,
+        ciqual_ai_assisted_count=ciqual_ai_assisted_count,
         category_average_used_count=category_average_used_count,
         missing_protein_after_enrichment_count=missing_protein_after_enrichment_count,
         rows_with_enriched_split=rows_with_enriched_split,

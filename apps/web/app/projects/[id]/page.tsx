@@ -260,7 +260,7 @@ export default function ProjectDetail() {
         ) : null;
       })()}
 
-      {/* Phase 33H — Altera-only nutrition enrichment CTA (NEVO -> CIQUAL). */}
+      {/* Phase 33H/33I-AI — Altera-only nutrition enrichment CTA. */}
       {isAltera && project.methodologies_enabled.includes("protein_tracker") && (
         <section className="mt-6">
           <Card>
@@ -268,35 +268,105 @@ export default function ProjectDetail() {
               title="Apply nutrition enrichment"
               subtitle="Fill missing protein values using reference tables. NEVO (RIVM 2025 v9.0) is tried first and supplies plant/animal split when available; CIQUAL (Anses 2025) is the total-only fallback. Retailer-provided values are never overwritten."
             />
+            <p className="mt-2 text-xs text-gray-500">
+              AI may assist matching product names to reference databases. Nutrition
+              values come only from retailer data, NEVO, CIQUAL, or manual review —
+              AI does not generate nutrition values.
+            </p>
             {enrichError && (
               <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
                 {enrichError}
               </div>
             )}
             {enrichResult ? (
-              <div className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-                <div>
-                  <div className="text-xs uppercase tracking-wider text-gray-500">NEVO matched</div>
-                  <div className="mt-1 text-lg font-semibold">{enrichResult.nevo_matched}</div>
-                  <div className="text-xs text-gray-500">
-                    {enrichResult.nevo_with_split} with plant/animal split
+              <>
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="text-xs uppercase tracking-wider text-gray-500">
+                    AI matching
+                  </span>
+                  {enrichResult.ai_enabled ? (
+                    <Pill tone="ok">
+                      enabled{enrichResult.ai_model ? ` · ${enrichResult.ai_model}` : ""}
+                    </Pill>
+                  ) : (
+                    <Pill tone="neutral">disabled</Pill>
+                  )}
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                      NEVO — deterministic
+                    </div>
+                    <div className="mt-1 text-lg font-semibold">{enrichResult.nevo_matched}</div>
+                    <div className="text-xs text-gray-500">
+                      {enrichResult.nevo_with_split} with plant/animal split
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                      NEVO — AI-assisted
+                    </div>
+                    <div className="mt-1 text-lg font-semibold">
+                      {enrichResult.ai_enabled ? enrichResult.nevo_ai_assisted_matched : "—"}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {enrichResult.ai_enabled
+                        ? `${enrichResult.nevo_ai_assisted_with_split} with split`
+                        : "AI matching disabled"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                      CIQUAL — deterministic
+                    </div>
+                    <div className="mt-1 text-lg font-semibold">{enrichResult.ciqual_matched}</div>
+                    <div className="text-xs text-gray-500">total only</div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                      CIQUAL — AI-assisted
+                    </div>
+                    <div className="mt-1 text-lg font-semibold">
+                      {enrichResult.ai_enabled ? enrichResult.ciqual_ai_assisted_matched : "—"}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {enrichResult.ai_enabled ? "total only" : "AI matching disabled"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                      Needs review
+                    </div>
+                    <div className="mt-1 text-lg font-semibold">
+                      {enrichResult.ai_enabled ? enrichResult.ai_needs_review : "—"}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {enrichResult.ai_enabled ? "medium-confidence AI" : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">No match</div>
+                    <div className="mt-1 text-lg font-semibold">{enrichResult.no_match}</div>
+                    <div className="text-xs text-gray-500">needs manual</div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                      Retailer values kept
+                    </div>
+                    <div className="mt-1 text-lg font-semibold">
+                      {enrichResult.skipped_has_retailer_value}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                      Skipped (non-PT)
+                    </div>
+                    <div className="mt-1 text-lg font-semibold">
+                      {enrichResult.skipped_no_pt_fields}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs uppercase tracking-wider text-gray-500">CIQUAL matched</div>
-                  <div className="mt-1 text-lg font-semibold">{enrichResult.ciqual_matched}</div>
-                  <div className="text-xs text-gray-500">total only</div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-wider text-gray-500">No match</div>
-                  <div className="mt-1 text-lg font-semibold">{enrichResult.no_match}</div>
-                  <div className="text-xs text-gray-500">needs manual</div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-wider text-gray-500">Retailer values kept</div>
-                  <div className="mt-1 text-lg font-semibold">{enrichResult.skipped_has_retailer_value}</div>
-                </div>
-              </div>
+              </>
             ) : (
               <p className="mt-2 text-xs text-gray-500">
                 One-click match against the reference tables. Only products with no

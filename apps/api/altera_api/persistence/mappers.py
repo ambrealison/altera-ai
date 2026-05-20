@@ -778,6 +778,8 @@ def enrichment_record_from_row(row: dict) -> NutritionEnrichmentRecord:
         rationale=row.get("rationale") or "",
         created_at=_parse_dt(row["created_at"]),
         created_by=UUID(row["created_by"]) if row.get("created_by") else None,
+        # Phase 33I-AI — default for rows from before migration 0033.
+        match_method=row.get("match_method") or "deterministic",
     )
 
 
@@ -798,6 +800,7 @@ def enrichment_record_to_row(record: NutritionEnrichmentRecord) -> dict:
         "rationale": record.rationale,
         "created_at": record.created_at.isoformat(),
         "created_by": str(record.created_by) if record.created_by else None,
+        "match_method": record.match_method,
     }
 
 

@@ -76,3 +76,11 @@ class NutritionEnrichmentRecord(DomainBase):
     rationale: str
     created_at: datetime
     created_by: UUID | None = None       # None for automated enrichment
+    # Phase 33I-AI — how the reference for this record was picked.
+    # "deterministic" — exact/alias/token match on the reference table
+    # "ai_assisted"   — LLM picked the reference from a deterministic
+    #                   candidate shortlist. The protein VALUE still
+    #                   comes from the reference row, not from the AI.
+    # "manual"        — Altera staff entered the value via the manual
+    #                   enrichment endpoint.
+    match_method: str = "deterministic"

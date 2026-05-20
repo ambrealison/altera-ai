@@ -202,6 +202,11 @@ class ProteinTrackerCalculationSummary(DomainBase):
     nevo_enrichment_used_count: int = Field(default=0, ge=0)
     ciqual_enrichment_used_count: int = Field(default=0, ge=0)
     rows_with_enriched_split: int = Field(default=0, ge=0)
+    # Phase 33I-AI — subset of the above whose reference was picked by
+    # an LLM (from a deterministic candidate shortlist). Total =
+    # nevo_enrichment_used_count includes both deterministic and AI-assisted.
+    nevo_ai_assisted_count: int = Field(default=0, ge=0)
+    ciqual_ai_assisted_count: int = Field(default=0, ge=0)
     methodology: Methodology = Methodology.PROTEIN_TRACKER
     methodology_version: NonEmptyStr
     methodology_source_edition: NonEmptyStr

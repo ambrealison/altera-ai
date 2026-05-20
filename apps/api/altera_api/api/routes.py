@@ -2666,12 +2666,21 @@ def apply_category_average_enrichment_route(
 
 
 class ApplyReferencesResponse(BaseModel):
+    # Deterministic matches (exact / alias on the reference table).
     nevo_matched: int
     nevo_with_split: int
     ciqual_matched: int
+    # Phase 33I-AI — AI-assisted matches. AI never supplies nutrition
+    # values; it only picks which NEVO/CIQUAL reference row to look up.
+    nevo_ai_assisted_matched: int = 0
+    nevo_ai_assisted_with_split: int = 0
+    ciqual_ai_assisted_matched: int = 0
+    ai_needs_review: int = 0
     no_match: int
     skipped_has_retailer_value: int
     skipped_no_pt_fields: int
+    ai_enabled: bool = False
+    ai_model: str | None = None
 
 
 @api_router.post(
@@ -2695,6 +2704,12 @@ def apply_reference_enrichment_route(
     only when NEVO does not match; CIQUAL never contributes a
     plant/animal split.
     """
+    from altera_api.ai.config import get_nutrition_ai_provider
+    from altera_api.ai.nutrition_candidates import candidates_for_product
+    from altera_api.ai.nutrition_matcher import (
+        build_product_card,
+        propose_match,
+    )
     from altera_api.domain.enrichment import (
         NutritionEnrichmentRecord,
         NutritionEnrichmentSource,
@@ -2711,11 +2726,27 @@ def apply_reference_enrichment_route(
     nevo = NevoProvider.from_entries(nevo_entries) if nevo_entries else None
     ciqual = CiqualProvider.from_entries(ciqual_entries) if ciqual_entries else None
 
+    # Phase 33I-AI — gated by AI_NUTRITION_MATCHING_ENABLED, OPENAI_API_KEY,
+    # and ALTERA_AI_PROVIDER. None whenever any prerequisite is missing
+    # → deterministic-only flow, no LLM calls.
+    ai_provider = get_nutrition_ai_provider()
+
+    # Reverse index lets us look up a reference row by (source, code)
+    # after the AI picks one. The shortlist sent to the LLM is generated
+    # from the same lists below, so any code AI returns is always
+    # backed by a real row in this dict.
+    nevo_by_code = {e.nevo_code: e for e in nevo_entries}
+    ciqual_by_code = {e.source_food_code: e for e in ciqual_entries}
+
     now = datetime.now(UTC)
-    counts = {
+    counts: dict[str, int] = {
         "nevo_matched": 0,
         "nevo_with_split": 0,
         "ciqual_matched": 0,
+        "nevo_ai_assisted_matched": 0,
+        "nevo_ai_assisted_with_split": 0,
+        "ciqual_ai_assisted_matched": 0,
+        "ai_needs_review": 0,
         "no_match": 0,
         "skipped_has_retailer_value": 0,
         "skipped_no_pt_fields": 0,
@@ -2728,6 +2759,9 @@ def apply_reference_enrichment_route(
         source: NutritionEnrichmentSource,
         confidence: Decimal,
         rationale: str,
+        *,
+        match_method: str = "deterministic",
+        status: NutritionEnrichmentStatus = NutritionEnrichmentStatus.ENRICHED,
     ) -> NutritionEnrichmentRecord:
         return NutritionEnrichmentRecord(
             product_id=product_id,
@@ -2737,11 +2771,60 @@ def apply_reference_enrichment_route(
             unit="g_per_100g",
             source=source,
             confidence=confidence,
-            status=NutritionEnrichmentStatus.ENRICHED,
+            status=status,
             rationale=rationale,
             created_at=now,
             created_by=auth.user_id,
+            match_method=match_method,
         )
+
+    def _apply_nevo_entry(
+        product_id: UUID,
+        entry,  # NevoEntry
+        confidence: Decimal,
+        rationale: str,
+        *,
+        match_method: str,
+        with_split_counter: str,
+    ) -> None:
+        store.add_enrichment_record(
+            _record(
+                product_id,
+                "protein_pct",
+                entry.protein_g_per_100g,
+                NutritionEnrichmentSource.NEVO,
+                confidence,
+                rationale,
+                match_method=match_method,
+            )
+        )
+        if (
+            entry.plant_protein_g_per_100g is not None
+            and entry.animal_protein_g_per_100g is not None
+        ):
+            store.add_enrichment_record(
+                _record(
+                    product_id,
+                    "plant_protein_pct",
+                    entry.plant_protein_g_per_100g,
+                    NutritionEnrichmentSource.NEVO,
+                    confidence,
+                    f"{rationale}; PROTPL value",
+                    match_method=match_method,
+                )
+            )
+            store.add_enrichment_record(
+                _record(
+                    product_id,
+                    "animal_protein_pct",
+                    entry.animal_protein_g_per_100g,
+                    NutritionEnrichmentSource.NEVO,
+                    confidence,
+                    f"{rationale}; PROTAN value",
+                    match_method=match_method,
+                )
+            )
+            counts[with_split_counter] += 1
 
     for product in store.list_products_for_project(project.id):
         if product.pt_fields is None:
@@ -2751,7 +2834,7 @@ def apply_reference_enrichment_route(
             counts["skipped_has_retailer_value"] += 1
             continue
 
-        # NEVO first.
+        # NEVO first (deterministic).
         if nevo is not None:
             match = nevo.match(
                 food_name=product.product_name, food_group=product.retailer_category
@@ -2766,46 +2849,18 @@ def apply_reference_enrichment_route(
                     f"match on {match.entry.food_name_en!r} "
                     f"(code {match.entry.nevo_code})"
                 )
-                store.add_enrichment_record(
-                    _record(
-                        product.id,
-                        "protein_pct",
-                        match.entry.protein_g_per_100g,
-                        NutritionEnrichmentSource.NEVO,
-                        match.confidence,
-                        rationale,
-                    )
+                _apply_nevo_entry(
+                    product.id,
+                    match.entry,
+                    match.confidence,
+                    rationale,
+                    match_method="deterministic",
+                    with_split_counter="nevo_with_split",
                 )
                 counts["nevo_matched"] += 1
-                if (
-                    match.split_available
-                    and match.entry.plant_protein_g_per_100g is not None
-                    and match.entry.animal_protein_g_per_100g is not None
-                ):
-                    store.add_enrichment_record(
-                        _record(
-                            product.id,
-                            "plant_protein_pct",
-                            match.entry.plant_protein_g_per_100g,
-                            NutritionEnrichmentSource.NEVO,
-                            match.confidence,
-                            f"{rationale}; PROTPL value",
-                        )
-                    )
-                    store.add_enrichment_record(
-                        _record(
-                            product.id,
-                            "animal_protein_pct",
-                            match.entry.animal_protein_g_per_100g,
-                            NutritionEnrichmentSource.NEVO,
-                            match.confidence,
-                            f"{rationale}; PROTAN value",
-                        )
-                    )
-                    counts["nevo_with_split"] += 1
                 continue
 
-        # CIQUAL fallback (total protein only — no split).
+        # CIQUAL fallback (deterministic, total protein only — no split).
         if ciqual is not None:
             c_match = ciqual.match(
                 food_name=product.product_name, food_group=product.retailer_category
@@ -2833,6 +2888,105 @@ def apply_reference_enrichment_route(
                 counts["ciqual_matched"] += 1
                 continue
 
+        # Phase 33I-AI fallback — only when AI is enabled AND we can
+        # build a deterministic candidate shortlist (no shortlist → no
+        # call, saves cost and grounds the LLM).
+        if ai_provider is not None:
+            candidates = candidates_for_product(
+                product_name=product.product_name,
+                retailer_category=product.retailer_category,
+                nevo_entries=nevo_entries,
+                ciqual_entries=ciqual_entries,
+            )
+            if candidates:
+                product_card = build_product_card(
+                    product_name=product.product_name,
+                    brand=product.brand,
+                    retailer_category=product.retailer_category,
+                    retailer_subcategory=product.retailer_subcategory,
+                    ingredients_text=product.ingredients_text,
+                    labels=product.labels,
+                    language=product.language,
+                    country=product.country,
+                )
+                proposal = propose_match(
+                    product_card=product_card,
+                    candidates=candidates,
+                    provider=ai_provider,
+                )
+                if proposal.decision == "match":
+                    rationale = (
+                        f"AI-assisted {proposal.source}: matched "
+                        f"{proposal.reference_name!r} "
+                        f"(code {proposal.reference_code}); "
+                        f"ai_model={proposal.ai_model}; "
+                        f"ai_confidence={proposal.confidence:.2f}; "
+                        f"reason={proposal.reason}"
+                    )
+                    confidence_dec = Decimal(str(round(proposal.confidence, 4)))
+                    if proposal.source == "nevo":
+                        entry = nevo_by_code.get(proposal.reference_code)
+                        if entry is None or entry.protein_g_per_100g is None:
+                            counts["no_match"] += 1
+                            continue
+                        _apply_nevo_entry(
+                            product.id,
+                            entry,
+                            confidence_dec,
+                            rationale,
+                            match_method="ai_assisted",
+                            with_split_counter="nevo_ai_assisted_with_split",
+                        )
+                        counts["nevo_ai_assisted_matched"] += 1
+                        continue
+                    if proposal.source == "ciqual":
+                        c_entry = ciqual_by_code.get(proposal.reference_code)
+                        if c_entry is None or c_entry.protein_g_per_100g is None:
+                            counts["no_match"] += 1
+                            continue
+                        store.add_enrichment_record(
+                            _record(
+                                product.id,
+                                "protein_pct",
+                                c_entry.protein_g_per_100g,
+                                NutritionEnrichmentSource.CIQUAL,
+                                confidence_dec,
+                                rationale,
+                                match_method="ai_assisted",
+                            )
+                        )
+                        counts["ciqual_ai_assisted_matched"] += 1
+                        continue
+                elif proposal.decision == "needs_review":
+                    # Persist a NEEDS_MANUAL_REVIEW record so the
+                    # analyst can confirm — but do NOT feed the value
+                    # into the calculation.
+                    proposed_source = (
+                        NutritionEnrichmentSource.NEVO
+                        if proposal.source == "nevo"
+                        else NutritionEnrichmentSource.CIQUAL
+                    )
+                    store.add_enrichment_record(
+                        _record(
+                            product.id,
+                            "protein_pct",
+                            None,  # value withheld until reviewer confirms
+                            proposed_source,
+                            Decimal(str(round(proposal.confidence, 4))),
+                            (
+                                f"AI proposed {proposal.source} code "
+                                f"{proposal.reference_code} ({proposal.reference_name!r}) "
+                                f"at confidence {proposal.confidence:.2f}; "
+                                f"needs manual review. ai_model={proposal.ai_model}; "
+                                f"reason={proposal.reason}"
+                            ),
+                            match_method="ai_assisted",
+                            status=NutritionEnrichmentStatus.NEEDS_MANUAL_REVIEW,
+                        )
+                    )
+                    counts["ai_needs_review"] += 1
+                    continue
+
         counts["no_match"] += 1
 
     store.append_audit(
@@ -2843,11 +2997,20 @@ def apply_reference_enrichment_route(
             action=AuditEventType.ENRICHMENT_APPLIED,
             target_table="nutrition_enrichment_records",
             target_id=project.id,
-            metadata={"summary": counts, "scope": "apply_references"},
+            metadata={
+                "summary": counts,
+                "scope": "apply_references",
+                "ai_enabled": ai_provider is not None,
+                "ai_model": ai_provider.model if ai_provider is not None else None,
+            },
             created_at=datetime.now(UTC),
         )
     )
-    return ApplyReferencesResponse(**counts)
+    return ApplyReferencesResponse(
+        **counts,
+        ai_enabled=ai_provider is not None,
+        ai_model=ai_provider.model if ai_provider is not None else None,
+    )
 
 
 # ---------------------------------------------------------------------------

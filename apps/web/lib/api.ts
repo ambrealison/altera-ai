@@ -103,9 +103,15 @@ export interface ApplyReferencesSummary {
   nevo_matched: number;
   nevo_with_split: number;
   ciqual_matched: number;
+  nevo_ai_assisted_matched: number;
+  nevo_ai_assisted_with_split: number;
+  ciqual_ai_assisted_matched: number;
+  ai_needs_review: number;
   no_match: number;
   skipped_has_retailer_value: number;
   skipped_no_pt_fields: number;
+  ai_enabled: boolean;
+  ai_model: string | null;
 }
 
 export interface ValidationEntry {

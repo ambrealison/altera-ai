@@ -50,12 +50,18 @@ class ResolvedProteinEnrichment:
     missing — as for CIQUAL, category_average, or NEVO entries without
     PROTPL — both are None and the calculation falls back to the
     Protein Tracker classification assumption.
+
+    ``match_method`` distinguishes deterministic (exact/alias) matches
+    from AI-assisted matches (LLM picked the reference from a
+    deterministic candidate shortlist). The protein VALUE always comes
+    from the reference row; the AI cannot supply nutrition values.
     """
 
     protein_pct: Decimal
     source: NutritionEnrichmentSource
     plant_protein_pct: Decimal | None = None
     animal_protein_pct: Decimal | None = None
+    match_method: str = "deterministic"
 
 
 def select_protein_enrichment(
@@ -89,6 +95,7 @@ def select_protein_enrichment(
         source=best.source,
         plant_protein_pct=plant,
         animal_protein_pct=animal,
+        match_method=best.match_method,
     )
 
 

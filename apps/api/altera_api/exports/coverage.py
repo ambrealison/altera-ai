@@ -258,16 +258,39 @@ def _enrichment_caveats(
                     "assumption."
                 )
             )
+            ai_note = (
+                f" Of these, {s.nevo_ai_assisted_count} reference(s) were "
+                "selected with AI assistance (LLM picked the row from a "
+                "deterministic candidate shortlist); the protein values still "
+                "come from the matched NEVO row, not from the AI."
+                if s.nevo_ai_assisted_count > 0
+                else ""
+            )
             caveats.append(
                 f"{s.nevo_enrichment_used_count} product(s) used NEVO reference "
-                "protein % values in this calculation (RIVM 2025 v9.0)." + split_note
+                "protein % values in this calculation (RIVM 2025 v9.0)."
+                + split_note + ai_note
             )
         if s.ciqual_enrichment_used_count > 0:
+            ai_note = (
+                f" Of these, {s.ciqual_ai_assisted_count} reference(s) were "
+                "selected with AI assistance from a deterministic candidate "
+                "shortlist; CIQUAL still supplies the value, not the AI."
+                if s.ciqual_ai_assisted_count > 0
+                else ""
+            )
             caveats.append(
                 f"{s.ciqual_enrichment_used_count} product(s) used CIQUAL reference "
                 "protein % values in this calculation (Anses 2025). "
                 "CIQUAL provides total protein only; plant/animal kg fall back to "
                 "the Protein Tracker classification assumption."
+                + ai_note
+            )
+        if s.nevo_ai_assisted_count > 0 or s.ciqual_ai_assisted_count > 0:
+            caveats.append(
+                "AI was used only to assist reference matching, not to generate "
+                "nutrition values. All protein numbers come from retailer data, "
+                "NEVO, CIQUAL, or Altera manual review."
             )
         if s.category_average_used_count > 0:
             caveats.append(
