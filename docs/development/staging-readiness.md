@@ -16,6 +16,44 @@
 > - Verify `/api/v1/templates/protein-tracker.csv` returns `200` with correct headers.
 > - Verify `/data-requirements` page loads and download buttons work in browser.
 >
+> **Phase 33G post-deploy checklist (NEVO):**
+> 1. Apply migration `0032_phase33g_nevo_reference.sql`:
+>    ```bash
+>    supabase db push --linked
+>    ```
+> 2. Confirm the table exists and is Altera-RLS-gated (SQL editor):
+>    ```sql
+>    select count(*) from public.nevo_reference;       -- expect 0 pre-import
+>    \d public.nevo_reference                          -- columns, indexes, constraints
+>    ```
+> 3. Import NEVO 2025 v9.0 (operator-side, service-role; **never** commit
+>    the workbook):
+>    ```bash
+>    SUPABASE_URL=https://<project>.supabase.co \
+>    SUPABASE_SERVICE_ROLE_KEY=<service_role_key> \
+>      uv run python apps/api/scripts/import_nevo.py \
+>        --path "/path/to/NEVO2025_v9.0 (1).xlsx" -v
+>    ```
+>    Expected import summary: **2328 entries parsed**.
+> 4. Verify row counts in SQL editor:
+>    ```sql
+>    select count(*) from public.nevo_reference;
+>    -- expected: 2328
+>
+>    select count(*) from public.nevo_reference
+>    where plant_protein_g_per_100g is not null
+>      and animal_protein_g_per_100g is not null;
+>    -- expected: 2327 (one entry lacks the PROTPL/PROTAN split)
+>    ```
+> 5. Trigger a Render redeploy of the API service so the new caveat text
+>    in `exports/coverage.py` is live, then run a PT calculation on any
+>    classified project and confirm the report's coverage section starts
+>    with the plant/animal-split provenance caveat citing NEVO and noting
+>    "CIQUAL provides total protein only".
+> 6. RLS sanity (recommended): as a non-Altera user, `select * from
+>    public.nevo_reference limit 1` must return zero rows / permission
+>    denied — never raw rows.
+>
 > Use this checklist as the playbook for *future* environments
 > (production, secondary regions). The fixes shipped while bringing
 > staging up are catalogued in the Phase 31H entry of
