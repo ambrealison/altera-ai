@@ -17,9 +17,11 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from altera_api.domain.audit import AuditEvent
+from altera_api.domain.ciqual import CiqualEntry
 from altera_api.domain.common import Methodology, OrganisationType, Role
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
 from altera_api.domain.job import Job, JobStatus, JobType
+from altera_api.domain.nevo import NevoEntry
 from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.product import NormalizedProduct
 from altera_api.domain.project import Project, PTValidationStatus
@@ -188,6 +190,11 @@ class InMemoryStore:
         self.jobs: dict[UUID, Job] = {}
         # Phase 23A: enrichment records keyed by product_id
         self.enrichment_records: dict[UUID, list[NutritionEnrichmentRecord]] = {}
+        # Phase 33H: in-memory nutrition reference tables (seeded in tests;
+        # production reads come from PostgresRepository.list_nevo_entries /
+        # list_ciqual_entries against the Supabase tables).
+        self.nevo_entries: list[NevoEntry] = []
+        self.ciqual_entries: list[CiqualEntry] = []
         # Phase 25B: persisted recommendations keyed by recommendation id
         self.recommendations: dict[UUID, PersistedRecommendation] = {}
         # Phase 26A: scenarios, operations, results
@@ -667,6 +674,25 @@ class InMemoryStore:
             if product is not None and product.project_id == project_id:
                 result.extend(recs)
         return result
+
+    # ------------------------------------------------------------------
+    # Nutrition reference tables (Phase 33H)
+    # ------------------------------------------------------------------
+    def list_nevo_entries(self) -> list[NevoEntry]:
+        return list(self.nevo_entries)
+
+    def list_ciqual_entries(self) -> list[CiqualEntry]:
+        return list(self.ciqual_entries)
+
+    def seed_nevo_entries(self, entries: list[NevoEntry]) -> None:
+        """Test/bootstrap helper; production reads from the DB instead."""
+        with self._lock:
+            self.nevo_entries = list(entries)
+
+    def seed_ciqual_entries(self, entries: list[CiqualEntry]) -> None:
+        """Test/bootstrap helper; production reads from the DB instead."""
+        with self._lock:
+            self.ciqual_entries = list(entries)
 
     # ------------------------------------------------------------------
     # Recommendations (Phase 25B)

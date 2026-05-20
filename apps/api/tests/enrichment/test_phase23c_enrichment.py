@@ -51,7 +51,10 @@ from altera_api.domain.protein_tracker import (
     ProteinTrackerGroupAggregate,
     ProteinTrackerProductClassification,
 )
-from altera_api.enrichment.selection import select_protein_enrichment
+from altera_api.enrichment.selection import (
+    ResolvedProteinEnrichment,
+    select_protein_enrichment,
+)
 from altera_api.exports.coverage import build_coverage_section
 from altera_api.main import app
 
@@ -245,7 +248,7 @@ class TestSelectProteinEnrichment:
         )
         result = select_protein_enrichment([r])
         assert result is not None
-        value, source = result
+        value, source = result.protein_pct, result.source
         assert value == Decimal("14.5")
         assert source is NutritionEnrichmentSource.MANUAL_ALTERA
 
@@ -263,7 +266,7 @@ class TestSelectProteinEnrichment:
         )
         result = select_protein_enrichment([cat_avg, manual])
         assert result is not None
-        value, source = result
+        value, source = result.protein_pct, result.source
         assert source is NutritionEnrichmentSource.MANUAL_ALTERA
         assert value == Decimal("12.0")
 
@@ -275,7 +278,7 @@ class TestSelectProteinEnrichment:
         )
         result = select_protein_enrichment([r])
         assert result is not None
-        value, source = result
+        value, source = result.protein_pct, result.source
         assert source is NutritionEnrichmentSource.CATEGORY_AVERAGE
         assert value == Decimal("15.0")
 
@@ -349,7 +352,7 @@ class TestCalculatorWithEnrichmentLookup:
         clf = _pt_classification(product.id)
 
         enrichment_lookup = {
-            product.id: (Decimal("20.0"), NutritionEnrichmentSource.MANUAL_ALTERA)
+            product.id: ResolvedProteinEnrichment(protein_pct=Decimal("20.0"), source=NutritionEnrichmentSource.MANUAL_ALTERA)
         }
         result = calculate_pt_run(
             [product],
@@ -382,7 +385,7 @@ class TestCalculatorWithEnrichmentLookup:
 
         # Even if the lookup has an entry, the retailer value takes precedence
         enrichment_lookup = {
-            product.id: (Decimal("10.0"), NutritionEnrichmentSource.MANUAL_ALTERA)
+            product.id: ResolvedProteinEnrichment(protein_pct=Decimal("10.0"), source=NutritionEnrichmentSource.MANUAL_ALTERA)
         }
         result = calculate_pt_run(
             [product],
@@ -409,7 +412,7 @@ class TestCalculatorWithEnrichmentLookup:
         clf = _pt_classification(product.id)
 
         enrichment_lookup = {
-            product.id: (Decimal("15.0"), NutritionEnrichmentSource.CATEGORY_AVERAGE)
+            product.id: ResolvedProteinEnrichment(protein_pct=Decimal("15.0"), source=NutritionEnrichmentSource.CATEGORY_AVERAGE)
         }
         result = calculate_pt_run(
             [product],

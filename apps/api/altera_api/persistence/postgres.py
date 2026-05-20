@@ -14,6 +14,7 @@ so Postgres RLS policies apply to every data operation.  Falls back to
 from __future__ import annotations
 
 from collections import defaultdict
+from decimal import Decimal
 from uuid import UUID
 
 import supabase
@@ -28,9 +29,11 @@ from altera_api.api.state import (
     UploadRecord,
 )
 from altera_api.domain.audit import AuditEvent
+from altera_api.domain.ciqual import CiqualEntry
 from altera_api.domain.common import Methodology, OrganisationType
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
 from altera_api.domain.job import Job, JobStatus, JobType
+from altera_api.domain.nevo import NevoEntry
 from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.product import NormalizedProduct
 from altera_api.domain.project import Project
@@ -807,6 +810,22 @@ class PostgresRepository:
         return [enrichment_record_from_row(row) for row in (r.data or [])]
 
     # ------------------------------------------------------------------
+    # Nutrition reference tables (Phase 33H)
+    # ------------------------------------------------------------------
+    # Reads go via the service-role client (_svc) because RLS on these
+    # tables is gated to Altera staff only — the JWT-scoped client would
+    # see zero rows for any non-Altera user. The apply-references route
+    # is itself Altera-only.
+
+    def list_nevo_entries(self) -> list[NevoEntry]:
+        r = self._svc.table("nevo_reference").select("*").execute()
+        return [_nevo_entry_from_row(row) for row in (r.data or [])]
+
+    def list_ciqual_entries(self) -> list[CiqualEntry]:
+        r = self._svc.table("ciqual_reference").select("*").execute()
+        return [_ciqual_entry_from_row(row) for row in (r.data or [])]
+
+    # ------------------------------------------------------------------
     # Recommendations (Phase 25B)
     # ------------------------------------------------------------------
 
@@ -962,3 +981,48 @@ class PostgresRepository:
         if not r.data:
             return None
         return scenario_result_from_row(r.data[0])
+
+
+# ---------------------------------------------------------------------------
+# Phase 33H — nutrition reference row mappers
+# ---------------------------------------------------------------------------
+# Lightweight readers for the static reference tables. No to_row helpers
+# because writes go through the dedicated import scripts (scripts/
+# import_nevo.py, scripts/import_ciqual.py) using service-role upserts.
+
+
+def _dec(value: object) -> Decimal | None:
+    if value is None:
+        return None
+    return Decimal(str(value))
+
+
+def _nevo_entry_from_row(row: dict) -> NevoEntry:
+    return NevoEntry(
+        id=UUID(row["id"]),
+        source=row.get("source", "nevo"),
+        source_version=row["source_version"],
+        nevo_code=row["nevo_code"],
+        food_name_nl=row.get("food_name_nl") or "",
+        food_name_en=row.get("food_name_en") or "",
+        food_group=row.get("food_group") or "unknown",
+        quantity_basis=row.get("quantity_basis") or "per 100g",
+        protein_g_per_100g=_dec(row.get("protein_g_per_100g")),
+        plant_protein_g_per_100g=_dec(row.get("plant_protein_g_per_100g")),
+        animal_protein_g_per_100g=_dec(row.get("animal_protein_g_per_100g")),
+    )
+
+
+def _ciqual_entry_from_row(row: dict) -> CiqualEntry:
+    return CiqualEntry(
+        id=UUID(row["id"]),
+        source=row.get("source", "ciqual"),
+        source_version=row["source_version"],
+        source_food_code=row["source_food_code"],
+        food_name_en=row.get("food_name_en") or "",
+        food_group=row.get("food_group") or "unknown",
+        food_subgroup=row.get("food_subgroup"),
+        food_subsubgroup=row.get("food_subsubgroup"),
+        protein_g_per_100g=_dec(row.get("protein_g_per_100g")),
+        is_below_detection=bool(row.get("is_below_detection", False)),
+    )

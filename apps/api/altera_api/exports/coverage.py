@@ -247,6 +247,28 @@ def _enrichment_caveats(
                 "protein % values in this calculation (Altera methodology team override). "
                 "Enriched values are not from retailer labels."
             )
+        if s.nevo_enrichment_used_count > 0:
+            split_note = (
+                f" {s.rows_with_enriched_split} of those received a plant/animal "
+                "split from NEVO PROTPL/PROTAN."
+                if s.rows_with_enriched_split > 0
+                else (
+                    " The NEVO entry(ies) matched did not publish a plant/animal "
+                    "split, so plant/animal kg fall back to the classification "
+                    "assumption."
+                )
+            )
+            caveats.append(
+                f"{s.nevo_enrichment_used_count} product(s) used NEVO reference "
+                "protein % values in this calculation (RIVM 2025 v9.0)." + split_note
+            )
+        if s.ciqual_enrichment_used_count > 0:
+            caveats.append(
+                f"{s.ciqual_enrichment_used_count} product(s) used CIQUAL reference "
+                "protein % values in this calculation (Anses 2025). "
+                "CIQUAL provides total protein only; plant/animal kg fall back to "
+                "the Protein Tracker classification assumption."
+            )
         if s.category_average_used_count > 0:
             caveats.append(
                 f"{s.category_average_used_count} product(s) used category-average "

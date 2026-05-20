@@ -20,9 +20,11 @@ from altera_api.api.state import (
     UploadRecord,
 )
 from altera_api.domain.audit import AuditEvent
+from altera_api.domain.ciqual import CiqualEntry
 from altera_api.domain.common import Methodology, OrganisationType
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
 from altera_api.domain.job import Job, JobType
+from altera_api.domain.nevo import NevoEntry
 from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.product import NormalizedProduct
 from altera_api.domain.project import Project
@@ -193,6 +195,12 @@ class StoreProtocol(Protocol):
     def list_enrichment_records_for_project(
         self, project_id: UUID
     ) -> list[NutritionEnrichmentRecord]: ...
+
+    # ------------------------------------------------------------------
+    # Nutrition reference tables (Phase 33H — NEVO and CIQUAL lookup)
+    # ------------------------------------------------------------------
+    def list_nevo_entries(self) -> list[NevoEntry]: ...
+    def list_ciqual_entries(self) -> list[CiqualEntry]: ...
 
     # ------------------------------------------------------------------
     # Recommendations (Phase 25B)

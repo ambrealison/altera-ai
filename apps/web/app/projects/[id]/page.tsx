@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button, Card, CardHeader, EmptyState, Pill, Stat } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
-import { createApi, type ClassifySummary, type Methodology, type Project, type Run, type UploadResult } from "@/lib/api";
+import { createApi, type ApplyReferencesSummary, type ClassifySummary, type Methodology, type Project, type Run, type UploadResult } from "@/lib/api";
 
 export default function ProjectDetail() {
   const params = useParams<{ id: string }>();
@@ -22,6 +22,9 @@ export default function ProjectDetail() {
   const [classifyError, setClassifyError] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [enrichBusy, setEnrichBusy] = useState(false);
+  const [enrichResult, setEnrichResult] = useState<ApplyReferencesSummary | null>(null);
+  const [enrichError, setEnrichError] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading || !id) return;
@@ -94,6 +97,20 @@ export default function ProjectDetail() {
       setClassifyError(e instanceof Error ? e.message : "Classification failed");
     } finally {
       setClassifyBusy(false);
+    }
+  }
+
+  async function onApplyEnrichment() {
+    setEnrichBusy(true);
+    setEnrichError(null);
+    setEnrichResult(null);
+    try {
+      const summary = await api.applyNutritionReferences(id);
+      setEnrichResult(summary);
+    } catch (e) {
+      setEnrichError(e instanceof Error ? e.message : "Enrichment failed");
+    } finally {
+      setEnrichBusy(false);
     }
   }
 
@@ -242,6 +259,63 @@ export default function ProjectDetail() {
           </section>
         ) : null;
       })()}
+
+      {/* Phase 33H — Altera-only nutrition enrichment CTA (NEVO -> CIQUAL). */}
+      {isAltera && project.methodologies_enabled.includes("protein_tracker") && (
+        <section className="mt-6">
+          <Card>
+            <CardHeader
+              title="Apply nutrition enrichment"
+              subtitle="Fill missing protein values using reference tables. NEVO (RIVM 2025 v9.0) is tried first and supplies plant/animal split when available; CIQUAL (Anses 2025) is the total-only fallback. Retailer-provided values are never overwritten."
+            />
+            {enrichError && (
+              <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                {enrichError}
+              </div>
+            )}
+            {enrichResult ? (
+              <div className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-gray-500">NEVO matched</div>
+                  <div className="mt-1 text-lg font-semibold">{enrichResult.nevo_matched}</div>
+                  <div className="text-xs text-gray-500">
+                    {enrichResult.nevo_with_split} with plant/animal split
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-gray-500">CIQUAL matched</div>
+                  <div className="mt-1 text-lg font-semibold">{enrichResult.ciqual_matched}</div>
+                  <div className="text-xs text-gray-500">total only</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-gray-500">No match</div>
+                  <div className="mt-1 text-lg font-semibold">{enrichResult.no_match}</div>
+                  <div className="text-xs text-gray-500">needs manual</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-gray-500">Retailer values kept</div>
+                  <div className="mt-1 text-lg font-semibold">{enrichResult.skipped_has_retailer_value}</div>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-gray-500">
+                One-click match against the reference tables. Only products with no
+                retailer-provided protein_pct are touched. Run the calculation with
+                &ldquo;Use enriched nutrition&rdquo; to consume the resulting records.
+              </p>
+            )}
+            <div className="mt-4">
+              <Button onClick={onApplyEnrichment} disabled={enrichBusy} variant="secondary">
+                {enrichBusy
+                  ? "Matching…"
+                  : enrichResult
+                    ? "Re-run enrichment"
+                    : "Apply NEVO + CIQUAL"}
+              </Button>
+            </div>
+          </Card>
+        </section>
+      )}
 
       <section className="mt-6">
         <Card>

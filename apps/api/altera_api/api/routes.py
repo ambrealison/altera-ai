@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
@@ -2657,6 +2658,196 @@ def apply_category_average_enrichment_route(
         )
     )
     return _enrichment_response(record)
+
+
+# ---------------------------------------------------------------------------
+# Phase 33H — apply nutrition references (NEVO → CIQUAL fallback)
+# ---------------------------------------------------------------------------
+
+
+class ApplyReferencesResponse(BaseModel):
+    nevo_matched: int
+    nevo_with_split: int
+    ciqual_matched: int
+    no_match: int
+    skipped_has_retailer_value: int
+    skipped_no_pt_fields: int
+
+
+@api_router.post(
+    "/projects/{project_id}/enrichments/apply-references",
+    response_model=ApplyReferencesResponse,
+)
+def apply_reference_enrichment_route(
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> ApplyReferencesResponse:
+    """Apply NEVO (preferred) then CIQUAL enrichment to every PT product
+    in the project that lacks a retailer-provided protein_pct. Altera-only.
+
+    For each candidate product, exact case-insensitive match on
+    ``product.product_name`` is tried against NEVO first (English then
+    Dutch food names). On a NEVO match an enrichment record is stored
+    for ``protein_pct``; if the entry also publishes PROTPL/PROTAN,
+    sibling records are stored for ``plant_protein_pct`` and
+    ``animal_protein_pct`` carrying the NEVO source. CIQUAL is tried
+    only when NEVO does not match; CIQUAL never contributes a
+    plant/animal split.
+    """
+    from altera_api.domain.enrichment import (
+        NutritionEnrichmentRecord,
+        NutritionEnrichmentSource,
+        NutritionEnrichmentStatus,
+    )
+    from altera_api.enrichment.providers.ciqual import CiqualProvider
+    from altera_api.enrichment.providers.nevo import NevoProvider
+
+    if not auth.can_apply_enrichment:
+        raise_forbidden("altera internal access required")
+
+    nevo_entries = store.list_nevo_entries()
+    ciqual_entries = store.list_ciqual_entries()
+    nevo = NevoProvider.from_entries(nevo_entries) if nevo_entries else None
+    ciqual = CiqualProvider.from_entries(ciqual_entries) if ciqual_entries else None
+
+    now = datetime.now(UTC)
+    counts = {
+        "nevo_matched": 0,
+        "nevo_with_split": 0,
+        "ciqual_matched": 0,
+        "no_match": 0,
+        "skipped_has_retailer_value": 0,
+        "skipped_no_pt_fields": 0,
+    }
+
+    def _record(
+        product_id: UUID,
+        nutrient: str,
+        value: Decimal,
+        source: NutritionEnrichmentSource,
+        confidence: Decimal,
+        rationale: str,
+    ) -> NutritionEnrichmentRecord:
+        return NutritionEnrichmentRecord(
+            product_id=product_id,
+            nutrient=nutrient,
+            original_value=None,
+            enriched_value=value,
+            unit="g_per_100g",
+            source=source,
+            confidence=confidence,
+            status=NutritionEnrichmentStatus.ENRICHED,
+            rationale=rationale,
+            created_at=now,
+            created_by=auth.user_id,
+        )
+
+    for product in store.list_products_for_project(project.id):
+        if product.pt_fields is None:
+            counts["skipped_no_pt_fields"] += 1
+            continue
+        if product.pt_fields.protein_pct is not None:
+            counts["skipped_has_retailer_value"] += 1
+            continue
+
+        # NEVO first.
+        if nevo is not None:
+            match = nevo.match(
+                food_name=product.product_name, food_group=product.retailer_category
+            )
+            if (
+                match is not None
+                and match.entry.protein_g_per_100g is not None
+                and match.match_type != "food_group_average"
+            ):
+                rationale = (
+                    f"NEVO {match.entry.source_version}: {match.match_type} "
+                    f"match on {match.entry.food_name_en!r} "
+                    f"(code {match.entry.nevo_code})"
+                )
+                store.add_enrichment_record(
+                    _record(
+                        product.id,
+                        "protein_pct",
+                        match.entry.protein_g_per_100g,
+                        NutritionEnrichmentSource.NEVO,
+                        match.confidence,
+                        rationale,
+                    )
+                )
+                counts["nevo_matched"] += 1
+                if (
+                    match.split_available
+                    and match.entry.plant_protein_g_per_100g is not None
+                    and match.entry.animal_protein_g_per_100g is not None
+                ):
+                    store.add_enrichment_record(
+                        _record(
+                            product.id,
+                            "plant_protein_pct",
+                            match.entry.plant_protein_g_per_100g,
+                            NutritionEnrichmentSource.NEVO,
+                            match.confidence,
+                            f"{rationale}; PROTPL value",
+                        )
+                    )
+                    store.add_enrichment_record(
+                        _record(
+                            product.id,
+                            "animal_protein_pct",
+                            match.entry.animal_protein_g_per_100g,
+                            NutritionEnrichmentSource.NEVO,
+                            match.confidence,
+                            f"{rationale}; PROTAN value",
+                        )
+                    )
+                    counts["nevo_with_split"] += 1
+                continue
+
+        # CIQUAL fallback (total protein only — no split).
+        if ciqual is not None:
+            c_match = ciqual.match(
+                food_name=product.product_name, food_group=product.retailer_category
+            )
+            if (
+                c_match is not None
+                and c_match.entry.protein_g_per_100g is not None
+                and c_match.match_type != "food_group_average"
+            ):
+                rationale = (
+                    f"CIQUAL {c_match.entry.source_version}: {c_match.match_type} "
+                    f"match on {c_match.entry.food_name_en!r} "
+                    f"(code {c_match.entry.source_food_code})"
+                )
+                store.add_enrichment_record(
+                    _record(
+                        product.id,
+                        "protein_pct",
+                        c_match.entry.protein_g_per_100g,
+                        NutritionEnrichmentSource.CIQUAL,
+                        c_match.confidence,
+                        rationale,
+                    )
+                )
+                counts["ciqual_matched"] += 1
+                continue
+
+        counts["no_match"] += 1
+
+    store.append_audit(
+        AuditEvent(
+            id=uuid4(),
+            organisation_id=project.organisation_id,
+            actor_user_id=auth.user_id,
+            action=AuditEventType.ENRICHMENT_APPLIED,
+            target_table="nutrition_enrichment_records",
+            target_id=project.id,
+            metadata={"summary": counts, "scope": "apply_references"},
+            created_at=datetime.now(UTC),
+        )
+    )
+    return ApplyReferencesResponse(**counts)
 
 
 # ---------------------------------------------------------------------------

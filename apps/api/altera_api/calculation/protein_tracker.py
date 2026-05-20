@@ -33,6 +33,7 @@ from altera_api.domain.protein_tracker import (
     ProteinTrackerGroupAggregate,
     ProteinTrackerProductClassification,
 )
+from altera_api.enrichment.selection import ResolvedProteinEnrichment
 
 #: Quantisation step. 8 decimal places per docs/data/unit-conversion.md.
 _EIGHT_DP = Decimal("0.00000001")
@@ -81,7 +82,7 @@ def calculate_pt_run(
     versions: PTRunVersions,
     enable_per_product_split: bool = True,
     split_tolerance: Decimal = DEFAULT_SPLIT_TOLERANCE,
-    enrichment_lookup: Mapping[UUID, tuple[Decimal, NutritionEnrichmentSource]] | None = None,
+    enrichment_lookup: Mapping[UUID, ResolvedProteinEnrichment] | None = None,
 ) -> PTRunResult:
     """Compute one Protein Tracker run.
 
@@ -116,8 +117,14 @@ def calculate_pt_run(
     unknown_count = 0
     enriched_nutrition_used_count = 0
     manual_enrichment_used_count = 0
+    nevo_enrichment_used_count = 0
+    ciqual_enrichment_used_count = 0
     category_average_used_count = 0
     missing_protein_after_enrichment_count = 0
+    # Phase 33H — products whose plant/animal kg came from an enrichment
+    # source's published split (e.g. NEVO PROTPL/PROTAN) rather than the
+    # Protein Tracker classification assumption.
+    rows_with_enriched_split = 0
 
     for product in products:
         if product.pt_fields is None:
@@ -137,6 +144,10 @@ def calculate_pt_run(
         pt_fields = product.pt_fields
 
         # Resolve protein_pct: prefer retailer-provided; fall back to enrichment lookup.
+        # Phase 33H also resolves an optional plant/animal split from the
+        # enrichment lookup (NEVO publishes PROTPL/PROTAN).
+        enriched_plant_pct: Decimal | None = None
+        enriched_animal_pct: Decimal | None = None
         if pt_fields.protein_pct is not None:
             resolved_protein_pct: Decimal = pt_fields.protein_pct
             used_enrichment = False
@@ -144,11 +155,18 @@ def calculate_pt_run(
         elif enrichment_lookup is not None:
             lookup_result = enrichment_lookup.get(product.id)
             if lookup_result is not None:
-                resolved_protein_pct, enrichment_source = lookup_result
+                resolved_protein_pct = lookup_result.protein_pct
+                enrichment_source = lookup_result.source
+                enriched_plant_pct = lookup_result.plant_protein_pct
+                enriched_animal_pct = lookup_result.animal_protein_pct
                 used_enrichment = True
                 enriched_nutrition_used_count += 1
                 if enrichment_source is NutritionEnrichmentSource.MANUAL_ALTERA:
                     manual_enrichment_used_count += 1
+                elif enrichment_source is NutritionEnrichmentSource.NEVO:
+                    nevo_enrichment_used_count += 1
+                elif enrichment_source is NutritionEnrichmentSource.CIQUAL:
+                    ciqual_enrichment_used_count += 1
                 elif enrichment_source is NutritionEnrichmentSource.CATEGORY_AVERAGE:
                     category_average_used_count += 1
             else:
@@ -176,25 +194,46 @@ def calculate_pt_run(
         elif pt_group is ProteinTrackerGroup.UNKNOWN:
             unknown_count += 1
 
-        # Per-product split detection (composites only; uses retailer split pcts)
+        # Per-product split detection. Priority:
+        #   1. retailer-provided plant/animal pct on pt_fields (any group)
+        #   2. enrichment-supplied split (e.g. NEVO PROTPL/PROTAN), only
+        #      consulted when retailer values are absent — never overrides.
+        # Both pathways require the sum to match resolved_protein_pct within
+        # ``split_tolerance`` to defend against label-inconsistent data.
+        # The split is currently applied to composite products only (where
+        # the classification assumption would otherwise be 50/50). Future
+        # phases may extend this to all in-scope groups; today single-group
+        # products already align with the assumption when classification
+        # is correct.
         used_split = False
         row_plant_kg: Decimal | None = None
         row_animal_kg: Decimal | None = None
+        split_plant = pt_fields.plant_protein_pct
+        split_animal = pt_fields.animal_protein_pct
+        if split_plant is None and split_animal is None:
+            # Fall back to enrichment-supplied split when retailer was silent.
+            split_plant = enriched_plant_pct
+            split_animal = enriched_animal_pct
         if (
             in_scope
             and pt_group is ProteinTrackerGroup.COMPOSITE_PRODUCTS
             and enable_per_product_split
-            and pt_fields.plant_protein_pct is not None
-            and pt_fields.animal_protein_pct is not None
+            and split_plant is not None
+            and split_animal is not None
         ):
-            split_sum = pt_fields.plant_protein_pct + pt_fields.animal_protein_pct
+            split_sum = split_plant + split_animal
             if abs(split_sum - resolved_protein_pct) <= split_tolerance:
-                row_plant_kg = _q8(volume_kg * pt_fields.plant_protein_pct / _ONE_HUNDRED)
-                row_animal_kg = _q8(volume_kg * pt_fields.animal_protein_pct / _ONE_HUNDRED)
+                row_plant_kg = _q8(volume_kg * split_plant / _ONE_HUNDRED)
+                row_animal_kg = _q8(volume_kg * split_animal / _ONE_HUNDRED)
                 used_split = True
                 rows_with_per_product_split += 1
                 direct_split_plant_kg += row_plant_kg
                 direct_split_animal_kg += row_animal_kg
+                if (
+                    pt_fields.plant_protein_pct is None
+                    and enriched_plant_pct is not None
+                ):
+                    rows_with_enriched_split += 1
 
         # Aggregators (only in-scope rows contribute)
         if in_scope:
@@ -292,8 +331,11 @@ def calculate_pt_run(
         use_enriched_nutrition=enrichment_lookup is not None,
         enriched_nutrition_used_count=enriched_nutrition_used_count,
         manual_enrichment_used_count=manual_enrichment_used_count,
+        nevo_enrichment_used_count=nevo_enrichment_used_count,
+        ciqual_enrichment_used_count=ciqual_enrichment_used_count,
         category_average_used_count=category_average_used_count,
         missing_protein_after_enrichment_count=missing_protein_after_enrichment_count,
+        rows_with_enriched_split=rows_with_enriched_split,
         methodology_version=versions.methodology_version,
         methodology_source_edition=versions.methodology_source_edition,
         taxonomy_version=versions.taxonomy_version,

@@ -99,6 +99,15 @@ export interface ClassificationRequiredError {
   unclassified_count: number;
 }
 
+export interface ApplyReferencesSummary {
+  nevo_matched: number;
+  nevo_with_split: number;
+  ciqual_matched: number;
+  no_match: number;
+  skipped_has_retailer_value: number;
+  skipped_no_pt_fields: number;
+}
+
 export interface ValidationEntry {
   row_number: number;
   field: string | null;
@@ -837,6 +846,13 @@ export function createApi(accessToken: string | null) {
       request<void>(
         `/api/v1/projects/${projectId}/uploads/${uploadId}`,
         { method: "DELETE" },
+        accessToken,
+      ),
+
+    applyNutritionReferences: (projectId: string) =>
+      request<ApplyReferencesSummary>(
+        `/api/v1/projects/${projectId}/enrichments/apply-references`,
+        { method: "POST" },
         accessToken,
       ),
 

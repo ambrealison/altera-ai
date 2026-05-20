@@ -195,6 +195,13 @@ class ProteinTrackerCalculationSummary(DomainBase):
     manual_enrichment_used_count: int = Field(default=0, ge=0)
     category_average_used_count: int = Field(default=0, ge=0)
     missing_protein_after_enrichment_count: int = Field(default=0, ge=0)
+    # Phase 33H — per-source enrichment counters + enriched-split counter.
+    # ``nevo_enrichment_used_count``: products whose protein_pct came from
+    # NEVO; ``rows_with_enriched_split``: subset that ALSO received a
+    # plant/animal split from the enrichment source (NEVO PROTPL/PROTAN).
+    nevo_enrichment_used_count: int = Field(default=0, ge=0)
+    ciqual_enrichment_used_count: int = Field(default=0, ge=0)
+    rows_with_enriched_split: int = Field(default=0, ge=0)
     methodology: Methodology = Methodology.PROTEIN_TRACKER
     methodology_version: NonEmptyStr
     methodology_source_edition: NonEmptyStr

@@ -361,7 +361,7 @@ class TestEnrichmentPriority:
         )
         result = select_protein_enrichment([ciqual_rec, manual_rec])
         assert result is not None
-        value, source = result
+        value, source = result.protein_pct, result.source
         assert source is NutritionEnrichmentSource.MANUAL_ALTERA
         assert value == Decimal("10.0")
 
@@ -394,7 +394,7 @@ class TestEnrichmentPriority:
         )
         result = select_protein_enrichment([cat_rec, ciqual_rec])
         assert result is not None
-        value, source = result
+        value, source = result.protein_pct, result.source
         assert source is NutritionEnrichmentSource.CIQUAL
         assert value == Decimal("17.9")
 
