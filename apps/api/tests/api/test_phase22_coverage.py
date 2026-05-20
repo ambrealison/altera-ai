@@ -566,12 +566,19 @@ class TestPTCaveats:
         assert any("reference database" in c for c in caveats)
 
     def test_no_caveats_when_no_composites_and_complete_data(self):
+        """Phase 33G always emits a single plant/animal-split provenance
+        caveat, even when there are no composites and no missing data.
+        Beyond that, no additional caveats should appear in the clean
+        case.
+        """
         from altera_api.exports.coverage import _pt_caveats
 
         run_id = uuid4()
         s = ProteinTrackerCalculationSummary.model_validate(_pt_summary(run_id, composite_items=0))
         caveats = _pt_caveats(s, products_with_missing_protein=0)
-        assert caveats == []
+        assert len(caveats) == 1
+        assert "Plant/animal protein split" in caveats[0]
+        assert "Protein Tracker classification" in caveats[0]
 
 
 # ---------------------------------------------------------------------------

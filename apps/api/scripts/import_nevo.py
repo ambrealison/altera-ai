@@ -69,6 +69,55 @@ def _str_clean(raw: object) -> str:
     return str(raw).strip().strip('"')
 
 
+def _row_to_entry(
+    row: dict, *, rejected_counter: list[int], verbose: bool = False
+) -> dict | None:
+    """Build one nevo_reference upsert dict from a parsed row.
+
+    Returns None for rows whose nevo_code is blank (NEVO header/spacer
+    rows in Excel exports). Increments ``rejected_counter[0]`` when a
+    protein value is negative — the entry is still emitted but all
+    three protein fields are nulled, mirroring the CSV path.
+    """
+    code = _str_clean(row.get(_COL_CODE))
+    if not code:
+        return None
+
+    prot = _parse_decimal(row.get(_COL_PROT))
+    protpl = _parse_decimal(row.get(_COL_PROTPL))
+    protan = _parse_decimal(row.get(_COL_PROTAN))
+
+    # Non-negative validation. Bad rows are kept with NULL protein so the
+    # check-constraint in nevo_reference doesn't reject the upsert; the
+    # negative value itself is dropped on the floor.
+    for label, value in (("PROT", prot), ("PROTPL", protpl), ("PROTAN", protan)):
+        if value is not None and value < 0:
+            rejected_counter[0] += 1
+            if verbose:
+                print(
+                    f"  rejecting NEVO-code={code}: {label}={value} is negative",
+                    file=sys.stderr,
+                )
+            prot = None
+            protpl = None
+            protan = None
+            break
+
+    return {
+        "id": str(uuid4()),
+        "source": "nevo",
+        "source_version": _VERSION,
+        "nevo_code": code,
+        "food_name_nl": _str_clean(row.get(_COL_NAME_NL)),
+        "food_name_en": _str_clean(row.get(_COL_NAME_EN)),
+        "food_group": _str_clean(row.get(_COL_FOOD_GROUP_EN)) or "unknown",
+        "quantity_basis": _str_clean(row.get(_COL_QUANTITY)) or "per 100g",
+        "protein_g_per_100g": float(prot) if prot is not None else None,
+        "plant_protein_g_per_100g": float(protpl) if protpl is not None else None,
+        "animal_protein_g_per_100g": float(protan) if protan is not None else None,
+    }
+
+
 def read_nevo_csv(path: Path, *, verbose: bool = False) -> list[dict]:
     """Parse a pipe-delimited NEVO CSV export and return row dicts."""
     text = path.read_text(encoding="utf-8")
@@ -88,50 +137,95 @@ def read_nevo_csv(path: Path, *, verbose: bool = False) -> list[dict]:
 
     entries: list[dict] = []
     skipped = 0
-    rejected_negative = 0
+    rejected_counter = [0]
     for row in reader:
-        code = _str_clean(row.get(_COL_CODE))
-        if not code:
+        entry = _row_to_entry(row, rejected_counter=rejected_counter, verbose=verbose)
+        if entry is None:
             skipped += 1
             continue
-
-        prot = _parse_decimal(row.get(_COL_PROT))
-        protpl = _parse_decimal(row.get(_COL_PROTPL))
-        protan = _parse_decimal(row.get(_COL_PROTAN))
-
-        # Validate non-negative — bad data is rejected, not silently zeroed.
-        for label, value in (("PROT", prot), ("PROTPL", protpl), ("PROTAN", protan)):
-            if value is not None and value < 0:
-                rejected_negative += 1
-                if verbose:
-                    print(f"  rejecting NEVO-code={code}: {label}={value} is negative", file=sys.stderr)
-                prot = None
-                protpl = None
-                protan = None
-                break
-
-        entries.append(
-            {
-                "id": str(uuid4()),
-                "source": "nevo",
-                "source_version": _VERSION,
-                "nevo_code": code,
-                "food_name_nl": _str_clean(row.get(_COL_NAME_NL)),
-                "food_name_en": _str_clean(row.get(_COL_NAME_EN)),
-                "food_group": _str_clean(row.get(_COL_FOOD_GROUP_EN)) or "unknown",
-                "quantity_basis": _str_clean(row.get(_COL_QUANTITY)) or "per 100g",
-                "protein_g_per_100g": float(prot) if prot is not None else None,
-                "plant_protein_g_per_100g": float(protpl) if protpl is not None else None,
-                "animal_protein_g_per_100g": float(protan) if protan is not None else None,
-            }
-        )
+        entries.append(entry)
 
     if verbose:
         print(f"  {len(entries)} entries parsed, {skipped} blank rows skipped")
-        if rejected_negative:
-            print(f"  {rejected_negative} entries had negative protein values (zeroed out)")
+        if rejected_counter[0]:
+            print(f"  {rejected_counter[0]} entries had negative protein values (nulled)")
 
     return entries
+
+
+def read_nevo_excel(path: Path, *, verbose: bool = False) -> list[dict]:
+    """Parse a NEVO 2025 .xlsx workbook (sheet ``NEVO2025``) and return rows.
+
+    Excel cells may arrive as floats, ints, or strings depending on how
+    NEVO published them. ``_parse_decimal`` already handles the
+    comma-decimal string case; numeric cells are passed through ``str()``
+    by ``_str_clean`` and then re-parsed, which round-trips cleanly.
+    """
+    try:
+        import openpyxl  # type: ignore[import-untyped]
+    except ImportError:
+        print(
+            "ERROR: openpyxl is required for .xlsx. Run: uv add openpyxl --dev",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    wb = openpyxl.load_workbook(str(path), read_only=True, data_only=True)
+    sheet_name = "NEVO2025" if "NEVO2025" in wb.sheetnames else wb.sheetnames[0]
+    if verbose:
+        print(f"  reading sheet {sheet_name!r}")
+    ws = wb[sheet_name]
+    rows_iter = ws.iter_rows(values_only=True)
+    header = next(rows_iter, None)
+    if header is None:
+        wb.close()
+        raise ValueError(f"NEVO workbook sheet {sheet_name!r} is empty")
+
+    # Normalise header cells (some exports have quotes/whitespace).
+    header_labels = [str(h).strip().strip('"') if h is not None else "" for h in header]
+    required = (
+        _COL_CODE,
+        _COL_NAME_NL,
+        _COL_NAME_EN,
+        _COL_FOOD_GROUP_EN,
+        _COL_PROT,
+    )
+    missing = [c for c in required if c not in header_labels]
+    if missing:
+        wb.close()
+        raise ValueError(
+            f"NEVO workbook missing required columns: {missing}; got {header_labels!r}"
+        )
+
+    entries: list[dict] = []
+    skipped = 0
+    rejected_counter = [0]
+    for row in rows_iter:
+        if row is None:
+            skipped += 1
+            continue
+        row_dict = dict(zip(header_labels, row, strict=False))
+        entry = _row_to_entry(row_dict, rejected_counter=rejected_counter, verbose=verbose)
+        if entry is None:
+            skipped += 1
+            continue
+        entries.append(entry)
+    wb.close()
+
+    if verbose:
+        print(f"  {len(entries)} entries parsed, {skipped} blank rows skipped")
+        if rejected_counter[0]:
+            print(f"  {rejected_counter[0]} entries had negative protein values (nulled)")
+
+    return entries
+
+
+def read_nevo(path: Path, *, verbose: bool = False) -> list[dict]:
+    """Dispatch by file extension."""
+    suffix = path.suffix.lower()
+    if suffix in (".xlsx", ".xlsm"):
+        return read_nevo_excel(path, verbose=verbose)
+    return read_nevo_csv(path, verbose=verbose)
 
 
 def upsert_to_db(entries: list[dict], *, dry_run: bool = False) -> None:
@@ -194,7 +288,10 @@ def main() -> None:
         "--path",
         type=Path,
         required=True,
-        help="Path to the NEVO CSV file (pipe-delimited)",
+        help=(
+            "Path to the NEVO source file. Pipe-delimited .csv or .xlsx "
+            "workbook (sheet 'NEVO2025'). Dispatch is by file extension."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -210,7 +307,7 @@ def main() -> None:
         sys.exit(1)
 
     print(f"Reading {args.path}…")
-    entries = read_nevo_csv(args.path, verbose=args.verbose)
+    entries = read_nevo(args.path, verbose=args.verbose)
     print(f"Parsed {len(entries)} entries (version={_VERSION})")
 
     upsert_to_db(entries, dry_run=args.dry_run)

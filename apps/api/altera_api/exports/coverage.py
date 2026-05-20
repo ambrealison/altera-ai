@@ -155,6 +155,21 @@ def _pt_caveats(
 ) -> list[str]:
     caveats: list[str] = []
 
+    # Phase 33G: surface the provenance of the plant/animal split up front.
+    # Today plant_protein_kg / animal_protein_kg are derived from the
+    # Protein Tracker classification (plant_based_* → plant, animal_core
+    # → animal); retailer-provided per-product split takes precedence;
+    # NEVO can supply the split when nutrition reference lookup is on.
+    caveats.append(
+        "Plant/animal protein split is derived from each product's "
+        "Protein Tracker classification (plant_based_* → plant, "
+        "animal_core → animal). Per-product plant/animal protein values "
+        "provided by the retailer take precedence. NEVO (RIVM 2025 v9.0) "
+        "can supply plant/animal values when retailer data is missing. "
+        "CIQUAL provides total protein only and cannot contribute to "
+        "the split."
+    )
+
     composite_count = next(
         (a.item_count for a in s.per_group if a.pt_group.value == "composite_products"),
         0,
@@ -262,6 +277,12 @@ def _enrichment_caveats(
         if r.status is NutritionEnrichmentStatus.ENRICHED
         and r.source is NutritionEnrichmentSource.MANUAL_ALTERA
     )
+    nevo_enriched = sum(
+        1
+        for r in protein_records
+        if r.status is NutritionEnrichmentStatus.ENRICHED
+        and r.source is NutritionEnrichmentSource.NEVO
+    )
     ciqual_enriched = sum(
         1
         for r in protein_records
@@ -280,6 +301,7 @@ def _enrichment_caveats(
         if r.status is NutritionEnrichmentStatus.ENRICHED
         and r.source not in (
             NutritionEnrichmentSource.MANUAL_ALTERA,
+            NutritionEnrichmentSource.NEVO,
             NutritionEnrichmentSource.CIQUAL,
             NutritionEnrichmentSource.CATEGORY_AVERAGE,
         )
@@ -296,10 +318,19 @@ def _enrichment_caveats(
             "(Altera methodology team override) "
             "not yet applied to this calculation."
         )
+    if nevo_enriched > 0:
+        caveats.append(
+            f"{nevo_enriched} product(s) have protein % values from the RIVM NEVO "
+            "2025 v9.0 reference table (RIVM. 2025. NEVO-Online 2025 v9.0). "
+            "NEVO values are reference averages for food categories and may include "
+            "a plant/animal protein split (PROTPL/PROTAN); they are not retailer "
+            "label data. Not yet applied to this calculation."
+        )
     if ciqual_enriched > 0:
         caveats.append(
             f"{ciqual_enriched} product(s) have protein % values from the ANSES CIQUAL "
             "2025 reference table (Anses. 2025. Ciqual French food composition table). "
+            "CIQUAL provides total protein only — no plant/animal split. "
             "CIQUAL values are reference averages for food categories, not retailer label data. "
             "Not yet applied to this calculation."
         )
