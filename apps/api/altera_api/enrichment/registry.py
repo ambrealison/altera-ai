@@ -1,4 +1,4 @@
-"""Static source registry for nutrition enrichment (Phase 23A / 33A).
+"""Static source registry for nutrition enrichment (Phase 23A / 33A / 33E).
 
 Lists every planned and currently-available enrichment source with its
 metadata. External sources are registered here so the system can reason
@@ -9,11 +9,16 @@ have data for the same product/nutrient):
 
   0  retailer_provided  — authoritative; never overwritten
   1  manual_altera      — Altera team override; highest non-retailer trust
-  2  ciqual             — ANSES reference database; analytically measured
-  3  category_average   — statistical fallback; available now
-  4  open_food_facts    — planned external
-  5  oqali              — planned external (French surveillance DB)
-  6  nevo               — planned external (RIVM, Netherlands)
+  2  nevo               — RIVM NEVO 2025; provides plant/animal split
+  3  ciqual             — ANSES CIQUAL; total protein only (no split)
+  4  category_average   — statistical fallback; available now
+  5  open_food_facts    — planned external
+  6  oqali              — planned external (French surveillance DB)
+
+Phase 33E: NEVO was promoted from "planned" to "available" and placed
+above CIQUAL because it provides PROTPL (plant) and PROTAN (animal)
+protein per 100 g — needed for the Protein Tracker plant/animal split.
+CIQUAL remains available as a total-protein fallback.
 """
 
 from __future__ import annotations
@@ -57,21 +62,38 @@ ENRICHMENT_SOURCE_REGISTRY: tuple[EnrichmentSourceInfo, ...] = (
         notes="Manually entered by the Altera methodology team via the review UI.",
     ),
     EnrichmentSourceInfo(
-        source=NutritionEnrichmentSource.CIQUAL,
+        source=NutritionEnrichmentSource.NEVO,
         priority=2,
+        is_external=False,  # imported locally via import_nevo.py
+        is_available=True,
+        expected_confidence=Decimal("0.85"),
+        notes=(
+            "RIVM NEVO-Online 2025 v9.0. Dutch food composition table. "
+            "Imported via import_nevo.py; no runtime external calls. "
+            "Provides PROT (total), PROTPL (plant), PROTAN (animal) g/100g. "
+            "Exact name match (0.85) or food-group average (0.60). "
+            "Preferred over CIQUAL for Protein Tracker because of the "
+            "plant/animal split. "
+            "Attribution: RIVM. 2025. NEVO-Online 2025 v9.0."
+        ),
+    ),
+    EnrichmentSourceInfo(
+        source=NutritionEnrichmentSource.CIQUAL,
+        priority=3,
         is_external=False,  # data is imported locally; no runtime API calls
         is_available=True,
         expected_confidence=Decimal("0.80"),
         notes=(
             "ANSES CIQUAL French food composition table (2025). "
             "Imported via import_ciqual.py; no runtime external calls. "
+            "Total protein only — does NOT provide plant/animal split. "
             "Exact name match (0.80) or food-group average (0.55). "
             "Attribution: Anses. 2025. Ciqual French food composition table."
         ),
     ),
     EnrichmentSourceInfo(
         source=NutritionEnrichmentSource.CATEGORY_AVERAGE,
-        priority=3,
+        priority=4,
         is_external=False,
         is_available=True,
         expected_confidence=Decimal("0.60"),
@@ -82,7 +104,7 @@ ENRICHMENT_SOURCE_REGISTRY: tuple[EnrichmentSourceInfo, ...] = (
     ),
     EnrichmentSourceInfo(
         source=NutritionEnrichmentSource.OPEN_FOOD_FACTS,
-        priority=4,
+        priority=5,
         is_external=True,
         is_available=False,
         expected_confidence=Decimal("0.75"),
@@ -94,7 +116,7 @@ ENRICHMENT_SOURCE_REGISTRY: tuple[EnrichmentSourceInfo, ...] = (
     ),
     EnrichmentSourceInfo(
         source=NutritionEnrichmentSource.OQALI,
-        priority=5,
+        priority=6,
         is_external=True,
         is_available=False,
         expected_confidence=Decimal("0.80"),
@@ -102,18 +124,6 @@ ENRICHMENT_SOURCE_REGISTRY: tuple[EnrichmentSourceInfo, ...] = (
             "OQALI French food product surveillance database. "
             "Planned — not yet implemented. "
             "Product-level label data; French market coverage."
-        ),
-    ),
-    EnrichmentSourceInfo(
-        source=NutritionEnrichmentSource.NEVO,
-        priority=6,
-        is_external=True,
-        is_available=False,
-        expected_confidence=Decimal("0.80"),
-        notes=(
-            "RIVM NEVO Dutch food composition database. "
-            "Planned — not yet implemented. "
-            "Category-level matching; Dutch and European products."
         ),
     ),
 )

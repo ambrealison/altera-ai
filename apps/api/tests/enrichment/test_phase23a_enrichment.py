@@ -298,13 +298,14 @@ class TestSourceRegistry:
             )
 
     def test_planned_external_sources_include_remaining_databases(self):
-        # CIQUAL is now available (Phase 33A); remaining planned sources are:
+        # CIQUAL is available (Phase 33A); NEVO is available (Phase 33E).
+        # Remaining planned external sources are:
         external_source_names = {s.source for s in PLANNED_EXTERNAL_SOURCES}
         assert NutritionEnrichmentSource.OPEN_FOOD_FACTS in external_source_names
         assert NutritionEnrichmentSource.OQALI in external_source_names
-        assert NutritionEnrichmentSource.NEVO in external_source_names
-        # CIQUAL is now available; it should NOT appear in planned sources
+        # CIQUAL and NEVO are now available; neither should appear in planned.
         assert NutritionEnrichmentSource.CIQUAL not in external_source_names
+        assert NutritionEnrichmentSource.NEVO not in external_source_names
 
     def test_ciqual_is_now_available(self):
         from altera_api.enrichment.registry import AVAILABLE_SOURCES

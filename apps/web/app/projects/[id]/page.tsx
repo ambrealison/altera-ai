@@ -39,14 +39,27 @@ export default function ProjectDetail() {
     };
   }, [api, authLoading, id]);
 
-  async function onClassify(uploadId: string, methodology: Methodology) {
+  async function onClassifyAll(methodology: Methodology) {
+    if (!uploads) return;
+    const targets = uploads.filter((u) => u.products_count > 0);
+    if (targets.length === 0) return;
     setClassifyBusy(true);
     setClassifyError(null);
     setClassifyResult(null);
     try {
-      const summary = await api.classify(id, uploadId, methodology);
-      setClassifyResult(summary);
-      // Reload project so unclassified_pt_count updates
+      // Classify every upload that has ingested products. The deadlock fix
+      // (Phase 33E): one upload can leave others unclassified, so we iterate.
+      const summaries = await Promise.all(
+        targets.map((u) => api.classify(id, u.id, methodology)),
+      );
+      const merged: ClassifySummary = {
+        methodology,
+        matched: summaries.reduce((s, x) => s + x.matched, 0),
+        pass_through: summaries.reduce((s, x) => s + x.pass_through, 0),
+        rule_collision: summaries.reduce((s, x) => s + x.rule_collision, 0),
+        queued_for_review: summaries.reduce((s, x) => s + x.queued_for_review, 0),
+      };
+      setClassifyResult(merged);
       const updated = await api.getProject(id);
       setProject(updated);
     } catch (e) {
@@ -132,8 +145,8 @@ export default function ProjectDetail() {
 
       {/* Classification workflow step — shown when products need classifying */}
       {project.unclassified_pt_count > 0 && uploads.length > 0 && (() => {
-        const latestUpload = [...uploads].reverse().find((u) => u.products_count > 0);
-        if (!latestUpload) return null;
+        const classifiableUploads = uploads.filter((u) => u.products_count > 0);
+        if (classifiableUploads.length === 0) return null;
         const ptEnabled = project.methodologies_enabled.includes("protein_tracker");
         return ptEnabled ? (
           <section className="mt-6">
@@ -143,8 +156,9 @@ export default function ProjectDetail() {
                 subtitle={`${project.unclassified_pt_count} product${project.unclassified_pt_count === 1 ? "" : "s"} need classification before a calculation can run.`}
               />
               <p className="mt-2 text-xs text-gray-500">
-                The rules engine will classify each product. Ambiguous products are queued for manual
-                review. Re-run classification after uploading new data.
+                The rules engine will classify products from all {classifiableUploads.length}{" "}
+                upload{classifiableUploads.length === 1 ? "" : "s"} that have ingested data.
+                Ambiguous products are queued for manual review.
               </p>
               {classifyError && (
                 <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
@@ -173,7 +187,7 @@ export default function ProjectDetail() {
               ) : (
                 <div className="mt-4">
                   <Button
-                    onClick={() => onClassify(latestUpload.id, "protein_tracker")}
+                    onClick={() => onClassifyAll("protein_tracker")}
                     disabled={classifyBusy}
                   >
                     {classifyBusy ? "Classifying…" : "Classify as Protein Tracker"}

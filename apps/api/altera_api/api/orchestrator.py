@@ -139,6 +139,10 @@ class ClassifySummary:
     ai_accepted: int = 0
     ai_review: int = 0
     ai_failed: int = 0
+    # Phase 33E: products in the upload that do NOT have the target
+    # methodology enabled — skipped explicitly so the lifecycle never
+    # silently drops them.
+    skipped_methodology_disabled: int = 0
 
 
 @dataclass(frozen=True)
@@ -326,12 +330,20 @@ def classify_upload(
         raise LookupError("upload not found")
 
     now = datetime.now(UTC)
-    matched = pass_through = collision = contradiction = queued = 0
+    matched = pass_through = collision = contradiction = queued = skipped = 0
     ai_attempted = ai_accepted = ai_review = ai_failed = 0
 
     for product_id in upload_record.product_ids:
         product = store.get_product(product_id)
         assert product is not None, f"product {product_id} missing"
+
+        # Phase 33E: skip products that don't have this methodology enabled.
+        # The lifecycle invariant only applies to products opted into the
+        # methodology; without this filter, an unexpected mismatch would
+        # leave the product unclassified AND not in review.
+        if methodology not in product.methodologies_enabled:
+            skipped += 1
+            continue
 
         if methodology is Methodology.PROTEIN_TRACKER:
             verdict = classify_protein_tracker(product, _RULE_SET.pt, now=now)
@@ -471,6 +483,7 @@ def classify_upload(
         ai_accepted=ai_accepted,
         ai_review=ai_review,
         ai_failed=ai_failed,
+        skipped_methodology_disabled=skipped,
     )
 
 
@@ -483,8 +496,8 @@ def _queue_unknown_pt(
 ) -> None:
     # Place a provisional `unknown` classification so the reviewer has
     # something to start from. The reviewer can change it.
-    if Methodology.PROTEIN_TRACKER not in product.methodologies_enabled:
-        return
+    # Phase 33E: must never silently skip — caller already filtered by
+    # methodology at the loop level.
     store.upsert_pt_classification(
         ProteinTrackerProductClassification(
             product_id=product.id,
@@ -514,8 +527,8 @@ def _queue_unknown_wwf(
     now: datetime,
     notes: tuple[str, ...] = (),
 ) -> None:
-    if Methodology.WWF not in product.methodologies_enabled:
-        return
+    # Phase 33E: must never silently skip — caller already filtered by
+    # methodology at the loop level.
     store.upsert_wwf_classification(
         WWFProductClassification(
             product_id=product.id,
