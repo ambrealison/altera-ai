@@ -278,9 +278,17 @@ class TestApplyReferencesEndpoint:
         assert {"protein_pct", "plant_protein_pct", "animal_protein_pct"}.issubset(nutrients)
         assert all(r.source is NutritionEnrichmentSource.NEVO for r in records)
 
-    def test_nevo_without_split_creates_only_protein_record(
+    def test_nevo_without_split_applies_classification_assumption(
         self, client: TestClient, store: InMemoryStore
     ) -> None:
+        # Phase 34K — when NEVO returns total protein but no plant/
+        # animal split, the route derives the split from the product's
+        # PT classification:
+        #   plant_based_*  → 100% plant
+        #   animal_core    → 100% animal
+        # The pre-Phase-34K behaviour (single protein_pct record only)
+        # was a bug — it left the calculation unable to attribute the
+        # protein to either column.
         pid_str = _create_project(client)
         pid = UUID(pid_str)
         org_id, _ = _seed_altera_org(store)
@@ -290,12 +298,25 @@ class TestApplyReferencesEndpoint:
             org_id=org_id,
             name="Mystery composite",
             protein_pct=None,
+            # Default pt_group is PLANT_BASED_CORE → 100% plant.
         )
         client.post(f"/api/v1/projects/{pid_str}/enrichments/apply-references")
         records = store.get_enrichment_records_for_product(product.id)
-        assert len(records) == 1
-        assert records[0].nutrient == "protein_pct"
-        assert records[0].source is NutritionEnrichmentSource.NEVO
+        nutrients = {r.nutrient for r in records}
+        assert nutrients == {
+            "protein_pct",
+            "plant_protein_pct",
+            "animal_protein_pct",
+        }
+        plant = next(r for r in records if r.nutrient == "plant_protein_pct")
+        animal = next(r for r in records if r.nutrient == "animal_protein_pct")
+        # Plant classification → all 10 g/100g goes to plant.
+        assert plant.enriched_value == Decimal("10")
+        assert animal.enriched_value == Decimal("0")
+        # Source / rationale tag the assumption so the audit log can
+        # tell official-split records from classification-assumption ones.
+        assert plant.source is NutritionEnrichmentSource.NEVO
+        assert "classification_assumption" in (plant.rationale or "")
 
     def test_ciqual_fallback_when_nevo_missing(
         self, client: TestClient, store: InMemoryStore

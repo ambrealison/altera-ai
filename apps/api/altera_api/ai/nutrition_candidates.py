@@ -415,6 +415,69 @@ def _strip_accents(s: str) -> str:
     return "".join(c for c in normalized if not unicodedata.combining(c))
 
 
+#: Phase 34K — packaging / marketing tokens that add noise without
+#: nutritional signal. Stripping them before tokenization improves
+#: NEVO candidate scoring on real retailer names like
+#: "Blanc de Poulet Rôti Tranché Bio x4 sachet 300g". Nutritionally
+#: meaningful tokens (0% MG, demi-écrémé, soja, blé, emmental, etc.)
+#: are NOT in this list.
+_PACKAGING_TOKEN_RE = re.compile(
+    r"""\b(
+        # weight / volume / format markers
+        \d+\s*(?:kg|cl|ml|gr?|g|l)\b
+        | x\s*\d+
+        | lot\s*(?:de)?\s*\d+
+        | pack\s*(?:de)?\s*\d+
+        | format\s+(?:familial|individuel|maxi)
+        | sous\s+vide
+        # cooking / preparation tokens (don't change nutrition kind)
+        | tranch[ée]s?
+        | r[oô]tis?
+        | grill[ée]s?
+        | sal[ée]s?
+        | sucr[ée]s?
+        | fum[ée]s?
+        | cru[es]?
+        | cuit[es]?
+        # marketing tokens
+        | bio
+        | extra
+        | classic|classique
+        | premium
+        | original
+        | s[ée]lection
+        | qualit[ée]?
+        | calibre
+        | nature(?:l|lle)?
+        | au\s+naturel
+        | uht
+        | sachet|conserve|barquette|bocal|bo[iî]te
+        | individuel(?:le)?
+    )\b""",
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def clean_product_name(name: str) -> str:
+    """Strip packaging / marketing tokens that add noise to matching.
+
+    Examples:
+    - "Blanc de Poulet Rôti Tranché Bio x4 300g" → "Blanc de Poulet"
+    - "Yaourt Nature 0% MG demi-écrémé sachet" → "Yaourt 0% MG demi-écrémé"
+    - "Filets de Saumon Atlantique sous vide" → "Filets de Saumon Atlantique"
+
+    Nutritionally meaningful tokens (% MG, demi-écrémé, soja, blé, the
+    food family itself) are preserved — only packaging/marketing/
+    preparation tokens that don't change WHAT THE FOOD IS are removed.
+    """
+    if not name or not name.strip():
+        return name
+    cleaned = _PACKAGING_TOKEN_RE.sub(" ", name)
+    # Collapse multiple spaces and trim.
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned or name  # never empty out the name entirely
+
+
 def _tokenize(s: str) -> set[str]:
     if not s:
         return set()
@@ -473,8 +536,21 @@ def candidates_for_product(
     relevance. Returns an empty list when nothing in the product name
     overlaps any reference name — the caller should NOT call the LLM in
     that case (no shortlist to ground the answer).
+
+    Phase 34K — the product name is first run through
+    :func:`clean_product_name` so packaging / marketing tokens (size,
+    "bio", "sachet", "tranché"…) do not crowd out the nutritionally
+    meaningful tokens. Tokens from BOTH the cleaned and the original
+    name are merged so we keep coverage in case the cleaning was too
+    aggressive on an unusual product name.
     """
-    query_tokens = _tokenize(product_name)
+    cleaned = clean_product_name(product_name)
+    query_tokens = _tokenize(cleaned)
+    if cleaned != product_name:
+        # Belt and braces — original tokens are added too in case the
+        # cleaning regex removed something nutritionally relevant by
+        # mistake.
+        query_tokens |= _tokenize(product_name)
     if retailer_category:
         # Category provides extra anchoring (e.g. "Poultry" → "chicken").
         query_tokens |= _tokenize(retailer_category)
@@ -483,7 +559,7 @@ def candidates_for_product(
 
     # Expand tokens through the alias dictionary so FR products score
     # against EN/NL NEVO entries (and EN products against FR CIQUAL).
-    query_tokens_expanded = _expand_aliases(query_tokens, product_name)
+    query_tokens_expanded = _expand_aliases(query_tokens, cleaned)
 
     nevo_scored: list[tuple[int, NevoEntry]] = []
     for e in nevo_entries:

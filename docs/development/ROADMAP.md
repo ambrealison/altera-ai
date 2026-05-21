@@ -257,6 +257,71 @@ through `/uploads/{uid}/classify` with `deterministic_only=true`
 (used by tests + admin/debug). The normal-user CTA in the wizard
 sets `skip_deterministic=true` so AI is the sole classifier.
 
+### Phase 34J — Tolerant batch JSON parsing
+
+- Pydantic `BatchClassificationResponse` schema.
+- `client.beta.chat.completions.parse(response_format=…)` typed path,
+  with json_schema → json_object fallback.
+- `_repair_missing_commas` rewrites three observed malformed patterns
+  before JSON parse.
+- `extract_rows_partial` salvages individual rows when the envelope
+  is unrecoverable.
+- The orchestrator uses repair → repair-retry → per-row salvage so a
+  33-row response with comma drops in every row classifies ≥30/33
+  instead of 0/33.
+
+### Phase 34K — Progress, NEVO matching v2, classification-assumption split, partial calc
+
+- **Progress bar fix** — a brand-new project was reporting ~65%
+  because the workflow aggregator counted `locked` downstream steps
+  as 100% complete. The new rule counts only the 8 user-visible
+  wizard steps and only those whose status is `complete` or
+  `not_needed`. Methodology is now gated on the first upload so a
+  brand-new project shows 0%.
+- **NEVO matching v2** — `clean_product_name()` strips packaging /
+  marketing tokens (1.5kg, x4, bio, sachet, tranché, rôti, etc.) but
+  preserves nutritionally meaningful tokens (0% MG, demi-écrémé,
+  soja, blé, etc.). Cleaned + original tokens are merged so the
+  cleaner cannot accidentally drop a relevant word. Wired into
+  `candidates_for_product` so the shortlist used by the deterministic
+  matcher and the AI matcher gets dramatically better recall on real
+  retailer CSV names.
+- **Classification-assumption split** — when NEVO returns total
+  protein but no plant/animal split, the apply-references route
+  derives the split from the product's PT classification:
+  `plant_based_*` → 100% plant; `animal_core` → 100% animal.
+  Composite / unknown classifications are left untouched (no silent
+  invention) so they end up in the CIQUAL+AI fallback / manual
+  review path. The records carry `classification_assumption` in their
+  rationale so the audit log distinguishes them from official splits.
+- **Partial calculation** — `RunCreateRequest.allow_partial=true`
+  lets the run through when the ONLY blocker is `nutrition_required`.
+  Classification / review / zero-eligible blockers still hard-block.
+  The calculation engine drops products without usable nutrition;
+  the response decorates the summary with a `coverage` block
+  (total_products_start, products_included_in_calculation,
+  products_excluded_missing_nutrition, product_coverage_pct,
+  volume_total_start, volume_included_in_calculation,
+  volume_coverage_pct, is_partial). The wizard's Step 7 shows a
+  secondary "Calculer sur les données disponibles" CTA when only
+  nutrition is missing, and Step 8 renders a colour-coded coverage
+  disclosure banner (<50% red, 50–80% amber, ≥80% neutral).
+
+**Deferred to Phase 34L** — explicitly NOT in 34K:
+- Full nutrition validation table with manual edit (Phase 34K
+  Section H) — a major UI piece requiring a new endpoint, new
+  component, and per-product nutrition diagnostics.
+- Per-product NEVO/CIQUAL diagnostics endpoint (Section J).
+- Dedup/cache for AI nutrition matching across identical normalized
+  names (Section L scalability bullet 1/2).
+- Batched AI nutrition matching (Section D point 1) — currently
+  per-product via `propose_match`; the architecture is in place
+  (BatchClassifierProvider) and just needs the prompt + parser.
+- AI-estimated split for composites with explicit provenance
+  (Section G).
+The 34K cut is the minimum required to unblock partial calculation
+end-to-end and give the user honest coverage disclosure.
+
 ### Phase 35 — GDPR data retention
 
 - Configurable retention period per organisation.

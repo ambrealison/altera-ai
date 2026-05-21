@@ -263,14 +263,23 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
         )
     )
 
-    # 2. methodology — selected at project creation; treated complete.
-    methodology_status: StepStatus = "complete" if methodologies else "needs_action"
+    # 2. methodology — selected at project creation. Phase 34K — only
+    # counts as "complete" once the user has actually started using
+    # the project (an upload exists). Without this gate a brand-new
+    # project would show 12.5% on the progress bar before the user
+    # has done anything.
+    if methodologies and counts.total_uploads > 0:
+        methodology_status: StepStatus = "complete"
+    elif methodologies:
+        methodology_status = "needs_action"
+    else:
+        methodology_status = "needs_action"
     steps.append(
         WorkflowStep(
             key="methodology",
             label="Méthodologie",
             status=methodology_status,
-            progress_pct=100 if methodologies else 0,
+            progress_pct=100 if methodology_status == "complete" else 0,
             counts={},
             accessible=True,
             editable=not has_runs,
@@ -581,15 +590,32 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
         ),
         steps[-1].key,
     )
-    # Overall progress — average completion across the 12 steps; locked
-    # / not_needed steps count as 100% since they don't apply.
-    progress_total = sum(
-        100
-        if s.status in ("complete", "not_needed", "locked")
-        else s.progress_pct
-        for s in steps
+    # Phase 34K — progress is the count of *user-visible* wizard steps
+    # that are done, divided by the wizard's step count (8). Earlier
+    # code averaged ``progress_pct`` over every emitted backend step
+    # and counted ``locked`` as 100%, which made a brand-new project
+    # display ~65% because the locked downstream steps inflated the
+    # ratio. The new rule: only ``complete`` and ``not_needed`` count
+    # as done; ``locked`` / ``needs_action`` / ``available`` /
+    # ``blocked`` count as not done.
+    _WIZARD_STEP_KEYS = (
+        "upload",
+        "methodology",
+        "ai_classification",
+        "manual_classification_review",
+        "nutrition_enrichment_nevo",
+        "nutrition_enrichment_ciqual",
+        "calculation",
+        "report",
     )
-    overall_pct = int(progress_total / len(steps)) if steps else 0
+    wizard_step_map = {s.key: s for s in steps}
+    done_count = sum(
+        1
+        for k in _WIZARD_STEP_KEYS
+        if k in wizard_step_map
+        and wizard_step_map[k].status in ("complete", "not_needed")
+    )
+    overall_pct = int(100 * done_count / len(_WIZARD_STEP_KEYS))
 
     next_action: NextAction | None = None
     next_action_map: dict[str, NextAction] = {

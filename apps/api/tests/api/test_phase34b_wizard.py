@@ -139,10 +139,15 @@ class TestWizardFields:
         assert "produit" in upload["summary"]
 
     def test_methodology_summary_after_project_creation(self, client: TestClient) -> None:
+        # Phase 34K — methodology counts as "complete" only after the
+        # user has uploaded at least once. The summary is still
+        # populated from the project's methodologies_enabled list so
+        # the wizard can display the chosen methodologies before the
+        # first upload.
         pid = _create_project(client)
         body = client.get(f"/api/v1/projects/{pid}/workflow-status").json()
         meth = _step(body, "methodology")
-        assert meth["status"] == "complete"
+        assert meth["status"] == "needs_action"
         assert meth["summary"] is not None
 
     def test_ai_classification_step_accessible_after_upload(

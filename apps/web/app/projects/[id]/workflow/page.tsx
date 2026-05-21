@@ -768,16 +768,29 @@ function StepCalculation({
   busy,
   error,
   onRun,
+  onRunPartial,
   onGoToStep,
 }: {
   step: WorkflowStep;
   busy: boolean;
   error: string | null;
   onRun: () => void;
+  onRunPartial: () => void;
   onGoToStep: (idx: WizardStepIdx) => void;
 }) {
   const isReady = step.status === "ready";
   const isBlocked = step.status === "blocked";
+  // Phase 34K — partial calculation. When the ONLY remaining blocker
+  // is `nutrition_required`, the user can choose to run the
+  // calculation on the products that already have usable nutrition.
+  // The result page then discloses coverage prominently.
+  const nutritionOnlyBlocker =
+    isBlocked &&
+    step.blocking_reasons.length > 0 &&
+    step.blocking_reasons.every((r) => r.code === "nutrition_required");
+  const missingNutritionCount =
+    step.blocking_reasons.find((r) => r.code === "nutrition_required")?.count ??
+    0;
 
   // Phase 34I — indexes shifted by 1 after removing the deterministic
   // step. Classification now lives at idx 2 (was 3 before AI was
@@ -917,10 +930,30 @@ function StepCalculation({
           </div>
         )}
 
-        <div className="mt-4">
+        {/* Phase 34K — partial-calc CTA: only when the sole blocker is
+            nutrition data. Includes a warning so the user knows what
+            they're agreeing to. */}
+        {nutritionOnlyBlocker && (
+          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <p className="font-medium">Données nutritionnelles incomplètes</p>
+            <p className="mt-1 text-xs">
+              {missingNutritionCount} produit(s) sans donnée protéique
+              exploitable. Vous pouvez lancer le calcul sur les produits
+              restants, mais le rapport indiquera explicitement le
+              pourcentage de produits couverts.
+            </p>
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap gap-3">
           <Button onClick={onRun} disabled={!isReady || busy}>
             {busy ? "Calcul en cours…" : "Lancer le calcul"}
           </Button>
+          {nutritionOnlyBlocker && (
+            <Button variant="secondary" onClick={onRunPartial} disabled={busy}>
+              {busy ? "…" : "Calculer sur les données disponibles"}
+            </Button>
+          )}
         </div>
       </Card>
     </div>
@@ -952,6 +985,34 @@ function StepReport({
     n == null ? "—" : `${n.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} kg`;
   const animalPct =
     plantRatio != null ? `${((1 - plantRatio) * 100).toFixed(1)} %` : null;
+
+  // Phase 34K — coverage block. The backend's create_run decorates
+  // the summary with a `coverage` object when the run was Protein
+  // Tracker. Older runs predate this and may not have it.
+  const coverage = summary?.coverage as
+    | {
+        total_products_start?: number;
+        eligible_products_total?: number;
+        products_included_in_calculation?: number;
+        products_excluded_missing_nutrition?: number;
+        product_coverage_pct?: number;
+        volume_total_start?: string;
+        volume_included_in_calculation?: string;
+        volume_coverage_pct?: number;
+        is_partial?: boolean;
+      }
+    | undefined;
+  const productPct = coverage?.product_coverage_pct;
+  const volumePct = coverage?.volume_coverage_pct;
+  // Severity threshold: <50% high, 50–80% medium, >=80% normal.
+  const coverageTone: "normal" | "medium" | "high" =
+    productPct == null
+      ? "normal"
+      : productPct < 50
+        ? "high"
+        : productPct < 80
+          ? "medium"
+          : "normal";
 
   return (
     <div className="space-y-5">
@@ -991,6 +1052,49 @@ function StepReport({
               </div>
             )}
           </div>
+
+          {/* Phase 34K — coverage disclosure. Always shown when the
+              run carries coverage metrics; styled red below 50%,
+              amber at 50–80%, neutral above 80%. */}
+          {coverage && coverage.is_partial && (
+            <div
+              className={
+                "mt-4 rounded-md border px-3 py-2 text-sm " +
+                (coverageTone === "high"
+                  ? "border-rose-200 bg-rose-50 text-rose-800"
+                  : coverageTone === "medium"
+                    ? "border-amber-200 bg-amber-50 text-amber-800"
+                    : "border-gray-200 bg-gray-50 text-gray-700")
+              }
+            >
+              <p className="font-medium">
+                Calcul partiel — couverture {productPct?.toFixed(1)} %
+              </p>
+              <p className="mt-1 text-xs">
+                Le Protein Ratio a été calculé sur{" "}
+                <span className="font-semibold">
+                  {coverage.products_included_in_calculation}
+                </span>{" "}
+                des{" "}
+                <span className="font-semibold">
+                  {coverage.total_products_start}
+                </span>{" "}
+                produits initiaux ({productPct?.toFixed(1)} %)
+                {volumePct != null && (
+                  <>
+                    , représentant{" "}
+                    <span className="font-semibold">
+                      {volumePct.toFixed(1)} %
+                    </span>{" "}
+                    du volume total
+                  </>
+                )}
+                .{" "}
+                {coverage.products_excluded_missing_nutrition} produit(s)
+                exclus pour donnée protéique manquante.
+              </p>
+            </div>
+          )}
 
           {/* Phase 34D — headline numbers inline so the wizard is self-sufficient */}
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -1185,6 +1289,18 @@ export default function WorkflowWizardPage() {
     });
   }
 
+  // Phase 34K — partial calculation: same as handleCreateRun but
+  // passes allow_partial=true so the backend lets the run through
+  // when products are missing nutrition data.
+  function handleCreateRunPartial() {
+    if (!status) return;
+    const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
+    void runAction(async () => {
+      await api.createRun(projectId, methodology, { allow_partial: true });
+      advanceTo(7);
+    });
+  }
+
   // ----------- render -----------
 
   if (loadError) {
@@ -1362,6 +1478,7 @@ export default function WorkflowWizardPage() {
             busy={busy}
             error={actionError}
             onRun={handleCreateRun}
+            onRunPartial={handleCreateRunPartial}
             onGoToStep={advanceTo}
           />
         )}

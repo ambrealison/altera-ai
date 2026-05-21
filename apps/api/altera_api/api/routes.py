@@ -1259,6 +1259,12 @@ def bulk_action_route(
 class RunCreateRequest(BaseModel):
     methodology: Methodology
     use_enriched_nutrition: bool = False
+    # Phase 34K — when True, the run is allowed even if some products
+    # are missing usable nutrition data. The calculation engine
+    # naturally skips those products; the run summary carries explicit
+    # coverage metrics so the report can disclose what fraction of
+    # the input is actually represented in the result.
+    allow_partial: bool = False
 
 
 class RunResponse(BaseModel):
@@ -1290,6 +1296,12 @@ def create_run(
     # eligible rows. The workflow status aggregator centralises the
     # blocking-reasons logic so the runs page and the guided workflow
     # page see the same gate.
+    # Phase 34K — when ``allow_partial=True``, a remaining
+    # ``nutrition_required`` blocker is acceptable: the calculation
+    # engine skips products without usable nutrition and the run
+    # summary carries coverage metrics so the report discloses what
+    # the calculation actually covers. Classification / review /
+    # zero-eligible blockers still hard-block the run.
     if body.methodology is Methodology.PROTEIN_TRACKER:
         from altera_api.api.workflow import compute_workflow_status
 
@@ -1298,7 +1310,17 @@ def create_run(
             (s for s in status_payload.steps if s.key == "calculation"),
             None,
         )
-        if calc_step is None or calc_step.status != "ready":
+        blockers = list(calc_step.blocking_reasons) if calc_step else []
+        if body.allow_partial:
+            blockers = [b for b in blockers if b.code != "nutrition_required"]
+        run_ready = (
+            calc_step is not None
+            and (
+                calc_step.status == "ready"
+                or (body.allow_partial and not blockers)
+            )
+        )
+        if not run_ready:
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -1366,6 +1388,18 @@ def create_run(
                 "postgrest_hint": getattr(exc, "hint", None),
             },
         ) from exc
+    # Phase 34K — coverage metrics. Compute what fraction of the
+    # eligible PT products and eligible volume actually made it into
+    # the calculated run. The run record itself is unchanged (the
+    # calculation engine already filtered to usable rows); we
+    # decorate the response summary so the frontend can show the
+    # coverage banner without a second round-trip.
+    if body.methodology is Methodology.PROTEIN_TRACKER:
+        coverage = _compute_pt_coverage(store, project, record.rows_count)
+        decorated_summary = dict(record.summary_payload)
+        decorated_summary["coverage"] = coverage
+    else:
+        decorated_summary = record.summary_payload
     return RunResponse(
         id=record.id,
         project_id=record.project_id,
@@ -1373,8 +1407,71 @@ def create_run(
         rows_count=record.rows_count,
         started_at=record.started_at.isoformat(),
         finished_at=record.finished_at.isoformat() if record.finished_at else None,
-        summary=record.summary_payload,
+        summary=decorated_summary,
     )
+
+
+def _compute_pt_coverage(
+    store: StoreProtocol, project: Project, rows_count: int
+) -> dict[str, object]:
+    """Coverage metrics for a Protein Tracker run.
+
+    Counts how many of the project's PT-eligible products actually
+    contributed to the calculation versus how many were dropped for
+    lack of usable nutrition. The frontend uses these to render the
+    "Le ratio a été calculé sur X% des produits" disclosure.
+    """
+    products = store.list_products_for_project(project.id)
+    pt_total = 0
+    volume_total = Decimal("0")
+    volume_eligible = Decimal("0")
+    eligible_ids: set[UUID] = set()
+    from altera_api.domain.enrichment import NutritionEnrichmentStatus
+
+    for p in products:
+        if p.pt_fields is None:
+            continue
+        pt_total += 1
+        items = p.pt_fields.items_purchased
+        if items is not None:
+            volume_total += Decimal(str(items))
+        classification = store.get_pt_classification(p.id)
+        if classification is None or classification.pt_group.value == "unknown":
+            continue
+        has_retailer_value = p.pt_fields.protein_pct is not None
+        has_enrichment = False
+        if not has_retailer_value:
+            records = store.get_enrichment_records_for_product(p.id)
+            has_enrichment = any(
+                r.nutrient == "protein_pct"
+                and r.status is NutritionEnrichmentStatus.ENRICHED
+                and r.enriched_value is not None
+                for r in records
+            )
+        if has_retailer_value or has_enrichment:
+            eligible_ids.add(p.id)
+            if items is not None:
+                volume_eligible += Decimal(str(items))
+
+    pt_eligible = len(eligible_ids)
+    excluded = max(0, pt_total - rows_count)
+    product_pct = float(100 * rows_count / pt_total) if pt_total > 0 else 0.0
+    volume_pct = (
+        float(100 * volume_eligible / volume_total)
+        if volume_total > 0
+        else 0.0
+    )
+    return {
+        "total_products_start": pt_total,
+        "eligible_products_total": pt_eligible,
+        "products_included_in_calculation": rows_count,
+        "products_excluded_missing_nutrition": excluded,
+        "product_coverage_pct": round(product_pct, 1),
+        "volume_total_start": str(volume_total),
+        "volume_included_in_calculation": str(volume_eligible),
+        "volume_coverage_pct": round(volume_pct, 1),
+        "is_partial": excluded > 0,
+    }
 
 
 @api_router.get(
@@ -3297,6 +3394,56 @@ def apply_reference_enrichment_route(
                     NutritionEnrichmentSource.NEVO,
                     confidence,
                     f"{rationale}; PROTAN value",
+                    match_method=match_method,
+                )
+            )
+            counts[with_split_counter] += 1
+        else:
+            # Phase 34K — NEVO provided total protein but no plant/
+            # animal split. Derive the split from the product's PT
+            # classification when it is unambiguous:
+            #   plant_based_core / plant_based_non_core  → 100% plant
+            #   animal_core                               → 100% animal
+            # Composite or unknown classifications are left to the
+            # CIQUAL+AI fallback / manual review path so we never
+            # silently invent a split for ambiguous products.
+            classification = store.get_pt_classification(product_id)
+            if classification is None:
+                return
+            pt_group = classification.pt_group.value
+            plant_pct: Decimal | None = None
+            animal_pct: Decimal | None = None
+            if pt_group in ("plant_based_core", "plant_based_non_core"):
+                plant_pct = entry.protein_g_per_100g
+                animal_pct = Decimal("0")
+            elif pt_group == "animal_core":
+                plant_pct = Decimal("0")
+                animal_pct = entry.protein_g_per_100g
+            if plant_pct is None or animal_pct is None:
+                return
+            split_note = (
+                f"{rationale}; classification_assumption split "
+                f"({pt_group})"
+            )
+            store.add_enrichment_record(
+                _record(
+                    product_id,
+                    "plant_protein_pct",
+                    plant_pct,
+                    NutritionEnrichmentSource.NEVO,
+                    confidence,
+                    split_note,
+                    match_method=match_method,
+                )
+            )
+            store.add_enrichment_record(
+                _record(
+                    product_id,
+                    "animal_protein_pct",
+                    animal_pct,
+                    NutritionEnrichmentSource.NEVO,
+                    confidence,
+                    split_note,
                     match_method=match_method,
                 )
             )

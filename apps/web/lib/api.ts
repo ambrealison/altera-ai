@@ -1122,10 +1122,24 @@ export function createApi(accessToken: string | null) {
         accessToken,
       ),
 
-    createRun: (projectId: string, methodology: Methodology) =>
+    createRun: (
+      projectId: string,
+      methodology: Methodology,
+      options?: { allow_partial?: boolean },
+    ) =>
       request<Run>(
         `/api/v1/projects/${projectId}/runs`,
-        { method: "POST", body: JSON.stringify({ methodology }) },
+        {
+          method: "POST",
+          body: JSON.stringify({
+            methodology,
+            // Phase 34K — when true, the run is allowed even if some
+            // products have no usable nutrition data. The calculation
+            // engine drops those products; the run summary carries
+            // coverage metrics so the report can disclose the gap.
+            allow_partial: options?.allow_partial ?? false,
+          }),
+        },
         accessToken,
       ),
     listRuns: (projectId: string) =>
