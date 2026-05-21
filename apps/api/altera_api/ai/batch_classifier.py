@@ -8,26 +8,47 @@ Verdict types and the threshold semantics are intentionally identical
 to ``classifier.py`` so existing storage and review-queue logic do not
 need to change.
 
-Parse-failure policy: a single bad JSON response from the batched
-provider call no longer dooms every product in the batch. We:
+Phase 34H — tolerant parsing + repair retry. The model occasionally:
 
-1. Try to parse the response as ``{"results": [...]}``.
-2. For each input id, look up its matching result by id.
-3. If a result is missing or malformed for one product, that single
-   product gets :class:`AINeedsReviewParseFailed`; the rest are still
+* wraps its JSON in ``` ```json ``` ``` markdown fences;
+* prefixes the JSON with prose like "Here is the result:";
+* returns a bare JSON array instead of the documented ``{"results": [...]}``
+  envelope;
+* leaves out the ``id`` field, returns French category labels instead of
+  the internal enums, or invents a new category entirely.
+
+Before Phase 34H any of these failure modes turned the entire batch
+into 14/14 parse failures. After Phase 34H:
+
+1. ``extract_json_object`` strips markdown fences, BOM, zero-width
+   chars, and leading/trailing prose, then finds the outermost JSON
+   value. Bare arrays are wrapped as ``{"results": [...]}``.
+2. ``_normalize_pt_category`` accepts common French and English labels
+   ("Végétal — cœur", "plant", "animal core") and maps them to the
+   stable internal enum values.
+3. If the whole batch parse fails, the orchestrator runs ONE repair
+   call with a stricter, very short system message. If THAT also
+   fails, every product in the batch is marked parse_failed and the
+   wizard surfaces the diagnostic.
+4. Per-row failures (missing id, invalid category after normalisation)
+   only fail that single row — the rest of the batch is still
    classified normally.
 
-This is the behaviour the wizard needs to never report "0 classified /
-N failed" again on ordinary retailer CSVs.
+Privacy: diagnostic samples are truncated to the first 500 chars and
+contain only what the provider sent back (no product data, no
+commercial fields).
 """
 
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import ValidationError as _PydanticValidationError
 
@@ -35,6 +56,7 @@ from altera_api.ai.batch_prompt import (
     BATCH_CLASSIFIER_PROMPT_VERSION,
     DEFAULT_BATCH_SIZE,
     build_batch_classifier_prompt,
+    build_repair_batch_classifier_prompt,
 )
 from altera_api.ai.classifier import (
     AIAccepted,
@@ -77,27 +99,219 @@ def _chunked(
         yield seq[i : i + n]
 
 
-def _parse_results_envelope(raw_text: str) -> list[dict[str, object]]:
-    """Extract the ``results`` array from the model's batched response.
+# ---------------------------------------------------------------------------
+# Tolerant JSON extraction
+# ---------------------------------------------------------------------------
 
-    Tolerant of the model wrapping its answer in surrounding prose by
-    searching for the outermost ``{...}``. The strict per-row validation
-    happens after the envelope is found.
+_ZERO_WIDTH_RE = re.compile(r"[​-‍﻿]")
+_FENCE_OPEN_RE = re.compile(r"^```(?:json|JSON)?\s*", re.MULTILINE)
+_FENCE_CLOSE_RE = re.compile(r"\s*```\s*$", re.MULTILINE)
+
+
+def _strip_invisibles(text: str) -> str:
+    """Remove BOM and zero-width characters that occasionally appear at
+    the start of LLM responses and break JSON parsing."""
+    return _ZERO_WIDTH_RE.sub("", text.lstrip("﻿"))
+
+
+def _strip_markdown_fences(text: str) -> str:
+    """Strip a leading/trailing markdown code fence if present.
+
+    Some models reliably wrap their JSON in ``` ```json ``` ``` even
+    after being told not to. We accept that and unwrap it.
     """
-    start = raw_text.find("{")
-    end = raw_text.rfind("}")
-    if start == -1 or end == -1 or end < start:
-        raise ValueError("no JSON object in batched response")
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = _FENCE_OPEN_RE.sub("", stripped, count=1)
+        stripped = _FENCE_CLOSE_RE.sub("", stripped, count=1)
+    return stripped.strip()
+
+
+def _find_outermost_json(text: str) -> str:
+    """Return the slice from the first ``{``/``[`` to the matching
+    ``}``/``]`` based on outermost brackets.
+
+    Models sometimes prefix the JSON with prose ("Here is the
+    result:..."). Slicing to the first opener and last matching closer
+    lets the parser see the JSON without the prose. If both ``{`` and
+    ``[`` appear, we pick whichever comes first.
+    """
+    first_brace = text.find("{")
+    first_bracket = text.find("[")
+    if first_brace == -1 and first_bracket == -1:
+        raise ValueError("no JSON object or array found in response")
+    starts_with_array = first_bracket != -1 and (
+        first_brace == -1 or first_bracket < first_brace
+    )
+    if starts_with_array:
+        end = text.rfind("]")
+        if end == -1 or end < first_bracket:
+            raise ValueError("array opens but does not close")
+        return text[first_bracket : end + 1]
+    end = text.rfind("}")
+    if end == -1 or end < first_brace:
+        raise ValueError("object opens but does not close")
+    return text[first_brace : end + 1]
+
+
+def extract_json_object(raw_text: str) -> dict[str, Any]:
+    """Recover ``{"results": [...]}`` from a possibly-messy LLM response.
+
+    Tolerates:
+    - leading BOM / zero-width characters,
+    - markdown ``` ```json ``` ``` fences,
+    - leading/trailing prose,
+    - the model returning a bare JSON array instead of the envelope,
+    - the model returning a single result dict instead of an array,
+    - alternative envelope keys (``products``, ``items``).
+
+    Raises :class:`ValueError` only when nothing JSON-shaped survives
+    the recovery. The caller treats that as a parse failure and may
+    decide to run a repair retry.
+    """
+    cleaned = _strip_markdown_fences(_strip_invisibles(raw_text))
+    if not cleaned:
+        raise ValueError("response was empty after stripping fences/whitespace")
     try:
-        envelope = json.loads(raw_text[start : end + 1])
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"JSON decode failed: {exc.msg}") from exc
-    if not isinstance(envelope, dict):
-        raise ValueError("batched response top-level must be an object")
-    results = envelope.get("results")
-    if not isinstance(results, list):
-        raise ValueError("batched response missing `results` array")
-    return [r for r in results if isinstance(r, dict)]
+        parsed: Any = json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Last-ditch: find the outermost JSON slice in the original text.
+        sliced = _find_outermost_json(cleaned)
+        try:
+            parsed = json.loads(sliced)
+        except json.JSONDecodeError as exc2:
+            raise ValueError(f"JSON decode failed: {exc2.msg}") from exc2
+
+    # Case A: already a list — wrap as the documented envelope.
+    if isinstance(parsed, list):
+        return {"results": parsed}
+
+    if not isinstance(parsed, dict):
+        raise ValueError(
+            f"top-level JSON must be an object or array, got {type(parsed).__name__}"
+        )
+
+    # Case B: documented envelope.
+    if isinstance(parsed.get("results"), list):
+        return parsed
+
+    # Case C: alternative envelope keys.
+    for alt_key in ("products", "items", "classifications", "rows"):
+        v = parsed.get(alt_key)
+        if isinstance(v, list):
+            return {"results": v}
+
+    # Case D: single row returned without an envelope.
+    if "id" in parsed and ("pt_group" in parsed or "wwf_food_group" in parsed):
+        return {"results": [parsed]}
+
+    # Case E: dict whose first list-valued entry IS the results.
+    for v in parsed.values():
+        if isinstance(v, list):
+            return {"results": v}
+
+    raise ValueError("could not find a results array in the response")
+
+
+# ---------------------------------------------------------------------------
+# Category normalisation
+# ---------------------------------------------------------------------------
+
+
+def _slug(s: str) -> str:
+    """Lower, accent-strip, collapse non-alphanum to single underscores."""
+    normalized = unicodedata.normalize("NFKD", s)
+    ascii_s = "".join(c for c in normalized if not unicodedata.combining(c))
+    ascii_s = ascii_s.lower()
+    ascii_s = re.sub(r"[^a-z0-9]+", "_", ascii_s)
+    return ascii_s.strip("_")
+
+
+#: French and English labels the model often returns mapped to the
+#: stable internal enum values. Keys are the slugged form so we can
+#: match accent-free.
+_PT_CATEGORY_ALIASES: dict[str, str] = {
+    # Canonical enum values pass through unchanged.
+    "plant_based_core": "plant_based_core",
+    "plant_based_non_core": "plant_based_non_core",
+    "composite_products": "composite_products",
+    "animal_core": "animal_core",
+    "out_of_scope": "out_of_scope",
+    "unknown": "unknown",
+    # French wizard labels.
+    "vegetal_coeur": "plant_based_core",
+    "vegetal_c_ur": "plant_based_core",  # NFKD of "cœur"
+    "plant_core": "plant_based_core",
+    "plant": "plant_based_core",
+    "vegetal_hors_coeur": "plant_based_non_core",
+    "vegetal_hors_c_ur": "plant_based_non_core",
+    "plant_non_core": "plant_based_non_core",
+    "plant_based": "plant_based_core",
+    "non_core_plant_based": "plant_based_non_core",
+    "composite": "composite_products",
+    "compose": "composite_products",
+    "compound": "composite_products",
+    "mixed": "composite_products",
+    "animal": "animal_core",
+    "animal_coeur": "animal_core",
+    "animal_c_ur": "animal_core",
+    "viande": "animal_core",
+    "dairy": "animal_core",
+    "hors_perimetre": "out_of_scope",
+    "out_perimeter": "out_of_scope",
+    "n_a": "out_of_scope",
+    "na": "out_of_scope",
+    "inconnu": "unknown",
+}
+
+
+def _normalize_pt_category(raw: str) -> str | None:
+    """Map a raw category string (FR label, alias, enum value) to the
+    canonical PT enum value, or return None if no mapping applies.
+
+    The caller treats None as "unsupported category" and routes that
+    single row to manual review with reason ``unsupported_category``.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    slug = _slug(raw)
+    if not slug:
+        return None
+    direct = _PT_CATEGORY_ALIASES.get(slug)
+    if direct is not None:
+        return direct
+    # Loose fallback: any slug starting with a known prefix.
+    for needle, canonical in _PT_CATEGORY_ALIASES.items():
+        if slug == needle or slug.startswith(needle + "_"):
+            return canonical
+    return None
+
+
+#: WWF top-level groups. The batched prompt only asks for the top-level
+#: food group (FG1..FG7) plus the out_of_scope/unknown system states.
+_WWF_CATEGORY_ALIASES: dict[str, str] = {
+    "fg1": "FG1",
+    "fg2": "FG2",
+    "fg3": "FG3",
+    "fg4": "FG4",
+    "fg5": "FG5",
+    "fg6": "FG6",
+    "fg7": "FG7",
+    "out_of_scope": "out_of_scope",
+    "unknown": "unknown",
+}
+
+
+def _normalize_wwf_category(raw: str) -> str | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    slug = _slug(raw)
+    return _WWF_CATEGORY_ALIASES.get(slug)
+
+
+# ---------------------------------------------------------------------------
+# Per-row parsing
+# ---------------------------------------------------------------------------
 
 
 def _result_for_id(
@@ -112,20 +326,16 @@ def _result_for_id(
 def _coerce_pt_result(
     raw_row: dict[str, object], methodology_value: str
 ) -> PTClassifierResult:
-    """Build a strict PTClassifierResult from a per-row batch dict.
-
-    The batched response uses a flat per-row shape (id, pt_group,
-    confidence, rationale). We materialise that into the existing
-    :class:`PTClassifierResult` so downstream storage uses the same
-    type as the single-product path.
-    """
-    pt_group = raw_row.get("pt_group")
+    pt_group_raw = raw_row.get("pt_group")
     confidence = raw_row.get("confidence")
     rationale = raw_row.get("rationale") or ""
-    if not isinstance(pt_group, str):
+    if not isinstance(pt_group_raw, str):
         raise ValueError("pt_group missing or not a string")
     if not isinstance(confidence, (int, float)):
         raise ValueError("confidence missing or not numeric")
+    pt_group = _normalize_pt_category(pt_group_raw)
+    if pt_group is None:
+        raise ValueError(f"unsupported pt_group {pt_group_raw!r}")
     return PTClassifierResult.model_validate(
         {
             "methodology": methodology_value,
@@ -139,23 +349,17 @@ def _coerce_pt_result(
 def _coerce_wwf_result(
     raw_row: dict[str, object], methodology_value: str
 ) -> WWFClassifierResult:
-    """Same idea for WWF — minimal coercion, then strict validation.
-
-    The batched WWF prompt only asks for the top-level food group and
-    composite flag; subgroup detail is left for the deterministic /
-    manual / nutrition phases to populate. We satisfy
-    :class:`WWFClassifierResult`'s subgroup-required validator by
-    relying on its existing behaviour for system states (FG-out_of_scope
-    and unknown require NO subgroup fields).
-    """
-    wwf_food_group = raw_row.get("wwf_food_group")
+    wwf_food_group_raw = raw_row.get("wwf_food_group")
     confidence = raw_row.get("confidence")
     rationale = raw_row.get("rationale") or ""
     is_composite = bool(raw_row.get("wwf_is_composite", False))
-    if not isinstance(wwf_food_group, str):
+    if not isinstance(wwf_food_group_raw, str):
         raise ValueError("wwf_food_group missing or not a string")
     if not isinstance(confidence, (int, float)):
         raise ValueError("confidence missing or not numeric")
+    wwf_food_group = _normalize_wwf_category(wwf_food_group_raw)
+    if wwf_food_group is None:
+        raise ValueError(f"unsupported wwf_food_group {wwf_food_group_raw!r}")
     return WWFClassifierResult.model_validate(
         {
             "methodology": methodology_value,
@@ -165,6 +369,26 @@ def _coerce_wwf_result(
             "rationale": str(rationale)[:240],
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Top-level batch orchestrator
+# ---------------------------------------------------------------------------
+
+
+def _safe_diag(raw_text: str | None, max_chars: int = 500) -> str:
+    """Truncate raw response for safe diagnostic logging.
+
+    Strips zero-width characters so the diagnostic actually reflects
+    what we saw, and caps length so a verbose model cannot blow up
+    the wizard's sample_errors list.
+    """
+    if not raw_text:
+        return ""
+    cleaned = _strip_invisibles(raw_text)
+    if len(cleaned) <= max_chars:
+        return cleaned
+    return cleaned[:max_chars] + "…"
 
 
 def batch_classify(
@@ -183,6 +407,12 @@ def batch_classify(
     AIProviderError or batched-response parse failure does NOT poison
     the whole input; only the affected batch (or per-product result
     within a batch) is marked failed.
+
+    Phase 34H: if the initial response from the model cannot be parsed
+    even after tolerant extraction, the orchestrator runs ONE repair
+    call with a stricter prompt. If the repair also fails, all products
+    in the batch are marked parse_failed and the diagnostic includes
+    the first 500 chars of the bad response.
     """
     out: list[AIVerdict] = []
     batch_count = 0
@@ -192,8 +422,6 @@ def batch_classify(
     sample_errors: list[str] = []
 
     def _maybe_sample(msg: str) -> None:
-        # Keep at most the first 10 distinct sample errors so the
-        # diagnostic counter does not unbounded-grow on a bad day.
         if len(sample_errors) < 10:
             sample_errors.append(msg)
 
@@ -209,9 +437,6 @@ def batch_classify(
         try:
             response = provider.batch_classify(prompt)
         except ProviderError as exc:
-            # Whole batch failed at provider level; mark each product
-            # with a ProviderError verdict so the orchestrator routes
-            # them to manual review with reason ``ai_provider_error``.
             provider_errors += len(chunk)
             _maybe_sample(f"provider_error: {exc}")
             for p in chunk:
@@ -224,9 +449,6 @@ def batch_classify(
                 )
             continue
         except NotImplementedError:
-            # Provider does not support batch — caller should have
-            # checked supports_batch(); fall through with a uniform
-            # provider-error verdict so the wizard surfaces the cause.
             provider_errors += len(chunk)
             _maybe_sample("provider does not support batch classification")
             for p in chunk:
@@ -239,29 +461,89 @@ def batch_classify(
                 )
             continue
 
+        # Phase 34H — tolerant envelope extraction + optional repair retry.
+        results: list[dict[str, object]] | None = None
+        parse_error: str | None = None
         try:
-            results = _parse_results_envelope(response.raw_text)
+            envelope = extract_json_object(response.raw_text)
+            raw_results = envelope.get("results")
+            assert isinstance(raw_results, list)
+            results = [r for r in raw_results if isinstance(r, dict)]
         except ValueError as exc:
-            # The batched response itself is unparseable — every product
-            # in the chunk gets a parse_failed verdict.
-            parse_failures += len(chunk)
-            _maybe_sample(f"parse_failed: {exc}")
-            for p in chunk:
-                out.append(
-                    AINeedsReviewParseFailed(
-                        product_id=p.id,
-                        methodology=methodology,
-                        first_error=str(exc),
-                        second_error=str(exc),
-                    )
-                )
-            continue
+            parse_error = str(exc)
 
+        # If the envelope was parseable but every input id is missing
+        # from the results, also treat the response as repair-worthy.
+        ids_present = (
+            results is not None
+            and any(
+                _result_for_id(results, str(p.id)) is not None for p in chunk
+            )
+        )
+
+        if results is None or not ids_present:
+            # ONE repair retry per batch.
+            diag = _safe_diag(response.raw_text)
+            _maybe_sample(
+                f"parse_failed: {parse_error or 'no input ids matched'} | "
+                f"raw[:500]={diag!r}"
+            )
+            repair_prompt = build_repair_batch_classifier_prompt(
+                items,
+                methodology,
+                bad_response=diag,
+                prompt_version=prompt_version,
+            )
+            try:
+                repair_response = provider.batch_classify(repair_prompt)
+            except ProviderError as exc:
+                provider_errors += len(chunk)
+                _maybe_sample(f"repair_provider_error: {exc}")
+                for p in chunk:
+                    out.append(
+                        AIProviderError(
+                            product_id=p.id,
+                            methodology=methodology,
+                            message=str(exc),
+                        )
+                    )
+                continue
+            try:
+                envelope = extract_json_object(repair_response.raw_text)
+                raw_results = envelope.get("results")
+                assert isinstance(raw_results, list)
+                results = [r for r in raw_results if isinstance(r, dict)]
+                response = repair_response
+            except ValueError as exc:
+                # Repair failed too — every product in the batch
+                # becomes parse_failed.
+                parse_failures += len(chunk)
+                _maybe_sample(
+                    f"repair_failed: {exc} | raw[:500]="
+                    f"{_safe_diag(repair_response.raw_text)!r}"
+                )
+                for p in chunk:
+                    out.append(
+                        AINeedsReviewParseFailed(
+                            product_id=p.id,
+                            methodology=methodology,
+                            first_error=parse_error or "",
+                            second_error=str(exc),
+                        )
+                    )
+                continue
+
+        assert results is not None  # for type checker
+
+        # Per-row dispatch. Missing id / unsupported category only
+        # fail that single row.
         for p in chunk:
             row = _result_for_id(results, str(p.id))
             if row is None:
                 parse_failures += 1
-                _maybe_sample("parse_failed: id missing from batched response")
+                _maybe_sample(
+                    f"parse_failed: id {p.id} missing from batched response"
+                )
                 out.append(
                     AINeedsReviewParseFailed(
                         product_id=p.id,
@@ -277,27 +559,22 @@ def batch_classify(
                 else:
                     result = _coerce_wwf_result(row, methodology.value)
             except (ValueError, _PydanticValidationError) as exc:
-                # Treat "unsupported category" (an enum the model
-                # invented) and "schema failure" as the same kind of
-                # parse failure from the route's point of view, but
-                # break out the unsupported_category subcounter when
-                # we can detect it. The error_count() / message path is
-                # different between pydantic versions; conservative
-                # heuristic: any time the row has a string pt_group/
-                # wwf_food_group but coercion failed, count it as
-                # unsupported category.
                 raw_cat = row.get("pt_group") or row.get("wwf_food_group")
+                msg = str(exc)
                 if isinstance(raw_cat, str):
                     unsupported_category_failures += 1
+                    _maybe_sample(
+                        f"unsupported_category: {raw_cat!r} ({msg})"
+                    )
                 else:
                     parse_failures += 1
-                _maybe_sample(f"parse_failed: {exc}")
+                    _maybe_sample(f"parse_failed: {msg}")
                 out.append(
                     AINeedsReviewParseFailed(
                         product_id=p.id,
                         methodology=methodology,
-                        first_error=str(exc),
-                        second_error=str(exc),
+                        first_error=msg,
+                        second_error=msg,
                     )
                 )
                 continue

@@ -37,6 +37,99 @@ _DEFAULT_MODEL = "gpt-4o-mini"
 # config change re-runs the detection on the first call.
 _TOKEN_PARAM_CACHE: dict[str, str] = {}
 
+# Phase 34H — cache which response_format variant each model accepts.
+# Values: "json_schema" (preferred — strict JSON enforced server-side)
+# or "json_object" (older models / endpoints that don't support
+# json_schema).
+_RESPONSE_FORMAT_CACHE: dict[str, str] = {}
+
+
+#: JSON Schema used when the model supports Structured Outputs. Mirrors
+#: the documented batched response: {"results": [{id, pt_group,
+#: confidence, rationale}, ...]}. We do not enumerate enum values in
+#: the schema (OpenAI's json_schema strict mode rejects schemas with
+#: long enum unions on some models); the parser normalises French
+#: labels on the way back instead.
+_PT_BATCH_JSON_SCHEMA: dict[str, Any] = {
+    "name": "altera_pt_batch_classification",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "results": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "pt_group": {"type": "string"},
+                        "confidence": {"type": "number"},
+                        "rationale": {"type": "string"},
+                    },
+                    "required": ["id", "pt_group", "confidence", "rationale"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["results"],
+        "additionalProperties": False,
+    },
+}
+
+_WWF_BATCH_JSON_SCHEMA: dict[str, Any] = {
+    "name": "altera_wwf_batch_classification",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "results": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "wwf_food_group": {"type": "string"},
+                        "wwf_is_composite": {"type": "boolean"},
+                        "confidence": {"type": "number"},
+                        "rationale": {"type": "string"},
+                    },
+                    "required": [
+                        "id",
+                        "wwf_food_group",
+                        "wwf_is_composite",
+                        "confidence",
+                        "rationale",
+                    ],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["results"],
+        "additionalProperties": False,
+    },
+}
+
+
+def _is_response_format_rejection(exc: BaseException) -> bool:
+    """Detect a 400 indicating the model rejected the json_schema
+    response_format. The exact wording varies across models, so we
+    check for a small handful of keywords.
+
+    Examples encountered:
+    * "Invalid value: 'json_schema'."
+    * "response_format' of type 'json_schema' is not supported with
+       this model."
+    * "Unsupported value: 'response_format.type'"
+    """
+    msg = str(exc).lower()
+    if "json_schema" not in msg and "response_format" not in msg:
+        return False
+    return (
+        "unsupported" in msg
+        or "invalid value" in msg
+        or "not supported" in msg
+    )
+
 
 def _unsupported_max_tokens(exc: BaseException) -> bool:
     """Detect OpenAI's "(max_tokens|max_completion_tokens) is not supported" 400.
@@ -73,52 +166,96 @@ def _create_chat_completion(
     model: str,
     messages: list[dict[str, str]],
     max_output_tokens: int,
-    response_format: dict[str, str],
+    response_format: dict[str, Any],
+    response_format_fallback: dict[str, Any] | None = None,
     temperature: float = 0,
 ) -> Any:
-    """Call ``client.chat.completions.create`` with token-param fallback.
+    """Call ``client.chat.completions.create`` with two compatibility
+    fallbacks layered together:
 
-    Tries ``max_completion_tokens`` first (the newer name). If the
-    server replies with the specific "max_tokens is not supported"
-    BadRequest, retry once with ``max_tokens``. The successful name is
-    cached per-model so a 15k-row classify run only pays the detection
-    cost on the first call.
+    1. **Token-parameter** — prefer ``max_completion_tokens`` (the
+       modern name). On a "max_tokens is not supported" 400, retry once
+       with ``max_tokens``. Cached per model.
+    2. **Response-format** — if ``response_format_fallback`` is set
+       (typically a json_object form for models that don't support
+       json_schema strict mode), and the server returns a 400 that
+       rejects the primary ``response_format``, retry once with the
+       fallback. Cached per model.
+
+    The two retries do not stack on the same call: a token-parameter
+    error retries with the OTHER token name (same response_format), and
+    a response-format error retries with the FALLBACK response_format
+    (same token name). At most two HTTP attempts per call.
     """
-    cached = _TOKEN_PARAM_CACHE.get(model)
-    order: list[str]
-    if cached == "max_tokens":
-        order = ["max_tokens", "max_completion_tokens"]
+    # Pick the response_format up-front based on the per-model cache so
+    # we don't try json_schema on a model we already know rejects it.
+    cached_rf = _RESPONSE_FORMAT_CACHE.get(model)
+    if (
+        cached_rf == "json_object"
+        and response_format_fallback is not None
+        and response_format.get("type") == "json_schema"
+    ):
+        rf_to_use = response_format_fallback
+        rf_used_is_fallback = True
     else:
-        # Prefer the modern name by default. Even when cached is
-        # "max_completion_tokens" we keep the fallback in case the
-        # backend hot-swaps the model behind the scenes.
-        order = ["max_completion_tokens", "max_tokens"]
+        rf_to_use = response_format
+        rf_used_is_fallback = False
+
+    cached_tp = _TOKEN_PARAM_CACHE.get(model)
+    token_order: list[str]
+    if cached_tp == "max_tokens":
+        token_order = ["max_tokens", "max_completion_tokens"]
+    else:
+        token_order = ["max_completion_tokens", "max_tokens"]
 
     last_exc: BaseException | None = None
-    for attempt, name in enumerate(order):
+    for token_attempt, token_name in enumerate(token_order):
         kwargs: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "temperature": temperature,
-            "response_format": response_format,
-            name: max_output_tokens,
+            "response_format": rf_to_use,
+            token_name: max_output_tokens,
         }
         try:
             result = client.chat.completions.create(**kwargs)
-            _TOKEN_PARAM_CACHE[model] = name
+            _TOKEN_PARAM_CACHE[model] = token_name
+            _RESPONSE_FORMAT_CACHE[model] = (
+                "json_object" if rf_used_is_fallback else rf_to_use.get("type", "json_object")
+            )
             return result
         except Exception as exc:  # noqa: BLE001 — OpenAI raises various types
             last_exc = exc
-            # Only retry on the specific "unsupported parameter" 400.
-            # Any other error (auth, rate-limit, network) is fatal.
-            if attempt == 0 and _unsupported_max_tokens(exc):
+            # Token-name retry.
+            if token_attempt == 0 and _unsupported_max_tokens(exc):
                 continue
-            # Either it's the second attempt, or it's a different
-            # error class — bubble up to the caller, who wraps it in
-            # ProviderError with the OpenAI message intact.
+            # Response-format retry — only when we have a fallback and
+            # we haven't already swapped to it.
+            if (
+                response_format_fallback is not None
+                and not rf_used_is_fallback
+                and _is_response_format_rejection(exc)
+            ):
+                _RESPONSE_FORMAT_CACHE[model] = "json_object"
+                rf_to_use = response_format_fallback
+                rf_used_is_fallback = True
+                # Retry from the current token-attempt with the new
+                # response_format. We do NOT bump token_attempt because
+                # this is an orthogonal retry; cap the loop manually.
+                try:
+                    kwargs["response_format"] = rf_to_use
+                    result = client.chat.completions.create(**kwargs)
+                    _TOKEN_PARAM_CACHE[model] = token_name
+                    return result
+                except Exception as exc2:  # noqa: BLE001
+                    last_exc = exc2
+                    # If THIS one is a token-name error, fall through
+                    # to the next iteration of the outer loop.
+                    if token_attempt == 0 and _unsupported_max_tokens(exc2):
+                        continue
+                    raise
             raise
 
-    # Defensive — the loop always either returns or raises above.
     assert last_exc is not None
     raise last_exc
 
@@ -201,6 +338,23 @@ class OpenAIProvider(ClassifierProvider):
         # rationale + JSON punctuation). Capped at 8192.
         max_output_tokens = min(8192, 256 + 40 * len(prompt.item_ids))
 
+        # Phase 34H — prefer Structured Outputs (json_schema strict
+        # mode) so the model returns server-validated JSON. If the
+        # configured model does not support json_schema, _create_chat_completion
+        # falls back to plain json_object mode automatically.
+        from altera_api.domain.common import Methodology as _M
+
+        schema = (
+            _PT_BATCH_JSON_SCHEMA
+            if prompt.methodology is _M.PROTEIN_TRACKER
+            else _WWF_BATCH_JSON_SCHEMA
+        )
+        primary_rf: dict[str, Any] = {
+            "type": "json_schema",
+            "json_schema": schema,
+        }
+        fallback_rf: dict[str, Any] = {"type": "json_object"}
+
         try:
             import openai  # lazy import
 
@@ -210,7 +364,8 @@ class OpenAIProvider(ClassifierProvider):
                 model=self._model,
                 messages=messages,
                 max_output_tokens=max_output_tokens,
-                response_format={"type": "json_object"},
+                response_format=primary_rf,
+                response_format_fallback=fallback_rf,
             )
             raw_text: str = response.choices[0].message.content or ""
             return ProviderResponse(raw_text=raw_text, model=self._model)

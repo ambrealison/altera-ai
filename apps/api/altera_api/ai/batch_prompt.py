@@ -249,3 +249,114 @@ def build_batch_classifier_prompt(
         user_message=user_message,
         item_ids=tuple(c.id for c in compacted),
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 34H — repair prompt
+# ---------------------------------------------------------------------------
+
+_PT_REPAIR_SYSTEM = """\
+Your previous response was not valid JSON for the Altera classifier.
+
+Return ONLY a valid JSON object — no markdown fences, no prose, no
+trailing explanation. The object MUST start with `{` and end with `}`.
+
+Required schema:
+{
+  "results": [
+    {
+      "id": "<the exact id you were given>",
+      "pt_group": "<one of: plant_based_core | plant_based_non_core | composite_products | animal_core | out_of_scope | unknown>",
+      "confidence": <number 0.0-1.0>,
+      "rationale": "<one short sentence>"
+    }
+  ]
+}
+
+Rules:
+- Every input id MUST appear exactly once in `results`.
+- `pt_group` MUST be one of the six values above in lower-snake-case.
+- DO NOT add fields beyond {id, pt_group, confidence, rationale}.
+- DO NOT include any text outside the JSON object.
+"""
+
+_WWF_REPAIR_SYSTEM = """\
+Your previous response was not valid JSON for the Altera classifier.
+
+Return ONLY a valid JSON object — no markdown, no prose. Required schema:
+{
+  "results": [
+    {
+      "id": "<the id>",
+      "wwf_food_group": "<one of: FG1 | FG2 | FG3 | FG4 | FG5 | FG6 | FG7 | out_of_scope | unknown>",
+      "wwf_is_composite": <true|false>,
+      "confidence": <number 0.0-1.0>,
+      "rationale": "<short>"
+    }
+  ]
+}
+
+Rules:
+- Every input id MUST appear exactly once.
+- DO NOT include text outside the JSON object.
+"""
+
+
+def build_repair_batch_classifier_prompt(
+    items: list[tuple[str, ClassifierPromptInput]],
+    methodology: Methodology,
+    *,
+    bad_response: str = "",
+    prompt_version: str = BATCH_CLASSIFIER_PROMPT_VERSION,
+) -> BatchClassifierPrompt:
+    """Assemble a shorter, stricter prompt for the parse-failure retry.
+
+    Includes the previous bad response (truncated by the caller) so the
+    model can self-correct. The system message uses the word "JSON"
+    explicitly and lists allowed enum values directly — same privacy
+    guarantees as the main prompt (every per-product payload is
+    re-validated by ``assert_payload_allowed`` before assembly).
+    """
+    if not items:
+        raise ValueError("batch must contain at least one item")
+
+    compacted: list[BatchClassifierItem] = []
+    for item_id, prompt_input in items:
+        payload = prompt_input.to_payload()
+        assert_payload_allowed(payload)
+        compacted.append(
+            BatchClassifierItem(id=item_id, payload=_prune_payload(payload))
+        )
+
+    system_message = (
+        _PT_REPAIR_SYSTEM
+        if methodology is Methodology.PROTEIN_TRACKER
+        else _WWF_REPAIR_SYSTEM
+    )
+
+    lines: list[str] = []
+    if bad_response:
+        # Include the previous bad response so the model can fix it.
+        # The orchestrator already truncated to 500 chars and stripped
+        # zero-width characters, but cap again here defensively.
+        lines.append("Previous invalid response (for context):")
+        lines.append(bad_response[:500])
+        lines.append("")
+    lines.append("Re-classify each product. Respond with strict JSON only.")
+    lines.append("Input products:")
+    import json as _json
+
+    for c in compacted:
+        line = _json.dumps(
+            {"id": c.id, **c.payload}, ensure_ascii=False, separators=(",", ":")
+        )
+        lines.append(line)
+    user_message = "\n".join(lines)
+
+    return BatchClassifierPrompt(
+        methodology=methodology,
+        prompt_version=prompt_version,
+        system_message=system_message,
+        user_message=user_message,
+        item_ids=tuple(c.id for c in compacted),
+    )
