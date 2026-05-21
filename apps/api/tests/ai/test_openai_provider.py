@@ -86,10 +86,18 @@ class TestOpenAIProvider:
                 provider.classify(prompt)
 
     def test_raises_provider_error_when_openai_missing(self) -> None:
-        """ImportError from a missing openai package → ProviderError."""
+        """ImportError from a missing openai package → ProviderError.
+
+        Phase 34G note: the openai SDK is now an installed dependency,
+        so removing it from ``sys.modules`` alone is not enough to
+        make ``import openai`` fail — Python would just re-import it.
+        Setting ``sys.modules['openai'] = None`` makes the import
+        statement raise ``ImportError`` deterministically, which is
+        exactly the scenario this test wants to cover.
+        """
         prompt = _make_prompt()
         prev = sys.modules.get("openai")
-        sys.modules.pop("openai", None)
+        sys.modules["openai"] = None  # type: ignore[assignment]
         try:
             provider = OpenAIProvider(api_key="sk-test")
             with pytest.raises(ProviderError, match="not installed"):
@@ -97,6 +105,8 @@ class TestOpenAIProvider:
         finally:
             if prev is not None:
                 sys.modules["openai"] = prev
+            else:
+                sys.modules.pop("openai", None)
 
     def test_privacy_guard_runs_before_http(self) -> None:
         """The payload must only contain allowed fields."""
