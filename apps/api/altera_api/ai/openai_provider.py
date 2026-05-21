@@ -43,6 +43,81 @@ _TOKEN_PARAM_CACHE: dict[str, str] = {}
 # json_schema).
 _RESPONSE_FORMAT_CACHE: dict[str, str] = {}
 
+# Phase 34J — cache whether ``client.beta.chat.completions.parse`` with
+# a Pydantic response_format works for this model. ``True`` (default
+# when absent) → try the typed parse path first; ``False`` → skip it
+# and use the legacy json_schema/json_object route. Populated on the
+# first call that hits a response_format-rejection error.
+_TYPED_PARSE_CACHE: dict[str, bool] = {}
+
+
+def _use_typed_parse(model: str) -> bool:
+    """Whether to attempt the OpenAI typed-parse path for ``model``.
+
+    Defaults to True for any model we haven't seen a rejection from.
+    The provider flips this to False per-model the first time the
+    typed call returns an "Invalid response_format" or "json_schema
+    not supported" 400.
+    """
+    return _TYPED_PARSE_CACHE.get(model, True)
+
+
+def _typed_batch_parse(
+    client: Any,
+    *,
+    model: str,
+    messages: list[dict[str, str]],
+    max_output_tokens: int,
+) -> str:
+    """Call client.beta.chat.completions.parse with our Pydantic schema
+    and return a JSON string the downstream parser can consume.
+
+    The SDK validates the model's output against the Pydantic schema
+    (server-side strict-mode Structured Outputs) and parses the JSON
+    into Python objects, then we re-serialise back to text so the
+    batch_classifier orchestrator keeps a single uniform parse path.
+    This indirection costs ~1ms but lets the rest of the code stay
+    text-based, which keeps the test fakes simple.
+    """
+    from altera_api.ai.batch_schema import BatchClassificationResponse
+
+    # Token-parameter compatibility: try max_completion_tokens first,
+    # fall back to max_tokens on the specific 400 (mirrors Phase 34G).
+    cached_tp = _TOKEN_PARAM_CACHE.get(model)
+    token_order = (
+        ["max_tokens", "max_completion_tokens"]
+        if cached_tp == "max_tokens"
+        else ["max_completion_tokens", "max_tokens"]
+    )
+    last_exc: BaseException | None = None
+    for attempt, token_name in enumerate(token_order):
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0,
+            "response_format": BatchClassificationResponse,
+            token_name: max_output_tokens,
+        }
+        try:
+            response = client.beta.chat.completions.parse(**kwargs)
+            _TOKEN_PARAM_CACHE[model] = token_name
+            parsed = response.choices[0].message.parsed
+            if parsed is None:
+                # Refusal or empty completion — surface as text so the
+                # tolerant parser can run its checks.
+                raw = response.choices[0].message.content or ""
+                if not raw:
+                    raise RuntimeError("typed parse returned no content")
+                return raw
+            return parsed.model_dump_json()
+        except Exception as exc:  # noqa: BLE001 — OpenAI raises various types
+            last_exc = exc
+            if attempt == 0 and _unsupported_max_tokens(exc):
+                continue
+            raise
+    assert last_exc is not None
+    raise last_exc
+
 
 #: JSON Schema used when the model supports Structured Outputs. Mirrors
 #: the documented batched response: {"results": [{id, pt_group,
@@ -338,27 +413,54 @@ class OpenAIProvider(ClassifierProvider):
         # rationale + JSON punctuation). Capped at 8192.
         max_output_tokens = min(8192, 256 + 40 * len(prompt.item_ids))
 
-        # Phase 34H — prefer Structured Outputs (json_schema strict
-        # mode) so the model returns server-validated JSON. If the
-        # configured model does not support json_schema, _create_chat_completion
-        # falls back to plain json_object mode automatically.
-        from altera_api.domain.common import Methodology as _M
-
-        schema = (
-            _PT_BATCH_JSON_SCHEMA
-            if prompt.methodology is _M.PROTEIN_TRACKER
-            else _WWF_BATCH_JSON_SCHEMA
-        )
-        primary_rf: dict[str, Any] = {
-            "type": "json_schema",
-            "json_schema": schema,
-        }
-        fallback_rf: dict[str, Any] = {"type": "json_object"}
-
         try:
             import openai  # lazy import
 
             client = openai.OpenAI(api_key=self._api_key)
+
+            # Phase 34J — prefer client.beta.chat.completions.parse with
+            # a Pydantic response_format. This routes through OpenAI's
+            # Structured Outputs strict-schema path AND parses the
+            # response into Python objects on the way back, eliminating
+            # the free-text JSON failure modes (missing commas between
+            # fields, dropped quotes) that the earlier chat.completions
+            # .create path suffered from on long batches.
+            #
+            # Only PT batches use the typed path for now — WWF stays on
+            # the legacy json_schema/json_object route because its
+            # multi-subgroup schema is more permissive and the typed
+            # model is correspondingly narrower.
+            from altera_api.domain.common import Methodology as _M
+
+            if prompt.methodology is _M.PROTEIN_TRACKER and _use_typed_parse(
+                self._model
+            ):
+                try:
+                    parsed_text = _typed_batch_parse(
+                        client,
+                        model=self._model,
+                        messages=messages,
+                        max_output_tokens=max_output_tokens,
+                    )
+                    return ProviderResponse(
+                        raw_text=parsed_text, model=self._model
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    # If the .parse() route fails for any reason
+                    # (model rejects schema, SDK version mismatch, etc.)
+                    # remember that for this model and fall through to
+                    # the legacy json_schema/json_object path. We only
+                    # record the negative case so a subsequent run that
+                    # configures a parse-capable model retries cleanly.
+                    if _is_response_format_rejection(exc):
+                        _TYPED_PARSE_CACHE[self._model] = False
+
+            schema = _PT_BATCH_JSON_SCHEMA if prompt.methodology is _M.PROTEIN_TRACKER else _WWF_BATCH_JSON_SCHEMA
+            primary_rf: dict[str, Any] = {
+                "type": "json_schema",
+                "json_schema": schema,
+            }
+            fallback_rf: dict[str, Any] = {"type": "json_object"}
             response = _create_chat_completion(
                 client,
                 model=self._model,

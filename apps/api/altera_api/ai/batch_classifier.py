@@ -154,6 +154,41 @@ def _find_outermost_json(text: str) -> str:
     return text[first_brace : end + 1]
 
 
+#: Phase 34J — targeted "missing comma between fields" repair. The
+#: model occasionally produces output like ``"plant_based_core""confidence"``
+#: (closing quote of one value immediately followed by opening quote
+#: of the next key). The first regex inserts the missing comma between
+#: adjacent strings; the second inserts it between a number and the
+#: next key. Both are *post-hoc* repairs — applied only after a plain
+#: ``json.loads`` fails.
+_REPAIR_STRING_STRING = re.compile(r'"(\s*)"(?=[A-Za-z_])')
+_REPAIR_NUMBER_STRING = re.compile(r'(\d)(\s*)"(?=[A-Za-z_])')
+#: Missing comma between two adjacent objects in an array.
+_REPAIR_OBJECT_OBJECT = re.compile(r"\}(\s*)\{")
+
+
+def _repair_missing_commas(text: str) -> str:
+    """Insert commas the model omitted between adjacent fields/objects.
+
+    Applied conservatively only when the standard parse fails. The
+    three patterns cover the observed production failure mode:
+
+    * ``"value""key"`` → ``"value","key"``
+    * ``42"key"`` → ``42,"key"`` (also catches ``0.9"rationale"``)
+    * ``}{`` → ``},{`` (between objects in an array)
+
+    The regexes do not touch strings that legitimately contain
+    backslash-escaped quotes (``\\"``) because the closing ``"`` of a
+    string with an escaped inner quote still matches and the next
+    char would not be a key-start (alpha or underscore), so the
+    pattern correctly skips it.
+    """
+    out = _REPAIR_STRING_STRING.sub(r'"\1,"', text)
+    out = _REPAIR_NUMBER_STRING.sub(r'\1\2,"', out)
+    out = _REPAIR_OBJECT_OBJECT.sub(r"},\1{", out)
+    return out
+
+
 def extract_json_object(raw_text: str) -> dict[str, Any]:
     """Recover ``{"results": [...]}`` from a possibly-messy LLM response.
 
@@ -163,11 +198,12 @@ def extract_json_object(raw_text: str) -> dict[str, Any]:
     - leading/trailing prose,
     - the model returning a bare JSON array instead of the envelope,
     - the model returning a single result dict instead of an array,
-    - alternative envelope keys (``products``, ``items``).
+    - alternative envelope keys (``products``, ``items``),
+    - Phase 34J: missing commas between adjacent fields/objects.
 
     Raises :class:`ValueError` only when nothing JSON-shaped survives
     the recovery. The caller treats that as a parse failure and may
-    decide to run a repair retry.
+    decide to run a repair retry or partial row extraction.
     """
     cleaned = _strip_markdown_fences(_strip_invisibles(raw_text))
     if not cleaned:
@@ -175,12 +211,25 @@ def extract_json_object(raw_text: str) -> dict[str, Any]:
     try:
         parsed: Any = json.loads(cleaned)
     except json.JSONDecodeError:
-        # Last-ditch: find the outermost JSON slice in the original text.
-        sliced = _find_outermost_json(cleaned)
+        # Phase 34J — try the comma-repair pass before falling through
+        # to the outermost-slice recovery.
+        repaired = _repair_missing_commas(cleaned)
         try:
-            parsed = json.loads(sliced)
-        except json.JSONDecodeError as exc2:
-            raise ValueError(f"JSON decode failed: {exc2.msg}") from exc2
+            parsed = json.loads(repaired)
+        except json.JSONDecodeError:
+            # Last-ditch: find the outermost JSON slice and try again
+            # (repaired form first, original form as a tiebreaker).
+            try:
+                sliced = _find_outermost_json(repaired)
+                parsed = json.loads(sliced)
+            except (ValueError, json.JSONDecodeError):
+                sliced = _find_outermost_json(cleaned)
+                try:
+                    parsed = json.loads(sliced)
+                except json.JSONDecodeError as exc2:
+                    raise ValueError(
+                        f"JSON decode failed even after repair: {exc2.msg}"
+                    ) from exc2
 
     # Case A: already a list — wrap as the documented envelope.
     if isinstance(parsed, list):
@@ -211,6 +260,48 @@ def extract_json_object(raw_text: str) -> dict[str, Any]:
             return {"results": v}
 
     raise ValueError("could not find a results array in the response")
+
+
+# ---------------------------------------------------------------------------
+# Phase 34J — per-row salvage when the envelope is unrecoverable
+# ---------------------------------------------------------------------------
+
+#: Find each plausible row dict in the raw text. Matches ``{...}``
+#: chunks that look row-shaped (contain a quoted ``id`` field). Not a
+#: full JSON parser — just enough to slice candidate rows out of a
+#: response whose envelope is too broken to fix in one pass.
+_ROW_RE = re.compile(
+    r"\{[^{}]*?\"id\"\s*:[^{}]*?\}",
+    re.DOTALL,
+)
+
+
+def extract_rows_partial(raw_text: str) -> list[dict[str, Any]]:
+    """Salvage as many parseable rows as possible from a fully-broken
+    batched response.
+
+    Used only as a last resort, after :func:`extract_json_object`
+    raises. Walks the raw text, slices out each ``{...}`` that looks
+    row-shaped, applies the same missing-comma repair, and parses
+    each row independently. Rows that still fail to parse are
+    silently dropped — the caller will mark the corresponding
+    products as parse_failed.
+
+    Returns an empty list when nothing recoverable was found.
+    """
+    cleaned = _strip_markdown_fences(_strip_invisibles(raw_text))
+    out: list[dict[str, Any]] = []
+    for match in _ROW_RE.finditer(cleaned):
+        chunk = match.group(0)
+        for candidate in (chunk, _repair_missing_commas(chunk)):
+            try:
+                parsed = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict) and "id" in parsed:
+                out.append(parsed)
+                break
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -515,23 +606,45 @@ def batch_classify(
                 results = [r for r in raw_results if isinstance(r, dict)]
                 response = repair_response
             except ValueError as exc:
-                # Repair failed too — every product in the batch
-                # becomes parse_failed.
-                parse_failures += len(chunk)
-                _maybe_sample(
-                    f"repair_failed: {exc} | raw[:500]="
-                    f"{_safe_diag(repair_response.raw_text)!r}"
-                )
-                for p in chunk:
-                    out.append(
-                        AINeedsReviewParseFailed(
-                            product_id=p.id,
-                            methodology=methodology,
-                            first_error=parse_error or "",
-                            second_error=str(exc),
-                        )
+                # Phase 34J — before declaring the whole batch
+                # unparseable, try per-row salvage. If the model's
+                # output is broken at the envelope level but each row
+                # is independently recoverable (the dominant failure
+                # mode in production: 33 missing-comma rows in one
+                # response), we can still classify the rows that parse.
+                salvaged_initial = extract_rows_partial(response.raw_text)
+                salvaged_repair = extract_rows_partial(repair_response.raw_text)
+                # Prefer the repair response when it surfaced more
+                # rows; otherwise stick with the original.
+                if len(salvaged_repair) >= len(salvaged_initial):
+                    salvaged = salvaged_repair
+                    response = repair_response
+                else:
+                    salvaged = salvaged_initial
+                if salvaged:
+                    results = salvaged
+                    _maybe_sample(
+                        f"partial_recovery: {len(salvaged)} row(s) salvaged"
+                        f" from broken envelope ({exc})"
                     )
-                continue
+                else:
+                    # Repair failed and no rows could be salvaged — every
+                    # product in the batch becomes parse_failed.
+                    parse_failures += len(chunk)
+                    _maybe_sample(
+                        f"repair_failed: {exc} | raw[:500]="
+                        f"{_safe_diag(repair_response.raw_text)!r}"
+                    )
+                    for p in chunk:
+                        out.append(
+                            AINeedsReviewParseFailed(
+                                product_id=p.id,
+                                methodology=methodology,
+                                first_error=parse_error or "",
+                                second_error=str(exc),
+                            )
+                        )
+                    continue
 
         assert results is not None  # for type checker
 

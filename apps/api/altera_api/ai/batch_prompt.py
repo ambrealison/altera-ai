@@ -105,19 +105,25 @@ Concrete examples (French retailer names):
 - "Sel Fin de Guérande" → out_of_scope (0.96)
 - "Vinaigre Balsamique" → out_of_scope (0.94)
 
-Response format — RETURN EXACTLY this JSON object, nothing else:
+Response format — RETURN EXACTLY this JSON object, nothing else. Every
+field MUST be separated by a comma. Every string MUST be quoted:
 {
   "results": [
-    {"id": "<the id you were given>", "pt_group": "<one allowed value>", \
-"confidence": <0.0-1.0>, "rationale": "<one short sentence>"}
+    {"id":"p1","pt_group":"plant_based_core","confidence":0.95,"rationale":"fruit"},
+    {"id":"p2","pt_group":"animal_core","confidence":0.96,"rationale":"chicken"}
   ]
 }
 
 Rules:
 - Every input id MUST appear exactly once in `results`.
 - `pt_group` MUST be one of the allowed values, lower-snake-case.
+- `rationale` MUST be at most 8 words. Examples: "vegetable product",
+  "chicken product", "plant-based meat alternative", "mixed animal
+  and plant", "ready meal".
 - DO NOT add fields beyond {id, pt_group, confidence, rationale}.
 - DO NOT wrap the JSON in markdown fences or prose.
+- ALL field separators MUST be commas. Output must be valid JSON
+  parseable by `JSON.parse`.
 """
 
 _WWF_SYSTEM = """\
@@ -261,21 +267,21 @@ Your previous response was not valid JSON for the Altera classifier.
 Return ONLY a valid JSON object — no markdown fences, no prose, no
 trailing explanation. The object MUST start with `{` and end with `}`.
 
-Required schema:
+Required schema (note: every field separator is a comma):
 {
   "results": [
-    {
-      "id": "<the exact id you were given>",
-      "pt_group": "<one of: plant_based_core | plant_based_non_core | composite_products | animal_core | out_of_scope | unknown>",
-      "confidence": <number 0.0-1.0>,
-      "rationale": "<one short sentence>"
-    }
+    {"id":"p1","pt_group":"plant_based_core","confidence":0.95,"rationale":"fruit"}
   ]
 }
 
+`pt_group` MUST be one of:
+plant_based_core | plant_based_non_core | composite_products |
+animal_core | out_of_scope | unknown.
+
 Rules:
 - Every input id MUST appear exactly once in `results`.
-- `pt_group` MUST be one of the six values above in lower-snake-case.
+- `rationale` MUST be at most 8 words.
+- ALL field separators MUST be commas. Output must parse as JSON.
 - DO NOT add fields beyond {id, pt_group, confidence, rationale}.
 - DO NOT include any text outside the JSON object.
 """
