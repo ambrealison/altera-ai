@@ -425,6 +425,13 @@ class InMemoryStore:
         with self._lock:
             self.runs[record.id] = record
 
+    def delete_run(self, run_id: UUID) -> None:
+        """Phase 34L — cleanup hook used by the zero-row partial-run
+        guard. Best-effort: removes the run from the in-memory map.
+        """
+        with self._lock:
+            self.runs.pop(run_id, None)
+
     def get_run(self, run_id: UUID) -> RunRecord | None:
         return self.runs.get(run_id)
 

@@ -322,6 +322,71 @@ sets `skip_deterministic=true` so AI is the sole classifier.
 The 34K cut is the minimum required to unblock partial calculation
 end-to-end and give the user honest coverage disclosure.
 
+### Phase 34L — Nutrition validation + category override fix + CIQUAL removal
+
+Five connected fixes that unblock end-to-end retailer flow:
+
+1. **Manual category override now persists on AI-classified
+   products.** Root cause: `submit_decision` required an open review
+   item; high-confidence AI classifications never enter the queue,
+   so the validation table's "Changer" button 404'd silently. Fix:
+   when no review item exists, `submit_decision` enqueues a
+   synthetic one with reason=`REQUESTED` and immediately resolves
+   it through the normal pipeline. The audit trail captures the
+   manual override exactly like a genuine review decision.
+
+2. **CIQUAL removed from the normal flow.** CIQUAL provides total
+   protein only (no plant/animal split) which is fundamentally
+   insufficient for Protein Tracker. The wizard now has 8 steps
+   with "Validation nutritionnelle" replacing "CIQUAL + IA". The
+   CIQUAL endpoint stays in the backend for admin/debug; the
+   `nutrition_enrichment_ciqual` step is still emitted by
+   workflow.py but marked `not_needed` + `accessible=false` so it
+   doesn't show in the wizard.
+
+3. **NEVO deterministic fuzzy fallback.** Root cause for NEVO
+   matching 1/33: the matcher required an EXACT case-insensitive
+   name match, and retailer names like "Filets de Saumon Atlantique"
+   never exact-match "Salmon, raw". Fix: when exact match fails,
+   `NevoProvider._fuzzy_match` scores every entry against the
+   cleaned + alias-expanded query tokens (reusing the same
+   vocabulary that powers the AI shortlist) and returns the top
+   candidate when score ≥ 2 tokens. "Blanc de Poulet" now finds
+   "Chicken breast" without AI. Confidence = 0.75 for fuzzy
+   matches (vs 0.85 for exact).
+
+4. **Zero-row partial-run guard.** Phase 34K's `allow_partial=true`
+   route let runs through even when 0 products had usable nutrition
+   — producing a 0-row run with the misleading "calculé sur 0%"
+   banner. Fix: after `run_calculation` returns, if `rows_count==0`
+   the run record is deleted and the route returns 400 with
+   `error_code: zero_usable_nutrition`.
+
+5. **Nutrition validation table.** New endpoint
+   `GET /api/v1/projects/{id}/nutrition-validations` returns one
+   row per PT product with: final protein_pct / plant / animal,
+   retailer original, source (retailer_csv | nevo | ciqual | manual
+   | missing), match_method, split_source, confidence, status (ready
+   | needs_review | missing), and a human-readable reason. Filters:
+   status, source, product_search. Pagination via the existing
+   PaginationParams. Manual override endpoint
+   `POST /nutrition-validations/{pid}/manual` persists three
+   enrichment records (protein/plant/animal) with source=manual,
+   match_method=manual, confidence=1.0. Body is validated for
+   numeric ranges and plant+animal sum vs total (2pp tolerance).
+   The wizard's new Step 6 renders this table inline with a
+   per-row "Modifier" CTA that opens three numeric inputs.
+
+**Still deferred to Phase 34M** — documented gap:
+- "Exclude from calculation" UI + persistence (the route layer
+  doesn't model an "excluded" flag yet; today the user achieves
+  the same effect by leaving classification empty).
+- AI-estimated split for composite products with explicit
+  provenance disclosure.
+- Batched AI nutrition matching (still per-product).
+- Dedup/cache for identical normalised names.
+- Per-product retry-NEVO button.
+
 ### Phase 35 — GDPR data retention
 
 - Configurable retention period per organisation.

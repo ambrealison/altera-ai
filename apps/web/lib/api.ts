@@ -292,6 +292,37 @@ export interface ClassificationsFilters {
   offset?: number;
 }
 
+// Phase 34L — nutrition validation table.
+export interface NutritionValidationRow {
+  product_id: string;
+  product_name: string;
+  pt_group: ProteinTrackerGroup | null;
+  protein_pct: string | null;
+  plant_protein_pct: string | null;
+  animal_protein_pct: string | null;
+  retailer_protein_pct: string | null;
+  source: "retailer_csv" | "nevo" | "ciqual" | "manual" | "missing";
+  match_method: "deterministic" | "ai_assisted" | "manual" | "none" | null;
+  split_source:
+    | "nevo_official_split"
+    | "classification_assumption"
+    | "manual"
+    | "retailer_csv"
+    | "missing";
+  confidence: number | null;
+  reference_name: string | null;
+  reference_code: string | null;
+  status: "ready" | "needs_review" | "missing" | "excluded";
+  reason: string | null;
+}
+
+export interface NutritionValidationsResponse {
+  items: NutritionValidationRow[];
+  total: number;
+  counts_by_status: Record<string, number>;
+  counts_by_source: Record<string, number>;
+}
+
 export interface NutritionReferencesStats {
   nevo_total: number;
   nevo_with_protein: number;
@@ -1015,6 +1046,46 @@ export function createApi(accessToken: string | null) {
             ? JSON.stringify({ providers: options.providers })
             : undefined,
         },
+        accessToken,
+      ),
+
+    // Phase 34L — nutrition validation table.
+    listNutritionValidations: (
+      projectId: string,
+      filters: {
+        status?: "ready" | "needs_review" | "missing" | "excluded";
+        source?: "retailer_csv" | "nevo" | "ciqual" | "manual" | "missing";
+        product_search?: string;
+        limit?: number;
+        offset?: number;
+      } = {},
+    ) => {
+      const params = new URLSearchParams();
+      if (filters.status) params.set("status", filters.status);
+      if (filters.source) params.set("source", filters.source);
+      if (filters.product_search) params.set("product_search", filters.product_search);
+      if (filters.limit != null) params.set("limit", String(filters.limit));
+      if (filters.offset != null) params.set("offset", String(filters.offset));
+      const q = params.size > 0 ? `?${params.toString()}` : "";
+      return request<NutritionValidationsResponse>(
+        `/api/v1/projects/${projectId}/nutrition-validations${q}`,
+        { method: "GET" },
+        accessToken,
+      );
+    },
+    submitManualNutrition: (
+      projectId: string,
+      productId: string,
+      body: {
+        protein_pct: number;
+        plant_protein_pct: number;
+        animal_protein_pct: number;
+        rationale?: string;
+      },
+    ) =>
+      request<NutritionValidationRow>(
+        `/api/v1/projects/${projectId}/nutrition-validations/${productId}/manual`,
+        { method: "POST", body: JSON.stringify(body) },
         accessToken,
       ),
 

@@ -430,58 +430,52 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
     )
 
     # 9. CIQUAL fallback — only "available" once NEVO has been tried
-    #    and there are still products without nutrition.
-    nevo_attempted = counts.pt_nevo_records > 0
-    if pt_total == 0:
-        ciqual_status: StepStatus = "locked"
-    elif pt_needs_nutrition == 0:
-        ciqual_status = "not_needed"
-    elif nevo_attempted and pt_needs_nutrition > 0:
-        ciqual_status = "available"
-    elif counts.pt_ciqual_records > 0:
-        ciqual_status = "complete"
-    else:
-        ciqual_status = "locked"   # try NEVO first
+    # Phase 34L — CIQUAL is no longer part of the normal user flow.
+    # CIQUAL provides total protein only (no plant/animal split) which
+    # is fundamentally insufficient for Protein Tracker. The CIQUAL
+    # endpoint stays in the codebase for admin/debug (Altera-only). We
+    # keep the legacy key emitted but always mark it ``not_needed`` so
+    # the frontend can filter it out without breaking persisted
+    # references in client tooling / docs.
     steps.append(
         WorkflowStep(
             key="nutrition_enrichment_ciqual",
-            label="Fallback CIQUAL",
-            status=ciqual_status,
+            label="Fallback CIQUAL (admin/debug)",
+            status="not_needed",
             counts={
                 "matched_total_only": counts.pt_ciqual_records,
                 "remaining": pt_needs_nutrition,
             },
-            accessible=ciqual_status != "locked",
-            editable=ciqual_status not in ("locked",),
-            summary=(
-                f"{counts.pt_ciqual_records} correspondance(s) CIQUAL"
-                if counts.pt_ciqual_records > 0
-                else "Non requis"
-                if ciqual_status == "not_needed"
-                else None
-            ),
+            accessible=False,
+            editable=False,
+            summary="Étape admin/debug — retirée du parcours utilisateur",
         )
     )
 
-    # 10. manual nutrition review (deferred; placeholder).
-    mnr_status: StepStatus = (
-        "needs_action" if pt_needs_nutrition > 0 else
-        "not_needed" if pt_total else
-        "locked"
-    )
+    # Phase 34L — new Validation nutritionnelle step. Sits between
+    # NEVO and Calculation. Status reflects whether NEVO leaves any
+    # products without usable nutrition (`needs_action`), everything
+    # is ready (`complete`), or nothing applies yet (`locked`).
+    if pt_total == 0:
+        nv_status: StepStatus = "locked"
+    elif pt_needs_nutrition == 0:
+        nv_status = "complete"
+    else:
+        nv_status = "needs_action"
     steps.append(
         WorkflowStep(
-            key="manual_nutrition_review",
-            label="Validation manuelle nutrition",
-            status=mnr_status,
-            counts={"pending": pt_needs_nutrition},
-            accessible=mnr_status != "locked",
-            editable=mnr_status not in ("locked",),
+            key="nutrition_validation",
+            label="Validation nutritionnelle",
+            status=nv_status,
+            counts={
+                "ready": pt_total - pt_needs_nutrition,
+                "missing": pt_needs_nutrition,
+            },
+            accessible=nv_status != "locked",
+            editable=nv_status not in ("locked",),
             summary=(
-                f"{pt_needs_nutrition} produit(s) sans nutrition"
-                if pt_needs_nutrition > 0
-                else "Aucun produit à valider"
-                if mnr_status == "not_needed"
+                f"{pt_total - pt_needs_nutrition}/{pt_total} produit(s) prêt(s)"
+                if pt_total > 0
                 else None
             ),
         )
@@ -604,7 +598,8 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
         "ai_classification",
         "manual_classification_review",
         "nutrition_enrichment_nevo",
-        "nutrition_enrichment_ciqual",
+        # Phase 34L — CIQUAL replaced by Validation nutritionnelle.
+        "nutrition_validation",
         "calculation",
         "report",
     )

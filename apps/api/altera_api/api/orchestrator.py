@@ -906,7 +906,34 @@ def submit_decision(
 ) -> ReviewItemView:
     item = store.get_review_item(product_id, methodology)
     if item is None:
-        raise LookupError("review item not found")
+        # Phase 34L — the wizard's category validation table lets the
+        # user override ANY product, including high-confidence AI
+        # classifications that never entered the review queue. We
+        # enqueue a synthetic review item on demand so the same
+        # decision pipeline (accept / change / defer) applies
+        # uniformly. The freshly-enqueued item is immediately resolved
+        # below; the audit trail captures the manual override the
+        # same way as for genuine review items.
+        existing_classification = (
+            store.get_pt_classification(product_id)
+            if methodology is Methodology.PROTEIN_TRACKER
+            else store.get_wwf_classification(product_id)
+        )
+        if existing_classification is None and decision != "changed":
+            # Cannot accept an item that has no classification yet.
+            raise LookupError(
+                "no classification exists for this product; "
+                "use decision='changed' with to_category"
+            )
+        now_synth = datetime.now(UTC)
+        item = ManualReviewItem(
+            product_id=product_id,
+            methodology=methodology,
+            status=ManualReviewStatus.IN_QUEUE,
+            reason=ManualReviewQueueReason.REQUESTED,
+            queued_at=now_synth,
+        )
+        store.upsert_review_item(item)
     now = datetime.now(UTC)
     claimed = claim_item(item, reviewer_user_id=reviewer_user_id, now=now)
 

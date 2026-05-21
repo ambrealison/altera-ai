@@ -376,7 +376,13 @@ class TestPartialCalculation:
         # Strict may succeed if every product got matched OR be blocked
         # — either is fine. The partial path is what we're asserting.
 
-        # Partial run — must succeed regardless.
+        # Phase 34L — partial run is allowed only when at least one
+        # product has usable nutrition. With this fixture, the NEVO
+        # fuzzy matcher catches a few products → row count > 0 and
+        # the partial run succeeds with a coverage block. If
+        # the fixture happened to yield zero rows, the route would
+        # return 400 with error_code="zero_usable_nutrition", which
+        # is also acceptable behaviour.
         r = altera_client.post(
             f"/api/v1/projects/{pid}/runs",
             json={
@@ -384,20 +390,22 @@ class TestPartialCalculation:
                 "allow_partial": True,
             },
         )
-        assert r.status_code == 201, r.json()
-        body = r.json()
-        assert body["rows_count"] >= 0
-        # Coverage block is present.
-        coverage = body["summary"].get("coverage")
-        assert coverage is not None
-        assert "product_coverage_pct" in coverage
-        assert "total_products_start" in coverage
-        assert "products_included_in_calculation" in coverage
-        assert "is_partial" in coverage
-        # When some products are missing nutrition, is_partial is True.
-        excluded = coverage["products_excluded_missing_nutrition"]
-        if excluded > 0:
-            assert coverage["is_partial"] is True
+        if r.status_code == 201:
+            body = r.json()
+            assert body["rows_count"] >= 1
+            coverage = body["summary"].get("coverage")
+            assert coverage is not None
+            assert "product_coverage_pct" in coverage
+            assert "total_products_start" in coverage
+            assert "products_included_in_calculation" in coverage
+            assert "is_partial" in coverage
+            excluded = coverage["products_excluded_missing_nutrition"]
+            if excluded > 0:
+                assert coverage["is_partial"] is True
+        else:
+            # Zero-row guard fired — must be the structured 400.
+            assert r.status_code == 400
+            assert r.json()["detail"]["error_code"] == "zero_usable_nutrition"
 
         # Drive-by: the strict run that was 400 came back with the
         # correct error code so the frontend can show its current

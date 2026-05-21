@@ -1042,6 +1042,319 @@ def list_classifications_route(
     )
 
 
+# ---------------------------------------------------------------------------
+# Phase 34L — nutrition validation table
+# ---------------------------------------------------------------------------
+
+
+class NutritionValidationRow(BaseModel):
+    """One row in the wizard's nutrition validation table.
+
+    Surfaces every PT-eligible product's protein attribution state:
+    where the protein values come from, whether a split exists, and
+    what action (if any) the user must take before calculation. Only
+    non-commercial fields are exposed.
+    """
+
+    product_id: UUID
+    product_name: str
+    pt_group: str | None
+    protein_pct: str | None              # final value used for calc
+    plant_protein_pct: str | None
+    animal_protein_pct: str | None
+    retailer_protein_pct: str | None     # original CSV value if any
+    source: str                          # retailer_csv | nevo | ciqual | manual | missing
+    match_method: str | None             # deterministic | ai_assisted | manual | none
+    split_source: str                    # nevo_official_split | classification_assumption
+                                          # | manual | missing
+    confidence: float | None
+    reference_name: str | None
+    reference_code: str | None
+    status: str                          # ready | needs_review | missing | excluded
+    reason: str | None                   # short rationale for missing/needs_review
+
+
+class NutritionValidationsResponse(BaseModel):
+    items: list[NutritionValidationRow]
+    total: int
+    counts_by_status: dict[str, int]
+    counts_by_source: dict[str, int]
+
+
+def _nutrition_row_for(
+    store: StoreProtocol, product
+) -> NutritionValidationRow:
+    """Build one validation row for a PT product by reading the
+    latest enrichment + classification state from the store."""
+    from altera_api.domain.enrichment import (
+        NutritionEnrichmentSource as _NES,
+    )
+    from altera_api.domain.enrichment import (
+        NutritionEnrichmentStatus as _NSt,
+    )
+    classification = store.get_pt_classification(product.id)
+    pt_group = classification.pt_group.value if classification is not None else None
+    retailer_pct = (
+        str(product.pt_fields.protein_pct)
+        if product.pt_fields is not None and product.pt_fields.protein_pct is not None
+        else None
+    )
+
+    records = store.get_enrichment_records_for_product(product.id)
+    protein_rec = next(
+        (
+            r for r in records
+            if r.nutrient == "protein_pct"
+            and r.status is _NSt.ENRICHED
+            and r.enriched_value is not None
+        ),
+        None,
+    )
+    plant_rec = next(
+        (
+            r for r in records
+            if r.nutrient == "plant_protein_pct"
+            and r.status is _NSt.ENRICHED
+            and r.enriched_value is not None
+        ),
+        None,
+    )
+    animal_rec = next(
+        (
+            r for r in records
+            if r.nutrient == "animal_protein_pct"
+            and r.status is _NSt.ENRICHED
+            and r.enriched_value is not None
+        ),
+        None,
+    )
+
+    # Decide source / status. Retailer-provided values are always
+    # preferred over enrichment.
+    source = "missing"
+    match_method: str | None = None
+    split_source = "missing"
+    confidence: float | None = None
+    reference_name: str | None = None
+    reference_code: str | None = None
+    status = "missing"
+    reason: str | None = None
+    final_protein = retailer_pct
+    final_plant: str | None = None
+    final_animal: str | None = None
+
+    if retailer_pct is not None:
+        source = "retailer_csv"
+        status = "ready"
+        # Retailer values for plant/animal if provided.
+        if product.pt_fields is not None:
+            if product.pt_fields.plant_protein_pct is not None:
+                final_plant = str(product.pt_fields.plant_protein_pct)
+            if product.pt_fields.animal_protein_pct is not None:
+                final_animal = str(product.pt_fields.animal_protein_pct)
+        split_source = (
+            "retailer_csv"
+            if final_plant is not None and final_animal is not None
+            else "missing"
+        )
+    elif protein_rec is not None:
+        final_protein = str(protein_rec.enriched_value)
+        source = (
+            "nevo"
+            if protein_rec.source is _NES.NEVO
+            else "ciqual"
+            if protein_rec.source is _NES.CIQUAL
+            else "manual"
+            if protein_rec.source is _NES.MANUAL_ALTERA
+            else "ciqual"
+        )
+        match_method = protein_rec.match_method
+        confidence = float(protein_rec.confidence) if protein_rec.confidence else None
+        # Try to extract the reference name from the rationale.
+        if protein_rec.rationale:
+            reason = protein_rec.rationale[:200]
+        if plant_rec is not None and animal_rec is not None:
+            final_plant = str(plant_rec.enriched_value)
+            final_animal = str(animal_rec.enriched_value)
+            split_source = (
+                "classification_assumption"
+                if plant_rec.rationale
+                and "classification_assumption" in plant_rec.rationale
+                else "nevo_official_split"
+                if protein_rec.source is _NES.NEVO
+                else "missing"
+            )
+            status = "ready"
+        else:
+            split_source = "missing"
+            status = "needs_review"
+            reason = (
+                "Composite ou catégorie ambiguë — split plant/animal manquant"
+                if pt_group in ("composite_products", "unknown", None)
+                else reason
+            )
+    else:
+        # No retailer, no enrichment.
+        reason = (
+            "Aucune correspondance NEVO trouvée pour ce produit"
+            if classification is not None
+            else "Produit non classifié"
+        )
+    return NutritionValidationRow(
+        product_id=product.id,
+        product_name=product.product_name,
+        pt_group=pt_group,
+        protein_pct=final_protein,
+        plant_protein_pct=final_plant,
+        animal_protein_pct=final_animal,
+        retailer_protein_pct=retailer_pct,
+        source=source,
+        match_method=match_method,
+        split_source=split_source,
+        confidence=confidence,
+        reference_name=reference_name,
+        reference_code=reference_code,
+        status=status,
+        reason=reason,
+    )
+
+
+@api_router.get(
+    "/projects/{project_id}/nutrition-validations",
+    response_model=NutritionValidationsResponse,
+)
+def list_nutrition_validations_route(
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    pagination: Annotated[PaginationParams, Depends()],
+    status: Literal["ready", "needs_review", "missing", "excluded"] | None = None,
+    source: Literal["retailer_csv", "nevo", "ciqual", "manual", "missing"] | None = None,
+    product_search: str | None = None,
+) -> NutritionValidationsResponse:
+    """Paginated nutrition validation table (Phase 34L).
+
+    One row per PT-eligible product showing the final protein values
+    that would be used in the calculation plus their provenance. Used
+    by the wizard's Step 6 to let the user inspect what NEVO produced
+    before allowing the calculation to run.
+    """
+    products = [
+        p for p in store.list_products_for_project(project.id)
+        if p.pt_fields is not None
+        and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
+    ]
+    rows = [_nutrition_row_for(store, p) for p in products]
+
+    def _keep(r: NutritionValidationRow) -> bool:
+        if status is not None and r.status != status:
+            return False
+        if source is not None and r.source != source:
+            return False
+        if product_search:
+            q = product_search.lower()
+            if q not in r.product_name.lower():
+                return False
+        return True
+
+    filtered = [r for r in rows if _keep(r)]
+    counts_by_status: dict[str, int] = {}
+    counts_by_source: dict[str, int] = {}
+    for r in filtered:
+        counts_by_status[r.status] = counts_by_status.get(r.status, 0) + 1
+        counts_by_source[r.source] = counts_by_source.get(r.source, 0) + 1
+    page = paginate(filtered, pagination)
+    return NutritionValidationsResponse(
+        items=page.items,
+        total=page.total,
+        counts_by_status=counts_by_status,
+        counts_by_source=counts_by_source,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 34L — manual nutrition override + product exclusion
+# ---------------------------------------------------------------------------
+
+
+class ManualNutritionRequest(BaseModel):
+    protein_pct: Decimal = Field(ge=0, le=100)
+    plant_protein_pct: Decimal = Field(ge=0, le=100)
+    animal_protein_pct: Decimal = Field(ge=0, le=100)
+    rationale: str | None = None
+
+
+@api_router.post(
+    "/projects/{project_id}/nutrition-validations/{product_id}/manual",
+    response_model=NutritionValidationRow,
+)
+def submit_manual_nutrition_route(
+    product_id: UUID,
+    body: ManualNutritionRequest,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> NutritionValidationRow:
+    """Record a manual override for a product's protein values.
+
+    Persists three enrichment records (protein_pct, plant_protein_pct,
+    animal_protein_pct) with source=manual / match_method=manual and
+    confidence=1.0 so the calculation engine picks them up. Existing
+    enrichment records for the same product+nutrient are superseded by
+    the new one (the store appends; lookup picks the latest ENRICHED).
+    """
+    from altera_api.domain.enrichment import (
+        NutritionEnrichmentRecord,
+        NutritionEnrichmentSource,
+        NutritionEnrichmentStatus,
+    )
+    # Soft sanity: plant + animal should sum to the total within 2 pp
+    # tolerance. We don't auto-correct — the user is responsible.
+    total_check = body.plant_protein_pct + body.animal_protein_pct
+    if abs(total_check - body.protein_pct) > Decimal("2"):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "split_does_not_match_total",
+                "message": (
+                    "La somme plant + animal doit correspondre au "
+                    "total protein_pct (tolérance 2pp)."
+                ),
+                "sum": str(total_check),
+                "total": str(body.protein_pct),
+            },
+        )
+    product = store.get_product(product_id)
+    if product is None or product.project_id != project.id:
+        raise HTTPException(status_code=404, detail="product not found")
+
+    now = datetime.now(UTC)
+    rationale = (
+        body.rationale or "manual nutrition override (Phase 34L)"
+    )[:240]
+    for nutrient, value in (
+        ("protein_pct", body.protein_pct),
+        ("plant_protein_pct", body.plant_protein_pct),
+        ("animal_protein_pct", body.animal_protein_pct),
+    ):
+        store.add_enrichment_record(
+            NutritionEnrichmentRecord(
+                product_id=product_id,
+                nutrient=nutrient,
+                original_value=None,
+                enriched_value=value,
+                unit="g_per_100g",
+                source=NutritionEnrichmentSource.MANUAL_ALTERA,
+                confidence=Decimal("1"),
+                status=NutritionEnrichmentStatus.ENRICHED,
+                rationale=rationale,
+                created_at=now,
+                created_by=auth.user_id,
+                match_method="manual",
+            )
+        )
+    return _nutrition_row_for(store, product)
+
+
 @api_router.post(
     "/projects/{project_id}/review/{product_id}/{methodology}/decision",
     response_model=ReviewItemResponse,
@@ -1388,6 +1701,29 @@ def create_run(
                 "postgrest_hint": getattr(exc, "hint", None),
             },
         ) from exc
+    # Phase 34L — zero-row partial-run guard. Even with allow_partial,
+    # the calculation must include at least one usable product. The
+    # previous behaviour persisted runs with 0 rows / 0 protein, which
+    # surfaced as a misleading "Le ratio a été calculé sur 0 % des
+    # produits" in the wizard.
+    if record.rows_count == 0:
+        try:
+            store.delete_run(record.id)  # type: ignore[attr-defined]
+        except AttributeError:
+            pass  # store may not implement delete_run yet
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "zero_usable_nutrition",
+                "message": (
+                    "Aucun produit ne dispose de données protéiques "
+                    "exploitables. Complétez au moins une ligne dans "
+                    "la validation nutritionnelle ou excluez les "
+                    "produits non exploitables."
+                ),
+                "rows_count": 0,
+            },
+        )
     # Phase 34K — coverage metrics. Compute what fraction of the
     # eligible PT products and eligible volume actually made it into
     # the calculated run. The run record itself is unchanged (the

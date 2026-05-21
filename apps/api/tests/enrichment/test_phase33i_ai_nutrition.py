@@ -497,8 +497,13 @@ class TestEndpointAIDisabled:
         body = r.json()
         assert body["ai_enabled"] is False
         assert body["nevo_ai_assisted_matched"] == 0
-        assert body["nevo_matched"] == 0  # deterministic exact-match also misses
-        assert body["no_match"] == 1
+        # Phase 34L — the fuzzy token-overlap fallback now recognises
+        # "Chicken Breast Fillet" as a NEVO match to "Chicken breast"
+        # even without AI. The earlier assertion (`nevo_matched == 0`)
+        # captured the missing-fuzzy-fallback bug, not a desired
+        # behaviour. We now assert the new path works.
+        assert body["nevo_matched"] == 1
+        assert body["no_match"] == 0
 
     def test_openai_provider_without_key_falls_back(
         self,
@@ -550,11 +555,15 @@ class TestEndpointAIHighConfidence:
             org_id = seeded_store.default_org_id
             pid_str = _create_pt_project(client)
             pid = UUID(pid_str)
+            # Phase 34L — use a name with exactly one food-token
+            # overlap. The fuzzy fallback requires ≥2 overlapping
+            # tokens to fire, so the deterministic path misses; the
+            # candidate shortlist is non-empty so AI is invoked.
             product = _add_pt_product(
                 seeded_store,
                 project_id=pid,
                 org_id=org_id,
-                name="Chicken Breast Fillet",
+                name="Chicken",
                 category="Poultry",
             )
             r = client.post(f"/api/v1/projects/{pid_str}/enrichments/apply-references")
@@ -564,7 +573,7 @@ class TestEndpointAIHighConfidence:
             assert body["ai_model"] == "fake-nutrition-v1"
             assert body["nevo_ai_assisted_matched"] == 1
             assert body["nevo_ai_assisted_with_split"] == 1
-            assert body["nevo_matched"] == 0  # deterministic missed
+            assert body["nevo_matched"] == 0  # deterministic still missed
             records = seeded_store.get_enrichment_records_for_product(product.id)
             # protein_pct + plant_protein_pct + animal_protein_pct
             assert len(records) == 3
@@ -604,11 +613,14 @@ class TestEndpointAIHighConfidence:
             org_id = seeded_store.default_org_id
             pid_str = _create_pt_project(client)
             pid = UUID(pid_str)
+            # Phase 34L — single-token name so fuzzy-deterministic
+            # below threshold; AI still gets invoked and we test it
+            # rejects an out-of-shortlist code.
             _add_pt_product(
                 seeded_store,
                 project_id=pid,
                 org_id=org_id,
-                name="Chicken Breast Fillet",
+                name="Chicken",
             )
             r = client.post(f"/api/v1/projects/{pid_str}/enrichments/apply-references")
             assert r.status_code == 200
@@ -680,11 +692,13 @@ class TestEndpointAIMediumConfidence:
             org_id = seeded_store.default_org_id
             pid_str = _create_pt_project(client)
             pid = UUID(pid_str)
+            # Phase 34L — single-token name forces AI path (fuzzy
+            # requires ≥2 token overlap).
             product = _add_pt_product(
                 seeded_store,
                 project_id=pid,
                 org_id=org_id,
-                name="Chicken Breast Fillet",
+                name="Chicken",
             )
             r = client.post(f"/api/v1/projects/{pid_str}/enrichments/apply-references")
             body = r.json()

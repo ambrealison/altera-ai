@@ -41,24 +41,27 @@ import { InlineUpload } from "./_inline-upload";
 import { InlineReview } from "./_inline-review";
 // Phase 34F — inline category validation table.
 import { ValidationTable } from "./_validation-table";
+// Phase 34L — inline nutrition validation table.
+import { NutritionTable } from "./_nutrition-table";
 
 // ---------------------------------------------------------------------------
 // Wizard step definitions — 9 visible steps mapped to backend step keys
 // ---------------------------------------------------------------------------
 
-// Phase 34I — 8-step flow. Deterministic classification has been
-// removed from the user-facing workflow: AI is the primary classifier
-// now. The deterministic rule engine code remains for tests and
-// admin/debug; the normal wizard never calls it.
+// Phase 34L — CIQUAL removed from the normal user path (it gives total
+// protein only, not the plant/animal split Protein Tracker needs).
+// A new "Validation nutritionnelle" step takes its place so the user
+// can inspect and complete protein data before calculation. CIQUAL
+// code remains in the backend for admin/debug.
 const WIZARD_STEPS = [
-  { idx: 0, id: "import",           label: "Import",            backendKey: "upload" },
-  { idx: 1, id: "methodology",      label: "Méthodologie",      backendKey: "methodology" },
-  { idx: 2, id: "ai_class",         label: "Classification IA", backendKey: "ai_classification" },
-  { idx: 3, id: "validation",       label: "Validation",        backendKey: "manual_classification_review" },
-  { idx: 4, id: "nevo",             label: "NEVO",              backendKey: "nutrition_enrichment_nevo" },
-  { idx: 5, id: "ciqual",           label: "CIQUAL + IA",       backendKey: "nutrition_enrichment_ciqual" },
-  { idx: 6, id: "calculation",      label: "Calcul",            backendKey: "calculation" },
-  { idx: 7, id: "report",           label: "Résultat",          backendKey: "report" },
+  { idx: 0, id: "import",           label: "Import",                       backendKey: "upload" },
+  { idx: 1, id: "methodology",      label: "Méthodologie",                 backendKey: "methodology" },
+  { idx: 2, id: "ai_class",         label: "Classification IA",            backendKey: "ai_classification" },
+  { idx: 3, id: "validation",       label: "Validation",                   backendKey: "manual_classification_review" },
+  { idx: 4, id: "nevo",             label: "NEVO",                         backendKey: "nutrition_enrichment_nevo" },
+  { idx: 5, id: "nutrition_val",    label: "Validation nutritionnelle",    backendKey: "nutrition_validation" },
+  { idx: 6, id: "calculation",      label: "Calcul",                       backendKey: "calculation" },
+  { idx: 7, id: "report",           label: "Résultat",                     backendKey: "report" },
 ] as const;
 
 type WizardStepIdx = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -1464,13 +1467,33 @@ export default function WorkflowWizardPage() {
           />
         )}
         {activeIdx === 5 && (
-          <StepCIQUAL
-            step={activeBackendStep}
-            busy={busy}
-            error={actionError}
-            onRun={handleApplyCIQUAL}
-            onNext={advanceNext}
-          />
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-semibold">
+                Validation nutritionnelle
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Inspectez les valeurs protéiques attribuées par NEVO et
+                complétez manuellement les produits restants.
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                {"L'IA ne génère jamais de valeurs protéiques. Les "}
+                valeurs proviennent du CSV retailer, de NEVO, ou de la
+                saisie manuelle.
+              </p>
+            </div>
+            <NutritionTable
+              projectId={projectId}
+              accessToken={accessToken}
+              onChanged={refresh}
+            />
+            <Card>
+              <CountRow counts={activeBackendStep.counts} />
+              <div className="mt-3 flex flex-wrap gap-3">
+                <Button onClick={advanceNext}>Continuer vers Calcul</Button>
+              </div>
+            </Card>
+          </div>
         )}
         {activeIdx === 6 && (
           <StepCalculation
