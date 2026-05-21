@@ -143,9 +143,14 @@ export default function ProjectDetail() {
             </span>
           </div>
         </div>
-        <Link href="/projects">
-          <Button variant="ghost">← All projects</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href={`/projects/${id}/workflow`}>
+            <Button variant="primary">Parcours guidé →</Button>
+          </Link>
+          <Link href="/projects">
+            <Button variant="ghost">← All projects</Button>
+          </Link>
+        </div>
       </div>
 
       <section className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">

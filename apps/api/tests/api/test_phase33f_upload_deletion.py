@@ -66,6 +66,10 @@ class TestDeleteRemovesProductsAndStats:
     def test_deleted_upload_products_excluded_from_calculation(
         self, client: TestClient, pt_tiny_csv: bytes
     ) -> None:
+        """Phase 34A — once all PT products are gone, the calculation
+        gate blocks the run with a structured ``run_not_ready`` /
+        ``no_eligible_products`` reason instead of persisting a 0-row
+        calculation."""
         pid = _create_project(client)
         upload = client.post(
             f"/api/v1/projects/{pid}/uploads",
@@ -75,15 +79,17 @@ class TestDeleteRemovesProductsAndStats:
             f"/api/v1/projects/{pid}/uploads/{upload['id']}/classify",
             json={"methodology": "protein_tracker"},
         )
-        # Delete before any review.
         client.delete(f"/api/v1/projects/{pid}/uploads/{upload['id']}")
-        # Run calculation — there are now zero PT products; the prereq
-        # guard sees nothing to classify, so calculation proceeds.
         r = client.post(
             f"/api/v1/projects/{pid}/runs", json={"methodology": "protein_tracker"}
         )
-        assert r.status_code == 201
-        assert r.json()["rows_count"] == 0
+        assert r.status_code == 400
+        detail = r.json()["detail"]
+        assert detail["error_code"] == "run_not_ready"
+        assert any(
+            br["code"] == "no_eligible_products"
+            for br in detail["blocking_reasons"]
+        )
 
     def test_review_items_cleared_after_delete(
         self, client: TestClient, pt_tiny_csv: bytes

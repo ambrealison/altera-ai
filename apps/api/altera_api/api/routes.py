@@ -202,6 +202,96 @@ def get_project_route(
 
 
 # ---------------------------------------------------------------------------
+# Phase 34A — guided workflow status
+# ---------------------------------------------------------------------------
+
+
+class WorkflowBlockingReasonResponse(BaseModel):
+    code: str
+    label: str
+    count: int = 0
+    next_action: str | None = None
+
+
+class WorkflowStepResponse(BaseModel):
+    key: str
+    label: str
+    status: str
+    progress_pct: int = 0
+    counts: dict[str, int] = Field(default_factory=dict)
+    blocking_reasons: list[WorkflowBlockingReasonResponse] = Field(default_factory=list)
+
+
+class WorkflowNextActionResponse(BaseModel):
+    label: str
+    action: str
+    href: str | None = None
+
+
+class WorkflowStatusResponse(BaseModel):
+    project_id: str
+    methodologies_enabled: list[str]
+    overall_progress_pct: int
+    current_step: str
+    next_action: WorkflowNextActionResponse | None
+    steps: list[WorkflowStepResponse]
+
+
+@api_router.get(
+    "/projects/{project_id}/workflow-status",
+    response_model=WorkflowStatusResponse,
+)
+def get_workflow_status_route(
+    project: Project = Depends(get_project),
+    store: StoreProtocol = Depends(get_data_store),
+) -> WorkflowStatusResponse:
+    """Per-project guided-workflow state.
+
+    The frontend's ``/projects/{id}/workflow`` page consumes this to
+    render the stepper, progress bar, blocking reasons, and the single
+    "next recommended action" CTA. The same payload also powers the
+    Phase 34A run preflight so the gate is identical end-to-end.
+    """
+    from altera_api.api.workflow import compute_workflow_status
+
+    status_obj = compute_workflow_status(store, project)
+    return WorkflowStatusResponse(
+        project_id=status_obj.project_id,
+        methodologies_enabled=status_obj.methodologies_enabled,
+        overall_progress_pct=status_obj.overall_progress_pct,
+        current_step=status_obj.current_step,
+        next_action=(
+            WorkflowNextActionResponse(
+                label=status_obj.next_action.label,
+                action=status_obj.next_action.action,
+                href=status_obj.next_action.href,
+            )
+            if status_obj.next_action
+            else None
+        ),
+        steps=[
+            WorkflowStepResponse(
+                key=s.key,
+                label=s.label,
+                status=s.status,
+                progress_pct=s.progress_pct,
+                counts=dict(s.counts),
+                blocking_reasons=[
+                    WorkflowBlockingReasonResponse(
+                        code=r.code,
+                        label=r.label,
+                        count=r.count,
+                        next_action=r.next_action,
+                    )
+                    for r in s.blocking_reasons
+                ],
+            )
+            for s in status_obj.steps
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Uploads
 # ---------------------------------------------------------------------------
 class ValidationEntryResponse(BaseModel):
@@ -935,24 +1025,59 @@ def create_run(
     if body.use_enriched_nutrition and not auth.is_altera_internal:
         raise_forbidden("use_enriched_nutrition may only be enabled by Altera internal users")
 
+    # Phase 34A — strict pre-flight: never let a run persist with 0
+    # eligible rows. The workflow status aggregator centralises the
+    # blocking-reasons logic so the runs page and the guided workflow
+    # page see the same gate.
     if body.methodology is Methodology.PROTEIN_TRACKER:
-        pt_products = [
-            p
-            for p in store.list_products_for_project(project.id)
-            if p.pt_fields is not None
-            and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
-        ]
-        unclassified = [p for p in pt_products if store.get_pt_classification(p.id) is None]
-        if unclassified:
+        from altera_api.api.workflow import compute_workflow_status
+
+        status_payload = compute_workflow_status(store, project)
+        calc_step = next(
+            (s for s in status_payload.steps if s.key == "calculation"),
+            None,
+        )
+        if calc_step is None or calc_step.status != "ready":
             raise HTTPException(
                 status_code=400,
                 detail={
-                    "error_code": "classification_required",
-                    "message": (
-                        "Classification must be completed before calculation. "
-                        f"{len(unclassified)} product(s) have no PT classification."
+                    "error_code": "run_not_ready",
+                    "message": "Le calcul ne peut pas être lancé pour le moment.",
+                    "blocking_reasons": [
+                        {
+                            "code": r.code,
+                            "label": r.label,
+                            "count": r.count,
+                            "next_action": r.next_action,
+                        }
+                        for r in (calc_step.blocking_reasons if calc_step else [])
+                    ],
+                    "current_step": status_payload.current_step,
+                    "overall_progress_pct": status_payload.overall_progress_pct,
+                    # Kept for backwards-compatibility with the Phase 33D
+                    # ``classification_required`` error code that the
+                    # frontend's runs page already handles.
+                    **(
+                        {
+                            "error_code": "classification_required",
+                            "unclassified_count": next(
+                                (
+                                    r.count
+                                    for r in (
+                                        calc_step.blocking_reasons if calc_step else []
+                                    )
+                                    if r.code == "classification_required"
+                                ),
+                                0,
+                            ),
+                        }
+                        if calc_step
+                        and any(
+                            r.code == "classification_required"
+                            for r in calc_step.blocking_reasons
+                        )
+                        else {}
                     ),
-                    "unclassified_count": len(unclassified),
                 },
             )
 

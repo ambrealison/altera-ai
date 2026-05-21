@@ -85,11 +85,15 @@ class TestRunRequiresClassification:
     def test_run_error_message_is_human_readable(
         self, client: TestClient, pt_tiny_csv: bytes
     ) -> None:
+        """Phase 34A — top-level message is French ("calcul"); the
+        per-reason label still references classification."""
         pid = _create_project(client)
         _upload(client, pid, pt_tiny_csv)
         r = client.post(f"/api/v1/projects/{pid}/runs", json={"methodology": "protein_tracker"})
         detail = r.json()["detail"]
-        assert "classification" in detail["message"].lower()
+        assert "calcul" in detail["message"].lower()
+        reasons = detail.get("blocking_reasons", [])
+        assert any(r["code"] == "classification_required" for r in reasons)
 
 
 class TestProjectUnclassifiedCount:

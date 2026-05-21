@@ -698,7 +698,11 @@ class TestAuthGate:
     def test_altera_can_use_enriched_nutrition_create_run(
         self, client: TestClient, store: InMemoryStore
     ) -> None:
-        """Altera internal user can set use_enriched_nutrition=True."""
+        """Altera internal users are NOT blocked by the
+        use_enriched_nutrition permission gate. Phase 34A: with an
+        empty project, the run still falls through to ``run_not_ready``
+        (workflow gate) rather than ``403`` — which is what this test
+        is verifying (no permission denial)."""
         org = _org(store)
         project = store.create_project(
             name="p",
@@ -713,7 +717,11 @@ class TestAuthGate:
                 f"/api/v1/projects/{project.id}/runs",
                 json={"methodology": "protein_tracker", "use_enriched_nutrition": True},
             )
-            assert r.status_code == 201, r.text
+            assert r.status_code != 403, r.text
+            # Phase 34A: blocked because the project has no eligible products,
+            # not because the user lacked the use_enriched_nutrition right.
+            assert r.status_code == 400
+            assert r.json()["detail"]["error_code"] == "run_not_ready"
         finally:
             app.dependency_overrides.pop(authed_user, None)
 
@@ -742,7 +750,10 @@ class TestAuthGate:
     def test_default_run_no_flag_client_allowed(
         self, client: TestClient, store: InMemoryStore
     ) -> None:
-        """Clients can trigger a normal run (use_enriched_nutrition defaults to False)."""
+        """Client users are NOT blocked by the use_enriched_nutrition
+        permission gate when the flag is left at its default ``False``.
+        Phase 34A: an empty project still fails the workflow gate with
+        ``run_not_ready`` — but crucially not with ``403``."""
         org = _org(store)
         project = store.create_project(
             name="p",
@@ -757,7 +768,10 @@ class TestAuthGate:
                 f"/api/v1/projects/{project.id}/runs",
                 json={"methodology": "protein_tracker"},
             )
-            assert r.status_code == 201, r.text
+            assert r.status_code != 403, r.text
+            # Phase 34A: empty project → 400 run_not_ready.
+            assert r.status_code == 400
+            assert r.json()["detail"]["error_code"] == "run_not_ready"
         finally:
             app.dependency_overrides.pop(authed_user, None)
 

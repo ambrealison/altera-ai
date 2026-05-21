@@ -99,6 +99,48 @@ export interface ClassificationRequiredError {
   unclassified_count: number;
 }
 
+// Phase 34A — guided-workflow status.
+export type WorkflowStepStatus =
+  | "complete"
+  | "ready"
+  | "needs_action"
+  | "blocked"
+  | "available"
+  | "locked"
+  | "not_needed"
+  | "disabled";
+
+export interface WorkflowBlockingReason {
+  code: string;
+  label: string;
+  count: number;
+  next_action: string | null;
+}
+
+export interface WorkflowStep {
+  key: string;
+  label: string;
+  status: WorkflowStepStatus;
+  progress_pct: number;
+  counts: Record<string, number>;
+  blocking_reasons: WorkflowBlockingReason[];
+}
+
+export interface WorkflowNextAction {
+  label: string;
+  action: string;
+  href: string | null;
+}
+
+export interface WorkflowStatus {
+  project_id: string;
+  methodologies_enabled: string[];
+  overall_progress_pct: number;
+  current_step: string;
+  next_action: WorkflowNextAction | null;
+  steps: WorkflowStep[];
+}
+
 export interface ApplyReferencesSummary {
   nevo_matched: number;
   nevo_with_split: number;
@@ -859,6 +901,14 @@ export function createApi(accessToken: string | null) {
       request<ApplyReferencesSummary>(
         `/api/v1/projects/${projectId}/enrichments/apply-references`,
         { method: "POST" },
+        accessToken,
+      ),
+
+    // Phase 34A — guided-workflow status (stepper + next CTA + blockers).
+    getWorkflowStatus: (projectId: string) =>
+      request<WorkflowStatus>(
+        `/api/v1/projects/${projectId}/workflow-status`,
+        { method: "GET" },
         accessToken,
       ),
 
