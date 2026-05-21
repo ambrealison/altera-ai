@@ -35,7 +35,7 @@ export function NewProjectForm({ onCreated }: { onCreated?: () => void }) {
         reporting_period_label: period,
       });
       onCreated?.();
-      router.push(`/projects/${project.id}`);
+      router.push(`/projects/${project.id}/workflow`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create");
     } finally {

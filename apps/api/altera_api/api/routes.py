@@ -640,6 +640,8 @@ class ClassifyResponse(BaseModel):
     pass_through: int
     rule_collision: int
     queued_for_review: int
+    # Phase 34C — whether AI was configured and active for this run.
+    ai_enabled: bool = False
 
 
 @api_router.post(
@@ -674,6 +676,7 @@ def classify_route(
         pass_through=summary.pass_through,
         rule_collision=summary.rule_collision,
         queued_for_review=summary.queued_for_review,
+        ai_enabled=ai_provider is not None,
     )
 
 
@@ -2815,6 +2818,19 @@ class ApplyReferencesRequest(BaseModel):
     providers: list[str] | None = None
 
 
+class ProductEnrichmentDetail(BaseModel):
+    """Per-product outcome of the apply-references pipeline (Phase 34C)."""
+
+    product_id: str
+    product_name: str
+    outcome: str   # "nevo_matched" | "ciqual_matched" | "ai_matched" | "no_match"
+                   # | "skipped_has_retailer_value" | "skipped_no_pt_fields"
+    source: str | None = None          # "nevo" | "ciqual"
+    reference_name: str | None = None  # matched entry name
+    match_type: str | None = None      # "exact_name_en" | "exact_name_nl" | etc.
+    has_split: bool = False            # True iff plant+animal split was stored
+
+
 class ApplyReferencesResponse(BaseModel):
     # Deterministic matches (exact / alias on the reference table).
     nevo_matched: int
@@ -2831,6 +2847,8 @@ class ApplyReferencesResponse(BaseModel):
     skipped_no_pt_fields: int
     ai_enabled: bool = False
     ai_model: str | None = None
+    # Phase 34C — per-product detail for wizard UI.
+    product_results: list[ProductEnrichmentDetail] = []
 
 
 @api_router.post(
@@ -2908,6 +2926,7 @@ def apply_reference_enrichment_route(
         "skipped_has_retailer_value": 0,
         "skipped_no_pt_fields": 0,
     }
+    product_results: list[ProductEnrichmentDetail] = []
 
     def _record(
         product_id: UUID,
@@ -2986,9 +3005,23 @@ def apply_reference_enrichment_route(
     for product in store.list_products_for_project(project.id):
         if product.pt_fields is None:
             counts["skipped_no_pt_fields"] += 1
+            product_results.append(
+                ProductEnrichmentDetail(
+                    product_id=str(product.id),
+                    product_name=product.product_name,
+                    outcome="skipped_no_pt_fields",
+                )
+            )
             continue
         if product.pt_fields.protein_pct is not None:
             counts["skipped_has_retailer_value"] += 1
+            product_results.append(
+                ProductEnrichmentDetail(
+                    product_id=str(product.id),
+                    product_name=product.product_name,
+                    outcome="skipped_has_retailer_value",
+                )
+            )
             continue
 
         # NEVO first (deterministic).
@@ -3006,6 +3039,10 @@ def apply_reference_enrichment_route(
                     f"match on {match.entry.food_name_en!r} "
                     f"(code {match.entry.nevo_code})"
                 )
+                has_split = (
+                    match.entry.plant_protein_g_per_100g is not None
+                    and match.entry.animal_protein_g_per_100g is not None
+                )
                 _apply_nevo_entry(
                     product.id,
                     match.entry,
@@ -3015,6 +3052,17 @@ def apply_reference_enrichment_route(
                     with_split_counter="nevo_with_split",
                 )
                 counts["nevo_matched"] += 1
+                product_results.append(
+                    ProductEnrichmentDetail(
+                        product_id=str(product.id),
+                        product_name=product.product_name,
+                        outcome="nevo_matched",
+                        source="nevo",
+                        reference_name=match.entry.food_name_en,
+                        match_type=match.match_type,
+                        has_split=has_split,
+                    )
+                )
                 continue
 
         # CIQUAL fallback (deterministic, total protein only — no split).
@@ -3043,6 +3091,16 @@ def apply_reference_enrichment_route(
                     )
                 )
                 counts["ciqual_matched"] += 1
+                product_results.append(
+                    ProductEnrichmentDetail(
+                        product_id=str(product.id),
+                        product_name=product.product_name,
+                        outcome="ciqual_matched",
+                        source="ciqual",
+                        reference_name=c_match.entry.food_name_en,
+                        match_type=c_match.match_type,
+                    )
+                )
                 continue
 
         # Phase 33I-AI fallback — only when AI is enabled AND we can
@@ -3085,7 +3143,18 @@ def apply_reference_enrichment_route(
                         entry = nevo_by_code.get(proposal.reference_code)
                         if entry is None or entry.protein_g_per_100g is None:
                             counts["no_match"] += 1
+                            product_results.append(
+                                ProductEnrichmentDetail(
+                                    product_id=str(product.id),
+                                    product_name=product.product_name,
+                                    outcome="no_match",
+                                )
+                            )
                             continue
+                        has_split = (
+                            entry.plant_protein_g_per_100g is not None
+                            and entry.animal_protein_g_per_100g is not None
+                        )
                         _apply_nevo_entry(
                             product.id,
                             entry,
@@ -3095,11 +3164,29 @@ def apply_reference_enrichment_route(
                             with_split_counter="nevo_ai_assisted_with_split",
                         )
                         counts["nevo_ai_assisted_matched"] += 1
+                        product_results.append(
+                            ProductEnrichmentDetail(
+                                product_id=str(product.id),
+                                product_name=product.product_name,
+                                outcome="nevo_matched",
+                                source="nevo",
+                                reference_name=proposal.reference_name,
+                                match_type="ai_assisted",
+                                has_split=has_split,
+                            )
+                        )
                         continue
                     if proposal.source == "ciqual":
                         c_entry = ciqual_by_code.get(proposal.reference_code)
                         if c_entry is None or c_entry.protein_g_per_100g is None:
                             counts["no_match"] += 1
+                            product_results.append(
+                                ProductEnrichmentDetail(
+                                    product_id=str(product.id),
+                                    product_name=product.product_name,
+                                    outcome="no_match",
+                                )
+                            )
                             continue
                         store.add_enrichment_record(
                             _record(
@@ -3113,6 +3200,16 @@ def apply_reference_enrichment_route(
                             )
                         )
                         counts["ciqual_ai_assisted_matched"] += 1
+                        product_results.append(
+                            ProductEnrichmentDetail(
+                                product_id=str(product.id),
+                                product_name=product.product_name,
+                                outcome="ciqual_matched",
+                                source="ciqual",
+                                reference_name=proposal.reference_name,
+                                match_type="ai_assisted",
+                            )
+                        )
                         continue
                 elif proposal.decision == "needs_review":
                     # Persist a NEEDS_MANUAL_REVIEW record so the
@@ -3142,9 +3239,26 @@ def apply_reference_enrichment_route(
                         )
                     )
                     counts["ai_needs_review"] += 1
+                    product_results.append(
+                        ProductEnrichmentDetail(
+                            product_id=str(product.id),
+                            product_name=product.product_name,
+                            outcome="ai_needs_review",
+                            source=proposal.source,
+                            reference_name=proposal.reference_name,
+                            match_type="ai_needs_review",
+                        )
+                    )
                     continue
 
         counts["no_match"] += 1
+        product_results.append(
+            ProductEnrichmentDetail(
+                product_id=str(product.id),
+                product_name=product.product_name,
+                outcome="no_match",
+            )
+        )
 
     store.append_audit(
         AuditEvent(
@@ -3167,6 +3281,7 @@ def apply_reference_enrichment_route(
         **counts,
         ai_enabled=ai_provider is not None,
         ai_model=ai_provider.model if ai_provider is not None else None,
+        product_results=product_results,
     )
 
 

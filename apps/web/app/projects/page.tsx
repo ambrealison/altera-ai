@@ -64,7 +64,7 @@ export default function ProjectsPage() {
               {projects.map((p) => (
                 <li key={p.id} className="py-3">
                   <Link
-                    href={`/projects/${p.id}`}
+                    href={`/projects/${p.id}/workflow`}
                     className="block rounded-md p-2 -m-2 hover:bg-gray-50"
                   >
                     <div className="flex items-center justify-between">

@@ -146,6 +146,16 @@ export interface WorkflowStatus {
   steps: WorkflowStep[];
 }
 
+export interface ProductEnrichmentDetail {
+  product_id: string;
+  product_name: string;
+  outcome: "nevo_matched" | "ciqual_matched" | "ai_matched" | "ai_needs_review" | "no_match" | "skipped_has_retailer_value" | "skipped_no_pt_fields";
+  source: string | null;
+  reference_name: string | null;
+  match_type: string | null;
+  has_split: boolean;
+}
+
 export interface ApplyReferencesSummary {
   nevo_matched: number;
   nevo_with_split: number;
@@ -159,6 +169,8 @@ export interface ApplyReferencesSummary {
   skipped_no_pt_fields: number;
   ai_enabled: boolean;
   ai_model: string | null;
+  // Phase 34C — per-product enrichment outcomes.
+  product_results: ProductEnrichmentDetail[];
 }
 
 export interface ValidationEntry {
@@ -217,6 +229,8 @@ export interface ClassifySummary {
   pass_through: number;
   rule_collision: number;
   queued_for_review: number;
+  // Phase 34C — whether AI was active for this classify run.
+  ai_enabled: boolean;
 }
 
 export interface ReviewItem {

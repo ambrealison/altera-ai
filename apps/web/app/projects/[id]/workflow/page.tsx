@@ -27,6 +27,8 @@ import { useAuth } from "@/lib/auth-context";
 import {
   ApiError,
   createApi,
+  type ApplyReferencesSummary,
+  type ClassifySummary,
   type Run,
   type UploadResult,
   type WorkflowStatus,
@@ -389,6 +391,7 @@ function StepAIClassification({
   step,
   latestUpload,
   methodologies,
+  lastClassifyResult,
   busy,
   error,
   onRun,
@@ -397,6 +400,7 @@ function StepAIClassification({
   step: WorkflowStep;
   latestUpload: UploadResult | null;
   methodologies: string[];
+  lastClassifyResult: ClassifySummary | null;
   busy: boolean;
   error: string | null;
   onRun: () => void;
@@ -405,6 +409,7 @@ function StepAIClassification({
   const isComplete = step.status === "complete";
   const isNotNeeded = step.status === "not_needed";
   const ptEnabled = methodologies.includes("protein_tracker");
+  const aiWasDisabled = lastClassifyResult !== null && !lastClassifyResult.ai_enabled;
 
   return (
     <div className="space-y-5">
@@ -419,6 +424,13 @@ function StepAIClassification({
       </div>
 
       <Card>
+        {aiWasDisabled && (
+          <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Classification IA non disponible sur ce serveur — seule la classification
+            déterministe est active. Les produits non reconnus sont envoyés en validation
+            manuelle.
+          </div>
+        )}
         {isNotNeeded ? (
           <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
             Aucune classification IA nécessaire — tous les produits ont été classifiés
@@ -507,12 +519,14 @@ function StepValidation({
 
 function StepNEVO({
   step,
+  lastNevoResult,
   busy,
   error,
   onRun,
   onNext,
 }: {
   step: WorkflowStep;
+  lastNevoResult: ApplyReferencesSummary | null;
   busy: boolean;
   error: string | null;
   onRun: () => void;
@@ -520,6 +534,13 @@ function StepNEVO({
 }) {
   const isComplete = step.status === "complete";
   const isNotNeeded = step.status === "not_needed";
+
+  const noMatchProducts = lastNevoResult?.product_results.filter(
+    (r) => r.outcome === "no_match"
+  ) ?? [];
+  const matchedProducts = lastNevoResult?.product_results.filter(
+    (r) => r.outcome === "nevo_matched"
+  ) ?? [];
 
   return (
     <div className="space-y-5">
@@ -545,6 +566,47 @@ function StepNEVO({
             <BlockerList step={step} />
           </>
         )}
+
+        {/* Per-product results after running NEVO */}
+        {lastNevoResult && (matchedProducts.length > 0 || noMatchProducts.length > 0) && (
+          <div className="mt-4 space-y-3">
+            {matchedProducts.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                  {matchedProducts.length} produit(s) enrichi(s)
+                </p>
+                <ul className="mt-1.5 space-y-1">
+                  {matchedProducts.map((r) => (
+                    <li key={r.product_id} className="flex items-center justify-between text-xs text-gray-700">
+                      <span>{r.product_name}</span>
+                      <span className="text-gray-400 truncate max-w-[200px]">
+                        → {r.reference_name ?? "NEVO"}{r.has_split ? " (split ✓)" : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {noMatchProducts.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                  {noMatchProducts.length} produit(s) sans correspondance NEVO
+                </p>
+                <ul className="mt-1.5 space-y-1">
+                  {noMatchProducts.map((r) => (
+                    <li key={r.product_id} className="text-xs text-gray-500">
+                      {r.product_name} — aucune référence NEVO trouvée
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-xs text-gray-400">
+                  Ces produits seront tentés avec CIQUAL à {"l'étape"} suivante.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {error && (
           <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
             {error}
@@ -830,6 +892,9 @@ export default function WorkflowWizardPage() {
   // Per-step action state
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Phase 34C — store last classify and enrichment results for UI feedback
+  const [lastClassifyResult, setLastClassifyResult] = useState<ClassifySummary | null>(null);
+  const [lastNevoResult, setLastNevoResult] = useState<ApplyReferencesSummary | null>(null);
 
   // ----------- data loading -----------
 
@@ -917,13 +982,14 @@ export default function WorkflowWizardPage() {
     const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
     void runAction(() =>
       api.classify(projectId, latestUpload.id, methodology, { deterministic_only: false })
-        .then(() => {})
+        .then((result) => { setLastClassifyResult(result); })
     );
   }
 
   function handleApplyNEVO() {
     void runAction(() =>
-      api.applyNutritionReferences(projectId, { providers: ["nevo"] }).then(() => {})
+      api.applyNutritionReferences(projectId, { providers: ["nevo"] })
+        .then((result) => { setLastNevoResult(result); })
     );
   }
 
@@ -1079,6 +1145,7 @@ export default function WorkflowWizardPage() {
             step={activeBackendStep}
             latestUpload={latestUpload}
             methodologies={status.methodologies_enabled}
+            lastClassifyResult={lastClassifyResult}
             busy={busy}
             error={actionError}
             onRun={handleClassifyAI}
@@ -1095,6 +1162,7 @@ export default function WorkflowWizardPage() {
         {activeIdx === 5 && (
           <StepNEVO
             step={activeBackendStep}
+            lastNevoResult={lastNevoResult}
             busy={busy}
             error={actionError}
             onRun={handleApplyNEVO}

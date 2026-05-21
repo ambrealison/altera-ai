@@ -89,6 +89,7 @@ export default function ProjectDetail() {
         pass_through: summaries.reduce((s, x) => s + x.pass_through, 0),
         rule_collision: summaries.reduce((s, x) => s + x.rule_collision, 0),
         queued_for_review: summaries.reduce((s, x) => s + x.queued_for_review, 0),
+        ai_enabled: summaries.some((x) => x.ai_enabled),
       };
       setClassifyResult(merged);
       const updated = await api.getProject(id);

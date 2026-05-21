@@ -35,7 +35,7 @@ class NutritionCandidate:
     food_group: str | None
 
 
-_TOKEN_SPLIT = re.compile(r"[^a-z0-9]+")
+_TOKEN_SPLIT = re.compile(r"[^a-z0-9À-ɏ]+")
 
 #: Words that carry no matching signal — dropped before scoring.
 _STOPWORDS: frozenset[str] = frozenset(
@@ -68,15 +68,115 @@ _STOPWORDS: frozenset[str] = frozenset(
         "box",
         "bag",
         "pouch",
+        # French stopwords
+        "le",
+        "la",
+        "les",
+        "de",
+        "du",
+        "des",
+        "et",
+        "en",
+        "au",
+        "aux",
+        "un",
+        "une",
+        "cru",
+        "crue",
+        "cuit",
+        "cuite",
+        "nature",
+        "frais",
+        "fraiche",
+        "bio",
+        "pur",
+        "pure",
     }
 )
+
+#: French food token → English equivalents for cross-language NEVO scoring.
+_FR_TO_EN: dict[str, list[str]] = {
+    "poulet": ["chicken"],
+    "blanc": ["white", "breast"],
+    "filet": ["fillet", "breast"],
+    "tofu": ["tofu"],
+    "soja": ["soy", "soya"],
+    "soya": ["soya", "soy"],
+    "boeuf": ["beef"],
+    "veau": ["veal"],
+    "porc": ["pork"],
+    "agneau": ["lamb"],
+    "dinde": ["turkey"],
+    "saumon": ["salmon"],
+    "thon": ["tuna"],
+    "cabillaud": ["cod"],
+    "crevettes": ["shrimp", "prawn"],
+    "moules": ["mussels"],
+    "oeuf": ["egg"],
+    "oeufs": ["eggs"],
+    "lait": ["milk"],
+    "fromage": ["cheese"],
+    "yaourt": ["yoghurt", "yogurt"],
+    "beurre": ["butter"],
+    "creme": ["cream"],
+    "riz": ["rice"],
+    "pates": ["pasta"],
+    "pain": ["bread"],
+    "blé": ["wheat"],
+    "ble": ["wheat"],
+    "mais": ["corn", "maize"],
+    "avoine": ["oat", "oats"],
+    "orge": ["barley"],
+    "légumes": ["vegetables"],
+    "legumes": ["vegetables"],
+    "fruits": ["fruit"],
+    "pomme": ["apple"],
+    "tomate": ["tomato"],
+    "carotte": ["carrot"],
+    "oignon": ["onion"],
+    "ail": ["garlic"],
+    "lentilles": ["lentils"],
+    "pois": ["peas"],
+    "haricots": ["beans"],
+    "cereales": ["cereals", "grain"],
+    "salade": ["salad"],
+    "viande": ["meat"],
+    "poisson": ["fish"],
+    "charcuterie": ["processed meat", "cured meat"],
+    "jambon": ["ham"],
+    "saucisse": ["sausage"],
+    "amandes": ["almonds"],
+    "noix": ["nuts", "walnut"],
+    "noisettes": ["hazelnuts"],
+    "cacahuetes": ["peanuts"],
+    "huile": ["oil"],
+    "olive": ["olive"],
+    "sucre": ["sugar"],
+    "chocolat": ["chocolate"],
+    "laitue": ["lettuce"],
+    "epinards": ["spinach"],
+    "brocolis": ["broccoli"],
+}
 
 
 def _tokenize(s: str) -> set[str]:
     if not s:
         return set()
-    parts = _TOKEN_SPLIT.split(s.lower())
+    # Normalize accented characters for matching (é→e, etc.)
+    import unicodedata
+    normalized = unicodedata.normalize("NFKD", s.lower())
+    ascii_s = "".join(c for c in normalized if not unicodedata.combining(c))
+    parts = _TOKEN_SPLIT.split(ascii_s)
     return {p for p in parts if len(p) >= 3 and p not in _STOPWORDS}
+
+
+def _expand_fr(tokens: set[str]) -> set[str]:
+    """Expand French food tokens to English equivalents for cross-language scoring."""
+    expanded = set(tokens)
+    for tok in tokens:
+        for en in _FR_TO_EN.get(tok, []):
+            expanded.update(_tokenize(en))
+    return expanded
 
 
 def _score(query_tokens: set[str], candidate_name: str) -> int:
@@ -112,11 +212,16 @@ def candidates_for_product(
     if not query_tokens:
         return []
 
+    # Expand French tokens to English equivalents so French products
+    # can score against English/Dutch NEVO entries.
+    query_tokens_expanded = _expand_fr(query_tokens)
+
     nevo_scored: list[tuple[int, NevoEntry]] = []
     for e in nevo_entries:
         if e.protein_g_per_100g is None:
             continue
-        s = _score(query_tokens, _name_for(e))
+        # Score with expanded tokens (FR→EN) against NEVO English/Dutch names.
+        s = _score(query_tokens_expanded, _name_for(e))
         if s > 0:
             nevo_scored.append((s, e))
     nevo_scored.sort(key=lambda t: (-t[0], _name_for(t[1])))
@@ -125,7 +230,13 @@ def candidates_for_product(
     for e in ciqual_entries:
         if e.protein_g_per_100g is None:
             continue
-        s = _score(query_tokens, e.food_name_en)
+        # CIQUAL food_name_en stores French names (from alim_nom_fr column).
+        # Score with original French tokens for direct matching, plus expanded
+        # tokens for mixed-language CIQUAL entries.
+        s = max(
+            _score(query_tokens, e.food_name_en),
+            _score(query_tokens_expanded, e.food_name_en),
+        )
         if s > 0:
             ciqual_scored.append((s, e))
     ciqual_scored.sort(key=lambda t: (-t[0], t[1].food_name_en))
