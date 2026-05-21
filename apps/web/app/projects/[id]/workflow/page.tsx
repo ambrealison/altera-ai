@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 import { Button, Card, Pill } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
@@ -29,11 +29,16 @@ import {
   createApi,
   type ApplyReferencesSummary,
   type ClassifySummary,
+  type Methodology,
   type Run,
   type UploadResult,
   type WorkflowStatus,
   type WorkflowStep,
 } from "@/lib/api";
+
+// Phase 34E — fully inline upload + manual review inside the wizard.
+import { InlineUpload } from "./_inline-upload";
+import { InlineReview } from "./_inline-review";
 
 // ---------------------------------------------------------------------------
 // Wizard step definitions — 9 visible steps mapped to backend step keys
@@ -196,13 +201,19 @@ function CountRow({ counts }: { counts: Record<string, number> }) {
 
 function StepImport({
   projectId,
+  accessToken,
   step,
   latestUpload,
+  methodologies,
+  onUploaded,
   onNext,
 }: {
   projectId: string;
+  accessToken: string | null;
   step: WorkflowStep;
   latestUpload: UploadResult | null;
+  methodologies: string[];
+  onUploaded: () => void | Promise<void>;
   onNext: () => void;
 }) {
   const isComplete = step.status === "complete";
@@ -216,42 +227,24 @@ function StepImport({
         </p>
       </div>
 
-      {isComplete && latestUpload ? (
+      <InlineUpload
+        projectId={projectId}
+        accessToken={accessToken}
+        methodologies={methodologies}
+        latestUpload={latestUpload}
+        onUploaded={onUploaded}
+      />
+
+      {isComplete && latestUpload && (
         <Card>
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-800">{latestUpload.original_filename}</p>
-              <p className="mt-0.5 text-xs text-gray-500">
-                {latestUpload.products_count} produit(s) · {latestUpload.row_count ?? "?"} ligne(s)
-              </p>
-            </div>
-            <Pill tone="ok">Importé</Pill>
-          </div>
           <CountRow counts={step.counts} />
           {latestUpload.warnings.length > 0 && (
-            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {latestUpload.warnings.length} avertissement(s) — voir la page {"d'import"} pour le détail.
+            <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {latestUpload.warnings.length} avertissement(s) à l’import.
             </div>
           )}
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-3 flex flex-wrap gap-3">
             <Button onClick={onNext}>Continuer vers Méthodologie</Button>
-            <Link href={`/projects/${projectId}/upload`}>
-              <Button variant="secondary">Remplacer le fichier</Button>
-            </Link>
-          </div>
-        </Card>
-      ) : (
-        <Card>
-          <p className="text-sm text-gray-600">
-            Formats acceptés : CSV (UTF-8). La première ligne doit contenir les en-têtes de colonnes.
-          </p>
-          <p className="mt-2 text-sm text-gray-600">
-            Aucun fichier importé pour ce projet.
-          </p>
-          <div className="mt-4">
-            <Link href={`/projects/${projectId}/upload`}>
-              <Button>Importer un fichier</Button>
-            </Link>
           </div>
         </Card>
       )}
@@ -493,11 +486,17 @@ function StepAIClassification({
 
 function StepValidation({
   projectId,
+  accessToken,
   step,
+  methodology,
+  onResolved,
   onNext,
 }: {
   projectId: string;
+  accessToken: string | null;
   step: WorkflowStep;
+  methodology: Methodology;
+  onResolved: () => void | Promise<void>;
   onNext: () => void;
 }) {
   const isNotNeeded = step.status === "not_needed";
@@ -513,31 +512,34 @@ function StepValidation({
         </p>
       </div>
 
-      <Card>
-        {isNotNeeded || pending === 0 ? (
+      {isNotNeeded || pending === 0 ? (
+        <Card>
           <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
             Aucun produit à valider manuellement.
           </div>
-        ) : (
-          <>
+          <div className="mt-3">
+            <Button onClick={onNext}>Continuer vers NEVO</Button>
+          </div>
+        </Card>
+      ) : (
+        <>
+          <InlineReview
+            projectId={projectId}
+            accessToken={accessToken}
+            methodology={methodology}
+            onResolved={onResolved}
+          />
+          <Card>
             <CountRow counts={step.counts} />
             <BlockerList step={step} />
-            <div className="mt-4">
-              <Link href={`/projects/${projectId}/review`}>
-                <Button>Ouvrir la validation manuelle ({pending})</Button>
-              </Link>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Button variant="secondary" onClick={onNext}>
+                Continuer vers NEVO
+              </Button>
             </div>
-          </>
-        )}
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Button
-            variant={isNotNeeded || pending === 0 ? "primary" : "secondary"}
-            onClick={onNext}
-          >
-            Continuer vers NEVO
-          </Button>
-        </div>
-      </Card>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
@@ -1007,12 +1009,13 @@ function StepReport({
 
           <div className="mt-5 flex flex-wrap gap-3">
             <Link href={`/projects/${projectId}/runs/${latestRun.id}`}>
-              <Button variant="secondary">Voir le rapport complet</Button>
+              <Button variant="ghost">Voir le détail technique →</Button>
             </Link>
           </div>
 
           <p className="mt-3 text-xs text-gray-400">
-            Exports CSV, JSON et Markdown disponibles sur la page du rapport.
+            Le détail technique (admin/debug) regroupe les exports CSV/JSON/Markdown
+            et l’historique d’approbation.
           </p>
         </Card>
       )}
@@ -1026,7 +1029,6 @@ function StepReport({
 
 export default function WorkflowWizardPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = params.id;
   const { accessToken } = useAuth();
@@ -1153,9 +1155,11 @@ export default function WorkflowWizardPage() {
   function handleCreateRun() {
     if (!status) return;
     const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
+    // Phase 34E — stay in the wizard. The run summary is rendered
+    // inline on Step 9; the legacy run-detail page is admin-only.
     void runAction(async () => {
-      const run = await api.createRun(projectId, methodology);
-      router.push(`/projects/${projectId}/runs/${run.id}`);
+      await api.createRun(projectId, methodology);
+      advanceTo(8);
     });
   }
 
@@ -1220,8 +1224,11 @@ export default function WorkflowWizardPage() {
             Étape {activeIdx + 1} sur 9 · Progression : {status.overall_progress_pct} %
           </p>
         </div>
-        <Link href={`/projects/${projectId}`} className="text-sm text-brand-700 hover:underline">
-          ← Retour au projet
+        <Link
+          href={`/projects/${projectId}`}
+          className="text-xs text-gray-400 hover:text-gray-600 hover:underline"
+        >
+          Voir le détail technique (admin)
         </Link>
       </div>
 
@@ -1267,8 +1274,11 @@ export default function WorkflowWizardPage() {
         {activeIdx === 0 && (
           <StepImport
             projectId={projectId}
+            accessToken={accessToken}
             step={activeBackendStep}
             latestUpload={latestUpload}
+            methodologies={status.methodologies_enabled}
+            onUploaded={refresh}
             onNext={advanceNext}
           />
         )}
@@ -1306,7 +1316,13 @@ export default function WorkflowWizardPage() {
         {activeIdx === 4 && (
           <StepValidation
             projectId={projectId}
+            accessToken={accessToken}
             step={activeBackendStep}
+            methodology={
+              (status.methodologies_enabled[0] as Methodology) ??
+              "protein_tracker"
+            }
+            onResolved={refresh}
             onNext={advanceNext}
           />
         )}
