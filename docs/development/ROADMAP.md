@@ -147,8 +147,60 @@ volume only — no `external_product_id` required; stable internal IDs
 are generated). Generalisable matching means a 15k-row file is handled
 the same way as the 5-row Phase 34 sample.
 
-**Known follow-up for Phase 34E**: fully inline upload, review, and run
-result inside the wizard (today they link out to the legacy pages).
+**Phase 34E** — Fully inlined upload, review, and run result inside the
+wizard. The normal user flow stays on `/projects/{id}/workflow`
+end-to-end. Legacy `/upload`, `/review`, `/runs/{runId}` pages remain
+as admin/debug only.
+
+### Phase 34F — High-coverage AI categorisation + validation table
+
+Root cause of the "14 attempted / 0 classified / 14 failed" report:
+the AI path made one OpenAI call per product with a weak user prompt
+(`json.dumps(product_card)` only, no instruction), no JSON mode, and a
+strict-extras Pydantic schema that rejected any extra field the model
+added. The wizard's Step 4 saw 14 failures and routed every product
+to manual review.
+
+**Fix shipped in Phase 34F:**
+
+- Batched classification: 50 products per OpenAI call (configurable).
+  ``response_format={"type": "json_object"}`` forces valid JSON;
+  ``temperature=0`` for stability; ``max_tokens`` scales with batch
+  size. Per-row parse failures no longer poison the whole batch — only
+  the affected row goes to manual review.
+- Prompt: explicit French food-family examples (pommes, poulet, tofu,
+  saumon, yaourt, steak végétal, lasagnes, huile, sel, vin, etc.) plus
+  every PT enum value with a one-line domain hint. Confidence guidance
+  ("0.95+ for unambiguous food names, ≥0.85 for one-disambiguating-word
+  cases"). System message names *only* the stable internal enum values
+  so the parser cannot drift.
+- Privacy: unchanged allowlist. Only product_name, brand,
+  retailer_category, retailer_subcategory, ingredients_text, labels,
+  language, country leave the process. The batch user message is the
+  concatenation of per-product payloads, every one validated by
+  ``assert_payload_allowed`` before assembly. Volumes, weights,
+  items_purchased/sold, prices, margins, protein values are never sent.
+- Diagnostics: ``ClassifyResponse`` now exposes ``ai_parse_failures``,
+  ``ai_unsupported_category_failures``, ``ai_provider_errors``,
+  ``ai_batch_count``, and ``ai_sample_errors[]``. Step 4 surfaces all
+  of these in a French banner so the user knows exactly why a
+  classification failed.
+- ``GET /api/v1/projects/{id}/classifications`` — paginated,
+  filterable (source, pt_group, confidence range, review_status,
+  product_search). Returns aggregate counts so the wizard can show
+  "153 déterministe / 78 IA / 5 manuel" without paging through
+  the whole list. Designed to scale to 10k–15k rows.
+- Wizard Step 5 — new inline category validation table renders product
+  name + brand + retailer category + assigned PT category + source +
+  confidence + review status, with one-click "Accepter" / "Changer".
+  Manual override supersedes AI but classifications retain the audit
+  trail (source=ai, ai_model, ai_prompt_version stay on the
+  classification record; the manual decision is recorded separately in
+  the review/audit log).
+
+Coverage target: >95% of obvious French retailer products get
+classified deterministically + AI; only genuinely ambiguous SKUs
+(promotions, lots, brand-only labels) fall back to manual review.
 
 ### Phase 35 — GDPR data retention
 

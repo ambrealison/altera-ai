@@ -655,6 +655,14 @@ class ClassifyResponse(BaseModel):
     #   "provider_misconfigured" — provider name set but API key missing
     #   None — AI ran (ai_enabled is true)
     ai_disabled_reason: str | None = None
+    # Phase 34F — finer-grained diagnostic counts so the wizard can
+    # show *why* AI rejected a classification (parse vs unsupported
+    # category vs provider error), plus a sample of error strings.
+    ai_parse_failures: int = 0
+    ai_unsupported_category_failures: int = 0
+    ai_provider_errors: int = 0
+    ai_batch_count: int = 0
+    ai_sample_errors: list[str] = Field(default_factory=list)
 
 
 def _ai_disabled_reason(deterministic_only: bool) -> str | None:
@@ -731,6 +739,11 @@ def classify_route(
         ai_review=summary.ai_review,
         ai_failed=summary.ai_failed,
         ai_disabled_reason=_ai_disabled_reason(body.deterministic_only),
+        ai_parse_failures=summary.ai_parse_failures,
+        ai_unsupported_category_failures=summary.ai_unsupported_category_failures,
+        ai_provider_errors=summary.ai_provider_errors,
+        ai_batch_count=summary.ai_batch_count,
+        ai_sample_errors=list(summary.ai_sample_errors),
     )
 
 
@@ -855,6 +868,166 @@ def list_review_route(
     )
     all_items = [_review_response(v) for v in views]
     return paginate(all_items, pagination)
+
+
+# ---------------------------------------------------------------------------
+# Phase 34F — paginated classifications endpoint
+# ---------------------------------------------------------------------------
+
+
+class ClassificationRow(BaseModel):
+    """One row in the wizard's category validation table.
+
+    Carries only non-commercial fields (the same allowlist used for AI
+    payloads — product_name, brand, retailer_category/subcategory).
+    Commercial fields (weight, volume, prices, margins) are deliberately
+    NOT included in this response.
+    """
+
+    product_id: UUID
+    product_name: str
+    brand: str | None
+    retailer_category: str | None
+    retailer_subcategory: str | None
+    # Protein Tracker
+    pt_group: str | None
+    pt_source: str | None             # "deterministic" | "ai" | "manual_review"
+    pt_confidence: float | None
+    pt_rule_id: str | None
+    pt_ai_model: str | None
+    # WWF (null when WWF not enabled on the project)
+    wwf_food_group: str | None
+    wwf_source: str | None
+    wwf_confidence: float | None
+    # Review state
+    review_status: str | None         # "in_queue" | "reviewing" | "accepted" |
+                                      #  "changed" | "deferred" | null
+
+
+class ClassificationsResponse(BaseModel):
+    items: list[ClassificationRow]
+    total: int
+    # Aggregate counters so the wizard can show "153 by deterministic /
+    # 78 by AI / 5 manual / 0 unknown" without re-paginating the entire
+    # list. These are computed over the FILTERED set, not the global set,
+    # so they update when the user applies a filter.
+    counts_by_source: dict[str, int]
+    counts_by_pt_group: dict[str, int]
+    pt_eligible_total: int            # products with PT methodology enabled
+
+
+@api_router.get(
+    "/projects/{project_id}/classifications",
+    response_model=ClassificationsResponse,
+)
+def list_classifications_route(
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    pagination: Annotated[PaginationParams, Depends()],
+    source: Literal["deterministic", "ai", "manual_review", "unknown"] | None = None,
+    pt_group: str | None = None,
+    min_confidence: float | None = None,
+    max_confidence: float | None = None,
+    review_status: ManualReviewStatus | None = None,
+    product_search: str | None = None,
+) -> ClassificationsResponse:
+    """Paginated category validation table for the wizard.
+
+    Used by Step 5 (validation) to let the analyst see every product's
+    assigned Protein Tracker / WWF category, the source (rule / AI /
+    manual), confidence, and current review status. Designed to scale
+    to 10k–15k rows by returning aggregate counts plus a single page.
+
+    Filters apply in conjunction (AND). ``product_search`` is a
+    case-insensitive substring match on product_name or brand.
+    """
+    products = store.list_products_for_project(project.id)
+    pt_enabled = Methodology.PROTEIN_TRACKER in project.methodologies_enabled
+    wwf_enabled = Methodology.WWF in project.methodologies_enabled
+
+    # Lookup table for review items keyed by product_id (PT only — the
+    # Step 5 validation table is the PT review surface).
+    review_items_pt = {
+        item.product_id: item
+        for item in store.list_review_items_for_project(
+            project.id, methodology=Methodology.PROTEIN_TRACKER
+        )
+    } if pt_enabled else {}
+
+    rows: list[ClassificationRow] = []
+    pt_eligible_total = 0
+    for product in products:
+        if pt_enabled and Methodology.PROTEIN_TRACKER in product.methodologies_enabled:
+            pt_eligible_total += 1
+        pt = store.get_pt_classification(product.id) if pt_enabled else None
+        wwf = store.get_wwf_classification(product.id) if wwf_enabled else None
+        review_item = review_items_pt.get(product.id)
+        rows.append(
+            ClassificationRow(
+                product_id=product.id,
+                product_name=product.product_name,
+                brand=product.brand,
+                retailer_category=product.retailer_category,
+                retailer_subcategory=product.retailer_subcategory,
+                pt_group=pt.pt_group.value if pt is not None else None,
+                pt_source=pt.source.value if pt is not None else None,
+                pt_confidence=float(pt.confidence) if pt is not None else None,
+                pt_rule_id=pt.rule_id if pt is not None else None,
+                pt_ai_model=pt.ai_model if pt is not None else None,
+                wwf_food_group=wwf.wwf_food_group.value if wwf is not None else None,
+                wwf_source=wwf.source.value if wwf is not None else None,
+                wwf_confidence=float(wwf.confidence) if wwf is not None else None,
+                review_status=(
+                    review_item.status.value if review_item is not None else None
+                ),
+            )
+        )
+
+    # Filter.
+    def _keep(r: ClassificationRow) -> bool:
+        if source is not None:
+            if source == "unknown":
+                if r.pt_source is not None:
+                    return False
+            elif r.pt_source != source:
+                return False
+        if pt_group is not None and r.pt_group != pt_group:
+            return False
+        if min_confidence is not None:
+            if r.pt_confidence is None or r.pt_confidence < min_confidence:
+                return False
+        if max_confidence is not None:
+            if r.pt_confidence is None or r.pt_confidence > max_confidence:
+                return False
+        if review_status is not None:
+            if r.review_status != review_status.value:
+                return False
+        if product_search:
+            q = product_search.lower()
+            hay = (r.product_name + " " + (r.brand or "")).lower()
+            if q not in hay:
+                return False
+        return True
+
+    filtered = [r for r in rows if _keep(r)]
+
+    counts_by_source: dict[str, int] = {}
+    counts_by_pt_group: dict[str, int] = {}
+    for r in filtered:
+        key = r.pt_source or "unknown"
+        counts_by_source[key] = counts_by_source.get(key, 0) + 1
+        if r.pt_group is not None:
+            counts_by_pt_group[r.pt_group] = counts_by_pt_group.get(r.pt_group, 0) + 1
+
+    # Paginate.
+    page = paginate(filtered, pagination)
+    return ClassificationsResponse(
+        items=page.items,
+        total=page.total,
+        counts_by_source=counts_by_source,
+        counts_by_pt_group=counts_by_pt_group,
+        pt_eligible_total=pt_eligible_total,
+    )
 
 
 @api_router.post(

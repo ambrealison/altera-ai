@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID, uuid4
 
+from altera_api.ai.batch_classifier import batch_classify as ai_batch_classify
 from altera_api.ai.classifier import (
     AIAccepted,
     AINeedsReviewLowConfidence,
@@ -143,6 +144,13 @@ class ClassifySummary:
     # methodology enabled — skipped explicitly so the lifecycle never
     # silently drops them.
     skipped_methodology_disabled: int = 0
+    # Phase 34F — finer-grained AI diagnostic counts surfaced to the
+    # wizard so the user can tell *why* a classification was rejected.
+    ai_parse_failures: int = 0
+    ai_unsupported_category_failures: int = 0
+    ai_provider_errors: int = 0
+    ai_batch_count: int = 0
+    ai_sample_errors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -332,6 +340,19 @@ def classify_upload(
     now = datetime.now(UTC)
     matched = pass_through = collision = contradiction = queued = skipped = 0
     ai_attempted = ai_accepted = ai_review = ai_failed = 0
+    # Phase 34F — finer-grained diagnostic counts surfaced to the wizard.
+    ai_parse_failures = ai_unsupported_category = ai_provider_errors = 0
+    ai_batch_count = 0
+    ai_sample_errors: tuple[str, ...] = ()
+
+    # Phase 34F — when the provider supports batched calls (OpenAI does),
+    # collect pass-through products and classify them in one batch per
+    # ~50 products instead of one HTTP call per product. This is what
+    # gets us from "0 classified / N failed" to >95% coverage on
+    # ordinary French retailer CSVs.
+    use_batch = ai_provider is not None and ai_provider.supports_batch()
+    pt_batch: list[NormalizedProduct] = []
+    wwf_batch: list[NormalizedProduct] = []
 
     for product_id in upload_record.product_ids:
         product = store.get_product(product_id)
@@ -373,7 +394,10 @@ def classify_upload(
                 queued += 1
             elif isinstance(verdict, PTPassThrough):
                 pass_through += 1
-                if ai_provider is not None:
+                if use_batch:
+                    # Defer to the post-loop batch call.
+                    pt_batch.append(product)
+                elif ai_provider is not None:
                     ai_attempted += 1
                     ai_v = ai_classify_pt(product, ai_provider, now=now)
                     if isinstance(ai_v, AIAccepted):
@@ -436,7 +460,9 @@ def classify_upload(
                 queued += 1
             elif isinstance(verdict_w, WWFPassThrough):
                 pass_through += 1
-                if ai_provider is not None:
+                if use_batch:
+                    wwf_batch.append(product)
+                elif ai_provider is not None:
                     ai_attempted += 1
                     ai_v_w = ai_classify_wwf(product, ai_provider, now=now)
                     if isinstance(ai_v_w, AIAccepted):
@@ -472,6 +498,70 @@ def classify_upload(
                     _queue_unknown_wwf(store, product, ManualReviewQueueReason.REQUESTED, now)
                     queued += 1
 
+    # Phase 34F — batched AI pass for pass-through products. This is
+    # only entered when the configured provider supports batching
+    # (OpenAI does; all test fakes default to single-product calls).
+    if use_batch and ai_provider is not None and (pt_batch or wwf_batch):
+        target_products = pt_batch if methodology is Methodology.PROTEIN_TRACKER else wwf_batch
+        if target_products:
+            bundle = ai_batch_classify(
+                target_products, ai_provider, methodology, now=now
+            )
+            ai_batch_count = bundle.batch_count
+            ai_parse_failures = bundle.parse_failures
+            ai_unsupported_category = bundle.unsupported_category_failures
+            ai_provider_errors = bundle.provider_errors
+            ai_sample_errors = tuple(bundle.sample_errors)
+            for product, ai_v_any in zip(
+                target_products, bundle.verdicts, strict=True
+            ):
+                ai_attempted += 1
+                if isinstance(ai_v_any, AIAccepted):
+                    if methodology is Methodology.PROTEIN_TRACKER:
+                        store.upsert_pt_classification(ai_v_any.classification)
+                    else:
+                        store.upsert_wwf_classification(ai_v_any.classification)
+                    store.remove_review_item(product.id, methodology)
+                    ai_accepted += 1
+                elif isinstance(ai_v_any, AINeedsReviewLowConfidence):
+                    if methodology is Methodology.PROTEIN_TRACKER:
+                        store.upsert_pt_classification(ai_v_any.classification)
+                    else:
+                        store.upsert_wwf_classification(ai_v_any.classification)
+                    _enqueue_review_item(
+                        store,
+                        product.id,
+                        methodology,
+                        ManualReviewQueueReason.LOW_CONFIDENCE,
+                        now,
+                    )
+                    ai_review += 1
+                    queued += 1
+                elif isinstance(ai_v_any, AINeedsReviewParseFailed):
+                    if methodology is Methodology.PROTEIN_TRACKER:
+                        _queue_unknown_pt(
+                            store, product, ManualReviewQueueReason.AI_PARSE_FAILED, now
+                        )
+                    else:
+                        _queue_unknown_wwf(
+                            store, product, ManualReviewQueueReason.AI_PARSE_FAILED, now
+                        )
+                    ai_review += 1
+                    ai_failed += 1
+                    queued += 1
+                elif isinstance(ai_v_any, AIProviderError):
+                    if methodology is Methodology.PROTEIN_TRACKER:
+                        _queue_unknown_pt(
+                            store, product, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+                        )
+                    else:
+                        _queue_unknown_wwf(
+                            store, product, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+                        )
+                    ai_review += 1
+                    ai_failed += 1
+                    queued += 1
+
     return ClassifySummary(
         methodology=methodology,
         matched=matched,
@@ -484,6 +574,11 @@ def classify_upload(
         ai_review=ai_review,
         ai_failed=ai_failed,
         skipped_methodology_disabled=skipped,
+        ai_parse_failures=ai_parse_failures,
+        ai_unsupported_category_failures=ai_unsupported_category,
+        ai_provider_errors=ai_provider_errors,
+        ai_batch_count=ai_batch_count,
+        ai_sample_errors=ai_sample_errors,
     )
 
 

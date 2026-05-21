@@ -7,6 +7,11 @@ interface and the error contract.
 
 Providers must not maintain mutable state between calls; the engine
 above them treats each ``classify`` call as a pure function.
+
+Phase 34F adds an optional ``batch_classify`` method. Providers that
+implement it can classify N products in one HTTP call, which is
+required to handle 10k–15k-row retailer CSVs without exhausting rate
+limits or producing one-by-one parse failures.
 """
 
 from __future__ import annotations
@@ -14,6 +19,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from altera_api.ai.batch_prompt import BatchClassifierPrompt
 from altera_api.ai.prompt_builder import ClassifierPrompt
 
 
@@ -58,3 +64,28 @@ class ClassifierProvider(ABC):
         - Raise :class:`ProviderError` for transient network/server
           failures, not generic exceptions.
         """
+
+    def supports_batch(self) -> bool:
+        """Whether this provider can classify multiple products per call.
+
+        Phase 34F — default ``False``. Providers that override
+        :meth:`batch_classify` should also return ``True`` here so the
+        orchestrator picks the batched path.
+        """
+        return False
+
+    def batch_classify(
+        self, prompt: BatchClassifierPrompt
+    ) -> ProviderResponse:
+        """Send a batched prompt and return the raw JSON response.
+
+        Default implementation raises ``NotImplementedError`` — the
+        orchestrator falls back to per-product :meth:`classify` calls
+        when this is not implemented. Implementations must still run
+        the privacy guard on each per-product payload BEFORE assembling
+        the batched request (the :func:`build_batch_classifier_prompt`
+        helper does this for them).
+        """
+        raise NotImplementedError(
+            "this provider does not implement batch classification"
+        )

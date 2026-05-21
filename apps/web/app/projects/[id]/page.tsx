@@ -97,6 +97,19 @@ export default function ProjectDetail() {
         ai_failed: summaries.reduce((s, x) => s + (x.ai_failed ?? 0), 0),
         ai_disabled_reason: summaries.find((x) => x.ai_disabled_reason)
           ?.ai_disabled_reason ?? null,
+        ai_parse_failures: summaries.reduce(
+          (s, x) => s + (x.ai_parse_failures ?? 0), 0,
+        ),
+        ai_unsupported_category_failures: summaries.reduce(
+          (s, x) => s + (x.ai_unsupported_category_failures ?? 0), 0,
+        ),
+        ai_provider_errors: summaries.reduce(
+          (s, x) => s + (x.ai_provider_errors ?? 0), 0,
+        ),
+        ai_batch_count: summaries.reduce(
+          (s, x) => s + (x.ai_batch_count ?? 0), 0,
+        ),
+        ai_sample_errors: summaries.flatMap((x) => x.ai_sample_errors ?? []),
       };
       setClassifyResult(merged);
       const updated = await api.getProject(id);

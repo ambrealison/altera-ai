@@ -247,6 +247,49 @@ export interface ClassifySummary {
     | "provider_disabled"
     | "provider_misconfigured"
     | null;
+  // Phase 34F — finer-grained AI diagnostics for the wizard's Step 4 banner.
+  ai_parse_failures: number;
+  ai_unsupported_category_failures: number;
+  ai_provider_errors: number;
+  ai_batch_count: number;
+  ai_sample_errors: string[];
+}
+
+// Phase 34F — paginated category validation table.
+export interface ClassificationRow {
+  product_id: string;
+  product_name: string;
+  brand: string | null;
+  retailer_category: string | null;
+  retailer_subcategory: string | null;
+  pt_group: ProteinTrackerGroup | null;
+  pt_source: "deterministic" | "ai" | "manual_review" | null;
+  pt_confidence: number | null;
+  pt_rule_id: string | null;
+  pt_ai_model: string | null;
+  wwf_food_group: WWFFoodGroup | null;
+  wwf_source: "deterministic" | "ai" | "manual_review" | null;
+  wwf_confidence: number | null;
+  review_status: ManualReviewStatus | null;
+}
+
+export interface ClassificationsResponse {
+  items: ClassificationRow[];
+  total: number;
+  counts_by_source: Record<string, number>;
+  counts_by_pt_group: Record<string, number>;
+  pt_eligible_total: number;
+}
+
+export interface ClassificationsFilters {
+  source?: "deterministic" | "ai" | "manual_review" | "unknown";
+  pt_group?: ProteinTrackerGroup;
+  min_confidence?: number;
+  max_confidence?: number;
+  review_status?: ManualReviewStatus;
+  product_search?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface NutritionReferencesStats {
@@ -967,6 +1010,31 @@ export function createApi(accessToken: string | null) {
         },
         accessToken,
       ),
+
+    // Phase 34F — paginated category validation table.
+    listClassifications: (
+      projectId: string,
+      filters: ClassificationsFilters = {},
+    ) => {
+      const params = new URLSearchParams();
+      if (filters.source) params.set("source", filters.source);
+      if (filters.pt_group) params.set("pt_group", filters.pt_group);
+      if (filters.min_confidence != null)
+        params.set("min_confidence", String(filters.min_confidence));
+      if (filters.max_confidence != null)
+        params.set("max_confidence", String(filters.max_confidence));
+      if (filters.review_status) params.set("review_status", filters.review_status);
+      if (filters.product_search)
+        params.set("product_search", filters.product_search);
+      if (filters.limit != null) params.set("limit", String(filters.limit));
+      if (filters.offset != null) params.set("offset", String(filters.offset));
+      const q = params.size > 0 ? `?${params.toString()}` : "";
+      return request<ClassificationsResponse>(
+        `/api/v1/projects/${projectId}/classifications${q}`,
+        { method: "GET" },
+        accessToken,
+      );
+    },
 
     // Phase 34D — NEVO/CIQUAL reference table diagnostics (Altera-only).
     getNutritionReferencesStats: () =>

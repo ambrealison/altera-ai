@@ -1,0 +1,442 @@
+"use client";
+
+/**
+ * Phase 34F — Inline category validation table for wizard Step 5.
+ *
+ * Shows every product's assigned Protein Tracker (and optionally WWF)
+ * category, the source that decided it (deterministic / AI / manual),
+ * confidence, and current review status. Scales to 10k–15k rows by:
+ *
+ * - server-side pagination (50 rows per page by default);
+ * - server-side filtering (source, pt_group, confidence range,
+ *   review_status, product_search);
+ * - aggregate counters from the server so the wizard does not have to
+ *   fetch every page just to render the by-source / by-group summary.
+ *
+ * Privacy: only non-commercial fields are surfaced (product name,
+ * brand, retailer_category/subcategory). Volume / weight / prices /
+ * margins are NOT in the row payload by API design.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { Button, Card, Pill } from "@/components/ui";
+import type {
+  ClassificationRow,
+  ClassificationsFilters,
+  ClassificationsResponse,
+  Methodology,
+  ProteinTrackerGroup,
+} from "@/lib/api";
+import { ApiError, createApi } from "@/lib/api";
+
+const PAGE_SIZE = 50;
+
+const PT_GROUP_LABELS_FR: Record<ProteinTrackerGroup, string> = {
+  plant_based_core: "Végétal — cœur",
+  plant_based_non_core: "Végétal — hors cœur",
+  composite_products: "Composite",
+  animal_core: "Animal — cœur",
+  out_of_scope: "Hors périmètre",
+  unknown: "Inconnu",
+};
+
+const PT_GROUP_TONE: Record<
+  ProteinTrackerGroup,
+  "ok" | "warn" | "neutral" | "brand"
+> = {
+  plant_based_core: "ok",
+  plant_based_non_core: "ok",
+  composite_products: "warn",
+  animal_core: "brand",
+  out_of_scope: "neutral",
+  unknown: "neutral",
+};
+
+const PT_GROUP_OPTIONS: ProteinTrackerGroup[] = [
+  "plant_based_core",
+  "plant_based_non_core",
+  "composite_products",
+  "animal_core",
+  "out_of_scope",
+];
+
+const SOURCE_LABELS_FR: Record<string, string> = {
+  deterministic: "Déterministe",
+  ai: "IA",
+  manual_review: "Manuel",
+  unknown: "Aucune",
+};
+
+function ptGroupLabel(g: ProteinTrackerGroup | null): string {
+  if (!g) return "Aucune";
+  return PT_GROUP_LABELS_FR[g] ?? g;
+}
+
+function sourceLabel(s: string | null): string {
+  if (!s) return "Aucune";
+  return SOURCE_LABELS_FR[s] ?? s;
+}
+
+function confidenceText(c: number | null): string {
+  if (c == null) return "—";
+  return `${Math.round(c * 100)} %`;
+}
+
+export function ValidationTable({
+  projectId,
+  accessToken,
+  wwfEnabled,
+  onChanged,
+}: {
+  projectId: string;
+  accessToken: string | null;
+  wwfEnabled: boolean;
+  onChanged?: () => void | Promise<void>;
+}) {
+  const api = useMemo(() => createApi(accessToken), [accessToken]);
+
+  const [filters, setFilters] = useState<ClassificationsFilters>({});
+  const [offset, setOffset] = useState(0);
+  const [data, setData] = useState<ClassificationsResponse | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [overrides, setOverrides] = useState<
+    Record<string, ProteinTrackerGroup>
+  >({});
+
+  const load = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const r = await api.listClassifications(projectId, {
+        ...filters,
+        limit: PAGE_SIZE,
+        offset,
+      });
+      setData(r);
+    } catch (e) {
+      setLoadError(
+        e instanceof Error ? e.message : "Échec du chargement du tableau.",
+      );
+    }
+  }, [api, projectId, filters, offset]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function submit(
+    row: ClassificationRow,
+    decision: "accepted" | "changed",
+  ) {
+    setSubmittingId(row.product_id);
+    setSubmitError(null);
+    try {
+      const to = decision === "changed" ? overrides[row.product_id] : undefined;
+      if (decision === "changed" && !to) {
+        setSubmitError(
+          "Choisissez une catégorie avant de changer la classification.",
+        );
+        setSubmittingId(null);
+        return;
+      }
+      const methodology: Methodology = "protein_tracker";
+      await api.submitDecision(projectId, row.product_id, methodology, {
+        decision,
+        to_category: to,
+      });
+      await load();
+      await onChanged?.();
+    } catch (e) {
+      if (e instanceof ApiError && typeof e.detail === "object" && e.detail) {
+        const d = e.detail as { message?: string };
+        setSubmitError(d.message ?? String(e));
+      } else {
+        setSubmitError(
+          e instanceof Error ? e.message : "Erreur lors de la décision.",
+        );
+      }
+    } finally {
+      setSubmittingId(null);
+    }
+  }
+
+  function patchFilter(p: Partial<ClassificationsFilters>): void {
+    setOffset(0);
+    setFilters((prev) => {
+      const next: ClassificationsFilters = { ...prev };
+      for (const [k, v] of Object.entries(p)) {
+        if (v === undefined || v === "") {
+          delete next[k as keyof ClassificationsFilters];
+        } else {
+          (next as Record<string, unknown>)[k] = v;
+        }
+      }
+      return next;
+    });
+  }
+
+  if (loadError) {
+    return (
+      <Card>
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          {loadError}
+        </div>
+      </Card>
+    );
+  }
+  if (!data) {
+    return (
+      <Card>
+        <p className="text-sm text-gray-500">Chargement du tableau…</p>
+      </Card>
+    );
+  }
+
+  const pageCount = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
+  const pageIdx = Math.floor(offset / PAGE_SIZE);
+
+  return (
+    <Card>
+      {/* Aggregate counters */}
+      <div className="flex flex-wrap gap-2 text-xs">
+        <span className="text-gray-600">
+          {data.total} produit(s) affiché(s) · {data.pt_eligible_total} dans le périmètre
+          Protein Tracker
+        </span>
+        {Object.entries(data.counts_by_source).map(([k, v]) => (
+          <Pill
+            key={k}
+            tone={k === "ai" ? "brand" : k === "deterministic" ? "ok" : "neutral"}
+          >
+            {sourceLabel(k)} : {v}
+          </Pill>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
+        <input
+          type="text"
+          placeholder="Rechercher (nom / marque)"
+          value={filters.product_search ?? ""}
+          onChange={(e) => patchFilter({ product_search: e.target.value })}
+          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+        />
+        <select
+          value={filters.source ?? ""}
+          onChange={(e) =>
+            patchFilter({
+              source: (e.target.value || undefined) as
+                | ClassificationsFilters["source"]
+                | undefined,
+            })
+          }
+          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+        >
+          <option value="">Toutes sources</option>
+          <option value="deterministic">Déterministe</option>
+          <option value="ai">IA</option>
+          <option value="manual_review">Manuel</option>
+          <option value="unknown">Non classé</option>
+        </select>
+        <select
+          value={filters.pt_group ?? ""}
+          onChange={(e) =>
+            patchFilter({
+              pt_group: (e.target.value || undefined) as
+                | ProteinTrackerGroup
+                | undefined,
+            })
+          }
+          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+        >
+          <option value="">Toutes catégories PT</option>
+          {PT_GROUP_OPTIONS.map((g) => (
+            <option key={g} value={g}>
+              {PT_GROUP_LABELS_FR[g]}
+            </option>
+          ))}
+        </select>
+        <select
+          value={filters.review_status ?? ""}
+          onChange={(e) =>
+            patchFilter({
+              review_status: (e.target.value || undefined) as
+                | ClassificationsFilters["review_status"]
+                | undefined,
+            })
+          }
+          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+        >
+          <option value="">Tous statuts review</option>
+          <option value="in_queue">En attente</option>
+          <option value="accepted">Acceptée</option>
+          <option value="changed">Modifiée</option>
+          <option value="deferred">Différée</option>
+        </select>
+      </div>
+
+      {submitError && (
+        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          {submitError}
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-gray-200 text-left text-gray-500 uppercase tracking-wider">
+              <th className="py-2 pr-3 font-medium">Produit</th>
+              <th className="py-2 pr-3 font-medium">Catégorie retailer</th>
+              <th className="py-2 pr-3 font-medium">PT</th>
+              {wwfEnabled && <th className="py-2 pr-3 font-medium">WWF</th>}
+              <th className="py-2 pr-3 font-medium">Source</th>
+              <th className="py-2 pr-3 font-medium">Confiance</th>
+              <th className="py-2 pr-3 font-medium">Statut</th>
+              <th className="py-2 font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {data.items.length === 0 && (
+              <tr>
+                <td colSpan={wwfEnabled ? 8 : 7} className="py-4 text-center text-gray-500">
+                  Aucun produit ne correspond aux filtres.
+                </td>
+              </tr>
+            )}
+            {data.items.map((row) => {
+              const busy = submittingId === row.product_id;
+              const inQueue = row.review_status === "in_queue";
+              const chosen = overrides[row.product_id];
+              return (
+                <tr key={row.product_id} className="align-top">
+                  <td className="py-2 pr-3">
+                    <div className="font-medium text-gray-800">
+                      {row.product_name}
+                    </div>
+                    {row.brand && (
+                      <div className="text-gray-500">{row.brand}</div>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3 text-gray-600">
+                    {row.retailer_category ?? "—"}
+                    {row.retailer_subcategory && (
+                      <div className="text-gray-400">
+                        {row.retailer_subcategory}
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3">
+                    {row.pt_group ? (
+                      <Pill tone={PT_GROUP_TONE[row.pt_group]}>
+                        {ptGroupLabel(row.pt_group)}
+                      </Pill>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  {wwfEnabled && (
+                    <td className="py-2 pr-3 text-gray-600">
+                      {row.wwf_food_group ?? "—"}
+                    </td>
+                  )}
+                  <td className="py-2 pr-3 text-gray-600">
+                    {sourceLabel(row.pt_source)}
+                  </td>
+                  <td className="py-2 pr-3 text-gray-600">
+                    {confidenceText(row.pt_confidence)}
+                  </td>
+                  <td className="py-2 pr-3">
+                    {row.review_status ? (
+                      <Pill
+                        tone={
+                          row.review_status === "accepted" ||
+                          row.review_status === "changed"
+                            ? "ok"
+                            : row.review_status === "in_queue"
+                              ? "warn"
+                              : "neutral"
+                        }
+                      >
+                        {row.review_status}
+                      </Pill>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="py-2">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <select
+                        value={chosen ?? ""}
+                        onChange={(e) =>
+                          setOverrides((prev) => ({
+                            ...prev,
+                            [row.product_id]: e.target
+                              .value as ProteinTrackerGroup,
+                          }))
+                        }
+                        disabled={busy}
+                        className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+                      >
+                        <option value="">Changer…</option>
+                        {PT_GROUP_OPTIONS.map((g) => (
+                          <option key={g} value={g}>
+                            {PT_GROUP_LABELS_FR[g]}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="ghost"
+                        onClick={() => void submit(row, "changed")}
+                        disabled={busy || !chosen}
+                      >
+                        {busy ? "…" : "✎"}
+                      </Button>
+                      {inQueue && row.pt_group && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => void submit(row, "accepted")}
+                          disabled={busy}
+                        >
+                          {busy ? "…" : "✓"}
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      <div className="mt-3 flex items-center justify-between text-xs text-gray-600">
+        <span>
+          Page {pageIdx + 1} / {pageCount}
+        </span>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+            disabled={offset === 0}
+          >
+            ←
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() =>
+              setOffset(Math.min((pageCount - 1) * PAGE_SIZE, offset + PAGE_SIZE))
+            }
+            disabled={pageIdx >= pageCount - 1}
+          >
+            →
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}

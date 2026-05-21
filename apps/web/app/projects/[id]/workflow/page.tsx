@@ -39,6 +39,8 @@ import {
 // Phase 34E — fully inline upload + manual review inside the wizard.
 import { InlineUpload } from "./_inline-upload";
 import { InlineReview } from "./_inline-review";
+// Phase 34F — inline category validation table.
+import { ValidationTable } from "./_validation-table";
 
 // ---------------------------------------------------------------------------
 // Wizard step definitions — 9 visible steps mapped to backend step keys
@@ -442,11 +444,67 @@ function StepAIClassification({
         )}
         {/* Phase 34D — surface AI run counts so the step is never silent. */}
         {lastClassifyResult && lastClassifyResult.ai_enabled && (
-          <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-            IA exécutée sur {lastClassifyResult.ai_attempted} produit(s) ·{" "}
-            {lastClassifyResult.ai_accepted} classifié(s),{" "}
-            {lastClassifyResult.ai_review} en validation manuelle,{" "}
-            {lastClassifyResult.ai_failed} en échec.
+          <div className="mb-3 space-y-2">
+            <div
+              className={
+                "rounded-md border px-3 py-2 text-sm " +
+                (lastClassifyResult.ai_accepted > 0
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-rose-200 bg-rose-50 text-rose-800")
+              }
+            >
+              IA exécutée sur {lastClassifyResult.ai_attempted} produit(s) en{" "}
+              {lastClassifyResult.ai_batch_count} batch(s) ·{" "}
+              {lastClassifyResult.ai_accepted} classifié(s),{" "}
+              {lastClassifyResult.ai_review} en validation manuelle,{" "}
+              {lastClassifyResult.ai_failed} en échec.
+            </div>
+            {/* Phase 34F — finer breakdown when something failed. */}
+            {(lastClassifyResult.ai_parse_failures > 0 ||
+              lastClassifyResult.ai_unsupported_category_failures > 0 ||
+              lastClassifyResult.ai_provider_errors > 0) && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <p className="font-medium">Diagnostics IA :</p>
+                <ul className="mt-1 list-disc pl-4">
+                  {lastClassifyResult.ai_parse_failures > 0 && (
+                    <li>
+                      {lastClassifyResult.ai_parse_failures} réponse(s) IA non
+                      analysables (JSON invalide / id manquant)
+                    </li>
+                  )}
+                  {lastClassifyResult.ai_unsupported_category_failures > 0 && (
+                    <li>
+                      {
+                        lastClassifyResult.ai_unsupported_category_failures
+                      }{" "}
+                      catégorie(s) inconnue(s) renvoyée(s) par le modèle
+                    </li>
+                  )}
+                  {lastClassifyResult.ai_provider_errors > 0 && (
+                    <li>
+                      {lastClassifyResult.ai_provider_errors} erreur(s)
+                      fournisseur (réseau / 5xx / clé invalide)
+                    </li>
+                  )}
+                </ul>
+                {lastClassifyResult.ai_sample_errors.length > 0 && (
+                  <details className="mt-1">
+                    <summary className="cursor-pointer text-amber-700 hover:underline">
+                      Voir un échantillon des erreurs
+                    </summary>
+                    <ul className="mt-1 list-disc pl-4 text-amber-700">
+                      {lastClassifyResult.ai_sample_errors
+                        .slice(0, 5)
+                        .map((m, i) => (
+                          <li key={i} className="break-all">
+                            {m}
+                          </li>
+                        ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )}
           </div>
         )}
         {isNotNeeded ? (
@@ -489,6 +547,7 @@ function StepValidation({
   accessToken,
   step,
   methodology,
+  wwfEnabled,
   onResolved,
   onNext,
 }: {
@@ -496,6 +555,7 @@ function StepValidation({
   accessToken: string | null;
   step: WorkflowStep;
   methodology: Methodology;
+  wwfEnabled: boolean;
   onResolved: () => void | Promise<void>;
   onNext: () => void;
 }) {
@@ -505,41 +565,56 @@ function StepValidation({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">Validation manuelle</h2>
+        <h2 className="text-xl font-semibold">Validation des catégories</h2>
         <p className="mt-1 text-sm text-gray-600">
-          {"Résoudre les produits que ni les règles déterministes ni l'IA n'ont pu classer"}
-          avec certitude.
+          {"Tableau de validation : voir et corriger les catégories assignées par les règles déterministes et par l'IA."}
+        </p>
+        <p className="mt-1 text-xs text-gray-500">
+          {"Seuls les champs non commerciaux sont affichés. Volumes, ventes, prix et marges ne sont jamais utilisés pour la classification ni envoyés à l'IA."}
         </p>
       </div>
 
-      {isNotNeeded || pending === 0 ? (
-        <Card>
+      {/* Phase 34F — full category validation table for ALL products. */}
+      <ValidationTable
+        projectId={projectId}
+        accessToken={accessToken}
+        wwfEnabled={wwfEnabled}
+        onChanged={onResolved}
+      />
+
+      {/* Pending-only one-click review list, shown only while there
+          are unresolved manual-review items. The table above already
+          lets users override anything; this is the fast-path for the
+          subset that explicitly needs a human decision. */}
+      {!isNotNeeded && pending > 0 && (
+        <InlineReview
+          projectId={projectId}
+          accessToken={accessToken}
+          methodology={methodology}
+          onResolved={onResolved}
+        />
+      )}
+
+      <Card>
+        {isNotNeeded || pending === 0 ? (
           <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-            Aucun produit à valider manuellement.
+            Aucun produit en attente de validation manuelle.
           </div>
-          <div className="mt-3">
-            <Button onClick={onNext}>Continuer vers NEVO</Button>
-          </div>
-        </Card>
-      ) : (
-        <>
-          <InlineReview
-            projectId={projectId}
-            accessToken={accessToken}
-            methodology={methodology}
-            onResolved={onResolved}
-          />
-          <Card>
+        ) : (
+          <>
             <CountRow counts={step.counts} />
             <BlockerList step={step} />
-            <div className="mt-3 flex flex-wrap gap-3">
-              <Button variant="secondary" onClick={onNext}>
-                Continuer vers NEVO
-              </Button>
-            </div>
-          </Card>
-        </>
-      )}
+          </>
+        )}
+        <div className="mt-3 flex flex-wrap gap-3">
+          <Button
+            variant={isNotNeeded || pending === 0 ? "primary" : "secondary"}
+            onClick={onNext}
+          >
+            Continuer vers NEVO
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -1322,6 +1397,7 @@ export default function WorkflowWizardPage() {
               (status.methodologies_enabled[0] as Methodology) ??
               "protein_tracker"
             }
+            wwfEnabled={status.methodologies_enabled.includes("wwf")}
             onResolved={refresh}
             onNext={advanceNext}
           />
