@@ -16,6 +16,7 @@ dependencies = [
     "python-multipart>=0.0.20",
     "pyjwt[crypto]>=2.9",
     "supabase>=2.9",
+    "openai>=2.37.0",
 ]
 
 [project.optional-dependencies]
