@@ -330,7 +330,22 @@ def classify_upload(
     upload_id: UUID,
     methodology: Methodology,
     ai_provider: ClassifierProvider | None = None,
+    skip_deterministic: bool = False,
 ) -> ClassifySummary:
+    """Classify every product in an upload.
+
+    Phase 34I — when ``skip_deterministic=True`` (the new normal-user
+    default for AI-enabled projects), the deterministic rule engine is
+    bypassed entirely. Every eligible product whose current
+    classification is NOT manually locked (``source=MANUAL_REVIEW``) is
+    sent straight to batched AI classification. This makes AI the
+    primary classifier and avoids the rule-engine's keyword traps
+    (e.g. "poulet végétal" matching animal rules on the word "poulet").
+
+    When ``skip_deterministic=False`` (default — used by tests and the
+    legacy admin/debug path), deterministic rules run first and AI is
+    only called for pass-throughs, identical to Phase 34F/G/H behaviour.
+    """
     if methodology not in project.methodologies_enabled:
         raise ValueError(f"methodology {methodology.value} is not enabled on project {project.id}")
     upload_record = store.get_upload(upload_id)
@@ -364,6 +379,31 @@ def classify_upload(
         # leave the product unclassified AND not in review.
         if methodology not in product.methodologies_enabled:
             skipped += 1
+            continue
+
+        # Phase 34I — AI-primary path. Skip deterministic rules entirely
+        # and route every non-manually-locked product to the batched AI
+        # classifier. This is the normal-user path; the legacy
+        # deterministic-first path is still reachable via
+        # skip_deterministic=False (tests + admin/debug).
+        if skip_deterministic and ai_provider is not None:
+            if methodology is Methodology.PROTEIN_TRACKER:
+                existing = store.get_pt_classification(product.id)
+            else:
+                existing = store.get_wwf_classification(product.id)
+            if (
+                existing is not None
+                and existing.source is ClassificationSource.MANUAL_REVIEW
+            ):
+                # User has locked this category in via the validation
+                # table; do not overwrite.
+                skipped += 1
+                continue
+            pass_through += 1
+            if methodology is Methodology.PROTEIN_TRACKER:
+                pt_batch.append(product)
+            else:
+                wwf_batch.append(product)
             continue
 
         if methodology is Methodology.PROTEIN_TRACKER:
@@ -497,6 +537,73 @@ def classify_upload(
                 else:
                     _queue_unknown_wwf(store, product, ManualReviewQueueReason.REQUESTED, now)
                     queued += 1
+
+    # Phase 34I — when skip_deterministic is True but the configured
+    # provider does not support batching, fall back to per-product AI
+    # calls so the pt_batch / wwf_batch are still processed (rather
+    # than silently dropped). The single-product classify_pt /
+    # classify_wwf path is the same one the deterministic-first flow
+    # uses for PTPassThrough products.
+    if (
+        skip_deterministic
+        and ai_provider is not None
+        and not use_batch
+        and (pt_batch or wwf_batch)
+    ):
+        target_products = pt_batch if methodology is Methodology.PROTEIN_TRACKER else wwf_batch
+        for product in target_products:
+            ai_attempted += 1
+            if methodology is Methodology.PROTEIN_TRACKER:
+                ai_v = ai_classify_pt(product, ai_provider, now=now)
+            else:
+                ai_v = ai_classify_wwf(product, ai_provider, now=now)
+            if isinstance(ai_v, AIAccepted):
+                if methodology is Methodology.PROTEIN_TRACKER:
+                    store.upsert_pt_classification(ai_v.classification)
+                else:
+                    store.upsert_wwf_classification(ai_v.classification)
+                store.remove_review_item(product.id, methodology)
+                ai_accepted += 1
+            elif isinstance(ai_v, AINeedsReviewLowConfidence):
+                if methodology is Methodology.PROTEIN_TRACKER:
+                    store.upsert_pt_classification(ai_v.classification)
+                else:
+                    store.upsert_wwf_classification(ai_v.classification)
+                _enqueue_review_item(
+                    store,
+                    product.id,
+                    methodology,
+                    ManualReviewQueueReason.LOW_CONFIDENCE,
+                    now,
+                )
+                ai_review += 1
+                queued += 1
+            elif isinstance(ai_v, AINeedsReviewParseFailed):
+                if methodology is Methodology.PROTEIN_TRACKER:
+                    _queue_unknown_pt(
+                        store, product, ManualReviewQueueReason.AI_PARSE_FAILED, now
+                    )
+                else:
+                    _queue_unknown_wwf(
+                        store, product, ManualReviewQueueReason.AI_PARSE_FAILED, now
+                    )
+                ai_review += 1
+                ai_failed += 1
+                ai_parse_failures += 1
+                queued += 1
+            elif isinstance(ai_v, AIProviderError):
+                if methodology is Methodology.PROTEIN_TRACKER:
+                    _queue_unknown_pt(
+                        store, product, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+                    )
+                else:
+                    _queue_unknown_wwf(
+                        store, product, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+                    )
+                ai_review += 1
+                ai_failed += 1
+                ai_provider_errors += 1
+                queued += 1
 
     # Phase 34F — batched AI pass for pass-through products. This is
     # only entered when the configured provider supports batching

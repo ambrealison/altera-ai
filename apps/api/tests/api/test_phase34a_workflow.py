@@ -78,11 +78,12 @@ class TestWorkflowStatusAfterUpload:
         body = client.get(f"/api/v1/projects/{pid}/workflow-status").json()
         # Mapping / ingestion auto-complete once products exist.
         assert _step(body, "ingestion")["status"] == "complete"
-        # Deterministic classification still pending → current step.
-        det = _step(body, "deterministic_classification")
-        assert det["status"] == "needs_action"
-        assert det["counts"]["classified"] == 0
-        assert det["counts"]["remaining"] > 0
+        # Phase 34I — AI classification is now the primary step (the
+        # deterministic step has been removed from the normal flow).
+        ai = _step(body, "ai_classification")
+        assert ai["status"] == "needs_action"
+        assert ai["counts"]["classified"] == 0
+        assert ai["counts"]["remaining"] > 0
         # Calculation blocked by classification_required.
         calc = _step(body, "calculation")
         assert calc["status"] == "blocked"

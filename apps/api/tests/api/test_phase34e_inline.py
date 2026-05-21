@@ -358,14 +358,14 @@ class TestInlineEndToEndFlow:
         status = altera_client.get(
             f"/api/v1/projects/{pid}/workflow-status"
         ).json()
-        # Steps 1, 2, 3 must be "complete" or "ready" — never "locked"
-        # — to prove the journey actually progressed inline.
+        # Phase 34I — deterministic step removed. AI classification is
+        # the primary step now.
         upload_step = next(s for s in status["steps"] if s["key"] == "upload")
-        det_step = next(
-            s for s in status["steps"] if s["key"] == "deterministic_classification"
+        ai_step = next(
+            s for s in status["steps"] if s["key"] == "ai_classification"
         )
         assert upload_step["status"] == "complete"
-        assert det_step["status"] in {"complete", "needs_action"}
+        assert ai_step["status"] in {"complete", "needs_action"}
 
 
 class TestNoZeroRowRun:

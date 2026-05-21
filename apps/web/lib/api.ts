@@ -975,7 +975,13 @@ export function createApi(accessToken: string | null) {
       projectId: string,
       uploadId: string,
       methodology: Methodology,
-      options?: { deterministic_only?: boolean },
+      options?: {
+        deterministic_only?: boolean;
+        // Phase 34I — when true, skip the deterministic rule engine
+        // entirely and use AI as the primary classifier. This is the
+        // new normal-user default; the wizard's Step 3 sets it.
+        skip_deterministic?: boolean;
+      },
     ) =>
       request<ClassifySummary>(
         `/api/v1/projects/${projectId}/uploads/${uploadId}/classify`,
@@ -984,6 +990,7 @@ export function createApi(accessToken: string | null) {
           body: JSON.stringify({
             methodology,
             deterministic_only: options?.deterministic_only ?? false,
+            skip_deterministic: options?.skip_deterministic ?? false,
           }),
         },
         accessToken,

@@ -321,21 +321,21 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
     pt_total = counts.pt_products
     pt_remaining_to_classify = max(0, pt_total - counts.pt_classified)
 
-    # 5. deterministic classification — once any PT product is
-    #    classified we consider this step "started". It's complete when
-    #    every PT product has SOME classification (even if some end up
-    #    UNKNOWN — those go to manual review next).
+    # 5. AI classification — Phase 34I makes this the primary classifier
+    #    (the legacy deterministic-only step has been removed from the
+    #    user-facing workflow). Available whenever there are PT products
+    #    in scope; complete once every product has a classification.
     if pt_total == 0:
-        det_status: StepStatus = "locked"
+        ai_status: StepStatus = "locked"
     elif counts.pt_classified == pt_total:
-        det_status = "complete"
+        ai_status = "complete"
     else:
-        det_status = "needs_action"
+        ai_status = "needs_action"
     steps.append(
         WorkflowStep(
-            key="deterministic_classification",
-            label="Classification déterministe",
-            status=det_status,
+            key="ai_classification",
+            label="Classification IA",
+            status=ai_status,
             progress_pct=(
                 int(100 * counts.pt_classified / pt_total) if pt_total else 0
             ),
@@ -344,39 +344,11 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
                 "remaining": pt_remaining_to_classify,
                 "in_review": counts.pt_needs_review,
             },
-            accessible=det_status != "locked",
-            editable=det_status not in ("locked",),
+            accessible=ai_status != "locked",
+            editable=ai_status not in ("locked",),
             summary=(
                 f"{counts.pt_classified}/{pt_total} produit(s) classifiés"
                 if pt_total > 0
-                else None
-            ),
-        )
-    )
-
-    # 6. AI classification — exposed as "available" only when there are
-    #    still unclassified PT products (or unknown ones).
-    if pt_remaining_to_classify > 0 or counts.pt_unknown > 0:
-        ai_status: StepStatus = "available"
-    elif pt_total == 0:
-        ai_status = "locked"
-    else:
-        ai_status = "not_needed"
-    steps.append(
-        WorkflowStep(
-            key="ai_classification",
-            label="Classification IA",
-            status=ai_status,
-            progress_pct=100 if ai_status in ("not_needed", "complete") else 0,
-            counts={
-                "remaining": pt_remaining_to_classify,
-                "unknown": counts.pt_unknown,
-            },
-            accessible=ai_status != "locked",
-            editable=ai_status not in ("locked", "not_needed"),
-            summary=(
-                "Aucune classification IA nécessaire"
-                if ai_status == "not_needed"
                 else None
             ),
         )

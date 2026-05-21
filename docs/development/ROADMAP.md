@@ -202,6 +202,61 @@ Coverage target: >95% of obvious French retailer products get
 classified deterministically + AI; only genuinely ambiguous SKUs
 (promotions, lots, brand-only labels) fall back to manual review.
 
+### Phase 34G–H — OpenAI parameter/parsing compatibility
+
+- **34G** — Token-parameter compatibility: provider sends
+  `max_completion_tokens` by default; retries once with `max_tokens`
+  if the server rejects the newer name. Per-model cache so a 15k-row
+  run only pays the detection cost on the first call.
+- **34H** — Tolerant parsing + repair retry: `extract_json_object`
+  recovers from markdown fences, leading prose, bare JSON arrays,
+  alternative envelope keys, BOM/zero-width chars. French category
+  labels ("Végétal — cœur") normalise to internal enum values. Single
+  repair retry per batch when parsing fails. Per-row tolerance so a
+  missing id / unsupported category only fails that row, not the
+  whole batch. Provider prefers Structured Outputs (json_schema
+  strict mode) with json_object fallback.
+
+### Phase 34I — AI becomes the primary classifier
+
+Deterministic rule engine produces too many false positives on
+retailer products with mixed-keyword names ("Poulet végétal",
+"Nuggets façon poulet", "Salade Poulet César", "Burger Végétal &
+Emmental"). The wizard now has 8 steps instead of 9: the
+deterministic step is removed from the user-facing flow and AI is
+the primary classifier.
+
+New 8-step flow:
+1. Import
+2. Méthodologie
+3. Classification IA (was Step 4)
+4. Validation des classifications (was Step 5)
+5. NEVO
+6. CIQUAL + IA
+7. Calcul
+8. Résultat
+
+Backend changes:
+- `ClassifyRequest.skip_deterministic` flag (mutually exclusive with
+  `deterministic_only`). When true, the orchestrator bypasses the
+  rule engine entirely and routes every eligible non-manually-locked
+  product directly to batched AI classification.
+- Products whose current classification has `source=MANUAL_REVIEW`
+  are skipped during re-classification — the user's manual choice
+  is never overwritten.
+- `workflow.py` no longer emits the `deterministic_classification`
+  step in the normal flow.
+- The classifications endpoint already supports `min_confidence` /
+  `max_confidence` query params (added in Phase 34F); the wizard's
+  validation table now exposes them with one-click presets:
+  "&lt; 0.60 (à examiner)", "0.60–0.80 (à vérifier)",
+  "≥ 0.80 (auto-accept)", "Tous les produits".
+
+Legacy deterministic code stays in the repo and is still reachable
+through `/uploads/{uid}/classify` with `deterministic_only=true`
+(used by tests + admin/debug). The normal-user CTA in the wizard
+sets `skip_deterministic=true` so AI is the sole classifier.
+
 ### Phase 35 — GDPR data retention
 
 - Configurable retention period per organisation.

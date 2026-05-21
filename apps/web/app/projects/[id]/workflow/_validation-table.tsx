@@ -278,6 +278,90 @@ export function ValidationTable({
         </select>
       </div>
 
+      {/* Phase 34I — confidence range filter. Lets the user focus on
+          borderline AI classifications (0.60–0.80) or audit anything
+          above a high-confidence threshold. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+        <span>Confiance :</span>
+        <label className="flex items-center gap-1">
+          min
+          <input
+            type="number"
+            min={0}
+            max={1}
+            step={0.05}
+            value={filters.min_confidence ?? ""}
+            onChange={(e) =>
+              patchFilter({
+                min_confidence:
+                  e.target.value === ""
+                    ? undefined
+                    : Number(e.target.value),
+              })
+            }
+            className="w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+          />
+        </label>
+        <label className="flex items-center gap-1">
+          max
+          <input
+            type="number"
+            min={0}
+            max={1}
+            step={0.05}
+            value={filters.max_confidence ?? ""}
+            onChange={(e) =>
+              patchFilter({
+                max_confidence:
+                  e.target.value === ""
+                    ? undefined
+                    : Number(e.target.value),
+              })
+            }
+            className="w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+          />
+        </label>
+        <span className="text-gray-400">·</span>
+        {/* One-click presets so the analyst does not have to think in
+            numbers. */}
+        <button
+          type="button"
+          onClick={() =>
+            patchFilter({ min_confidence: undefined, max_confidence: 0.6 })
+          }
+          className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-rose-700 hover:bg-rose-100"
+        >
+          &lt; 0.60 (à examiner)
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            patchFilter({ min_confidence: 0.6, max_confidence: 0.8 })
+          }
+          className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-amber-700 hover:bg-amber-100"
+        >
+          0.60–0.80 (à vérifier)
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            patchFilter({ min_confidence: 0.8, max_confidence: undefined })
+          }
+          className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-emerald-700 hover:bg-emerald-100"
+        >
+          ≥ 0.80 (auto-accept)
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            patchFilter({ min_confidence: undefined, max_confidence: undefined })
+          }
+          className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600 hover:bg-gray-50"
+        >
+          Tous les produits
+        </button>
+      </div>
+
       {submitError && (
         <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
           {submitError}

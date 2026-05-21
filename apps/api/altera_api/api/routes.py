@@ -632,6 +632,12 @@ class ClassifyRequest(BaseModel):
     methodology: Methodology
     # Phase 34B — when True, skip AI and run deterministic rules only.
     deterministic_only: bool = False
+    # Phase 34I — when True (new normal-user default), skip the
+    # deterministic rule engine entirely and use AI as the primary
+    # classifier for every eligible product (except those whose
+    # current classification is manually locked). Cannot be set
+    # alongside deterministic_only=True.
+    skip_deterministic: bool = False
 
 
 class ClassifyResponse(BaseModel):
@@ -712,6 +718,11 @@ def classify_route(
             ai_provider = get_ai_provider()
         except ValueError:
             ai_provider = None
+    if body.deterministic_only and body.skip_deterministic:
+        raise HTTPException(
+            status_code=400,
+            detail="deterministic_only and skip_deterministic are mutually exclusive",
+        )
     try:
         summary = classify_upload(
             store,
@@ -719,6 +730,7 @@ def classify_route(
             upload_id=upload_id,
             methodology=body.methodology,
             ai_provider=ai_provider,
+            skip_deterministic=body.skip_deterministic,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

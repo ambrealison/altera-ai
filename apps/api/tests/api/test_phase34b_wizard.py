@@ -145,16 +145,18 @@ class TestWizardFields:
         assert meth["status"] == "complete"
         assert meth["summary"] is not None
 
-    def test_det_classification_step_accessible_after_upload(
+    def test_ai_classification_step_accessible_after_upload(
         self, client: TestClient, pt_tiny_csv: bytes
     ) -> None:
+        # Phase 34I — the deterministic step has been removed from the
+        # normal workflow. AI classification is the primary step.
         pid = _create_project(client)
         _upload(client, pid, pt_tiny_csv)
         body = client.get(f"/api/v1/projects/{pid}/workflow-status").json()
-        det = _step(body, "deterministic_classification")
-        assert det["accessible"] is True
+        ai = _step(body, "ai_classification")
+        assert ai["accessible"] is True
 
-    def test_det_classification_summary_after_classify(
+    def test_ai_classification_summary_after_classify(
         self, client: TestClient, pt_tiny_csv: bytes
     ) -> None:
         pid = _create_project(client)
@@ -164,9 +166,9 @@ class TestWizardFields:
             json={"methodology": "protein_tracker"},
         )
         body = client.get(f"/api/v1/projects/{pid}/workflow-status").json()
-        det = _step(body, "deterministic_classification")
-        assert det["summary"] is not None
-        assert "classifié" in det["summary"]
+        ai = _step(body, "ai_classification")
+        assert ai["summary"] is not None
+        assert "classifié" in ai["summary"]
 
     def test_nevo_not_accessible_on_empty_project(self, client: TestClient) -> None:
         pid = _create_project(client)

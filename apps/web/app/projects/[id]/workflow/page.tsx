@@ -46,19 +46,22 @@ import { ValidationTable } from "./_validation-table";
 // Wizard step definitions — 9 visible steps mapped to backend step keys
 // ---------------------------------------------------------------------------
 
+// Phase 34I — 8-step flow. Deterministic classification has been
+// removed from the user-facing workflow: AI is the primary classifier
+// now. The deterministic rule engine code remains for tests and
+// admin/debug; the normal wizard never calls it.
 const WIZARD_STEPS = [
   { idx: 0, id: "import",           label: "Import",            backendKey: "upload" },
   { idx: 1, id: "methodology",      label: "Méthodologie",      backendKey: "methodology" },
-  { idx: 2, id: "deterministic",    label: "Classif. déterm.",  backendKey: "deterministic_classification" },
-  { idx: 3, id: "ai_class",         label: "Classif. IA",       backendKey: "ai_classification" },
-  { idx: 4, id: "validation",       label: "Validation",        backendKey: "manual_classification_review" },
-  { idx: 5, id: "nevo",             label: "NEVO",              backendKey: "nutrition_enrichment_nevo" },
-  { idx: 6, id: "ciqual",           label: "CIQUAL + IA",       backendKey: "nutrition_enrichment_ciqual" },
-  { idx: 7, id: "calculation",      label: "Calcul",            backendKey: "calculation" },
-  { idx: 8, id: "report",           label: "Résultat",          backendKey: "report" },
+  { idx: 2, id: "ai_class",         label: "Classification IA", backendKey: "ai_classification" },
+  { idx: 3, id: "validation",       label: "Validation",        backendKey: "manual_classification_review" },
+  { idx: 4, id: "nevo",             label: "NEVO",              backendKey: "nutrition_enrichment_nevo" },
+  { idx: 5, id: "ciqual",           label: "CIQUAL + IA",       backendKey: "nutrition_enrichment_ciqual" },
+  { idx: 6, id: "calculation",      label: "Calcul",            backendKey: "calculation" },
+  { idx: 7, id: "report",           label: "Résultat",          backendKey: "report" },
 ] as const;
 
-type WizardStepIdx = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type WizardStepIdx = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 function backendKeyToWizardIdx(key: string): WizardStepIdx {
   const found = WIZARD_STEPS.find((s) => s.backendKey === key);
@@ -319,68 +322,11 @@ function StepMethodology({
   );
 }
 
-function StepDeterministic({
-  projectId,
-  step,
-  latestUpload,
-  methodologies,
-  busy,
-  error,
-  onRun,
-  onNext,
-}: {
-  projectId: string;
-  step: WorkflowStep;
-  latestUpload: UploadResult | null;
-  methodologies: string[];
-  busy: boolean;
-  error: string | null;
-  onRun: () => void;
-  onNext: () => void;
-}) {
-  const isComplete = step.status === "complete";
-  const ptEnabled = methodologies.includes("protein_tracker");
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-semibold">Classification déterministe</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          {"Altera applique d'abord les règles déterministes. Les produits reconnus sont classifiés automatiquement — aucune IA n'est utilisée à cette étape."}
-        </p>
-      </div>
-
-      <Card>
-        <CountRow counts={step.counts} />
-        <BlockerList step={step} />
-        {error && (
-          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-            {error}
-          </div>
-        )}
-        <div className="mt-4 flex flex-wrap gap-3">
-          {isComplete ? (
-            <Button onClick={onNext}>Continuer vers Classification IA</Button>
-          ) : (
-            <Button onClick={onRun} disabled={busy || !latestUpload || !ptEnabled}>
-              {busy ? "Classification en cours…" : "Lancer la classification déterministe"}
-            </Button>
-          )}
-          {isComplete && (
-            <Button variant="secondary" onClick={onRun} disabled={busy || !latestUpload}>
-              {busy ? "…" : "Reclassifier"}
-            </Button>
-          )}
-        </div>
-        {!latestUpload && (
-          <p className="mt-2 text-xs text-gray-500">
-            {"Importez d'abord un fichier à l'étape 1."}
-          </p>
-        )}
-      </Card>
-    </div>
-  );
-}
+// Phase 34I — StepDeterministic was removed from the user-facing
+// wizard. AI is the primary classifier now (Step 2 in the new
+// numbering). The deterministic rule engine remains in the codebase
+// for tests and admin/debug, reachable only by passing
+// deterministic_only=true to /uploads/{uid}/classify.
 
 function StepAIClassification({
   step,
@@ -833,11 +779,14 @@ function StepCalculation({
   const isReady = step.status === "ready";
   const isBlocked = step.status === "blocked";
 
+  // Phase 34I — indexes shifted by 1 after removing the deterministic
+  // step. Classification now lives at idx 2 (was 3 before AI was
+  // primary); review at idx 3 (was 4); NEVO at idx 4 (was 5).
   const BLOCKER_STEP: Record<string, WizardStepIdx> = {
     no_eligible_products: 0,
     classification_required: 2,
-    review_pending: 4,
-    nutrition_required: 5,
+    review_pending: 3,
+    nutrition_required: 4,
   };
 
   return (
@@ -1151,7 +1100,7 @@ export default function WorkflowWizardPage() {
     const stepParam = searchParams.get("step");
     if (stepParam) {
       const n = parseInt(stepParam, 10) - 1;
-      if (n >= 0 && n <= 8) {
+      if (n >= 0 && n <= 7) {
         setActiveIdx(n as WizardStepIdx);
         return;
       }
@@ -1190,26 +1139,23 @@ export default function WorkflowWizardPage() {
 
   function advanceNext() {
     if (activeIdx === null) return;
-    const next = Math.min(8, activeIdx + 1) as WizardStepIdx;
+    const next = Math.min(7, activeIdx + 1) as WizardStepIdx;
     advanceTo(next);
   }
 
-  function handleClassifyDeterministic() {
-    if (!latestUpload || !status) return;
-    const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
-    void runAction(() =>
-      api.classify(projectId, latestUpload.id, methodology, { deterministic_only: true })
-        .then(() => {
-          // auto-advance when done
-        })
-    );
-  }
-
+  // Phase 34I — AI is the primary classifier. The wizard's Step 3
+  // ("Classification IA") calls classify with skip_deterministic=true,
+  // which makes the orchestrator route every eligible non-manually-
+  // locked product straight to batched AI classification (no
+  // deterministic rule keyword traps like "poulet végétal" → animal).
   function handleClassifyAI() {
     if (!latestUpload || !status) return;
     const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
     void runAction(() =>
-      api.classify(projectId, latestUpload.id, methodology, { deterministic_only: false })
+      api.classify(projectId, latestUpload.id, methodology, {
+        deterministic_only: false,
+        skip_deterministic: true,
+      })
         .then((result) => { setLastClassifyResult(result); })
     );
   }
@@ -1231,10 +1177,11 @@ export default function WorkflowWizardPage() {
     if (!status) return;
     const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
     // Phase 34E — stay in the wizard. The run summary is rendered
-    // inline on Step 9; the legacy run-detail page is admin-only.
+    // inline on the last step (idx 7 after Phase 34I); the legacy
+    // run-detail page is admin-only.
     void runAction(async () => {
       await api.createRun(projectId, methodology);
-      advanceTo(8);
+      advanceTo(7);
     });
   }
 
@@ -1296,7 +1243,7 @@ export default function WorkflowWizardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Parcours guidé</h1>
           <p className="mt-0.5 text-sm text-gray-500">
-            Étape {activeIdx + 1} sur 9 · Progression : {status.overall_progress_pct} %
+            Étape {activeIdx + 1} sur 8 · Progression : {status.overall_progress_pct} %
           </p>
         </div>
         <Link
@@ -1365,18 +1312,6 @@ export default function WorkflowWizardPage() {
           />
         )}
         {activeIdx === 2 && (
-          <StepDeterministic
-            projectId={projectId}
-            step={activeBackendStep}
-            latestUpload={latestUpload}
-            methodologies={status.methodologies_enabled}
-            busy={busy}
-            error={actionError}
-            onRun={handleClassifyDeterministic}
-            onNext={advanceNext}
-          />
-        )}
-        {activeIdx === 3 && (
           <StepAIClassification
             step={activeBackendStep}
             latestUpload={latestUpload}
@@ -1388,7 +1323,7 @@ export default function WorkflowWizardPage() {
             onNext={advanceNext}
           />
         )}
-        {activeIdx === 4 && (
+        {activeIdx === 3 && (
           <StepValidation
             projectId={projectId}
             accessToken={accessToken}
@@ -1402,7 +1337,7 @@ export default function WorkflowWizardPage() {
             onNext={advanceNext}
           />
         )}
-        {activeIdx === 5 && (
+        {activeIdx === 4 && (
           <StepNEVO
             step={activeBackendStep}
             lastNevoResult={lastNevoResult}
@@ -1412,7 +1347,7 @@ export default function WorkflowWizardPage() {
             onNext={advanceNext}
           />
         )}
-        {activeIdx === 6 && (
+        {activeIdx === 5 && (
           <StepCIQUAL
             step={activeBackendStep}
             busy={busy}
@@ -1421,7 +1356,7 @@ export default function WorkflowWizardPage() {
             onNext={advanceNext}
           />
         )}
-        {activeIdx === 7 && (
+        {activeIdx === 6 && (
           <StepCalculation
             step={activeBackendStep}
             busy={busy}
@@ -1430,7 +1365,7 @@ export default function WorkflowWizardPage() {
             onGoToStep={advanceTo}
           />
         )}
-        {activeIdx === 8 && (
+        {activeIdx === 7 && (
           <StepReport
             projectId={projectId}
             step={activeBackendStep}
@@ -1449,12 +1384,12 @@ export default function WorkflowWizardPage() {
           ← Précédent
         </Button>
         <span className="text-xs text-gray-400">
-          {activeIdx + 1} / 9
+          {activeIdx + 1} / 8
         </span>
         <Button
           variant="secondary"
-          onClick={() => advanceTo(Math.min(8, activeIdx + 1) as WizardStepIdx)}
-          disabled={activeIdx === 8}
+          onClick={() => advanceTo(Math.min(7, activeIdx + 1) as WizardStepIdx)}
+          disabled={activeIdx === 7}
         >
           Suivant →
         </Button>
