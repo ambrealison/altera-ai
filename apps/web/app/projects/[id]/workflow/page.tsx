@@ -1,77 +1,850 @@
 "use client";
 
 /**
- * Phase 34A — guided retailer workflow.
+ * Phase 34B — Guided retailer wizard (9-step, full-page content per step).
  *
- * Single-source-of-truth view of where the project stands: which steps
- * are complete, which need an action, which are blocked. The page
- * binds to GET /api/v1/projects/{id}/workflow-status and surfaces one
- * primary CTA at a time (the backend's ``next_action`` field).
+ * Replaces the Phase 34A technical status overview with a true wizard:
+ *   1. Import CSV
+ *   2. Méthodologie
+ *   3. Classification déterministe
+ *   4. Classification IA
+ *   5. Validation manuelle
+ *   6. Enrichissement NEVO
+ *   7. Fallback CIQUAL + IA
+ *   8. Calcul
+ *   9. Résultat / rapport
  *
- * The same workflow logic powers the run-preflight guard, so the CTA
- * on this page mirrors the gate that would block a calculation.
+ * Each step shows full-page content with one primary CTA. The horizontal
+ * stepper at the top shows all 9 steps; completed steps are clickable.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { Button, Card, CardHeader, Pill } from "@/components/ui";
+import { Button, Card, Pill } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import {
   ApiError,
   createApi,
-  type WorkflowBlockingReason,
+  type Run,
+  type UploadResult,
   type WorkflowStatus,
   type WorkflowStep,
-  type WorkflowStepStatus,
 } from "@/lib/api";
 
-const STATUS_TONE: Record<WorkflowStepStatus, "neutral" | "brand" | "warn" | "ok" | "error"> = {
-  complete: "ok",
-  ready: "brand",
-  needs_action: "warn",
-  blocked: "error",
-  available: "brand",
-  locked: "neutral",
-  not_needed: "neutral",
-  disabled: "neutral",
-};
+// ---------------------------------------------------------------------------
+// Wizard step definitions — 9 visible steps mapped to backend step keys
+// ---------------------------------------------------------------------------
 
-const STATUS_FR: Record<WorkflowStepStatus, string> = {
-  complete: "terminé",
-  ready: "prêt",
-  needs_action: "à faire",
-  blocked: "bloqué",
-  available: "disponible",
-  locked: "verrouillé",
-  not_needed: "non requis",
-  disabled: "désactivé",
-};
+const WIZARD_STEPS = [
+  { idx: 0, id: "import",           label: "Import",            backendKey: "upload" },
+  { idx: 1, id: "methodology",      label: "Méthodologie",      backendKey: "methodology" },
+  { idx: 2, id: "deterministic",    label: "Classif. déterm.",  backendKey: "deterministic_classification" },
+  { idx: 3, id: "ai_class",         label: "Classif. IA",       backendKey: "ai_classification" },
+  { idx: 4, id: "validation",       label: "Validation",        backendKey: "manual_classification_review" },
+  { idx: 5, id: "nevo",             label: "NEVO",              backendKey: "nutrition_enrichment_nevo" },
+  { idx: 6, id: "ciqual",           label: "CIQUAL + IA",       backendKey: "nutrition_enrichment_ciqual" },
+  { idx: 7, id: "calculation",      label: "Calcul",            backendKey: "calculation" },
+  { idx: 8, id: "report",           label: "Résultat",          backendKey: "report" },
+] as const;
 
-function relativeHref(projectId: string, href: string | null | undefined): string | null {
-  if (!href) return null;
-  if (href.startsWith("/")) return href;
-  return `/projects/${projectId}/${href}`;
+type WizardStepIdx = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
+function backendKeyToWizardIdx(key: string): WizardStepIdx {
+  const found = WIZARD_STEPS.find((s) => s.backendKey === key);
+  return (found?.idx ?? 0) as WizardStepIdx;
 }
 
-export default function WorkflowPage() {
+function backendStep(status: WorkflowStatus, key: string): WorkflowStep | undefined {
+  return status.steps.find((s) => s.key === key);
+}
+
+// ---------------------------------------------------------------------------
+// Stepper chip — one per visible wizard step
+// ---------------------------------------------------------------------------
+
+function StepChip({
+  wizardStep,
+  currentIdx,
+  accessible,
+  status,
+  summary,
+  onClick,
+}: {
+  wizardStep: (typeof WIZARD_STEPS)[number];
+  currentIdx: WizardStepIdx;
+  accessible: boolean;
+  status: string;
+  summary: string | null;
+  onClick: () => void;
+}) {
+  const isActive = wizardStep.idx === currentIdx;
+  const isComplete = status === "complete" || status === "not_needed";
+  const isBlocked = status === "blocked";
+
+  let circleClass = "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ";
+  if (isActive) {
+    circleClass += "bg-brand-600 text-white ring-2 ring-brand-300";
+  } else if (isComplete) {
+    circleClass += "bg-emerald-500 text-white";
+  } else if (isBlocked) {
+    circleClass += "bg-rose-100 text-rose-700";
+  } else if (accessible) {
+    circleClass += "bg-gray-100 text-gray-600";
+  } else {
+    circleClass += "bg-gray-50 text-gray-400";
+  }
+
+  const inner = isComplete && !isActive ? "✓" : String(wizardStep.idx + 1);
+
+  const labelClass = `mt-1 text-center text-[11px] leading-tight ${
+    isActive ? "font-semibold text-brand-700" : accessible ? "text-gray-600" : "text-gray-400"
+  }`;
+
+  const container = (
+    <div className="flex flex-col items-center gap-0.5 min-w-[52px]">
+      <div className={circleClass}>{inner}</div>
+      <span className={labelClass}>{wizardStep.label}</span>
+      {summary && isComplete && !isActive && (
+        <span className="text-[10px] text-gray-400 text-center leading-tight max-w-[60px] truncate">
+          {summary}
+        </span>
+      )}
+    </div>
+  );
+
+  if (!accessible) {
+    return <div className="opacity-50 cursor-not-allowed">{container}</div>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="focus:outline-none"
+      title={accessible ? wizardStep.label : "Étape verrouillée"}
+    >
+      {container}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Blocking reason list
+// ---------------------------------------------------------------------------
+
+function BlockerList({ step }: { step: WorkflowStep }) {
+  if (!step.blocking_reasons.length) return null;
+  return (
+    <ul className="mt-3 space-y-1.5">
+      {step.blocking_reasons.map((r) => (
+        <li key={r.code} className="flex items-start gap-2 text-sm text-rose-700">
+          <span className="mt-0.5 shrink-0">▸</span>
+          <span>
+            {r.label}
+            {r.count > 0 ? ` (${r.count})` : ""}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Count badge row
+// ---------------------------------------------------------------------------
+
+const COUNT_LABELS: Record<string, string> = {
+  uploads: "Imports",
+  products: "Produits",
+  classified: "Classifiés",
+  remaining: "Restants",
+  in_review: "En revue",
+  unknown: "Inconnus",
+  pending: "En attente",
+  matched: "Correspondances NEVO",
+  with_split: "Avec split plant/animal",
+  no_match: "Sans correspondance",
+  matched_total_only: "Correspondances CIQUAL",
+  eligible_rows: "Lignes éligibles",
+  runs: "Calculs",
+};
+
+function CountRow({ counts }: { counts: Record<string, number> }) {
+  const entries = Object.entries(counts).filter(([, v]) => v > 0);
+  if (!entries.length) return null;
+  return (
+    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
+      {entries.map(([k, v]) => (
+        <div key={k} className="flex flex-col">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+            {COUNT_LABELS[k] ?? k.replace(/_/g, " ")}
+          </span>
+          <span className="text-lg font-semibold text-gray-900">{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step content panels — one per wizard step
+// ---------------------------------------------------------------------------
+
+function StepImport({
+  projectId,
+  step,
+  latestUpload,
+  onNext,
+}: {
+  projectId: string;
+  step: WorkflowStep;
+  latestUpload: UploadResult | null;
+  onNext: () => void;
+}) {
+  const isComplete = step.status === "complete";
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold">Importer le fichier CSV</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Chargez le fichier produits du retailer. Altera vérifiera le mapping des colonnes
+          automatiquement et génèrera les identifiants manquants.
+        </p>
+      </div>
+
+      {isComplete && latestUpload ? (
+        <Card>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-800">{latestUpload.original_filename}</p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                {latestUpload.products_count} produit(s) · {latestUpload.row_count ?? "?"} ligne(s)
+              </p>
+            </div>
+            <Pill tone="ok">Importé</Pill>
+          </div>
+          <CountRow counts={step.counts} />
+          {latestUpload.warnings.length > 0 && (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {latestUpload.warnings.length} avertissement(s) — voir la page {"d'import"} pour le détail.
+            </div>
+          )}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button onClick={onNext}>Continuer vers Méthodologie</Button>
+            <Link href={`/projects/${projectId}/upload`}>
+              <Button variant="secondary">Remplacer le fichier</Button>
+            </Link>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <p className="text-sm text-gray-600">
+            Formats acceptés : CSV (UTF-8). La première ligne doit contenir les en-têtes de colonnes.
+          </p>
+          <p className="mt-2 text-sm text-gray-600">
+            Aucun fichier importé pour ce projet.
+          </p>
+          <div className="mt-4">
+            <Link href={`/projects/${projectId}/upload`}>
+              <Button>Importer un fichier</Button>
+            </Link>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function StepMethodology({
+  step,
+  methodologies,
+  onNext,
+}: {
+  step: WorkflowStep;
+  methodologies: string[];
+  onNext: () => void;
+}) {
+  const isComplete = step.status === "complete";
+
+  const METHOD_LABELS: Record<string, string> = {
+    protein_tracker: "Protein Tracker",
+    wwf: "WWF Planet-Based Diets",
+  };
+
+  const METHOD_DESC: Record<string, string> = {
+    protein_tracker:
+      "Calcule le ratio protéines végétales / protéines totales à partir des données d'achat et de nutrition.",
+    wwf: "Calcule la répartition des achats alimentaires selon les groupes PHD du WWF (FG1–FG7). Requiert le poids unitaire et le volume des ventes.",
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold">Méthodologie</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          La méthodologie détermine le type de calcul effectué sur les produits importés.
+        </p>
+      </div>
+
+      {isComplete ? (
+        <div className="space-y-3">
+          {methodologies.map((m) => (
+            <Card key={m}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-gray-900">{METHOD_LABELS[m] ?? m}</p>
+                  <p className="mt-0.5 text-sm text-gray-500">{METHOD_DESC[m] ?? ""}</p>
+                </div>
+                <Pill tone="ok">Activée</Pill>
+              </div>
+            </Card>
+          ))}
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button onClick={onNext}>Continuer vers la classification</Button>
+          </div>
+        </div>
+      ) : (
+        <Card>
+          <p className="text-sm text-gray-600">
+            La méthodologie est définie à la création du projet. Retournez aux paramètres du projet
+            pour la modifier.
+          </p>
+          <div className="mt-4">
+            <Button variant="secondary" disabled>
+              Aucune méthodologie sélectionnée
+            </Button>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function StepDeterministic({
+  projectId,
+  step,
+  latestUpload,
+  methodologies,
+  busy,
+  error,
+  onRun,
+  onNext,
+}: {
+  projectId: string;
+  step: WorkflowStep;
+  latestUpload: UploadResult | null;
+  methodologies: string[];
+  busy: boolean;
+  error: string | null;
+  onRun: () => void;
+  onNext: () => void;
+}) {
+  const isComplete = step.status === "complete";
+  const ptEnabled = methodologies.includes("protein_tracker");
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold">Classification déterministe</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          {"Altera applique d'abord les règles déterministes. Les produits reconnus sont classifiés automatiquement — aucune IA n'est utilisée à cette étape."}
+        </p>
+      </div>
+
+      <Card>
+        <CountRow counts={step.counts} />
+        <BlockerList step={step} />
+        {error && (
+          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            {error}
+          </div>
+        )}
+        <div className="mt-4 flex flex-wrap gap-3">
+          {isComplete ? (
+            <Button onClick={onNext}>Continuer vers Classification IA</Button>
+          ) : (
+            <Button onClick={onRun} disabled={busy || !latestUpload || !ptEnabled}>
+              {busy ? "Classification en cours…" : "Lancer la classification déterministe"}
+            </Button>
+          )}
+          {isComplete && (
+            <Button variant="secondary" onClick={onRun} disabled={busy || !latestUpload}>
+              {busy ? "…" : "Reclassifier"}
+            </Button>
+          )}
+        </div>
+        {!latestUpload && (
+          <p className="mt-2 text-xs text-gray-500">
+            {"Importez d'abord un fichier à l'étape 1."}
+          </p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function StepAIClassification({
+  step,
+  latestUpload,
+  methodologies,
+  busy,
+  error,
+  onRun,
+  onNext,
+}: {
+  step: WorkflowStep;
+  latestUpload: UploadResult | null;
+  methodologies: string[];
+  busy: boolean;
+  error: string | null;
+  onRun: () => void;
+  onNext: () => void;
+}) {
+  const isComplete = step.status === "complete";
+  const isNotNeeded = step.status === "not_needed";
+  const ptEnabled = methodologies.includes("protein_tracker");
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold">Classification IA</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          {"L'IA aide à catégoriser les produits restants à partir de champs non commerciaux."}
+        </p>
+        <p className="mt-1 text-xs text-gray-500">
+          {"Les champs commerciaux comme volumes, ventes, prix et marges ne sont pas envoyés à l'IA."}
+        </p>
+      </div>
+
+      <Card>
+        {isNotNeeded ? (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            Aucune classification IA nécessaire — tous les produits ont été classifiés
+            déterministement.
+          </div>
+        ) : (
+          <>
+            <CountRow counts={step.counts} />
+            <BlockerList step={step} />
+          </>
+        )}
+        {error && (
+          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            {error}
+          </div>
+        )}
+        <div className="mt-4 flex flex-wrap gap-3">
+          {isComplete || isNotNeeded ? (
+            <Button onClick={onNext}>Continuer vers Validation</Button>
+          ) : (
+            <Button onClick={onRun} disabled={busy || !latestUpload || !ptEnabled}>
+              {busy ? "Classification IA en cours…" : "Lancer la classification IA"}
+            </Button>
+          )}
+        </div>
+        {!latestUpload && (
+          <p className="mt-2 text-xs text-gray-500">
+            {"Importez d'abord un fichier à l'étape 1."}
+          </p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function StepValidation({
+  projectId,
+  step,
+  onNext,
+}: {
+  projectId: string;
+  step: WorkflowStep;
+  onNext: () => void;
+}) {
+  const isNotNeeded = step.status === "not_needed";
+  const pending = step.counts.pending ?? 0;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold">Validation manuelle</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          {"Résoudre les produits que ni les règles déterministes ni l'IA n'ont pu classer"}
+          avec certitude.
+        </p>
+      </div>
+
+      <Card>
+        {isNotNeeded || pending === 0 ? (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            Aucun produit à valider manuellement.
+          </div>
+        ) : (
+          <>
+            <CountRow counts={step.counts} />
+            <BlockerList step={step} />
+            <div className="mt-4">
+              <Link href={`/projects/${projectId}/review`}>
+                <Button>Ouvrir la validation manuelle ({pending})</Button>
+              </Link>
+            </div>
+          </>
+        )}
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Button
+            variant={isNotNeeded || pending === 0 ? "primary" : "secondary"}
+            onClick={onNext}
+          >
+            Continuer vers NEVO
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function StepNEVO({
+  step,
+  busy,
+  error,
+  onRun,
+  onNext,
+}: {
+  step: WorkflowStep;
+  busy: boolean;
+  error: string | null;
+  onRun: () => void;
+  onNext: () => void;
+}) {
+  const isComplete = step.status === "complete";
+  const isNotNeeded = step.status === "not_needed";
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold">Enrichissement NEVO</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          NEVO est utilisé en priorité car il peut fournir les protéines totales, végétales et
+          animales lorsque disponibles.
+        </p>
+        <p className="mt-1 text-xs text-gray-500">
+          {"L'IA peut aider à sélectionner une référence NEVO, mais les valeurs nutritionnelles viennent de NEVO, pas de l'IA."}
+        </p>
+      </div>
+
+      <Card>
+        {isNotNeeded ? (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            {"Tous les produits disposent déjà d'une donnée protéique du retailer — NEVO non requis."}
+          </div>
+        ) : (
+          <>
+            <CountRow counts={step.counts} />
+            <BlockerList step={step} />
+          </>
+        )}
+        {error && (
+          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            {error}
+          </div>
+        )}
+        <div className="mt-4 flex flex-wrap gap-3">
+          {isComplete || isNotNeeded ? (
+            <Button onClick={onNext}>Continuer vers CIQUAL</Button>
+          ) : (
+            <Button onClick={onRun} disabled={busy}>
+              {busy ? "Enrichissement NEVO en cours…" : "Enrichir avec NEVO"}
+            </Button>
+          )}
+          {isComplete && (
+            <Button variant="secondary" onClick={onRun} disabled={busy}>
+              {busy ? "…" : "Ré-enrichir"}
+            </Button>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function StepCIQUAL({
+  step,
+  busy,
+  error,
+  onRun,
+  onNext,
+}: {
+  step: WorkflowStep;
+  busy: boolean;
+  error: string | null;
+  onRun: () => void;
+  onNext: () => void;
+}) {
+  const isComplete = step.status === "complete";
+  const isNotNeeded = step.status === "not_needed";
+  const isLocked = step.status === "locked";
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold">Fallback CIQUAL + IA</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          {"Uniquement pour les produits encore sans donnée protéique après NEVO. CIQUAL fournit une protéine totale. Comme CIQUAL ne fournit pas de split végétal/animal, l'IA peut aider à sélectionner une référence — qui doit être tracée."}
+        </p>
+      </div>
+
+      <Card>
+        {isNotNeeded ? (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            {"Tous les produits disposent d'une donnée protéique exploitable après NEVO — CIQUAL non requis."}
+          </div>
+        ) : isLocked ? (
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+            {"Complétez d'abord l'étape NEVO avant d'utiliser CIQUAL."}
+          </div>
+        ) : (
+          <>
+            <CountRow counts={step.counts} />
+            <BlockerList step={step} />
+          </>
+        )}
+        {error && (
+          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            {error}
+          </div>
+        )}
+        <div className="mt-4 flex flex-wrap gap-3">
+          {isComplete || isNotNeeded ? (
+            <Button onClick={onNext}>Continuer vers Calcul</Button>
+          ) : isLocked ? (
+            <Button variant="secondary" disabled>
+              {"NEVO d'abord"}
+            </Button>
+          ) : (
+            <Button onClick={onRun} disabled={busy}>
+              {busy ? "CIQUAL en cours…" : "Essayer CIQUAL + IA"}
+            </Button>
+          )}
+          {isComplete && (
+            <Button variant="secondary" onClick={onRun} disabled={busy}>
+              {busy ? "…" : "Ré-enrichir CIQUAL"}
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onNext}>
+            Continuer sans CIQUAL →
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function StepCalculation({
+  step,
+  busy,
+  error,
+  onRun,
+  onGoToStep,
+}: {
+  step: WorkflowStep;
+  busy: boolean;
+  error: string | null;
+  onRun: () => void;
+  onGoToStep: (idx: WizardStepIdx) => void;
+}) {
+  const isReady = step.status === "ready";
+  const isBlocked = step.status === "blocked";
+
+  const BLOCKER_STEP: Record<string, WizardStepIdx> = {
+    no_eligible_products: 0,
+    classification_required: 2,
+    review_pending: 4,
+    nutrition_required: 5,
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold">Calcul</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Lance le calcul du ratio protéines végétales / totales pour tous les produits éligibles.
+          Le calcul est bloqué tant que des pré-requis sont manquants.
+        </p>
+      </div>
+
+      <Card>
+        <h3 className="text-sm font-medium text-gray-700">Conditions requises</h3>
+        <ul className="mt-2 space-y-1.5">
+          {[
+            { label: "Fichier importé", ok: (step.counts.eligible_rows ?? 0) > 0 || isReady },
+            { label: "Classification terminée", ok: isReady || (!isBlocked) },
+            { label: "Validation manuelle complète", ok: isReady },
+            { label: "Données nutritionnelles disponibles", ok: isReady },
+          ].map((c) => (
+            <li key={c.label} className="flex items-center gap-2 text-sm">
+              <span className={c.ok ? "text-emerald-600" : "text-rose-500"}>
+                {c.ok ? "✓" : "✗"}
+              </span>
+              <span className={c.ok ? "text-gray-700" : "text-gray-500"}>{c.label}</span>
+            </li>
+          ))}
+        </ul>
+
+        {isBlocked && (
+          <div className="mt-4">
+            <p className="text-sm font-medium text-rose-700">Blocages :</p>
+            <ul className="mt-2 space-y-2">
+              {step.blocking_reasons.map((r) => {
+                const targetIdx = BLOCKER_STEP[r.code];
+                return (
+                  <li key={r.code} className="flex items-start justify-between gap-3">
+                    <span className="text-sm text-rose-700">
+                      ▸ {r.label}
+                      {r.count > 0 ? ` (${r.count})` : ""}
+                    </span>
+                    {targetIdx !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() => onGoToStep(targetIdx)}
+                        className="shrink-0 text-xs text-brand-600 hover:underline"
+                      >
+                        Corriger →
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        <CountRow counts={step.counts} />
+
+        {error && (
+          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-4">
+          <Button onClick={onRun} disabled={!isReady || busy}>
+            {busy ? "Calcul en cours…" : "Lancer le calcul"}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function StepReport({
+  projectId,
+  step,
+  latestRun,
+}: {
+  projectId: string;
+  step: WorkflowStep;
+  latestRun: Run | null;
+}) {
+  const hasRun = step.status === "complete" && latestRun !== null;
+
+  const summary = latestRun?.summary as Record<string, unknown> | undefined;
+  const plantRatio = summary?.plant_protein_ratio as number | undefined;
+  const plantPct = plantRatio != null ? `${(plantRatio * 100).toFixed(1)} %` : null;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold">Résultat / rapport</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Dernier calcul réussi et exports disponibles.
+        </p>
+        <p className="mt-1 text-xs text-gray-500">
+          {"L'IA a aidé à sélectionner certaines références, mais n'a pas généré de valeurs"}
+          nutritionnelles.
+        </p>
+      </div>
+
+      {!hasRun ? (
+        <Card>
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+            {"Aucun calcul effectué. Revenez à l'étape Calcul pour lancer un premier calcul."}
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-700">
+                Calcul du {new Date(latestRun.started_at).toLocaleDateString("fr-FR")}
+              </p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                {latestRun.rows_count} ligne(s) traitée(s) ·{" "}
+                {latestRun.methodology.replace("_", " ")}
+              </p>
+            </div>
+            {plantPct && (
+              <div className="text-right">
+                <p className="text-xs text-gray-500">Ratio végétal</p>
+                <p className="text-2xl font-bold text-emerald-600">{plantPct}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link href={`/projects/${projectId}/runs/${latestRun.id}`}>
+              <Button>Voir le rapport complet</Button>
+            </Link>
+          </div>
+
+          <p className="mt-3 text-xs text-gray-400">
+            Exports CSV, JSON et Markdown disponibles sur la page du rapport.
+          </p>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main wizard page
+// ---------------------------------------------------------------------------
+
+export default function WorkflowWizardPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const projectId = params.id;
   const { accessToken } = useAuth();
   const api = useMemo(() => createApi(accessToken), [accessToken]);
 
   const [status, setStatus] = useState<WorkflowStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [runBusy, setRunBusy] = useState(false);
-  const [runError, setRunError] = useState<string | null>(null);
+  const [uploads, setUploads] = useState<UploadResult[]>([]);
+  const [runs, setRuns] = useState<Run[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Which wizard step is displayed (0-8)
+  const [activeIdx, setActiveIdx] = useState<WizardStepIdx | null>(null);
+
+  // Per-step action state
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // ----------- data loading -----------
 
   const refresh = useCallback(async () => {
     try {
-      setStatus(await api.getWorkflowStatus(projectId));
+      const [s, u, r] = await Promise.all([
+        api.getWorkflowStatus(projectId),
+        api.listUploads(projectId),
+        api.listRuns(projectId),
+      ]);
+      setStatus(s);
+      setUploads(u.items ?? []);
+      setRuns(r.items ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Échec du chargement");
+      setLoadError(e instanceof Error ? e.message : "Échec du chargement");
     }
   }, [api, projectId]);
 
@@ -79,58 +852,103 @@ export default function WorkflowPage() {
     void refresh();
   }, [refresh]);
 
-  async function onNextAction() {
-    if (!status?.next_action) return;
-    const action = status.next_action.action;
-    const dest = relativeHref(projectId, status.next_action.href);
-
-    if (action === "run_calculation") {
-      // The runs page already handles the structured run_not_ready
-      // error; here we attempt the run inline so the workflow CTA
-      // is one click.
-      setRunBusy(true);
-      setRunError(null);
-      try {
-        const run = await api.createRun(projectId, "protein_tracker");
-        router.push(`/projects/${projectId}/runs/${run.id}`);
-      } catch (e) {
-        if (e instanceof ApiError && typeof e.detail === "object" && e.detail !== null) {
-          const d = e.detail as { message?: string };
-          setRunError(d.message ?? "Le calcul n’est pas encore prêt.");
-        } else {
-          setRunError(e instanceof Error ? e.message : "Le calcul n’est pas encore prêt.");
-        }
-        // Re-read status so the new blockers (if any) appear immediately.
-        void refresh();
-      } finally {
-        setRunBusy(false);
+  // Auto-select the active backend step when first loaded
+  useEffect(() => {
+    if (!status || activeIdx !== null) return;
+    const stepParam = searchParams.get("step");
+    if (stepParam) {
+      const n = parseInt(stepParam, 10) - 1;
+      if (n >= 0 && n <= 8) {
+        setActiveIdx(n as WizardStepIdx);
+        return;
       }
-      return;
     }
+    const bKey = status.active_step ?? status.current_step;
+    setActiveIdx(backendKeyToWizardIdx(bKey));
+  }, [status, activeIdx, searchParams]);
 
-    if (action === "apply_nevo" || action === "apply_ciqual") {
-      setRunBusy(true);
-      try {
-        await api.applyNutritionReferences(projectId);
-        await refresh();
-      } catch (e) {
-        setRunError(e instanceof Error ? e.message : "Enrichissement impossible");
-      } finally {
-        setRunBusy(false);
+  // ----------- actions -----------
+
+  const latestUpload: UploadResult | null = uploads[0] ?? null;
+  const latestRun: Run | null = runs[0] ?? null;
+
+  async function runAction(fn: () => Promise<void>) {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await fn();
+      await refresh();
+    } catch (e) {
+      if (e instanceof ApiError && typeof e.detail === "object" && e.detail !== null) {
+        const d = e.detail as { message?: string };
+        setActionError(d.message ?? String(e));
+      } else {
+        setActionError(e instanceof Error ? e.message : "Erreur inattendue");
       }
-      return;
-    }
-
-    if (dest) {
-      router.push(dest);
+    } finally {
+      setBusy(false);
     }
   }
 
-  if (error) {
+  function advanceTo(idx: WizardStepIdx) {
+    setActiveIdx(idx);
+    setActionError(null);
+  }
+
+  function advanceNext() {
+    if (activeIdx === null) return;
+    const next = Math.min(8, activeIdx + 1) as WizardStepIdx;
+    advanceTo(next);
+  }
+
+  function handleClassifyDeterministic() {
+    if (!latestUpload || !status) return;
+    const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
+    void runAction(() =>
+      api.classify(projectId, latestUpload.id, methodology, { deterministic_only: true })
+        .then(() => {
+          // auto-advance when done
+        })
+    );
+  }
+
+  function handleClassifyAI() {
+    if (!latestUpload || !status) return;
+    const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
+    void runAction(() =>
+      api.classify(projectId, latestUpload.id, methodology, { deterministic_only: false })
+        .then(() => {})
+    );
+  }
+
+  function handleApplyNEVO() {
+    void runAction(() =>
+      api.applyNutritionReferences(projectId, { providers: ["nevo"] }).then(() => {})
+    );
+  }
+
+  function handleApplyCIQUAL() {
+    void runAction(() =>
+      api.applyNutritionReferences(projectId, { providers: ["ciqual"] }).then(() => {})
+    );
+  }
+
+  function handleCreateRun() {
+    if (!status) return;
+    const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
+    void runAction(async () => {
+      const run = await api.createRun(projectId, methodology);
+      router.push(`/projects/${projectId}/runs/${run.id}`);
+    });
+  }
+
+  // ----------- render -----------
+
+  if (loadError) {
     return (
       <div className="mx-auto max-w-3xl">
         <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          {error}
+          {loadError}
         </div>
         <Link
           href={`/projects/${projectId}`}
@@ -141,161 +959,201 @@ export default function WorkflowPage() {
       </div>
     );
   }
-  if (!status) {
+
+  if (!status || activeIdx === null) {
     return <div className="text-sm text-gray-500">Chargement…</div>;
   }
 
-  const currentStepIndex = status.steps.findIndex((s) => s.key === status.current_step);
-  const totalSteps = status.steps.length;
+  const currentStep = WIZARD_STEPS[activeIdx];
+  const backendStepForActive = backendStep(status, currentStep.backendKey);
+
+  // Compute per-wizard-step accessibility from backend step data
+  function wizardStepAccessible(ws: (typeof WIZARD_STEPS)[number]): boolean {
+    const bs = backendStep(status!, ws.backendKey);
+    return bs?.accessible ?? false;
+  }
+
+  function wizardStepStatus(ws: (typeof WIZARD_STEPS)[number]): string {
+    return backendStep(status!, ws.backendKey)?.status ?? "locked";
+  }
+
+  function wizardStepSummary(ws: (typeof WIZARD_STEPS)[number]): string | null {
+    return backendStep(status!, ws.backendKey)?.summary ?? null;
+  }
+
+  const activeBackendStep = backendStepForActive ?? ({
+    key: currentStep.backendKey,
+    label: currentStep.label,
+    status: "locked",
+    progress_pct: 0,
+    counts: {},
+    blocking_reasons: [],
+    accessible: false,
+    editable: false,
+    summary: null,
+  } as WorkflowStep);
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="mb-5 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Parcours guidé</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Étape {Math.max(1, currentStepIndex + 1)} sur {totalSteps} ·{" "}
-            Progression : {status.overall_progress_pct} %
+          <p className="mt-0.5 text-sm text-gray-500">
+            Étape {activeIdx + 1} sur 9 · Progression : {status.overall_progress_pct} %
           </p>
         </div>
-        <Link
-          href={`/projects/${projectId}`}
-          className="text-sm text-brand-700 hover:underline"
-        >
+        <Link href={`/projects/${projectId}`} className="text-sm text-brand-700 hover:underline">
           ← Retour au projet
         </Link>
       </div>
 
       {/* Progress bar */}
-      <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
         <div
           className="h-full bg-brand-500 transition-all"
-          style={{ width: `${Math.min(100, Math.max(0, status.overall_progress_pct))}%` }}
+          style={{
+            width: `${Math.min(100, Math.max(0, status.overall_progress_pct))}%`,
+          }}
         />
       </div>
 
-      {/* Primary CTA — single recommended action. */}
-      {status.next_action && (
-        <Card className="mt-6">
-          <CardHeader
-            title="Action recommandée"
-            subtitle="Une seule étape à la fois — l’app vous guide."
-          />
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Button onClick={onNextAction} disabled={runBusy}>
-              {runBusy ? "Traitement…" : status.next_action.label}
-            </Button>
-            <span className="text-xs text-gray-500">
-              {status.current_step.replace(/_/g, " ")}
-            </span>
-          </div>
-          {runError && (
-            <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-              {runError}
+      {/* Horizontal stepper */}
+      <div className="mt-5 flex items-start justify-between gap-1 overflow-x-auto pb-2">
+        {WIZARD_STEPS.map((ws, i) => {
+          const accessible = wizardStepAccessible(ws);
+          const wsStatus = wizardStepStatus(ws);
+          const summary = wizardStepSummary(ws);
+
+          return (
+            <div key={ws.id} className="flex items-center gap-1">
+              <StepChip
+                wizardStep={ws}
+                currentIdx={activeIdx}
+                accessible={accessible}
+                status={wsStatus}
+                summary={summary}
+                onClick={() => {
+                  if (accessible) advanceTo(ws.idx as WizardStepIdx);
+                }}
+              />
+              {i < WIZARD_STEPS.length - 1 && (
+                <div className="h-px w-4 shrink-0 bg-gray-200 mt-3.5" />
+              )}
             </div>
-          )}
-        </Card>
-      )}
+          );
+        })}
+      </div>
 
-      {/* Stepper */}
-      <ol className="mt-6 space-y-3">
-        {status.steps.map((step, idx) => (
-          <StepRow
-            key={step.key}
-            step={step}
-            index={idx + 1}
-            isCurrent={step.key === status.current_step}
+      {/* Step content */}
+      <div className="mt-6">
+        {activeIdx === 0 && (
+          <StepImport
+            projectId={projectId}
+            step={activeBackendStep}
+            latestUpload={latestUpload}
+            onNext={advanceNext}
           />
-        ))}
-      </ol>
+        )}
+        {activeIdx === 1 && (
+          <StepMethodology
+            step={activeBackendStep}
+            methodologies={status.methodologies_enabled}
+            onNext={advanceNext}
+          />
+        )}
+        {activeIdx === 2 && (
+          <StepDeterministic
+            projectId={projectId}
+            step={activeBackendStep}
+            latestUpload={latestUpload}
+            methodologies={status.methodologies_enabled}
+            busy={busy}
+            error={actionError}
+            onRun={handleClassifyDeterministic}
+            onNext={advanceNext}
+          />
+        )}
+        {activeIdx === 3 && (
+          <StepAIClassification
+            step={activeBackendStep}
+            latestUpload={latestUpload}
+            methodologies={status.methodologies_enabled}
+            busy={busy}
+            error={actionError}
+            onRun={handleClassifyAI}
+            onNext={advanceNext}
+          />
+        )}
+        {activeIdx === 4 && (
+          <StepValidation
+            projectId={projectId}
+            step={activeBackendStep}
+            onNext={advanceNext}
+          />
+        )}
+        {activeIdx === 5 && (
+          <StepNEVO
+            step={activeBackendStep}
+            busy={busy}
+            error={actionError}
+            onRun={handleApplyNEVO}
+            onNext={advanceNext}
+          />
+        )}
+        {activeIdx === 6 && (
+          <StepCIQUAL
+            step={activeBackendStep}
+            busy={busy}
+            error={actionError}
+            onRun={handleApplyCIQUAL}
+            onNext={advanceNext}
+          />
+        )}
+        {activeIdx === 7 && (
+          <StepCalculation
+            step={activeBackendStep}
+            busy={busy}
+            error={actionError}
+            onRun={handleCreateRun}
+            onGoToStep={advanceTo}
+          />
+        )}
+        {activeIdx === 8 && (
+          <StepReport
+            projectId={projectId}
+            step={activeBackendStep}
+            latestRun={latestRun}
+          />
+        )}
+      </div>
 
-      <p className="mt-6 text-xs text-gray-500">
-        Note : l’IA peut aider à sélectionner certaines références, mais ne génère
-        pas de valeurs nutritionnelles. Les protéines proviennent uniquement des
-        données fournies par le retailer, de NEVO, de CIQUAL ou de la validation
-        manuelle.
+      {/* Prev / Next navigation */}
+      <div className="mt-8 flex items-center justify-between border-t border-gray-100 pt-4">
+        <Button
+          variant="secondary"
+          onClick={() => advanceTo(Math.max(0, activeIdx - 1) as WizardStepIdx)}
+          disabled={activeIdx === 0}
+        >
+          ← Précédent
+        </Button>
+        <span className="text-xs text-gray-400">
+          {activeIdx + 1} / 9
+        </span>
+        <Button
+          variant="secondary"
+          onClick={() => advanceTo(Math.min(8, activeIdx + 1) as WizardStepIdx)}
+          disabled={activeIdx === 8}
+        >
+          Suivant →
+        </Button>
+      </div>
+
+      <p className="mt-6 text-xs text-gray-400">
+        {"Note : l'IA peut aider à sélectionner certaines références, mais ne génère pas de valeurs"}
+        nutritionnelles. Les protéines proviennent uniquement des données fournies par le retailer,
+        de NEVO, de CIQUAL ou de la validation manuelle.
       </p>
     </div>
   );
-}
-
-function StepRow({
-  step,
-  index,
-  isCurrent,
-}: {
-  step: WorkflowStep;
-  index: number;
-  isCurrent: boolean;
-}) {
-  return (
-    <li>
-      <div
-        className={`rounded-md border px-4 py-3 ${
-          isCurrent
-            ? "border-brand-300 bg-brand-50/40"
-            : "border-gray-200 bg-white"
-        }`}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-gray-500">
-              {String(index).padStart(2, "0")}
-            </span>
-            <span className="text-sm font-medium text-gray-900">{step.label}</span>
-            <Pill tone={STATUS_TONE[step.status]}>{STATUS_FR[step.status]}</Pill>
-          </div>
-          {step.progress_pct > 0 && step.progress_pct < 100 && (
-            <span className="text-xs text-gray-500">{step.progress_pct} %</span>
-          )}
-        </div>
-        {Object.keys(step.counts ?? {}).length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-            {Object.entries(step.counts).map(([key, value]) => (
-              <span key={key}>
-                <span className="text-gray-500">{prettyCountLabel(key)}:</span>{" "}
-                <span className="font-medium text-gray-800">{value}</span>
-              </span>
-            ))}
-          </div>
-        )}
-        {step.blocking_reasons.length > 0 && (
-          <ul className="mt-2 space-y-1">
-            {step.blocking_reasons.map((reason) => (
-              <BlockingReasonRow key={reason.code} reason={reason} />
-            ))}
-          </ul>
-        )}
-      </div>
-    </li>
-  );
-}
-
-function BlockingReasonRow({ reason }: { reason: WorkflowBlockingReason }) {
-  return (
-    <li className="text-xs text-rose-700">
-      ▸ {reason.label}
-      {reason.count > 0 ? ` (${reason.count})` : ""}
-    </li>
-  );
-}
-
-const COUNT_LABELS_FR: Record<string, string> = {
-  uploads: "Imports",
-  products: "Produits",
-  classified: "Classifiés",
-  remaining: "Restants",
-  in_review: "En revue",
-  unknown: "Inconnus",
-  pending: "En attente",
-  matched: "Correspondances",
-  with_split: "Avec split plant/animal",
-  no_match: "Sans correspondance",
-  matched_total_only: "Total uniquement",
-  eligible_rows: "Lignes éligibles",
-  runs: "Calculs",
-};
-
-function prettyCountLabel(key: string): string {
-  return COUNT_LABELS_FR[key] ?? key.replace(/_/g, " ");
 }

@@ -63,6 +63,10 @@ class WorkflowStep:
     progress_pct: int = 0
     counts: dict[str, int] = field(default_factory=dict)
     blocking_reasons: list[BlockingReason] = field(default_factory=list)
+    # Phase 34B — wizard fields
+    accessible: bool = False    # user can navigate to this step
+    editable: bool = False       # user can re-run / re-edit this step
+    summary: str | None = None   # one-liner shown on completed steps
 
 
 @dataclass(frozen=True)
@@ -73,6 +77,8 @@ class WorkflowStatus:
     current_step: str
     next_action: NextAction | None
     steps: list[WorkflowStep]
+    # Phase 34B alias — frontend wizard uses active_step
+    active_step: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -236,52 +242,79 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
     methodologies = sorted(m.value for m in project.methodologies_enabled)
 
     steps: list[WorkflowStep] = []
+    has_runs = len(store.list_runs_for_project(project.id)) > 0
 
     # 1. upload
+    upload_status: StepStatus = "complete" if counts.total_uploads > 0 else "needs_action"
     steps.append(
         WorkflowStep(
             key="upload",
             label="Import du fichier",
-            status="complete" if counts.total_uploads > 0 else "needs_action",
+            status=upload_status,
             progress_pct=100 if counts.total_uploads > 0 else 0,
             counts={"uploads": counts.total_uploads, "products": counts.total_products},
+            accessible=True,
+            editable=True,
+            summary=(
+                f"{counts.total_products} produit(s) importé(s)"
+                if counts.total_uploads > 0
+                else None
+            ),
         )
     )
 
     # 2. methodology — selected at project creation; treated complete.
+    methodology_status: StepStatus = "complete" if methodologies else "needs_action"
     steps.append(
         WorkflowStep(
             key="methodology",
             label="Méthodologie",
-            status="complete" if methodologies else "needs_action",
+            status=methodology_status,
             progress_pct=100 if methodologies else 0,
             counts={},
+            accessible=True,
+            editable=not has_runs,
+            summary=(
+                ", ".join(m.replace("_", " ").title() for m in methodologies)
+                if methodologies
+                else None
+            ),
         )
     )
 
     # 3. mapping — implicit; ingestion only completes when mapping is OK.
-    #    We treat mapping as complete once at least one upload has
-    #    products. There's no first-class "mapping state" stored today.
+    mapping_status: StepStatus = "complete" if counts.total_products > 0 else (
+        "needs_action" if counts.total_uploads > 0 else "locked"
+    )
     steps.append(
         WorkflowStep(
             key="mapping",
             label="Mapping des colonnes",
-            status="complete" if counts.total_products > 0 else (
-                "needs_action" if counts.total_uploads > 0 else "locked"
-            ),
+            status=mapping_status,
             progress_pct=100 if counts.total_products > 0 else 0,
             counts={},
+            accessible=mapping_status != "locked",
+            editable=mapping_status != "locked",
+            summary="Colonnes mappées" if counts.total_products > 0 else None,
         )
     )
 
     # 4. ingestion
+    ingestion_status: StepStatus = "complete" if counts.total_products > 0 else "locked"
     steps.append(
         WorkflowStep(
             key="ingestion",
             label="Ingestion",
-            status="complete" if counts.total_products > 0 else "locked",
+            status=ingestion_status,
             progress_pct=100 if counts.total_products > 0 else 0,
             counts={"products": counts.total_products},
+            accessible=ingestion_status != "locked",
+            editable=False,
+            summary=(
+                f"{counts.total_products} produit(s)"
+                if counts.total_products > 0
+                else None
+            ),
         )
     )
 
@@ -296,8 +329,6 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
         det_status: StepStatus = "locked"
     elif counts.pt_classified == pt_total:
         det_status = "complete"
-    elif counts.pt_classified == 0:
-        det_status = "needs_action"
     else:
         det_status = "needs_action"
     steps.append(
@@ -313,13 +344,18 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
                 "remaining": pt_remaining_to_classify,
                 "in_review": counts.pt_needs_review,
             },
+            accessible=det_status != "locked",
+            editable=det_status not in ("locked",),
+            summary=(
+                f"{counts.pt_classified}/{pt_total} produit(s) classifiés"
+                if pt_total > 0
+                else None
+            ),
         )
     )
 
     # 6. AI classification — exposed as "available" only when there are
-    #    still unclassified PT products (or unknown ones). When AI is
-    #    off the route still works (it just runs the rules), so we
-    #    don't distinguish here. Future phases can wire ALTERA_AI_*.
+    #    still unclassified PT products (or unknown ones).
     if pt_remaining_to_classify > 0 or counts.pt_unknown > 0:
         ai_status: StepStatus = "available"
     elif pt_total == 0:
@@ -336,6 +372,13 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
                 "remaining": pt_remaining_to_classify,
                 "unknown": counts.pt_unknown,
             },
+            accessible=ai_status != "locked",
+            editable=ai_status not in ("locked", "not_needed"),
+            summary=(
+                "Aucune classification IA nécessaire"
+                if ai_status == "not_needed"
+                else None
+            ),
         )
     )
 
@@ -353,6 +396,15 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
             status=review_status,
             progress_pct=100 if review_status in ("not_needed", "complete") else 0,
             counts={"pending": counts.pt_needs_review},
+            accessible=review_status != "locked",
+            editable=review_status not in ("locked",),
+            summary=(
+                "Aucun produit à valider"
+                if review_status == "not_needed"
+                else f"{counts.pt_needs_review} produit(s) en attente"
+                if counts.pt_needs_review > 0
+                else None
+            ),
         )
     )
 
@@ -384,12 +436,20 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
                 "with_split": counts.pt_nevo_with_split,
                 "no_match": pt_needs_nutrition,
             },
+            accessible=nevo_status != "locked",
+            editable=nevo_status not in ("locked",),
+            summary=(
+                f"{counts.pt_nevo_records} correspondance(s) NEVO"
+                if counts.pt_nevo_records > 0
+                else "Non requis"
+                if nevo_status == "not_needed"
+                else None
+            ),
         )
     )
 
     # 9. CIQUAL fallback — only "available" once NEVO has been tried
-    #    and there are still products without nutrition. The product
-    #    spec calls for this gating explicitly.
+    #    and there are still products without nutrition.
     nevo_attempted = counts.pt_nevo_records > 0
     if pt_total == 0:
         ciqual_status: StepStatus = "locked"
@@ -410,19 +470,39 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
                 "matched_total_only": counts.pt_ciqual_records,
                 "remaining": pt_needs_nutrition,
             },
+            accessible=ciqual_status != "locked",
+            editable=ciqual_status not in ("locked",),
+            summary=(
+                f"{counts.pt_ciqual_records} correspondance(s) CIQUAL"
+                if counts.pt_ciqual_records > 0
+                else "Non requis"
+                if ciqual_status == "not_needed"
+                else None
+            ),
         )
     )
 
-    # 10. manual nutrition review (deferred; placeholder counter for
-    #     symmetry with the spec — for now we just expose missing).
+    # 10. manual nutrition review (deferred; placeholder).
+    mnr_status: StepStatus = (
+        "needs_action" if pt_needs_nutrition > 0 else
+        "not_needed" if pt_total else
+        "locked"
+    )
     steps.append(
         WorkflowStep(
             key="manual_nutrition_review",
             label="Validation manuelle nutrition",
-            status="needs_action" if pt_needs_nutrition > 0 else (
-                "not_needed" if pt_total else "locked"
-            ),
+            status=mnr_status,
             counts={"pending": pt_needs_nutrition},
+            accessible=mnr_status != "locked",
+            editable=mnr_status not in ("locked",),
+            summary=(
+                f"{pt_needs_nutrition} produit(s) sans nutrition"
+                if pt_needs_nutrition > 0
+                else "Aucun produit à valider"
+                if mnr_status == "not_needed"
+                else None
+            ),
         )
     )
 
@@ -489,19 +569,33 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
             status=calc_status,
             counts={"eligible_rows": counts.pt_eligible},
             blocking_reasons=blocking,
+            accessible=calc_status not in ("locked",),
+            editable=False,
+            summary=(
+                f"{counts.pt_eligible} ligne(s) éligible(s)"
+                if calc_status == "ready"
+                else None
+            ),
         )
     )
 
-    # 12. report — locked until a run exists. We surface only the
-    #     "available" / "locked" pair here; the runs page handles the
-    #     finer state.
-    has_runs = len(store.list_runs_for_project(project.id)) > 0
+    # 12. report — locked until a run exists.
+    runs_list = store.list_runs_for_project(project.id)
+    run_count = len(runs_list)
+    report_status: StepStatus = "complete" if has_runs else "locked"
     steps.append(
         WorkflowStep(
             key="report",
             label="Rapport",
-            status="complete" if has_runs else "locked",
-            counts={"runs": len(store.list_runs_for_project(project.id))},
+            status=report_status,
+            counts={"runs": run_count},
+            accessible=has_runs,
+            editable=False,
+            summary=(
+                f"{run_count} calcul(s) effectué(s)"
+                if has_runs
+                else None
+            ),
         )
     )
 
@@ -581,6 +675,7 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
         methodologies_enabled=methodologies,
         overall_progress_pct=overall_pct,
         current_step=current,
+        active_step=current,
         next_action=next_action,
         steps=steps,
     )

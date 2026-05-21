@@ -220,6 +220,10 @@ class WorkflowStepResponse(BaseModel):
     progress_pct: int = 0
     counts: dict[str, int] = Field(default_factory=dict)
     blocking_reasons: list[WorkflowBlockingReasonResponse] = Field(default_factory=list)
+    # Phase 34B — wizard fields
+    accessible: bool = False
+    editable: bool = False
+    summary: str | None = None
 
 
 class WorkflowNextActionResponse(BaseModel):
@@ -233,6 +237,7 @@ class WorkflowStatusResponse(BaseModel):
     methodologies_enabled: list[str]
     overall_progress_pct: int
     current_step: str
+    active_step: str | None = None   # Phase 34B alias
     next_action: WorkflowNextActionResponse | None
     steps: list[WorkflowStepResponse]
 
@@ -285,9 +290,13 @@ def get_workflow_status_route(
                     )
                     for r in s.blocking_reasons
                 ],
+                accessible=s.accessible,
+                editable=s.editable,
+                summary=s.summary,
             )
             for s in status_obj.steps
         ],
+        active_step=status_obj.active_step,
     )
 
 
@@ -621,6 +630,8 @@ def ingest_from_storage_route(
 # ---------------------------------------------------------------------------
 class ClassifyRequest(BaseModel):
     methodology: Methodology
+    # Phase 34B — when True, skip AI and run deterministic rules only.
+    deterministic_only: bool = False
 
 
 class ClassifyResponse(BaseModel):
@@ -641,9 +652,17 @@ def classify_route(
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
 ) -> ClassifyResponse:
+    from altera_api.ai.config import get_ai_provider
+
+    # Phase 34B — deterministic_only skips AI entirely.
+    ai_provider = None if body.deterministic_only else get_ai_provider()
     try:
         summary = classify_upload(
-            store, project=project, upload_id=upload_id, methodology=body.methodology
+            store,
+            project=project,
+            upload_id=upload_id,
+            methodology=body.methodology,
+            ai_provider=ai_provider,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -2790,6 +2809,12 @@ def apply_category_average_enrichment_route(
 # ---------------------------------------------------------------------------
 
 
+class ApplyReferencesRequest(BaseModel):
+    # Phase 34B — limit which providers to run. None/empty means all.
+    # Accepted values: "nevo", "ciqual". Unknown values are ignored.
+    providers: list[str] | None = None
+
+
 class ApplyReferencesResponse(BaseModel):
     # Deterministic matches (exact / alias on the reference table).
     nevo_matched: int
@@ -2816,6 +2841,7 @@ def apply_reference_enrichment_route(
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
     auth: Annotated[AuthContext, Depends(authed_user)],
+    body: ApplyReferencesRequest | None = None,
 ) -> ApplyReferencesResponse:
     """Apply NEVO (preferred) then CIQUAL enrichment to every PT product
     in the project that lacks a retailer-provided protein_pct. Altera-only.
@@ -2846,8 +2872,14 @@ def apply_reference_enrichment_route(
     if not auth.can_apply_enrichment:
         raise_forbidden("altera internal access required")
 
-    nevo_entries = store.list_nevo_entries()
-    ciqual_entries = store.list_ciqual_entries()
+    # Phase 34B — providers filter ("nevo", "ciqual"; None/empty = all).
+    _body = body or ApplyReferencesRequest()
+    _requested = {p.lower() for p in (_body.providers or [])} or {"nevo", "ciqual"}
+    _run_nevo = "nevo" in _requested
+    _run_ciqual = "ciqual" in _requested
+
+    nevo_entries = store.list_nevo_entries() if _run_nevo else []
+    ciqual_entries = store.list_ciqual_entries() if _run_ciqual else []
     nevo = NevoProvider.from_entries(nevo_entries) if nevo_entries else None
     ciqual = CiqualProvider.from_entries(ciqual_entries) if ciqual_entries else None
 

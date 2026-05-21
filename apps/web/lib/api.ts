@@ -124,6 +124,10 @@ export interface WorkflowStep {
   progress_pct: number;
   counts: Record<string, number>;
   blocking_reasons: WorkflowBlockingReason[];
+  // Phase 34B — wizard fields
+  accessible: boolean;
+  editable: boolean;
+  summary: string | null;
 }
 
 export interface WorkflowNextAction {
@@ -137,6 +141,7 @@ export interface WorkflowStatus {
   methodologies_enabled: string[];
   overall_progress_pct: number;
   current_step: string;
+  active_step: string | null;  // Phase 34B alias
   next_action: WorkflowNextAction | null;
   steps: WorkflowStep[];
 }
@@ -883,10 +888,21 @@ export function createApi(accessToken: string | null) {
         accessToken,
       ),
 
-    classify: (projectId: string, uploadId: string, methodology: Methodology) =>
+    classify: (
+      projectId: string,
+      uploadId: string,
+      methodology: Methodology,
+      options?: { deterministic_only?: boolean },
+    ) =>
       request<ClassifySummary>(
         `/api/v1/projects/${projectId}/uploads/${uploadId}/classify`,
-        { method: "POST", body: JSON.stringify({ methodology }) },
+        {
+          method: "POST",
+          body: JSON.stringify({
+            methodology,
+            deterministic_only: options?.deterministic_only ?? false,
+          }),
+        },
         accessToken,
       ),
 
@@ -897,10 +913,18 @@ export function createApi(accessToken: string | null) {
         accessToken,
       ),
 
-    applyNutritionReferences: (projectId: string) =>
+    applyNutritionReferences: (
+      projectId: string,
+      options?: { providers?: string[] },
+    ) =>
       request<ApplyReferencesSummary>(
         `/api/v1/projects/${projectId}/enrichments/apply-references`,
-        { method: "POST" },
+        {
+          method: "POST",
+          body: options?.providers
+            ? JSON.stringify({ providers: options.providers })
+            : undefined,
+        },
         accessToken,
       ),
 
