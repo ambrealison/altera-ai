@@ -88,8 +88,23 @@ def _parse_csv(content: str) -> tuple[list[str], list[list[str]]]:
 # Protein Tracker template
 # ---------------------------------------------------------------------------
 
-_PT_REQUIRED = {"external_product_id", "product_name", "weight_per_item_kg", "items_purchased"}
-_PT_RECOMMENDED = {"protein_pct", "brand", "retailer_category", "retailer_subcategory"}
+# Phase 33J — PT template moved to French-first headers. The exact
+# strings below appear in the downloaded CSV; the mapping layer
+# normalises them to the canonical snake_case fields. external_product_id
+# is now optional (Phase 33J) so it's listed as a recommended column.
+_PT_REQUIRED = {
+    "Nom du produit",
+    "Volume / nombre d’unités",
+    # Either of these two satisfies the weight requirement.
+    "Poids unitaire (kg)",
+    "Poids unitaire (g)",
+}
+_PT_RECOMMENDED = {
+    "Protéines totales (%)",
+    "Marque",
+    "Catégorie retailer",
+    "Sous-catégorie retailer",
+}
 
 
 class TestProteinTrackerTemplate:
@@ -124,18 +139,29 @@ class TestProteinTrackerTemplate:
         assert len(data) >= 2, "Template should have at least 2 example rows"
 
     def test_example_row_passes_ingestion_parse(self, client_with_auth: TestClient) -> None:
+        """Phase 33J — the French template headers are not canonical
+        snake_case names, so we exercise the full pipeline (which now
+        auto-applies ``infer_mapping`` when no explicit mapping is
+        provided) rather than calling parse_row directly with raw keys.
+        """
         from uuid import uuid4
 
-        from altera_api.ingestion.headers import normalise_row_headers
-        from altera_api.ingestion.parser import parse_row
+        from altera_api.domain.common import Methodology
+        from altera_api.ingestion.pipeline import ingest_csv_bytes
 
         r = client_with_auth.get("/api/v1/templates/protein-tracker.csv")
-        header, data = _parse_csv(r.text)
-        assert data, "No example rows to test"
-        row_dict = dict(zip(header, data[0], strict=False))
-        normalised = normalise_row_headers(row_dict)
-        raw, errors, _ = parse_row(normalised, upload_id=uuid4(), row_number=1)
-        assert not errors, f"Parse errors on example row: {errors}"
+        result = ingest_csv_bytes(
+            r.content,
+            upload_id=uuid4(),
+            project_id=uuid4(),
+            organisation_id=uuid4(),
+            methodologies_enabled=frozenset({Methodology.PROTEIN_TRACKER}),
+        )
+        assert result.read_error is None
+        assert result.report.error_count == 0, (
+            f"Template example rows failed parse: {result.report.errors}"
+        )
+        assert len(result.products) >= 1
 
     def test_accessible_to_client_user(self, client_with_auth: TestClient) -> None:
         r = client_with_auth.get("/api/v1/templates/protein-tracker.csv")

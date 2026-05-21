@@ -147,7 +147,7 @@ def test_pipeline_aggregates_row_errors() -> None:
         b"P-MIX,Bad Row,0.4,400,500,5\n"  # mixed weight units
         b"P-NEG,Bad Row,-1,,500,5\n"  # negative weight
         b"P-PCT,Bad Row,0.4,,500,150\n"  # protein out of range
-        b",Missing ID,0.4,,500,5\n"  # missing external_product_id
+        b",Auto-ID Row,0.4,,500,5\n"  # Phase 33J: missing ID now auto-generated
     )
     result = ingest_csv_bytes(
         csv_bytes,
@@ -161,8 +161,21 @@ def test_pipeline_aggregates_row_errors() -> None:
     assert "mixed_weight_units" in codes
     assert "weight_non_positive" in codes
     assert "protein_out_of_range" in codes
-    assert "missing_required" in codes
-    assert len(result.products) == 1  # only P-OK survived
+    # Phase 33J: missing external_product_id no longer errors — the row
+    # ingests successfully with an auto-generated ID.
+    assert "missing_required" not in {
+        e.code for e in result.report.errors if e.field == "external_product_id"
+    }
+    assert len(result.products) == 2  # P-OK + Auto-ID row
+    auto_id_product = next(
+        p for p in result.products if p.external_product_id.startswith("AUTO-")
+    )
+    assert auto_id_product.product_name == "Auto-ID Row"
+    # The auto-generation warning is recorded in the report.
+    assert any(
+        w.code == "auto_generated" and w.field == "external_product_id"
+        for w in result.report.warnings
+    )
 
 
 def test_pipeline_reports_oversize_as_read_error() -> None:

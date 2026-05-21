@@ -127,6 +127,9 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "product_reference",
         "retailer_product_id",
         "internal_id",
+        "identifiant_produit_sku",   # Phase 33J — French template header
+        "identifiant_produit",
+        "identifiant",
         "item_id",
         "stock_code",
         "barref",
@@ -141,15 +144,19 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "libelle_produit",
         "designation",
         "nom_produit",
+        "nom_du_produit",
         "nom",
         "article_name",
         "article_description",
         "product_title",
+        "product_name_fr",          # Phase 33J — French-suffixed retailer exports
+        "nom_du_produit_fr",
     ],
     # weight_per_item_kg: values already in kg
     "weight_per_item_kg": [
         "weight_kg",
         "poids_kg",
+        "poids_unitaire_kg",
         "unit_weight_kg",
         "unit_weight",
         "kg_per_unit",
@@ -160,12 +167,18 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "poids_net_kg",
     ],
     # weight_per_item_g: values in grams (pipeline converts g→kg)
+    # Phase 33J: "poids_unitaire_produit" (Carrefour-style sparse export)
+    # and "poids_unitaire_g" land here by default — common French
+    # retailers ship grammes-per-unit under generic labels.
     "weight_per_item_g": [
         "Weight gram",
         "weight_gram",
         "weight_g",
         "poids_gramme",
         "poids_g",
+        "poids_unitaire_g",
+        "poids_unitaire_produit",
+        "poids_unitaire",
         "weight_grams",
         "weight",           # ambiguous but common; grams assumed for PT template
         "grammes",
@@ -190,6 +203,7 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "l1_category",
         "category",
         "categorie",
+        "categorie_retailer",        # Phase 33J — French template header
         "cat",
         "product_category",
         "main_category",
@@ -213,6 +227,7 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "l3_category",
         "subcategory",
         "sous_categorie",
+        "sous_categorie_retailer",   # Phase 33J — French template header
         "sub_category",
         "subcat",
         "product_subcategory",
@@ -238,6 +253,7 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "composants",
         "raw_ingredients",
         "ingredient_declaration",
+        "ingredient",                # Phase 33J — singular FR form
     ],
     "is_own_brand": [
         "Store label",
@@ -266,6 +282,8 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "upc",
         "gtin13",
         "code_barre",
+        "code_barres",                # Phase 33J — French template header
+        "ean_code_barres",
         "codebarre",
         "bar_code",
         "ean_barcode",
@@ -296,6 +314,7 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
     "reporting_period": [
         "period",
         "periode",
+        "periode_de_reporting",       # Phase 33J — French template header
         "quarter",
         "trimestre",
         "year",
@@ -311,6 +330,11 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "qty",
         "units_purchased",
         "volume",
+        "volume_nombre_d_unites",     # Phase 33J — French template header
+        "volume_nombre_dunites",      # same with curly apostrophe stripped
+        "nombre_d_unites",
+        "nombre_dunites",
+        "nombre_unites",
         "nb_items",
         "nb_units",
         "quantite",
@@ -334,6 +358,7 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "protein_percent",
         "proteins",
         "proteines",
+        "proteines_totales",          # Phase 33J — French template header
         "pct_protein",
         "protein_percentage",
         "proteines_pct",
@@ -349,6 +374,7 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "plant_protein_per_100g",
         "plant_protein",
         "vegetal_protein_pct",
+        "proteines_vegetales",        # Phase 33J — French template header
         "proteines_vegetales_pct",
         "plant_prot",
     ],
@@ -356,6 +382,7 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "Animal protein per 100g",
         "animal_protein_per_100g",
         "animal_protein",
+        "proteines_animales",         # Phase 33J — French template header
         "proteines_animales_pct",
         "animal_prot",
     ],
@@ -427,8 +454,12 @@ class MappingPreviewResult(BaseModel):
 # Required fields per methodology
 # ---------------------------------------------------------------------------
 
+# Phase 33J: external_product_id is no longer required for Protein
+# Tracker — when missing, the parser generates an internal ID. We keep
+# it required for WWF where SKU continuity matters for the underlying
+# basket methodology; an explicit decision can revisit that later.
 _REQUIRED_PT: frozenset[str] = frozenset(
-    {"external_product_id", "product_name", "weight_per_item_kg", "items_purchased"}
+    {"product_name", "weight_per_item_kg", "items_purchased"}
 )
 _REQUIRED_WWF: frozenset[str] = frozenset(
     {

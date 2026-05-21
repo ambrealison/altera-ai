@@ -21,13 +21,23 @@ import {
 // Constants
 // ---------------------------------------------------------------------------
 
+// Phase 33J — French-first canonical-field labels. The API still uses
+// snake_case internally; this map is purely for display in the mapping
+// dropdown so retailers can recognise the fields. Order matches the
+// natural reading flow (identity → product info → quantities →
+// nutrition → metadata).
 const CANONICAL_FIELDS = [
   "external_product_id",
   "product_name",
-  "weight_per_item_kg",
   "brand",
   "retailer_category",
   "retailer_subcategory",
+  "weight_per_item_kg",
+  "weight_per_item_g",
+  "items_purchased",
+  "protein_pct",
+  "plant_protein_pct",
+  "animal_protein_pct",
   "ingredients_text",
   "is_own_brand",
   "ean",
@@ -35,11 +45,49 @@ const CANONICAL_FIELDS = [
   "country",
   "language",
   "reporting_period",
-  "items_purchased",
-  "protein_pct",
   "items_sold",
   "retail_channel",
 ] as const;
+
+const CANONICAL_FIELD_LABELS_FR: Record<string, string> = {
+  external_product_id: "Identifiant produit / SKU",
+  product_name: "Nom du produit",
+  brand: "Marque",
+  retailer_category: "Catégorie retailer",
+  retailer_subcategory: "Sous-catégorie retailer",
+  weight_per_item_kg: "Poids unitaire (kg)",
+  weight_per_item_g: "Poids unitaire (g)",
+  items_purchased: "Volume / nombre d’unités (achats)",
+  protein_pct: "Protéines totales (%)",
+  plant_protein_pct: "Protéines végétales (%)",
+  animal_protein_pct: "Protéines animales (%)",
+  ingredients_text: "Ingrédients",
+  is_own_brand: "Marque propre ?",
+  ean: "EAN / code-barres",
+  labels: "Labels",
+  country: "Pays",
+  language: "Langue",
+  reporting_period: "Période de reporting",
+  items_sold: "Volume / nombre d’unités (ventes)",
+  retail_channel: "Canal de distribution",
+};
+
+const REQUIRED_PT_CANONICAL = new Set([
+  "product_name",
+  "items_purchased",
+]);
+const WEIGHT_VARIANTS = new Set(["weight_per_item_kg", "weight_per_item_g"]);
+const REQUIRED_WWF_CANONICAL = new Set([
+  "external_product_id",
+  "product_name",
+  "items_sold",
+  "is_own_brand",
+  "retail_channel",
+]);
+
+function labelFor(field: string): string {
+  return CANONICAL_FIELD_LABELS_FR[field] ?? field;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -122,11 +170,11 @@ function MappingTable({
                     onChange={(e) => onChange(entry.normalised_header, e.target.value)}
                     className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
                   >
-                    <option value="__none__">— skip / use as-is —</option>
-                    <option value="ignore">ignore (drop column)</option>
+                    <option value="__none__">— Ignorer / utiliser tel quel —</option>
+                    <option value="ignore">Ignorer cette colonne</option>
                     {CANONICAL_FIELDS.map((f) => (
                       <option key={f} value={f}>
-                        {f}
+                        {labelFor(f)}
                       </option>
                     ))}
                   </select>
@@ -365,15 +413,61 @@ export default function UploadPage() {
   // -------------------------------------------------------------------------
 
   const projectMethodologies = project?.methodologies_enabled ?? [];
+
+  // Phase 33J — recompute the missing-required-fields banner from the
+  // CURRENT dropdown selections (not the server's initial inference)
+  // so the banner updates immediately when the user fixes a mapping.
+  // For each entry, the user's override wins; otherwise the inferred
+  // canonical_field stands. "ignore" / "__none__" are not selections.
+  function effectiveCanonical(entry: ColumnMappingEntry): string | null {
+    const chosen = mappingOverrides[entry.normalised_header];
+    if (chosen === "ignore" || chosen === "__none__") return null;
+    if (chosen) return chosen;
+    return entry.canonical_field;
+  }
+  const mappedCanonicalFields = new Set<string>();
+  if (mappingPreview) {
+    for (const entry of mappingPreview.entries) {
+      const c = effectiveCanonical(entry);
+      if (c) mappedCanonicalFields.add(c);
+    }
+  }
+  const weightSatisfied = Array.from(WEIGHT_VARIANTS).some((v) =>
+    mappedCanonicalFields.has(v),
+  );
+  const liveMissingPt = mappingPreview
+    ? Array.from(REQUIRED_PT_CANONICAL)
+        .filter((f) => !mappedCanonicalFields.has(f))
+        .concat(weightSatisfied ? [] : ["weight_per_item_kg"])
+    : [];
+  const liveMissingWwf = mappingPreview
+    ? Array.from(REQUIRED_WWF_CANONICAL)
+        .filter((f) => !mappedCanonicalFields.has(f))
+        .concat(weightSatisfied ? [] : ["weight_per_item_kg"])
+    : [];
   const hasMissingPt =
     mappingPreview &&
-    mappingPreview.missing_required_pt.length > 0 &&
+    liveMissingPt.length > 0 &&
     projectMethodologies.includes("protein_tracker");
   const hasMissingWwf =
     mappingPreview &&
-    mappingPreview.missing_required_wwf.length > 0 &&
+    liveMissingWwf.length > 0 &&
     projectMethodologies.includes("wwf");
   const hasDuplicates = mappingPreview && mappingPreview.duplicate_normalised.length > 0;
+  // Phase 33J — when no source column maps to external_product_id,
+  // surface the auto-generation notice so retailers know Altera will
+  // assign internal IDs.
+  const noExternalIdMapped =
+    mappingPreview && !mappedCanonicalFields.has("external_product_id");
+  // Heuristic hint: any header normalised to "poids_unitaire_produit"
+  // typically carries grammes; we suggest the (g) variant.
+  const gramsHint =
+    mappingPreview &&
+    mappingPreview.entries.some(
+      (e) =>
+        e.normalised_header.startsWith("poids_unitaire") &&
+        effectiveCanonical(e) === "weight_per_item_kg",
+    );
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -433,14 +527,36 @@ export default function UploadPage() {
               <div className="mt-3 space-y-1">
                 {hasMissingPt && (
                   <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                    Missing required PT fields: {mappingPreview.missing_required_pt.join(", ")}
+                    Champ{liveMissingPt.length === 1 ? "" : "s"} obligatoire
+                    {liveMissingPt.length === 1 ? "" : "s"} manquant
+                    {liveMissingPt.length === 1 ? "" : "s"} (Protein Tracker) :{" "}
+                    {liveMissingPt.map(labelFor).join(", ")}
                   </div>
                 )}
                 {hasMissingWwf && (
                   <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                    Missing required WWF fields: {mappingPreview.missing_required_wwf.join(", ")}
+                    Champ{liveMissingWwf.length === 1 ? "" : "s"} obligatoire
+                    {liveMissingWwf.length === 1 ? "" : "s"} manquant
+                    {liveMissingWwf.length === 1 ? "" : "s"} (WWF) :{" "}
+                    {liveMissingWwf.map(labelFor).join(", ")}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Phase 33J — auto-ID + scale hint notices (info, not blocking). */}
+            {noExternalIdMapped && (
+              <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                Aucune colonne d’identifiant produit détectée : Altera générera des
+                identifiants internes pour cet upload (préfixés <code>AUTO-</code>).
+              </div>
+            )}
+            {gramsHint && (
+              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Cette colonne semble contenir des grammes. Sélection recommandée :
+                <strong> Poids unitaire (g)</strong> au lieu de
+                <strong> Poids unitaire (kg)</strong>. Aucune conversion automatique
+                n’est appliquée tant que vous n’avez pas choisi la bonne unité.
               </div>
             )}
 

@@ -79,13 +79,21 @@ def parse_row(
     # --- Required string fields ---
     external_product_id = _coerce_str_or_none(row.get("external_product_id"))
     product_name = _coerce_str_or_none(row.get("product_name"))
+    # Phase 33J: external_product_id is no longer required. When the
+    # retailer omits the column or leaves it blank, generate a stable
+    # internal ID so traceability still works. The ``AUTO-`` prefix
+    # marks the value as generated for UI/audit purposes.
     if not external_product_id:
-        errors.append(
-            ValidationError(
+        external_product_id = f"AUTO-{upload_id.hex[:8]}-{row_number:04d}"
+        warnings.append(
+            ValidationWarning(
                 row_number=row_number,
                 field="external_product_id",
-                code="missing_required",
-                message="external_product_id is required",
+                code="auto_generated",
+                message=(
+                    "external_product_id not provided; Altera generated an "
+                    f"internal identifier: {external_product_id}"
+                ),
             )
         )
     if not product_name:
@@ -101,20 +109,85 @@ def parse_row(
     # --- Weight (canonical kg, with g/lb/oz accepted) ---
     weight_kg, weight_err = normalise_weight_kg(row)
     if weight_err is not None:
-        _weight_messages = {
-            "invalid_type": _bad_number_msg(row, "weight_per_item_kg", "weight_per_item_g", "weight_per_item_lb", "weight_per_item_oz"),
-            "weight_non_positive": "weight_per_item_kg: must be greater than 0",
-            "weight_too_large": "weight_per_item_kg: value too large (maximum is 50 kg)",
-            "mixed_weight_units": "weight_per_item_kg: multiple weight columns populated — use only one",
-        }
-        errors.append(
-            ValidationError(
-                row_number=row_number,
-                field="weight_per_item_kg",
-                code=weight_err,
-                message=_weight_messages.get(weight_err, f"weight_per_item_kg: {weight_err}"),
-            )
+        # Phase 33J — when the user mapped a column to weight_per_item_kg
+        # but the value clearly looks like grams (e.g. "133"), the
+        # generic "too large" error is unhelpful. Detect this case and
+        # surface an actionable, French-aware message instead.
+        raw_kg_value = _coerce_decimal(row.get("weight_per_item_kg"))
+        looks_like_grams = (
+            weight_err == "weight_too_large"
+            and raw_kg_value is not None
+            and not raw_kg_value.is_nan()
+            and Decimal("50") <= raw_kg_value <= Decimal("5000")
         )
+        if looks_like_grams:
+            errors.append(
+                ValidationError(
+                    row_number=row_number,
+                    field="weight_per_item_kg",
+                    code="weight_unit_likely_grams",
+                    message=(
+                        f"weight_per_item_kg: value {raw_kg_value} looks like grams, "
+                        "not kilograms. Map this column to 'Poids unitaire (g)' "
+                        "instead of 'Poids unitaire (kg)'."
+                    ),
+                )
+            )
+        else:
+            _weight_messages = {
+                "invalid_type": _bad_number_msg(row, "weight_per_item_kg", "weight_per_item_g", "weight_per_item_lb", "weight_per_item_oz"),
+                "weight_non_positive": "weight_per_item_kg: must be greater than 0",
+                "weight_too_large": "weight_per_item_kg: value too large (maximum is 50 kg)",
+                "mixed_weight_units": "weight_per_item_kg: multiple weight columns populated — use only one",
+            }
+            errors.append(
+                ValidationError(
+                    row_number=row_number,
+                    field="weight_per_item_kg",
+                    code=weight_err,
+                    message=_weight_messages.get(weight_err, f"weight_per_item_kg: {weight_err}"),
+                )
+            )
+    else:
+        # Phase 33J — soft scale warnings (do NOT auto-convert):
+        #   * mapped to weight_per_item_kg but value >= 5 kg (heavy item)
+        #     → values may actually be grams.
+        #   * mapped to weight_per_item_g but resulting kg < 0.005 (<5 g)
+        #     → values may actually be kilograms.
+        raw_kg = _coerce_decimal(row.get("weight_per_item_kg"))
+        raw_g = _coerce_decimal(row.get("weight_per_item_g"))
+        if raw_kg is not None and not raw_kg.is_nan() and raw_kg >= Decimal("5"):
+            warnings.append(
+                ValidationWarning(
+                    row_number=row_number,
+                    field="weight_per_item_kg",
+                    code="weight_unit_likely_grams_warning",
+                    message=(
+                        f"weight_per_item_kg: value {raw_kg} is unusually heavy for "
+                        "a single unit; it may actually be in grams. If so, map this "
+                        "column to 'Poids unitaire (g)' instead of 'Poids unitaire (kg)'."
+                    ),
+                )
+            )
+        elif (
+            raw_g is not None
+            and not raw_g.is_nan()
+            and weight_kg is not None
+            and weight_kg < Decimal("0.005")
+            and raw_g < Decimal("5")
+        ):
+            warnings.append(
+                ValidationWarning(
+                    row_number=row_number,
+                    field="weight_per_item_g",
+                    code="weight_unit_likely_kg_warning",
+                    message=(
+                        f"weight_per_item_g: value {raw_g} is unusually light for grams; "
+                        "it may actually be in kilograms. If so, map this column to "
+                        "'Poids unitaire (kg)' instead of 'Poids unitaire (g)'."
+                    ),
+                )
+            )
 
     # --- Protein (PT-only field; missing is allowed at parse time) ---
     protein_pct, protein_err = normalise_protein_pct(row)

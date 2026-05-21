@@ -22,7 +22,7 @@ from altera_api.ingestion.csv_reader import (
     CSVReadError,
     read_table_bytes,
 )
-from altera_api.ingestion.mapping import apply_column_mapping
+from altera_api.ingestion.mapping import apply_column_mapping, infer_mapping
 from altera_api.ingestion.normalizer import normalize_product
 from altera_api.ingestion.parser import parse_row
 
@@ -75,6 +75,21 @@ def ingest_csv_bytes(
             read_error=str(exc),
         )
 
+    # Phase 33J — if the caller did not supply an explicit column
+    # mapping, fall back to ``infer_mapping`` so a CSV with French or
+    # otherwise non-canonical headers still ingests. The user-supplied
+    # mapping (when present) always wins; this default only fills in
+    # alias-level fields the user did not override.
+    effective_mapping: dict[str, str] | None = column_mapping
+    if effective_mapping is None and table.headers:
+        preview = infer_mapping(list(table.headers))
+        inferred: dict[str, str] = {}
+        for entry in preview.entries:
+            if entry.canonical_field and entry.canonical_field != entry.normalised_header:
+                inferred[entry.normalised_header] = entry.canonical_field
+        if inferred:
+            effective_mapping = inferred
+
     all_dropped: set[str] = set()
     errors: list[ValidationError] = []
     warnings: list[ValidationWarning] = []
@@ -83,8 +98,8 @@ def ingest_csv_bytes(
 
     for offset, row in enumerate(table.rows):
         row_number = offset + 1  # 1-indexed across data rows
-        if column_mapping:
-            row = apply_column_mapping(row, column_mapping)
+        if effective_mapping:
+            row = apply_column_mapping(row, effective_mapping)
         kept, dropped = filter_commercial_columns(row)
         all_dropped.update(dropped)
 

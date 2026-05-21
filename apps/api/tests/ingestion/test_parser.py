@@ -26,10 +26,21 @@ def test_parses_minimal_row(upload_id: UUID) -> None:
     assert raw.weight_per_item_kg == Decimal("0.400")
 
 
-def test_missing_external_id_emits_error(upload_id: UUID) -> None:
-    raw, errors, _ = parse_row(_row(external_product_id=""), upload_id=upload_id, row_number=1)
-    assert raw is None
-    assert any(e.code == "missing_required" and e.field == "external_product_id" for e in errors)
+def test_missing_external_id_generates_internal_id(upload_id: UUID) -> None:
+    """Phase 33J — missing external_product_id is no longer a hard error.
+
+    The parser auto-generates an AUTO-{upload_id_short}-{row_number} ID
+    and emits an informational warning so the UI can surface it.
+    """
+    raw, errors, warnings = parse_row(
+        _row(external_product_id=""), upload_id=upload_id, row_number=1
+    )
+    assert raw is not None
+    assert errors == ()
+    assert raw.external_product_id.startswith("AUTO-")
+    assert any(
+        w.code == "auto_generated" and w.field == "external_product_id" for w in warnings
+    )
 
 
 def test_invalid_weight_unit_combo(upload_id: UUID) -> None:
