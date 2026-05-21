@@ -90,6 +90,13 @@ export default function ProjectDetail() {
         rule_collision: summaries.reduce((s, x) => s + x.rule_collision, 0),
         queued_for_review: summaries.reduce((s, x) => s + x.queued_for_review, 0),
         ai_enabled: summaries.some((x) => x.ai_enabled),
+        total_products: summaries.reduce((s, x) => s + (x.total_products ?? 0), 0),
+        ai_attempted: summaries.reduce((s, x) => s + (x.ai_attempted ?? 0), 0),
+        ai_accepted: summaries.reduce((s, x) => s + (x.ai_accepted ?? 0), 0),
+        ai_review: summaries.reduce((s, x) => s + (x.ai_review ?? 0), 0),
+        ai_failed: summaries.reduce((s, x) => s + (x.ai_failed ?? 0), 0),
+        ai_disabled_reason: summaries.find((x) => x.ai_disabled_reason)
+          ?.ai_disabled_reason ?? null,
       };
       setClassifyResult(merged);
       const updated = await api.getProject(id);

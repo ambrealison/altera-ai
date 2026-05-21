@@ -409,7 +409,25 @@ function StepAIClassification({
   const isComplete = step.status === "complete";
   const isNotNeeded = step.status === "not_needed";
   const ptEnabled = methodologies.includes("protein_tracker");
-  const aiWasDisabled = lastClassifyResult !== null && !lastClassifyResult.ai_enabled;
+
+  // Phase 34D — map machine-readable ai_disabled_reason to a French message
+  // that explicitly names the env vars an admin must check. The banner is
+  // shown both before any run (so the user knows what to expect) and
+  // after a run that returned ai_enabled=false.
+  const aiReason = lastClassifyResult?.ai_disabled_reason ?? null;
+  const aiWasOff =
+    lastClassifyResult !== null && !lastClassifyResult.ai_enabled;
+  const aiBanner: string | null = aiWasOff
+    ? aiReason === "deterministic_only"
+      ? "Classification IA volontairement désactivée pour cette exécution (mode déterministe seul)."
+      : aiReason === "classifier_disabled"
+      ? "Classification IA indisponible : ALTERA_AI_CLASSIFIER_ENABLED n’est pas activé sur ce serveur."
+      : aiReason === "provider_disabled"
+      ? "Classification IA indisponible : ALTERA_AI_PROVIDER vaut 'disabled'."
+      : aiReason === "provider_misconfigured"
+      ? "Classification IA indisponible : OPENAI_API_KEY est manquant (provider OpenAI sélectionné)."
+      : "Classification IA indisponible — vérifier ALTERA_AI_CLASSIFIER_ENABLED, ALTERA_AI_PROVIDER, et OPENAI_API_KEY sur le serveur. Les produits non reconnus partent en validation manuelle."
+    : null;
 
   return (
     <div className="space-y-5">
@@ -424,11 +442,18 @@ function StepAIClassification({
       </div>
 
       <Card>
-        {aiWasDisabled && (
+        {aiBanner && (
           <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Classification IA non disponible sur ce serveur — seule la classification
-            déterministe est active. Les produits non reconnus sont envoyés en validation
-            manuelle.
+            {aiBanner}
+          </div>
+        )}
+        {/* Phase 34D — surface AI run counts so the step is never silent. */}
+        {lastClassifyResult && lastClassifyResult.ai_enabled && (
+          <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            IA exécutée sur {lastClassifyResult.ai_attempted} produit(s) ·{" "}
+            {lastClassifyResult.ai_accepted} classifié(s),{" "}
+            {lastClassifyResult.ai_review} en validation manuelle,{" "}
+            {lastClassifyResult.ai_failed} en échec.
           </div>
         )}
         {isNotNeeded ? (
@@ -556,6 +581,18 @@ function StepNEVO({
       </div>
 
       <Card>
+        {/* Phase 34D — hard warning when NEVO table is empty / zero matched. */}
+        {lastNevoResult?.warning && (
+          <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            <p className="font-medium">Aucun produit n’a été enrichi par NEVO.</p>
+            <p className="mt-1 text-xs">{lastNevoResult.warning}</p>
+          </div>
+        )}
+        {lastNevoResult && (
+          <div className="mb-3 text-xs text-gray-500">
+            Table NEVO : {lastNevoResult.nevo_total_references} référence(s) chargée(s).
+          </div>
+        )}
         {isNotNeeded ? (
           <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
             {"Tous les produits disposent déjà d'une donnée protéique du retailer — NEVO non requis."}
@@ -754,33 +791,97 @@ function StepCalculation({
           ))}
         </ul>
 
-        {isBlocked && (
-          <div className="mt-4">
-            <p className="text-sm font-medium text-rose-700">Blocages :</p>
-            <ul className="mt-2 space-y-2">
-              {step.blocking_reasons.map((r) => {
-                const targetIdx = BLOCKER_STEP[r.code];
-                return (
-                  <li key={r.code} className="flex items-start justify-between gap-3">
-                    <span className="text-sm text-rose-700">
-                      ▸ {r.label}
-                      {r.count > 0 ? ` (${r.count})` : ""}
-                    </span>
-                    {targetIdx !== undefined && (
-                      <button
-                        type="button"
-                        onClick={() => onGoToStep(targetIdx)}
-                        className="shrink-0 text-xs text-brand-600 hover:underline"
-                      >
-                        Corriger →
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
+        {isBlocked && (() => {
+          // Phase 34D — split blockers into two semantic panels so the
+          // user understands whether they need to fix categorisation
+          // or nutrition. Both groups can be present simultaneously.
+          const CLASSIF_CODES = new Set([
+            "classification_required",
+            "review_pending",
+            "no_eligible_products",
+          ]);
+          const NUTRITION_CODES = new Set(["nutrition_required"]);
+          const classifBlockers = step.blocking_reasons.filter((r) =>
+            CLASSIF_CODES.has(r.code)
+          );
+          const nutritionBlockers = step.blocking_reasons.filter((r) =>
+            NUTRITION_CODES.has(r.code)
+          );
+          return (
+            <div className="mt-4 space-y-3">
+              {classifBlockers.length > 0 && (
+                <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2">
+                  <p className="text-sm font-medium text-rose-700">
+                    Catégorisation incomplète
+                  </p>
+                  <p className="mt-0.5 text-xs text-rose-600">
+                    {"Certains produits n'ont pas encore de catégorie Protein Tracker validée."}
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {classifBlockers.map((r) => {
+                      const targetIdx = BLOCKER_STEP[r.code];
+                      return (
+                        <li
+                          key={r.code}
+                          className="flex items-start justify-between gap-3"
+                        >
+                          <span className="text-xs text-rose-700">
+                            ▸ {r.label}
+                            {r.count > 0 ? ` (${r.count})` : ""}
+                          </span>
+                          {targetIdx !== undefined && (
+                            <button
+                              type="button"
+                              onClick={() => onGoToStep(targetIdx)}
+                              className="shrink-0 text-xs text-brand-600 hover:underline"
+                            >
+                              Corriger →
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {nutritionBlockers.length > 0 && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-sm font-medium text-amber-800">
+                    Données protéiques manquantes
+                  </p>
+                  <p className="mt-0.5 text-xs text-amber-700">
+                    {"Certains produits sont catégorisés, mais n'ont pas encore de protéine exploitable."}
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {nutritionBlockers.map((r) => {
+                      const targetIdx = BLOCKER_STEP[r.code];
+                      return (
+                        <li
+                          key={r.code}
+                          className="flex items-start justify-between gap-3"
+                        >
+                          <span className="text-xs text-amber-800">
+                            ▸ {r.label}
+                            {r.count > 0 ? ` (${r.count})` : ""}
+                          </span>
+                          {targetIdx !== undefined && (
+                            <button
+                              type="button"
+                              onClick={() => onGoToStep(targetIdx)}
+                              className="shrink-0 text-xs text-brand-600 hover:underline"
+                            >
+                              Corriger →
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <CountRow counts={step.counts} />
 
@@ -814,6 +915,17 @@ function StepReport({
   const summary = latestRun?.summary as Record<string, unknown> | undefined;
   const plantRatio = summary?.plant_protein_ratio as number | undefined;
   const plantPct = plantRatio != null ? `${(plantRatio * 100).toFixed(1)} %` : null;
+  // Phase 34D — surface plant_kg / animal_kg / counts inline so the user
+  // does not need to leave the wizard for the headline numbers.
+  const totalKg = summary?.total_protein_kg as number | undefined;
+  const plantKg = summary?.plant_protein_kg as number | undefined;
+  const animalKg = summary?.animal_protein_kg as number | undefined;
+  const rowsIncluded = summary?.rows_included as number | undefined;
+  const rowsExcluded = summary?.rows_excluded as number | undefined;
+  const fmtKg = (n: number | undefined) =>
+    n == null ? "—" : `${n.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} kg`;
+  const animalPct =
+    plantRatio != null ? `${((1 - plantRatio) * 100).toFixed(1)} %` : null;
 
   return (
     <div className="space-y-5">
@@ -854,9 +966,48 @@ function StepReport({
             )}
           </div>
 
+          {/* Phase 34D — headline numbers inline so the wizard is self-sufficient */}
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2">
+              <p className="text-xs text-emerald-700">Protéines végétales</p>
+              <p className="mt-0.5 text-sm font-semibold text-emerald-800">
+                {fmtKg(plantKg)}
+              </p>
+              {plantPct && (
+                <p className="text-xs text-emerald-600">{plantPct}</p>
+              )}
+            </div>
+            <div className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2">
+              <p className="text-xs text-amber-700">Protéines animales</p>
+              <p className="mt-0.5 text-sm font-semibold text-amber-800">
+                {fmtKg(animalKg)}
+              </p>
+              {animalPct && (
+                <p className="text-xs text-amber-600">{animalPct}</p>
+              )}
+            </div>
+            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+              <p className="text-xs text-gray-600">Protéines totales</p>
+              <p className="mt-0.5 text-sm font-semibold text-gray-800">
+                {fmtKg(totalKg)}
+              </p>
+            </div>
+            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+              <p className="text-xs text-gray-600">Lignes</p>
+              <p className="mt-0.5 text-sm font-semibold text-gray-800">
+                {rowsIncluded ?? latestRun.rows_count ?? "—"}
+                {rowsExcluded != null && rowsExcluded > 0 && (
+                  <span className="ml-1 text-xs font-normal text-gray-500">
+                    (+{rowsExcluded} exclues)
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
           <div className="mt-5 flex flex-wrap gap-3">
             <Link href={`/projects/${projectId}/runs/${latestRun.id}`}>
-              <Button>Voir le rapport complet</Button>
+              <Button variant="secondary">Voir le rapport complet</Button>
             </Link>
           </div>
 

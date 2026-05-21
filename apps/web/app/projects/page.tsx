@@ -86,6 +86,9 @@ export default function ProjectsPage() {
                       <span>·</span>
                       <span>{p.run_count} runs</span>
                     </div>
+                    <div className="mt-2 text-xs text-brand-600 underline-offset-2 hover:underline">
+                      Ouvrir le parcours guidé →
+                    </div>
                   </Link>
                 </li>
               ))}

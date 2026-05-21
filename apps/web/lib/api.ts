@@ -171,6 +171,10 @@ export interface ApplyReferencesSummary {
   ai_model: string | null;
   // Phase 34C — per-product enrichment outcomes.
   product_results: ProductEnrichmentDetail[];
+  // Phase 34D — diagnostic table sizes + hard warning when result is 0.
+  nevo_total_references: number;
+  ciqual_total_references: number;
+  warning: string | null;
 }
 
 export interface ValidationEntry {
@@ -231,6 +235,28 @@ export interface ClassifySummary {
   queued_for_review: number;
   // Phase 34C — whether AI was active for this classify run.
   ai_enabled: boolean;
+  // Phase 34D — full diagnostic counts + reason when AI did not run.
+  total_products: number;
+  ai_attempted: number;
+  ai_accepted: number;
+  ai_review: number;
+  ai_failed: number;
+  ai_disabled_reason:
+    | "deterministic_only"
+    | "classifier_disabled"
+    | "provider_disabled"
+    | "provider_misconfigured"
+    | null;
+}
+
+export interface NutritionReferencesStats {
+  nevo_total: number;
+  nevo_with_protein: number;
+  nevo_with_split: number;
+  nevo_sample_names: string[];
+  ciqual_total: number;
+  ciqual_with_protein: number;
+  ciqual_sample_names: string[];
 }
 
 export interface ReviewItem {
@@ -939,6 +965,14 @@ export function createApi(accessToken: string | null) {
             ? JSON.stringify({ providers: options.providers })
             : undefined,
         },
+        accessToken,
+      ),
+
+    // Phase 34D — NEVO/CIQUAL reference table diagnostics (Altera-only).
+    getNutritionReferencesStats: () =>
+      request<NutritionReferencesStats>(
+        `/api/v1/admin/nutrition-references/stats`,
+        { method: "GET" },
         accessToken,
       ),
 

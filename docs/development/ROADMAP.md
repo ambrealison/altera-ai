@@ -112,25 +112,63 @@ management operations (Phases 32A–32B), so the data is ready.
 - SAML / OIDC via Supabase Auth for clients with enterprise IdP
   requirements.
 
-### Phase 34 — GDPR data retention
+### Phase 34A–D — Guided retailer workflow
+
+- **34A** — Backend `WorkflowStatus` aggregator + zero-row run guard.
+- **34B** — 9-step wizard at `/projects/{id}/workflow`, full-page content
+  per step, deterministic-only fast path.
+- **34C** — French NEVO matching (alias dictionary), per-product
+  enrichment detail, AI-unavailable status surfaced on the classify
+  response, wizard redirect from project creation.
+- **34D — End-to-end stabilization (current)**:
+  - Massively expanded alias dictionary covering all major French food
+    families (poultry, red meat, charcuterie, fish, eggs, dairy,
+    legumes, cereals, fruits, vegetables, oils, prepared dishes,
+    plant-protein/mock meats).
+  - `ClassifyResponse.ai_disabled_reason` lets the wizard explain
+    why AI did not run (env-var checks: `ALTERA_AI_CLASSIFIER_ENABLED`,
+    `ALTERA_AI_PROVIDER`, `OPENAI_API_KEY`).
+  - `ApplyReferencesResponse.warning` + `nevo_total_references` so
+    the wizard never shows a silent "0 matched": empty reference
+    tables raise an admin-facing message.
+  - New diagnostic endpoint `GET /api/v1/admin/nutrition-references/stats`
+    reports NEVO/CIQUAL table row counts + sample names.
+  - Step 8 (Calcul) renders TWO distinct blocker panels:
+    "Catégorisation incomplète" (codes: `classification_required`,
+    `review_pending`, `no_eligible_products`) vs.
+    "Données protéiques manquantes" (`nutrition_required`), each
+    linking back to the correct wizard step.
+  - Step 9 (Résultat) displays plant_kg / animal_kg / total inline.
+  - Wizard remains the only normal user path; legacy pages
+    (`/upload`, `/review`, `/runs/{runId}`) are kept for admin/debug.
+
+The wizard supports sparse retailer CSVs (product name + unit weight +
+volume only — no `external_product_id` required; stable internal IDs
+are generated). Generalisable matching means a 15k-row file is handled
+the same way as the 5-row Phase 34 sample.
+
+**Known follow-up for Phase 34E**: fully inline upload, review, and run
+result inside the wizard (today they link out to the legacy pages).
+
+### Phase 35 — GDPR data retention
 
 - Configurable retention period per organisation.
 - Client-driven export-and-delete for their own data.
 
-### Phase 35 — Pilot hardening
+### Phase 36 — Pilot hardening
 
 - Load tests at expected pilot volumes (target: 100k product rows,
   10 concurrent classification jobs).
 - External pen-test.
 - DPA / data-processing-agreement templates reviewed by legal.
 
-### Phase 36 — Pilot rollout
+### Phase 37 — Pilot rollout
 
 - Onboard 1–2 design-partner retailers.
 - Run a full cycle: upload → classify → approve → deliver.
-- Collect structured feedback; triage into Phase 37+.
+- Collect structured feedback; triage into Phase 38+.
 
-### Phase 37 — Pilot readiness review
+### Phase 38 — Pilot readiness review
 
 - Decision gate for GA based on pilot feedback and SLO data.
 

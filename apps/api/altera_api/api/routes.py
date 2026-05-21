@@ -642,6 +642,42 @@ class ClassifyResponse(BaseModel):
     queued_for_review: int
     # Phase 34C — whether AI was configured and active for this run.
     ai_enabled: bool = False
+    # Phase 34D — full diagnostic counts so the wizard can never appear silent.
+    total_products: int = 0
+    ai_attempted: int = 0
+    ai_accepted: int = 0
+    ai_review: int = 0
+    ai_failed: int = 0
+    # Why was AI disabled (if it was)? One of:
+    #   "deterministic_only" — caller passed deterministic_only=true
+    #   "classifier_disabled" — ALTERA_AI_CLASSIFIER_ENABLED is false
+    #   "provider_disabled" — ALTERA_AI_PROVIDER=disabled
+    #   "provider_misconfigured" — provider name set but API key missing
+    #   None — AI ran (ai_enabled is true)
+    ai_disabled_reason: str | None = None
+
+
+def _ai_disabled_reason(deterministic_only: bool) -> str | None:
+    """Inspect AI settings and return a machine-readable reason when AI is off.
+
+    Returns None when AI is fully configured and the caller did not request
+    deterministic-only — i.e. when ``get_ai_provider()`` would return a real
+    provider. The reasons are stable codes the frontend maps to French
+    messages so the wizard can never silently do nothing.
+    """
+    if deterministic_only:
+        return "deterministic_only"
+    from altera_api.ai.config import AISettings
+
+    s = AISettings()
+    if not s.altera_ai_classifier_enabled:
+        return "classifier_disabled"
+    provider = s.altera_ai_provider.lower()
+    if provider == "disabled":
+        return "provider_disabled"
+    if provider == "openai" and not s.openai_api_key:
+        return "provider_misconfigured"
+    return None
 
 
 @api_router.post(
@@ -657,7 +693,17 @@ def classify_route(
     from altera_api.ai.config import get_ai_provider
 
     # Phase 34B — deterministic_only skips AI entirely.
-    ai_provider = None if body.deterministic_only else get_ai_provider()
+    # Phase 34D — when AI settings are misconfigured (e.g. OPENAI_API_KEY
+    # missing while ALTERA_AI_PROVIDER=openai), fall back to deterministic
+    # rather than crashing the route. The diagnostic reason is surfaced
+    # to the wizard so the user sees a clear "indisponible" banner
+    # instead of an opaque 500.
+    ai_provider = None
+    if not body.deterministic_only:
+        try:
+            ai_provider = get_ai_provider()
+        except ValueError:
+            ai_provider = None
     try:
         summary = classify_upload(
             store,
@@ -670,6 +716,8 @@ def classify_route(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    upload_record = store.get_upload(upload_id)
+    total = len(upload_record.product_ids) if upload_record is not None else 0
     return ClassifyResponse(
         methodology=summary.methodology.value,
         matched=summary.matched,
@@ -677,6 +725,12 @@ def classify_route(
         rule_collision=summary.rule_collision,
         queued_for_review=summary.queued_for_review,
         ai_enabled=ai_provider is not None,
+        total_products=total,
+        ai_attempted=summary.ai_attempted,
+        ai_accepted=summary.ai_accepted,
+        ai_review=summary.ai_review,
+        ai_failed=summary.ai_failed,
+        ai_disabled_reason=_ai_disabled_reason(body.deterministic_only),
     )
 
 
@@ -2812,6 +2866,60 @@ def apply_category_average_enrichment_route(
 # ---------------------------------------------------------------------------
 
 
+class NutritionReferencesStatsResponse(BaseModel):
+    """Phase 34D — diagnostic endpoint for NEVO / CIQUAL table state.
+
+    The guided wizard reads this on Step 6 so it can show a clear
+    admin-facing error when the reference tables are empty, instead of
+    silently reporting "0 matched". Altera-internal access only.
+    """
+
+    nevo_total: int
+    nevo_with_protein: int
+    nevo_with_split: int
+    nevo_sample_names: list[str]
+    ciqual_total: int
+    ciqual_with_protein: int
+    ciqual_sample_names: list[str]
+
+
+@api_router.get(
+    "/admin/nutrition-references/stats",
+    response_model=NutritionReferencesStatsResponse,
+)
+def nutrition_references_stats_route(
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> NutritionReferencesStatsResponse:
+    if not auth.can_apply_enrichment:
+        raise_forbidden("altera internal access required")
+    nevo_entries = store.list_nevo_entries()
+    ciqual_entries = store.list_ciqual_entries()
+    nevo_with_protein = sum(
+        1 for e in nevo_entries if e.protein_g_per_100g is not None
+    )
+    nevo_with_split = sum(
+        1
+        for e in nevo_entries
+        if e.plant_protein_g_per_100g is not None
+        and e.animal_protein_g_per_100g is not None
+    )
+    ciqual_with_protein = sum(
+        1 for e in ciqual_entries if e.protein_g_per_100g is not None
+    )
+    return NutritionReferencesStatsResponse(
+        nevo_total=len(nevo_entries),
+        nevo_with_protein=nevo_with_protein,
+        nevo_with_split=nevo_with_split,
+        nevo_sample_names=[
+            (e.food_name_en or e.food_name_nl) for e in nevo_entries[:5]
+        ],
+        ciqual_total=len(ciqual_entries),
+        ciqual_with_protein=ciqual_with_protein,
+        ciqual_sample_names=[e.food_name_en for e in ciqual_entries[:5]],
+    )
+
+
 class ApplyReferencesRequest(BaseModel):
     # Phase 34B — limit which providers to run. None/empty means all.
     # Accepted values: "nevo", "ciqual". Unknown values are ignored.
@@ -2849,6 +2957,13 @@ class ApplyReferencesResponse(BaseModel):
     ai_model: str | None = None
     # Phase 34C — per-product detail for wizard UI.
     product_results: list[ProductEnrichmentDetail] = []
+    # Phase 34D — diagnostic table size + warning so wizard can never
+    # show a silent "0 matched" result. If the NEVO table is empty, the
+    # wizard surfaces an admin-facing error message instead of an
+    # ambiguous green "complete" state.
+    nevo_total_references: int = 0
+    ciqual_total_references: int = 0
+    warning: str | None = None
 
 
 @api_router.post(
@@ -3277,11 +3392,38 @@ def apply_reference_enrichment_route(
             created_at=datetime.now(UTC),
         )
     )
+    nevo_total = len(nevo_entries)
+    ciqual_total = len(ciqual_entries)
+    total_matched = (
+        counts["nevo_matched"]
+        + counts["ciqual_matched"]
+        + counts["nevo_ai_assisted_matched"]
+        + counts["ciqual_ai_assisted_matched"]
+    )
+    attempted = total_matched + counts["no_match"] + counts["ai_needs_review"]
+    warning: str | None = None
+    if _run_nevo and nevo_total == 0:
+        warning = (
+            "Aucun produit n’a été enrichi par NEVO : la table de référence NEVO "
+            "est vide sur ce serveur. Vérifier que la table nevo_reference est "
+            "peuplée (script scripts/import_nevo.py) et que la connexion "
+            "Supabase est correctement configurée."
+        )
+    elif attempted > 0 and total_matched == 0:
+        warning = (
+            "Aucun produit n’a été enrichi : aucun nom de produit n’a trouvé de "
+            "correspondance dans NEVO ni CIQUAL. Vérifier les noms (langue, "
+            "fautes, format) ou activer le matching IA "
+            "(AI_NUTRITION_MATCHING_ENABLED)."
+        )
     return ApplyReferencesResponse(
         **counts,
         ai_enabled=ai_provider is not None,
         ai_model=ai_provider.model if ai_provider is not None else None,
         product_results=product_results,
+        nevo_total_references=nevo_total,
+        ciqual_total_references=ciqual_total,
+        warning=warning,
     )
 
 
