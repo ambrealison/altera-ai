@@ -3696,6 +3696,11 @@ class NutritionReferencesStatsResponse(BaseModel):
     The guided wizard reads this on Step 6 so it can show a clear
     admin-facing error when the reference tables are empty, instead of
     silently reporting "0 matched". Altera-internal access only.
+
+    Phase 34O — adds ``nevo_sanity_pass`` so the wizard can flag a
+    truncated import (e.g. only 1000 rows reaching the DB) without
+    forcing the user to look at the row count and remember the
+    expected threshold.
     """
 
     nevo_total: int
@@ -3705,6 +3710,11 @@ class NutritionReferencesStatsResponse(BaseModel):
     ciqual_total: int
     ciqual_with_protein: int
     ciqual_sample_names: list[str]
+    # Phase 34O — sanity-pass flag and the threshold the diagnostic
+    # used. Mirrors the importer's row-count floor so frontend and
+    # backend agree on what "the full NEVO is loaded" means.
+    nevo_expected_min: int = 2000
+    nevo_sanity_pass: bool = False
 
 
 @api_router.get(
@@ -3731,6 +3741,10 @@ def nutrition_references_stats_route(
     ciqual_with_protein = sum(
         1 for e in ciqual_entries if e.protein_g_per_100g is not None
     )
+    # Phase 34O — sanity threshold mirrors scripts/import_nevo.py's
+    # _EXPECTED_MIN_ROWS. Hard-coded here to avoid importing the
+    # script module from the route layer.
+    _NEVO_EXPECTED_MIN = 2000
     return NutritionReferencesStatsResponse(
         nevo_total=len(nevo_entries),
         nevo_with_protein=nevo_with_protein,
@@ -3738,6 +3752,8 @@ def nutrition_references_stats_route(
         nevo_sample_names=[
             (e.food_name_en or e.food_name_nl) for e in nevo_entries[:5]
         ],
+        nevo_expected_min=_NEVO_EXPECTED_MIN,
+        nevo_sanity_pass=len(nevo_entries) >= _NEVO_EXPECTED_MIN,
         ciqual_total=len(ciqual_entries),
         ciqual_with_protein=ciqual_with_protein,
         ciqual_sample_names=[e.food_name_en for e in ciqual_entries[:5]],

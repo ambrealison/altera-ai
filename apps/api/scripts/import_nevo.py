@@ -36,7 +36,23 @@ from pathlib import Path
 from uuid import uuid4
 
 _VERSION = "2025_v9.0"
-_DELIMITER = "|"
+# Phase 34O — auto-detect delimiter. The RIVM CSV export is pipe-
+# delimited; the XLSX → CSV export that staff usually save (e.g. via
+# Excel "Save as .csv") is comma-delimited. We sniff the first line
+# and pick whichever delimiter appears more often.
+_CANDIDATE_DELIMITERS = ("|", ",", ";")
+
+# Phase 34O — bundled reference data. The full NEVO 2025 v9.0 CSV is
+# committed alongside the code so it can be re-seeded from Render
+# Shell without local Supabase credentials. The path is resolved
+# relative to this script so it works from any cwd.
+_BUNDLED_NEVO_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "altera_api"
+    / "data"
+    / "reference"
+    / "nevo2025.csv"
+)
 
 # Column names from the NEVO CSV header (Dutch/English bilingual labels).
 _COL_FOOD_GROUP_EN = "Food group"
@@ -118,10 +134,26 @@ def _row_to_entry(
     }
 
 
+def _sniff_delimiter(first_line: str) -> str:
+    """Phase 34O — pick the delimiter with the highest count in the
+    header line. Falls back to ``,`` when nothing is conclusive."""
+    counts = {d: first_line.count(d) for d in _CANDIDATE_DELIMITERS}
+    return max(counts, key=lambda d: counts[d]) or ","
+
+
 def read_nevo_csv(path: Path, *, verbose: bool = False) -> list[dict]:
-    """Parse a pipe-delimited NEVO CSV export and return row dicts."""
-    text = path.read_text(encoding="utf-8")
-    reader = csv.DictReader(io.StringIO(text), delimiter=_DELIMITER)
+    """Parse a NEVO CSV export and return row dicts.
+
+    Phase 34O — auto-detects pipe vs comma vs semicolon delimiter so
+    both the official RIVM pipe-delimited export and the staff-common
+    "Save as .csv from Excel" comma-delimited variant work.
+    """
+    text = path.read_text(encoding="utf-8-sig")  # strip BOM if present
+    first_line = text.splitlines()[0] if text else ""
+    delimiter = _sniff_delimiter(first_line)
+    if verbose:
+        print(f"  detected delimiter={delimiter!r}")
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
     required = (
         _COL_CODE,
         _COL_NAME_NL,
@@ -294,10 +326,23 @@ def main() -> None:
     parser.add_argument(
         "--path",
         type=Path,
-        required=True,
+        required=False,
         help=(
-            "Path to the NEVO source file. Pipe-delimited .csv or .xlsx "
-            "workbook (sheet 'NEVO2025'). Dispatch is by file extension."
+            "Path to the NEVO source file. .csv (pipe / comma / "
+            "semicolon — auto-detected) or .xlsx workbook (sheet "
+            "'NEVO2025'). Required unless --bundled is set."
+        ),
+    )
+    parser.add_argument(
+        "--bundled",
+        action="store_true",
+        default=False,
+        help=(
+            "Phase 34O — use the NEVO 2025 v9.0 reference CSV bundled "
+            "with the API package (apps/api/altera_api/data/reference/"
+            "nevo2025.csv). This is the canonical way to seed NEVO on "
+            "Render — no local Supabase credentials needed since "
+            "Render's env already has them. Mutually exclusive with --path."
         ),
     )
     parser.add_argument(
@@ -320,12 +365,39 @@ def main() -> None:
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
-    if not args.path.is_file():
-        print(f"ERROR: file not found: {args.path}", file=sys.stderr)
+    # Phase 34O — resolve the source path.
+    if args.bundled and args.path is not None:
+        print(
+            "ERROR: --bundled and --path are mutually exclusive.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if args.bundled:
+        source_path = _BUNDLED_NEVO_PATH
+        if not source_path.is_file():
+            print(
+                "ERROR: bundled NEVO CSV not found at "
+                f"{source_path}. The repo may be missing reference data; "
+                "check apps/api/altera_api/data/reference/nevo2025.csv.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        print(f"Using bundled NEVO 2025 v9.0 CSV at {source_path}")
+    else:
+        if args.path is None:
+            print(
+                "ERROR: either --path or --bundled is required.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        source_path = args.path
+
+    if not source_path.is_file():
+        print(f"ERROR: file not found: {source_path}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Reading {args.path}…")
-    entries = read_nevo(args.path, verbose=args.verbose)
+    print(f"Reading {source_path}…")
+    entries = read_nevo(source_path, verbose=args.verbose)
     print(f"Parsed {len(entries)} entries (version={_VERSION})")
 
     if args.limit is not None and args.limit > 0:

@@ -501,6 +501,65 @@ chargée(s)" plus the "0 lignes traitées" paradox:
    the wizard panel and the run engine are out of sync and this test
    catches it.
 
+### Phase 34O — Bundled NEVO reference data (no local Supabase creds)
+
+Phase 34N exposed two follow-ups: Romain couldn't run the NEVO
+importer locally (the `.env` shipped in the repo carries example
+secrets only, not real Supabase credentials), and the Excel-saved
+CSV variant of NEVO uses commas while the official RIVM export
+uses pipes. Phase 34O makes the canonical seeding path:
+**bundle the file in the repo and run the importer from Render
+Shell against Render's existing environment.**
+
+Three changes:
+
+1. **`apps/api/altera_api/data/reference/nevo2025.csv`** — the
+   full NEVO 2025 v9.0 reference data is now committed (~1.4 MB,
+   2,328 rows). Deployed automatically with every Render build.
+
+2. **`--bundled` flag on `scripts/import_nevo.py`** — resolves to
+   the bundled path and seeds NEVO without requiring any
+   `--path` argument. Auto-detects pipe vs comma vs semicolon
+   delimiter so both the official RIVM export and the "Save as
+   CSV from Excel" variant work without conversion. Mutually
+   exclusive with `--path`.
+
+3. **`nevo_sanity_pass` flag on `GET /admin/nutrition-references/stats`**
+   — surfaces whether the table is fully populated (row count
+   ≥ 2000) so the wizard can warn about a truncated import
+   without forcing the user to recall the threshold.
+
+**Exact production seed command (Render Shell)**:
+```bash
+uv run --directory apps/api python scripts/import_nevo.py \
+  --bundled --verbose
+```
+No `--path`, no local `.env` mucking. Render's existing
+`SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` are picked up
+automatically. The script prints `Upserted 2328/2328 rows…` and
+`Done. 2328 rows upserted into nevo_reference.`
+
+**Verifying row count after seed**:
+```bash
+curl -s https://<api-host>/api/v1/admin/nutrition-references/stats \
+  -H "Authorization: Bearer <altera-internal-token>" | jq .
+```
+Look for `"nevo_total": 2328` and `"nevo_sanity_pass": true`. Or
+in the wizard, navigate to a project and open Step 5 — the
+"Table NEVO" panel now shows the actual row count from the DB
+(no longer capped at 1000 since Phase 34N's pagination fix).
+
+**Local dry-run** (no Supabase needed):
+```bash
+NEVO_DRY_RUN=1 uv run --directory apps/api python \
+  scripts/import_nevo.py --bundled --verbose
+```
+Prints the first three parsed rows + total entry count so the
+operator can sanity-check the bundle before pushing to staging.
+
+The legacy `--path /some/file.csv` mode still works (e.g. for
+testing a fresh RIVM release before bundling it).
+
 ### Phase 35 — GDPR data retention
 
 - Configurable retention period per organisation.
