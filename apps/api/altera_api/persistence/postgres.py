@@ -830,12 +830,49 @@ class PostgresRepository:
     # is itself Altera-only.
 
     def list_nevo_entries(self) -> list[NevoEntry]:
-        r = self._svc.table("nevo_reference").select("*").execute()
-        return [_nevo_entry_from_row(row) for row in (r.data or [])]
+        # Phase 34N — Supabase/PostgREST applies a 1000-row default cap
+        # to .select(); the NEVO 2025 v9.0 dataset has ~2,328 rows so
+        # the cap silently truncated 60% of the table. We iterate with
+        # explicit .range() windows until we drain the whole table.
+        return [_nevo_entry_from_row(row) for row in self._fetch_all_rows("nevo_reference")]
 
     def list_ciqual_entries(self) -> list[CiqualEntry]:
-        r = self._svc.table("ciqual_reference").select("*").execute()
-        return [_ciqual_entry_from_row(row) for row in (r.data or [])]
+        # Phase 34N — same fix as list_nevo_entries; CIQUAL is much
+        # larger (~3,000 rows) and was also being silently truncated.
+        return [
+            _ciqual_entry_from_row(row)
+            for row in self._fetch_all_rows("ciqual_reference")
+        ]
+
+    def _fetch_all_rows(
+        self, table: str, *, window: int = 1000
+    ) -> list[dict]:
+        """Drain ``table`` through paginated ``.range()`` calls.
+
+        Supabase/PostgREST caps a single ``.select()`` at 1000 rows by
+        default. Reference tables (NEVO, CIQUAL) exceed that, so we
+        loop until a window comes back smaller than ``window``.
+        """
+        out: list[dict] = []
+        offset = 0
+        while True:
+            r = (
+                self._svc.table(table)
+                .select("*")
+                .range(offset, offset + window - 1)
+                .execute()
+            )
+            chunk = r.data or []
+            if not chunk:
+                break
+            out.extend(chunk)
+            if len(chunk) < window:
+                break
+            offset += window
+            # Defensive cap — no real reference table exceeds 100k rows.
+            if offset >= 100_000:
+                break
+        return out
 
     # ------------------------------------------------------------------
     # Recommendations (Phase 25B)

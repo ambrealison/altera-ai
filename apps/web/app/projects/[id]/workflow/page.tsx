@@ -28,6 +28,7 @@ import {
   ApiError,
   createApi,
   type ApplyReferencesSummary,
+  type CalculationPreflightResponse,
   type ClassifySummary,
   type Methodology,
   type Run,
@@ -776,6 +777,7 @@ function StepCIQUAL({
 
 function StepCalculation({
   step,
+  preflight,
   busy,
   error,
   onRun,
@@ -783,6 +785,7 @@ function StepCalculation({
   onGoToStep,
 }: {
   step: WorkflowStep;
+  preflight: CalculationPreflightResponse | null;
   busy: boolean;
   error: string | null;
   onRun: () => void;
@@ -791,6 +794,12 @@ function StepCalculation({
 }) {
   const isReady = step.status === "ready";
   const isBlocked = step.status === "blocked";
+  // Phase 34N — the preflight endpoint is now the single source of
+  // truth for "how many products will be in the next run". If it
+  // disagrees with workflow.status's blockers we trust the preflight
+  // because it walks the same data the calculation engine walks.
+  const readyRows = preflight?.products_ready_for_calculation ?? 0;
+  const partialAllowed = readyRows > 0;
   // Phase 34K — partial calculation. When the ONLY remaining blocker
   // is `nutrition_required`, the user can choose to run the
   // calculation on the products that already have usable nutrition.
@@ -800,6 +809,7 @@ function StepCalculation({
     step.blocking_reasons.length > 0 &&
     step.blocking_reasons.every((r) => r.code === "nutrition_required");
   const missingNutritionCount =
+    preflight?.products_missing_nutrition ??
     step.blocking_reasons.find((r) => r.code === "nutrition_required")?.count ??
     0;
 
@@ -825,12 +835,39 @@ function StepCalculation({
 
       <Card>
         <h3 className="text-sm font-medium text-gray-700">Conditions requises</h3>
+        {preflight && (
+          <p className="mt-1 text-xs text-gray-500">
+            {preflight.products_ready_for_calculation} sur{" "}
+            {preflight.total_products} produit(s) prêt(s) pour le calcul.
+            {preflight.products_missing_nutrition > 0 && (
+              <>
+                {" "}
+                {preflight.products_missing_nutrition} sans donnée
+                protéique exploitable.
+              </>
+            )}
+          </p>
+        )}
         <ul className="mt-2 space-y-1.5">
           {[
-            { label: "Fichier importé", ok: (step.counts.eligible_rows ?? 0) > 0 || isReady },
-            { label: "Classification terminée", ok: isReady || (!isBlocked) },
-            { label: "Validation manuelle complète", ok: isReady },
-            { label: "Données nutritionnelles disponibles", ok: isReady },
+            {
+              label: "Fichier importé",
+              ok: (preflight?.total_products ?? 0) > 0,
+            },
+            {
+              label: "Classification terminée",
+              ok:
+                preflight !== null &&
+                preflight.classified_products === preflight.total_products,
+            },
+            {
+              label: "Validation manuelle complète",
+              ok: isReady || !isBlocked,
+            },
+            {
+              label: "Données nutritionnelles disponibles",
+              ok: readyRows > 0,
+            },
           ].map((c) => (
             <li key={c.label} className="flex items-center gap-2 text-sm">
               <span className={c.ok ? "text-emerald-600" : "text-rose-500"}>
@@ -941,28 +978,50 @@ function StepCalculation({
           </div>
         )}
 
-        {/* Phase 34K — partial-calc CTA: only when the sole blocker is
-            nutrition data. Includes a warning so the user knows what
-            they're agreeing to. */}
-        {nutritionOnlyBlocker && (
+        {/* Phase 34K/N — partial-calc CTA. The preflight tells us
+            exactly how many products will be in the run; if any are
+            missing nutrition we show the warning + the secondary
+            partial-calc button. */}
+        {(nutritionOnlyBlocker || missingNutritionCount > 0) && (
           <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             <p className="font-medium">Données nutritionnelles incomplètes</p>
             <p className="mt-1 text-xs">
               {missingNutritionCount} produit(s) sans donnée protéique
-              exploitable. Vous pouvez lancer le calcul sur les produits
-              restants, mais le rapport indiquera explicitement le
+              exploitable. {readyRows} produit(s) prêts seront inclus
+              dans le calcul. Le rapport indiquera explicitement le
               pourcentage de produits couverts.
             </p>
           </div>
+        )}
+
+        {preflight && preflight.sample_exclusion_reasons.length > 0 && (
+          <details className="mt-3 text-xs text-gray-500">
+            <summary className="cursor-pointer hover:text-gray-700">
+              Voir un échantillon des produits exclus
+            </summary>
+            <ul className="mt-1 list-disc pl-4">
+              {preflight.sample_exclusion_reasons.slice(0, 10).map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          </details>
         )}
 
         <div className="mt-4 flex flex-wrap gap-3">
           <Button onClick={onRun} disabled={!isReady || busy}>
             {busy ? "Calcul en cours…" : "Lancer le calcul"}
           </Button>
-          {nutritionOnlyBlocker && (
-            <Button variant="secondary" onClick={onRunPartial} disabled={busy}>
-              {busy ? "…" : "Calculer sur les données disponibles"}
+          {(nutritionOnlyBlocker || missingNutritionCount > 0) && (
+            <Button
+              variant="secondary"
+              onClick={onRunPartial}
+              disabled={busy || !partialAllowed}
+            >
+              {busy
+                ? "…"
+                : partialAllowed
+                  ? "Calculer sur les données disponibles"
+                  : "Aucun produit exploitable"}
             </Button>
           )}
         </div>
@@ -1187,6 +1246,9 @@ export default function WorkflowWizardPage() {
   // Phase 34C — store last classify and enrichment results for UI feedback
   const [lastClassifyResult, setLastClassifyResult] = useState<ClassifySummary | null>(null);
   const [lastNevoResult, setLastNevoResult] = useState<ApplyReferencesSummary | null>(null);
+  // Phase 34N — calculation preflight diagnostic. Fetched on every
+  // refresh; null until the first fetch completes.
+  const [preflight, setPreflight] = useState<CalculationPreflightResponse | null>(null);
 
   // ----------- data loading -----------
 
@@ -1200,6 +1262,16 @@ export default function WorkflowWizardPage() {
       setStatus(s);
       setUploads(u.items ?? []);
       setRuns(r.items ?? []);
+      // Phase 34N — the preflight is best-effort: a 403 / 404 means
+      // the user can't reach the project's preflight yet (e.g. the
+      // upload step isn't complete). We swallow the error so the
+      // wizard still renders.
+      try {
+        const pf = await api.getCalculationPreflight(projectId);
+        setPreflight(pf);
+      } catch {
+        setPreflight(null);
+      }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "Échec du chargement");
     }
@@ -1506,6 +1578,7 @@ export default function WorkflowWizardPage() {
         {activeIdx === 6 && (
           <StepCalculation
             step={activeBackendStep}
+            preflight={preflight}
             busy={busy}
             error={actionError}
             onRun={handleCreateRun}

@@ -452,6 +452,55 @@ UI:
 - AI-broad-proxy mode (currently the AI prompt asks for "closest
   match", not specifically "closest food-family proxy").
 
+### Phase 34N — Full NEVO + calculation preflight
+
+Three connected fixes addressing "Table NEVO : 1000 référence(s)
+chargée(s)" plus the "0 lignes traitées" paradox:
+
+1. **Supabase `.select()` 1000-row default cap removed.**
+   `PostgresRepository.list_nevo_entries` issued one `.select("*")`
+   call; PostgREST silently caps that at 1000 rows. NEVO 2025 v9.0
+   ships ~2,328 rows so ~60% of the table was invisible to matching.
+   Replaced with `_fetch_all_rows` that loops `.range(N, N+999)`
+   windows until a short chunk arrives. `list_ciqual_entries` got
+   the same treatment.
+
+2. **Importer row-count floor + `--limit` escape hatch.**
+   `scripts/import_nevo.py` now fails with exit 2 when fewer than
+   2000 entries are parsed UNLESS the operator explicitly passes
+   `--limit N`. Prevents a future truncated source file from
+   silently shipping 1000 rows again.
+
+   Exact production import command:
+   ```
+   uv run --directory apps/api python scripts/import_nevo.py \
+     --path /path/to/NEVO2025_v9.0.csv --verbose
+   ```
+   With `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set. The
+   `.xlsx` variant works the same way (auto-detected by extension).
+   `NEVO_DRY_RUN=1` prints rows without writing.
+
+3. **`GET /api/v1/projects/{id}/calculation-preflight` endpoint.**
+   Single source of truth for "what the next run will include":
+   walks each PT-eligible product and returns `total_products`,
+   `classified_products`, `products_with_volume` / `_weight` /
+   `_total_protein` / `_plant_animal_split`,
+   `products_ready_for_calculation` (= upcoming `rows_count`),
+   `products_missing_nutrition` / `_volume_or_weight` /
+   `_classification`, `products_out_of_scope`,
+   `sample_exclusion_reasons[]` (first 10), plus `nevo_total_references`
+   and `nevo_attempted`. The wizard's Step 7 reads this and uses
+   `products_ready_for_calculation` to enable/disable the
+   "Calculer sur les données disponibles" button — so the eligibility
+   panel and the run engine can no longer disagree.
+
+   Backend invariant:
+   `TestCalculationPreflight.test_preflight_ready_count_matches_run_rows`
+   asserts that the preflight's `products_ready_for_calculation`
+   equals the subsequent `/runs` call's `rows_count`. If they drift,
+   the wizard panel and the run engine are out of sync and this test
+   catches it.
+
 ### Phase 35 — GDPR data retention
 
 - Configurable retention period per organisation.

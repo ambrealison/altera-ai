@@ -278,6 +278,13 @@ def upsert_to_db(entries: list[dict], *, dry_run: bool = False) -> None:
     print(f"Done. {total_upserted} rows upserted into nevo_reference.")
 
 
+#: Phase 34N — NEVO 2025 v9.0 is expected to ship ~2,328 entries.
+#: Below this floor the importer fails loudly so the operator notices
+#: a truncated upload rather than silently shipping 1000 rows that
+#: would later cap matching coverage.
+_EXPECTED_MIN_ROWS = 2000
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Import RIVM NEVO-Online 2025 v9.0 data into nevo_reference table.",
@@ -299,6 +306,17 @@ def main() -> None:
         default=os.environ.get("NEVO_DRY_RUN") == "1",
         help="Print rows without writing to DB",
     )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help=(
+            f"Phase 34N — truncate the imported entries to N rows. Only "
+            f"use this for tests / smoke imports; production imports "
+            f"MUST process the full dataset. Without --limit the "
+            f"importer fails if fewer than {_EXPECTED_MIN_ROWS} rows were parsed."
+        ),
+    )
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -309,6 +327,20 @@ def main() -> None:
     print(f"Reading {args.path}…")
     entries = read_nevo(args.path, verbose=args.verbose)
     print(f"Parsed {len(entries)} entries (version={_VERSION})")
+
+    if args.limit is not None and args.limit > 0:
+        entries = entries[: args.limit]
+        print(f"--limit applied — truncated to {len(entries)} entries")
+    elif len(entries) < _EXPECTED_MIN_ROWS:
+        print(
+            f"ERROR: NEVO 2025 import returned only {len(entries)} rows "
+            f"(expected >= {_EXPECTED_MIN_ROWS}). This usually means the "
+            f"source file is truncated or the wrong file was downloaded. "
+            f"Re-download from https://nevo-online.rivm.nl/ or pass "
+            f"--limit N if a smaller dataset is intentional.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     upsert_to_db(entries, dry_run=args.dry_run)
 

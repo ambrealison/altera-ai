@@ -1293,6 +1293,178 @@ def list_nutrition_validations_route(
 
 
 # ---------------------------------------------------------------------------
+# Phase 34N — calculation preflight diagnostic
+# ---------------------------------------------------------------------------
+
+
+class CalculationPreflightResponse(BaseModel):
+    """Per-product breakdown of why each row will or will not be in the
+    next calculation run. Lets the wizard show non-contradictory
+    readiness ("Lignes éligibles: N" matches the actual rows_count
+    when the run is executed) and surface explicit exclusion reasons.
+    """
+
+    total_products: int
+    classified_products: int
+    products_with_volume: int
+    products_with_weight: int
+    products_with_total_protein: int
+    products_with_plant_animal_split: int
+    products_ready_for_calculation: int
+    products_missing_nutrition: int
+    products_missing_volume_or_weight: int
+    products_missing_classification: int
+    products_out_of_scope: int
+    sample_exclusion_reasons: list[str]
+    nevo_total_references: int
+    nevo_attempted: bool
+
+
+@api_router.get(
+    "/projects/{project_id}/calculation-preflight",
+    response_model=CalculationPreflightResponse,
+)
+def calculation_preflight_route(
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+) -> CalculationPreflightResponse:
+    """Phase 34N — single source of truth for what the next
+    calculation will include.
+
+    Walks each PT-eligible product and computes:
+    - whether it has accepted classification
+    - whether it has volume (items_purchased) and weight (per item)
+    - whether protein_pct is resolved (retailer OR enrichment)
+    - whether plant + animal split is resolved (retailer OR enrichment)
+    - the explicit exclusion reason when it would NOT be in the run
+
+    The aggregate counts here MUST match the rows_count the
+    subsequent /runs call produces; they are computed by walking the
+    same data the calculation engine walks. The wizard reads this to
+    decide whether to enable the "Calculer sur les données
+    disponibles" button.
+    """
+    products = [
+        p for p in store.list_products_for_project(project.id)
+        if p.pt_fields is not None
+        and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
+    ]
+
+    classified = 0
+    with_volume = 0
+    with_weight = 0
+    with_protein = 0
+    with_split = 0
+    ready = 0
+    missing_nutrition = 0
+    missing_volume_weight = 0
+    missing_classification = 0
+    out_of_scope = 0
+    sample_reasons: list[str] = []
+
+    from altera_api.enrichment.selection import select_protein_enrichment
+
+    def _sample(reason: str) -> None:
+        if len(sample_reasons) < 10:
+            sample_reasons.append(reason)
+
+    nevo_attempted = False
+    for p in products:
+        classification = store.get_pt_classification(p.id)
+        pt = p.pt_fields
+        assert pt is not None  # filtered above
+
+        has_volume = pt.items_purchased is not None and pt.items_purchased > 0
+        has_weight = p.weight_per_item_kg > 0
+        if has_volume:
+            with_volume += 1
+        if has_weight:
+            with_weight += 1
+
+        if classification is None:
+            missing_classification += 1
+            _sample(
+                f"{p.product_name}: missing classification"
+            )
+            continue
+        classified += 1
+        if classification.pt_group.value in ("out_of_scope", "unknown"):
+            out_of_scope += 1
+
+        # Resolve protein.
+        records = store.get_enrichment_records_for_product(p.id)
+        if records:
+            nevo_attempted = True
+        resolved = (
+            None
+            if pt.protein_pct is not None
+            else select_protein_enrichment(records)
+        )
+        has_protein = pt.protein_pct is not None or resolved is not None
+        if has_protein:
+            with_protein += 1
+
+        # Split.
+        has_retailer_split = (
+            pt.plant_protein_pct is not None and pt.animal_protein_pct is not None
+        )
+        has_enriched_split = resolved is not None and (
+            resolved.plant_protein_pct is not None
+            and resolved.animal_protein_pct is not None
+        )
+        if has_retailer_split or has_enriched_split:
+            with_split += 1
+
+        # Ready criteria — what the calculation engine actually
+        # requires: classification + volume + weight + protein_pct.
+        # The engine handles split internally (falling back to
+        # classification assumption); rows still emit without a split
+        # but contribute to the correct group's plant/animal column
+        # via the assumption.
+        if (
+            has_volume
+            and has_weight
+            and has_protein
+            and classification.pt_group.value not in ("unknown",)
+        ):
+            ready += 1
+        else:
+            reason_parts = []
+            if not has_volume:
+                reason_parts.append("no volume")
+            if not has_weight:
+                reason_parts.append("no weight")
+            if not has_protein:
+                reason_parts.append("no protein data")
+            if classification.pt_group.value == "unknown":
+                reason_parts.append("classification=unknown")
+            if not has_protein:
+                missing_nutrition += 1
+            if not has_volume or not has_weight:
+                missing_volume_weight += 1
+            _sample(
+                f"{p.product_name}: " + ", ".join(reason_parts or ["unknown reason"])
+            )
+
+    return CalculationPreflightResponse(
+        total_products=len(products),
+        classified_products=classified,
+        products_with_volume=with_volume,
+        products_with_weight=with_weight,
+        products_with_total_protein=with_protein,
+        products_with_plant_animal_split=with_split,
+        products_ready_for_calculation=ready,
+        products_missing_nutrition=missing_nutrition,
+        products_missing_volume_or_weight=missing_volume_weight,
+        products_missing_classification=missing_classification,
+        products_out_of_scope=out_of_scope,
+        sample_exclusion_reasons=sample_reasons,
+        nevo_total_references=len(store.list_nevo_entries()),
+        nevo_attempted=nevo_attempted,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Phase 34L — manual nutrition override + product exclusion
 # ---------------------------------------------------------------------------
 

@@ -330,6 +330,24 @@ export interface NutritionValidationsResponse {
   counts_by_source: Record<string, number>;
 }
 
+// Phase 34N — calculation preflight diagnostic.
+export interface CalculationPreflightResponse {
+  total_products: number;
+  classified_products: number;
+  products_with_volume: number;
+  products_with_weight: number;
+  products_with_total_protein: number;
+  products_with_plant_animal_split: number;
+  products_ready_for_calculation: number;
+  products_missing_nutrition: number;
+  products_missing_volume_or_weight: number;
+  products_missing_classification: number;
+  products_out_of_scope: number;
+  sample_exclusion_reasons: string[];
+  nevo_total_references: number;
+  nevo_attempted: boolean;
+}
+
 export interface NutritionReferencesStats {
   nevo_total: number;
   nevo_with_protein: number;
@@ -1122,6 +1140,17 @@ export function createApi(accessToken: string | null) {
     },
 
     // Phase 34D — NEVO/CIQUAL reference table diagnostics (Altera-only).
+    // Phase 34N — calculation preflight diagnostic. The wizard reads
+    // this to power Step 7's "Conditions requises" panel with the
+    // same source of truth the run engine uses, so eligible_rows and
+    // rows_count never disagree.
+    getCalculationPreflight: (projectId: string) =>
+      request<CalculationPreflightResponse>(
+        `/api/v1/projects/${projectId}/calculation-preflight`,
+        { method: "GET" },
+        accessToken,
+      ),
+
     getNutritionReferencesStats: () =>
       request<NutritionReferencesStats>(
         `/api/v1/admin/nutrition-references/stats`,
