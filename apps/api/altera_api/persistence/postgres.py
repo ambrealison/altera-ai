@@ -608,6 +608,18 @@ class PostgresRepository:
         except Exception:
             pass
 
+    def list_audit_events_for_project(
+        self, project_id: UUID
+    ) -> list[AuditEvent]:
+        """Phase 34M — placeholder so the workflow aggregator can call
+        this on every store. On production the safe fallback is an
+        empty list, which makes the NEVO step stay at "available"
+        until we add a real query (deferred to a follow-up phase that
+        also adds the audit-event row parser). The in-memory store
+        provides the working implementation tests use.
+        """
+        return []
+
     # ------------------------------------------------------------------
     # Upload lifecycle (Phase 15)
     # ------------------------------------------------------------------

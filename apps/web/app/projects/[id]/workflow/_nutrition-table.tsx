@@ -27,18 +27,23 @@ import { ApiError, createApi } from "@/lib/api";
 
 const PAGE_SIZE = 25;
 
-const STATUS_LABELS_FR: Record<NutritionValidationRow["status"], string> = {
-  ready: "Prêt",
+// Phase 34M — extended status palette to surface confidence tiers
+// from the backend.
+const STATUS_LABELS_FR: Record<string, string> = {
+  ready: "Prêt — haute confiance",
+  ready_medium_confidence: "Prêt — confiance moyenne",
   needs_review: "À vérifier",
+  needs_review_low_confidence: "À vérifier — confiance faible",
+  suggested_very_low_confidence: "Suggéré — confiance très faible",
   missing: "Manquant",
   excluded: "Exclu",
 };
-const STATUS_TONES: Record<
-  NutritionValidationRow["status"],
-  "ok" | "warn" | "neutral" | "brand"
-> = {
+const STATUS_TONES: Record<string, "ok" | "warn" | "neutral" | "brand"> = {
   ready: "ok",
+  ready_medium_confidence: "ok",
   needs_review: "warn",
+  needs_review_low_confidence: "warn",
+  suggested_very_low_confidence: "warn",
   missing: "neutral",
   excluded: "neutral",
 };
@@ -192,7 +197,7 @@ export function NutritionTable({
                   : "neutral"
             }
           >
-            {STATUS_LABELS_FR[k as keyof typeof STATUS_LABELS_FR] ?? k}: {v}
+            {STATUS_LABELS_FR[k] ?? k}: {v}
           </Pill>
         ))}
       </div>
@@ -350,8 +355,8 @@ export function NutritionTable({
                     {SOURCE_LABELS_FR[row.source] ?? row.source}
                   </td>
                   <td className="py-2 pr-3">
-                    <Pill tone={STATUS_TONES[row.status]}>
-                      {STATUS_LABELS_FR[row.status]}
+                    <Pill tone={STATUS_TONES[row.status] ?? "neutral"}>
+                      {STATUS_LABELS_FR[row.status] ?? row.status}
                     </Pill>
                   </td>
                   <td className="py-2">

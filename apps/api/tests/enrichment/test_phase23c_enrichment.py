@@ -672,10 +672,17 @@ class TestRunCalculationWithEnrichment:
 
 
 class TestAuthGate:
-    def test_client_cannot_use_enriched_nutrition_create_run(
+    def test_client_can_now_use_enriched_nutrition_create_run(
         self, client: TestClient, store: InMemoryStore
     ) -> None:
-        """HTTP 403 when GMS client tries to enable use_enriched_nutrition."""
+        """Phase 34M — the Altera-only gate on use_enriched_nutrition
+        has been removed. The wizard is now the canonical flow and
+        NEVO/manual enrichment records ARE the normal nutrition source
+        for everyone. The 403 / "forbidden" branch this test guarded
+        is gone; a GMS-client run with use_enriched_nutrition=True
+        falls through to the workflow gate (run_not_ready when the
+        project has no products) instead of being denied for
+        permissions."""
         org = _org(store)
         project = store.create_project(
             name="p",
@@ -690,19 +697,17 @@ class TestAuthGate:
                 f"/api/v1/projects/{project.id}/runs",
                 json={"methodology": "protein_tracker", "use_enriched_nutrition": True},
             )
-            assert r.status_code == 403
-            assert r.json()["detail"]["error_code"] == "forbidden"
+            assert r.status_code != 403, r.text
+            assert r.status_code == 400
+            assert r.json()["detail"]["error_code"] == "run_not_ready"
         finally:
             app.dependency_overrides.pop(authed_user, None)
 
     def test_altera_can_use_enriched_nutrition_create_run(
         self, client: TestClient, store: InMemoryStore
     ) -> None:
-        """Altera internal users are NOT blocked by the
-        use_enriched_nutrition permission gate. Phase 34A: with an
-        empty project, the run still falls through to ``run_not_ready``
-        (workflow gate) rather than ``403`` — which is what this test
-        is verifying (no permission denial)."""
+        """Same behaviour as the client case post-Phase-34M: empty
+        project → run_not_ready, not a permission denial."""
         org = _org(store)
         project = store.create_project(
             name="p",
@@ -718,8 +723,6 @@ class TestAuthGate:
                 json={"methodology": "protein_tracker", "use_enriched_nutrition": True},
             )
             assert r.status_code != 403, r.text
-            # Phase 34A: blocked because the project has no eligible products,
-            # not because the user lacked the use_enriched_nutrition right.
             assert r.status_code == 400
             assert r.json()["detail"]["error_code"] == "run_not_ready"
         finally:

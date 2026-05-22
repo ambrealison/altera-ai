@@ -389,16 +389,32 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
         )
     )
 
-    # 8. NEVO enrichment
+    # 8. NEVO enrichment.
+    # Phase 34M — NEVO step becomes "complete" once apply-references
+    # has been called for the project (regardless of how many products
+    # actually matched). Previously the step only completed when
+    # pt_needs_nutrition reached 0, which was unreachable on real
+    # retailer CSVs where 25+ of 33 products couldn't find a NEVO
+    # entry. We detect attempts by looking for ANY enrichment record
+    # on a project's products — Phase 34M now writes a FAILED record
+    # even for no-match products so this signal is reliable across
+    # both the in-memory and Postgres stores.
+    nevo_attempted = False
+    for product in store.list_products_for_project(project.id):
+        if store.get_enrichment_records_for_product(product.id):
+            nevo_attempted = True
+            break
     pt_needs_nutrition = counts.pt_missing_nutrition
     if pt_total == 0:
         nevo_status: StepStatus = "locked"
-    elif counts.pt_nevo_records > 0 and pt_needs_nutrition == 0:
+    elif nevo_attempted:
         nevo_status = "complete"
-    elif pt_needs_nutrition > 0:
-        nevo_status = "available"
-    else:
+    elif pt_needs_nutrition == 0:
+        # Every product already has retailer-provided nutrition; NEVO
+        # is not required to attempt.
         nevo_status = "not_needed"
+    else:
+        nevo_status = "available"
     steps.append(
         WorkflowStep(
             key="nutrition_enrichment_nevo",

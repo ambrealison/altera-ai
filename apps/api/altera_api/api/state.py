@@ -539,6 +539,14 @@ class InMemoryStore:
     # ------------------------------------------------------------------
     # Audit
     # ------------------------------------------------------------------
+    def list_audit_events_for_project(
+        self, project_id: UUID
+    ) -> list[AuditEvent]:
+        """Phase 34M — events whose target_id equals the project id."""
+        return [
+            ev for ev in self.audit_events if ev.target_id == project_id
+        ]
+
     def append_audit(self, event: AuditEvent) -> None:
         with self._lock:
             self.audit_events.append(event)

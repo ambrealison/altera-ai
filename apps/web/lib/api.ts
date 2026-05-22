@@ -312,7 +312,14 @@ export interface NutritionValidationRow {
   confidence: number | null;
   reference_name: string | null;
   reference_code: string | null;
-  status: "ready" | "needs_review" | "missing" | "excluded";
+  status:
+    | "ready"
+    | "ready_medium_confidence"
+    | "needs_review"
+    | "needs_review_low_confidence"
+    | "suggested_very_low_confidence"
+    | "missing"
+    | "excluded";
   reason: string | null;
 }
 

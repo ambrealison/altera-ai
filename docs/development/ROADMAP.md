@@ -387,6 +387,71 @@ Five connected fixes that unblock end-to-end retailer flow:
 - Dedup/cache for identical normalised names.
 - Per-product retry-NEVO button.
 
+### Phase 34M — High-coverage NEVO + eligibility alignment + NEVO-attempted state
+
+Four targeted fixes for the staging report (7/33 NEVO matches +
+"Lignes éligibles 7 / Aucun produit ne dispose de données protéiques"
+contradiction):
+
+1. **Eligibility/run contradiction root-caused.** The wizard counted
+   products with NEVO enrichment records as eligible, but
+   `RunCreateRequest.use_enriched_nutrition` defaulted to `False` and
+   was Altera-only gated. Non-Altera users (and the wizard's default
+   POST body without the flag) ran with `use_enriched_nutrition=False`
+   → calculation engine ignored NEVO records → 0 rows in the run,
+   while the workflow status reported 7 eligible. Phase 34M:
+   `use_enriched_nutrition` defaults to `True` and the Altera-only
+   gate is dropped. Workflow eligibility and the run engine now pull
+   from the exact same nutrition source.
+
+2. **NEVO-attempted state.** The workflow aggregator detected
+   "complete" only when every product had nutrition (unreachable on
+   real CSVs). Now Step 5 flips to `complete` once apply-references
+   has been called for the project — irrespective of how many
+   products actually matched. To make this signal reliable across
+   stores, the apply route writes a FAILED enrichment record on
+   every no-match product (was previously silent), so the
+   aggregator can detect "NEVO ran" via the presence of any
+   enrichment record on any product. The "all products already have
+   retailer protein" case still maps to `not_needed` so the legacy
+   pt_tiny flow continues to skip NEVO.
+
+3. **Tiered fuzzy NEVO matching.** `_FUZZY_MIN_SCORE` dropped from
+   2 to 1, with three confidence tiers based on overlap:
+   - 3+ token overlap → 0.82 (close proxy)
+   - 2 tokens → 0.72 (mid)
+   - 1 token → 0.55 (broad food-family proxy)
+   "Lasagnes Bolognaise" now matches "Lasagne meat" at confidence
+   0.55 instead of returning no_match. The nutrition validation
+   table surfaces the proxy quality via the new status palette so
+   the analyst can confirm, override, or exclude.
+
+4. **Confidence-tier statuses.** The nutrition validation row
+   builder maps confidence to one of:
+   - `ready` (≥ 0.85)
+   - `ready_medium_confidence` (0.70–0.85)
+   - `needs_review_low_confidence` (0.50–0.70)
+   - `suggested_very_low_confidence` (0.30–0.50)
+   - `needs_review` / `missing` otherwise
+   The frontend Status column renders each with a Pill in
+   appropriate tone; the aggregate panel shows the count of each
+   status so the user knows at a glance how much manual work
+   remains.
+
+UI:
+- Step 5 ("NEVO") shows "Continuer vers la validation nutritionnelle"
+  + secondary "Relancer NEVO" after the first run. Removes the
+  ambiguity of the previous "Enrichir avec NEVO" wording that
+  implied the first run hadn't happened.
+
+**Still deferred to Phase 34N**:
+- AI-estimated split for composite products with explicit
+  provenance.
+- Explicit "Exclure du calcul" persistence + undo.
+- Batched AI nutrition matching.
+- AI-broad-proxy mode (currently the AI prompt asks for "closest
+  match", not specifically "closest food-family proxy").
+
 ### Phase 35 — GDPR data retention
 
 - Configurable retention period per organisation.

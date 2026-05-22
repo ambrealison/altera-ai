@@ -1184,7 +1184,20 @@ def _nutrition_row_for(
                 if protein_rec.source is _NES.NEVO
                 else "missing"
             )
-            status = "ready"
+            # Phase 34M — tier status by confidence so the wizard's
+            # nutrition validation table can distinguish high-
+            # confidence ready rows from low-confidence suggestions
+            # that the user must accept or override.
+            if confidence is None or confidence >= 0.85:
+                status = "ready"
+            elif confidence >= 0.70:
+                status = "ready_medium_confidence"
+            elif confidence >= 0.50:
+                status = "needs_review_low_confidence"
+            elif confidence >= 0.30:
+                status = "suggested_very_low_confidence"
+            else:
+                status = "needs_review"
         else:
             split_source = "missing"
             status = "needs_review"
@@ -1227,7 +1240,15 @@ def list_nutrition_validations_route(
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
     pagination: Annotated[PaginationParams, Depends()],
-    status: Literal["ready", "needs_review", "missing", "excluded"] | None = None,
+    status: Literal[
+        "ready",
+        "ready_medium_confidence",
+        "needs_review",
+        "needs_review_low_confidence",
+        "suggested_very_low_confidence",
+        "missing",
+        "excluded",
+    ] | None = None,
     source: Literal["retailer_csv", "nevo", "ciqual", "manual", "missing"] | None = None,
     product_search: str | None = None,
 ) -> NutritionValidationsResponse:
@@ -1571,7 +1592,14 @@ def bulk_action_route(
 # ---------------------------------------------------------------------------
 class RunCreateRequest(BaseModel):
     methodology: Methodology
-    use_enriched_nutrition: bool = False
+    # Phase 34M — default True. The guided wizard is now the canonical
+    # flow and NEVO/manual enrichment records are the normal nutrition
+    # source. The previous False-default + Altera-only gate caused the
+    # "Lignes éligibles: 7 / Aucun produit ne dispose de données
+    # protéiques exploitables" contradiction: the workflow aggregator
+    # counted enriched products as eligible but the calc engine
+    # ignored their enrichment records, producing 0 rows.
+    use_enriched_nutrition: bool = True
     # Phase 34K — when True, the run is allowed even if some products
     # are missing usable nutrition data. The calculation engine
     # naturally skips those products; the run summary carries explicit
@@ -1602,8 +1630,14 @@ def create_run(
     auth: Annotated[AuthContext, Depends(authed_user)],
     user_id: Annotated[UUID, Depends(current_user_id)],
 ) -> RunResponse:
-    if body.use_enriched_nutrition and not auth.is_altera_internal:
-        raise_forbidden("use_enriched_nutrition may only be enabled by Altera internal users")
+    # Phase 34M — the Altera-only gate was the root of the
+    # "eligible 7 / 0 usable nutrition" contradiction. NEVO + manual
+    # nutrition records ARE the normal source now, so all authenticated
+    # users get the enriched calculation by default. Altera-internal
+    # is still required for the underlying apply-references endpoint
+    # that writes those enrichment records, so this gate is no longer
+    # necessary on the run side.
+    _ = auth  # auth context retained for audit logging
 
     # Phase 34A — strict pre-flight: never let a run persist with 0
     # eligible rows. The workflow status aggregator centralises the
@@ -4040,6 +4074,39 @@ def apply_reference_enrichment_route(
                 product_id=str(product.id),
                 product_name=product.product_name,
                 outcome="no_match",
+            )
+        )
+        # Phase 34M — record a FAILED enrichment record on no-match
+        # products too. This gives the workflow aggregator a way to
+        # tell "NEVO has been attempted on this product" apart from
+        # "NEVO has never run", so Step 5 can flip to complete after
+        # the user's first run even when nothing matched.
+        from altera_api.domain.enrichment import (
+            NutritionEnrichmentRecord as _NER,
+        )
+        from altera_api.domain.enrichment import (
+            NutritionEnrichmentSource as _NES,
+        )
+        from altera_api.domain.enrichment import (
+            NutritionEnrichmentStatus as _NSt,
+        )
+        store.add_enrichment_record(
+            _NER(
+                product_id=product.id,
+                nutrient="protein_pct",
+                original_value=None,
+                enriched_value=None,
+                unit="g_per_100g",
+                source=_NES.NEVO,
+                confidence=None,
+                status=_NSt.FAILED,
+                rationale=(
+                    "NEVO: no matching entry found "
+                    "(deterministic + fuzzy + AI all returned no candidate)"
+                ),
+                created_at=now,
+                created_by=auth.user_id,
+                match_method="none",
             )
         )
 

@@ -675,17 +675,25 @@ function StepNEVO({
             {error}
           </div>
         )}
+        {/* Phase 34M — once NEVO has been attempted (step.status is
+            "complete"), the primary CTA is "Continuer", and the
+            re-run button is labelled "Relancer NEVO" so the user
+            knows the first run already happened. */}
         <div className="mt-4 flex flex-wrap gap-3">
           {isComplete || isNotNeeded ? (
-            <Button onClick={onNext}>Continuer vers CIQUAL</Button>
+            <>
+              <Button onClick={onNext}>
+                Continuer vers la validation nutritionnelle
+              </Button>
+              {isComplete && (
+                <Button variant="secondary" onClick={onRun} disabled={busy}>
+                  {busy ? "…" : "Relancer NEVO"}
+                </Button>
+              )}
+            </>
           ) : (
             <Button onClick={onRun} disabled={busy}>
               {busy ? "Enrichissement NEVO en cours…" : "Enrichir avec NEVO"}
-            </Button>
-          )}
-          {isComplete && (
-            <Button variant="secondary" onClick={onRun} disabled={busy}>
-              {busy ? "…" : "Ré-enrichir"}
             </Button>
           )}
         </div>

@@ -175,6 +175,16 @@ class StoreProtocol(Protocol):
     # Audit
     # ------------------------------------------------------------------
     def append_audit(self, event: AuditEvent) -> None: ...
+    def list_audit_events_for_project(
+        self, project_id: UUID
+    ) -> list[AuditEvent]:
+        """Phase 34M — return audit events that target the project.
+
+        Used to detect whether NEVO enrichment has been attempted so
+        the workflow Step 5 can flip to ``complete`` after the user's
+        first run (even if only a fraction of products matched).
+        """
+        ...
 
     # ------------------------------------------------------------------
     # Jobs (Phase 16)

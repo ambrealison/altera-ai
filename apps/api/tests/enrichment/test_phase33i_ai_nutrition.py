@@ -555,16 +555,21 @@ class TestEndpointAIHighConfidence:
             org_id = seeded_store.default_org_id
             pid_str = _create_pt_project(client)
             pid = UUID(pid_str)
-            # Phase 34L — use a name with exactly one food-token
-            # overlap. The fuzzy fallback requires ≥2 overlapping
-            # tokens to fire, so the deterministic path misses; the
-            # candidate shortlist is non-empty so AI is invoked.
+            # Phase 34M — use a name with no food tokens; the AI
+            # shortlist is generated from the Poultry category, but
+            # the deterministic fuzzy uses name only and so misses.
             product = _add_pt_product(
                 seeded_store,
                 project_id=pid,
                 org_id=org_id,
-                name="Chicken",
-                category="Poultry",
+                name="Promotion Item Z42",
+                # French category triggers the alias expansion (Poulet
+                # → chicken) and so candidates_for_product generates a
+                # non-empty shortlist; the product name itself has no
+                # food tokens so _fuzzy_match in the deterministic
+                # path returns nothing → AI is the only attribution
+                # path available.
+                category="Poulet",
             )
             r = client.post(f"/api/v1/projects/{pid_str}/enrichments/apply-references")
             assert r.status_code == 200, r.text
@@ -613,14 +618,24 @@ class TestEndpointAIHighConfidence:
             org_id = seeded_store.default_org_id
             pid_str = _create_pt_project(client)
             pid = UUID(pid_str)
-            # Phase 34L — single-token name so fuzzy-deterministic
-            # below threshold; AI still gets invoked and we test it
-            # rejects an out-of-shortlist code.
+            # Phase 34M — fuzzy threshold dropped to 1 token, so even
+            # "Chicken" now fuzzy-matches. To force the AI path we
+            # use a name with NO food tokens and rely on the poultry
+            # retailer_category to generate the AI shortlist
+            # (candidates_for_product mixes name + category tokens;
+            # _fuzzy_match uses name only).
             _add_pt_product(
                 seeded_store,
                 project_id=pid,
                 org_id=org_id,
-                name="Chicken",
+                name="Promotion Item Z42",
+                # French category triggers the alias expansion (Poulet
+                # → chicken) and so candidates_for_product generates a
+                # non-empty shortlist; the product name itself has no
+                # food tokens so _fuzzy_match in the deterministic
+                # path returns nothing → AI is the only attribution
+                # path available.
+                category="Poulet",
             )
             r = client.post(f"/api/v1/projects/{pid_str}/enrichments/apply-references")
             assert r.status_code == 200
@@ -692,13 +707,17 @@ class TestEndpointAIMediumConfidence:
             org_id = seeded_store.default_org_id
             pid_str = _create_pt_project(client)
             pid = UUID(pid_str)
-            # Phase 34L — single-token name forces AI path (fuzzy
-            # requires ≥2 token overlap).
+            # Phase 34M — name with no food tokens forces AI path
+            # (the deterministic fuzzy threshold dropped to 1 in 34M
+            # so even single-token names now fuzzy-match; we use a
+            # nonsense product name + French category to generate
+            # the AI shortlist without triggering fuzzy).
             product = _add_pt_product(
                 seeded_store,
                 project_id=pid,
                 org_id=org_id,
-                name="Chicken",
+                name="Promotion Item Z42",
+                category="Poulet",
             )
             r = client.post(f"/api/v1/projects/{pid_str}/enrichments/apply-references")
             body = r.json()
