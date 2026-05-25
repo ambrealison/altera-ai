@@ -521,13 +521,26 @@ class TestIdempotentRerun:
         self, client: TestClient, fake_provider: _DeterministicFakeProvider
     ) -> None:
         pid, uid = _setup_upload(client, 10)
-        client.post(
+        r1 = client.post(
             f"/api/v1/projects/{pid}/uploads/{uid}/classification-jobs",
             json={"methodology": "protein_tracker", "batch_size": 10},
         )
-        # Drive to completion.
-        first = client.get(f"/api/v1/projects/{pid}").json()
-        _ = first
+        first_job_id = r1.json()["job_id"]
+        # Phase 35A — drive the first job to terminal status. The new
+        # resume short-circuit returns 409 when a non-terminal job
+        # exists for the same upload+methodology; advance until done
+        # so the second overwrite create can land cleanly.
+        for _ in range(5):
+            body = client.post(
+                f"/api/v1/projects/{pid}/classification-jobs/{first_job_id}/advance"
+            ).json()
+            if body["status"] in {
+                "completed",
+                "completed_with_errors",
+                "failed",
+                "cancelled",
+            }:
+                break
         # Second job with overwrite=true: total_products == 10.
         r = client.post(
             f"/api/v1/projects/{pid}/uploads/{uid}/classification-jobs",

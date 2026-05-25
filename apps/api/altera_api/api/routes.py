@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
@@ -654,6 +655,48 @@ async def create_ingestion_job_route(
                 },
             ) from exc
 
+    # Phase 35B — heavy-job guard. We don't know the row count
+    # before parsing, but file size is a strong proxy: an average
+    # retailer CSV row is ~100-200 bytes, so a file >=100 KB almost
+    # certainly contains 1000+ rows. Apply the cheap pre-parse
+    # check so we reject heavy ingestion before paying parse cost.
+    if len(payload) >= 100 * 1024:
+        try:
+            active_class = store.count_active_heavy_classification_jobs(
+                min_total_products=_HEAVY_CLASSIFICATION_THRESHOLD
+            )
+            active_ingest = store.count_active_heavy_ingestion_jobs(
+                min_total_rows=_HEAVY_INGESTION_THRESHOLD
+            )
+        except Exception:
+            active_class = active_ingest = 0
+        if active_class + active_ingest > 0:
+            import logging
+
+            logging.getLogger("altera_api.heavy_job_guard").info(
+                "heavy_job_guard.rejected scope=ingestion "
+                "project_id=%s upload_id=%s file_kb=%d "
+                "active_class=%d active_ingest=%d",
+                project.id,
+                upload_id,
+                len(payload) // 1024,
+                active_class,
+                active_ingest,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error_code": "heavy_job_in_progress",
+                    "message": (
+                        "Un traitement volumineux est déjà en cours sur "
+                        "la plateforme. Il peut provenir d'une autre "
+                        "organisation. Réessayez dans quelques minutes."
+                    ),
+                    "active_classification_jobs": active_class,
+                    "active_ingestion_jobs": active_ingest,
+                },
+            )
+
     # Parse CSV in pure Python (fast, no DB hits).
     try:
         parse_result = _create_upload_record_for_ingestion_job(
@@ -1233,6 +1276,24 @@ def _classification_job_response(job: object) -> ClassificationJobResponse:
     )
 
 
+# Phase 35B — heavy-job thresholds. A job is considered "heavy"
+# when the relevant size signal meets/exceeds the threshold.
+# Below the threshold the guard is bypassed so small uploads
+# (100-row pilot CSVs) never get queued behind a 10K-row import.
+#
+# Override-able via environment so Render Pro can tune in
+# staging without a code change. Defaults match the product
+# decision in Phase 35:
+#   - 500 eligible products triggers classification guard
+#   - 1000 rows triggers ingestion guard
+_HEAVY_CLASSIFICATION_THRESHOLD: int = int(
+    os.environ.get("ALTERA_HEAVY_CLASSIFICATION_THRESHOLD", "500")
+)
+_HEAVY_INGESTION_THRESHOLD: int = int(
+    os.environ.get("ALTERA_HEAVY_INGESTION_THRESHOLD", "1000")
+)
+
+
 @api_router.post(
     "/projects/{project_id}/uploads/{upload_id}/classification-jobs",
     response_model=ClassificationJobResponse,
@@ -1282,6 +1343,79 @@ def create_classification_job_route(
                 "message": "upload does not belong to this project",
             },
         )
+
+    # Phase 35A — resume short-circuit. If a non-terminal job
+    # already exists for this exact (upload, methodology) pair,
+    # return it instead of creating a duplicate. The frontend
+    # treats 409 with error_code=classification_job_active +
+    # job_id as the "resume the existing job" signal.
+    existing_active = store.find_active_classification_job(
+        upload_id=upload_id, methodology=body.methodology
+    )
+    if existing_active is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error_code": "classification_job_active",
+                "message": (
+                    "Une classification est déjà en cours pour ce "
+                    "fichier. Reprenez le job existant."
+                ),
+                "job_id": str(existing_active.id),
+                "status": existing_active.status.value,
+                "processed_products": existing_active.processed_products,
+                "total_products": existing_active.total_products,
+            },
+        )
+
+    # Phase 35B — heavy-job guard. We define "heavy" as
+    # total_products >= 500. The new job's total_products isn't
+    # known until create_classification_job filters eligible
+    # products, but we can probe upfront on the upload's product
+    # count. We use the upload record's product_ids length as a
+    # cheap O(1) proxy.
+    will_be_heavy = (
+        len(upload_record.product_ids) >= _HEAVY_CLASSIFICATION_THRESHOLD
+    )
+    if will_be_heavy:
+        try:
+            active_heavy_class = (
+                store.count_active_heavy_classification_jobs(
+                    min_total_products=_HEAVY_CLASSIFICATION_THRESHOLD
+                )
+            )
+            active_heavy_ingest = store.count_active_heavy_ingestion_jobs(
+                min_total_rows=_HEAVY_INGESTION_THRESHOLD
+            )
+        except Exception:
+            active_heavy_class = active_heavy_ingest = 0
+        active_heavy_total = active_heavy_class + active_heavy_ingest
+        if active_heavy_total > 0:
+            import logging
+
+            logging.getLogger("altera_api.heavy_job_guard").info(
+                "heavy_job_guard.rejected scope=classification "
+                "project_id=%s upload_id=%s active_class=%d active_ingest=%d",
+                project.id,
+                upload_id,
+                active_heavy_class,
+                active_heavy_ingest,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error_code": "heavy_job_in_progress",
+                    "message": (
+                        "Un traitement volumineux est déjà en cours sur "
+                        "la plateforme. Il peut provenir d'une autre "
+                        "organisation. Réessayez dans quelques minutes "
+                        "ou reprenez votre traitement en cours."
+                    ),
+                    "active_classification_jobs": active_heavy_class,
+                    "active_ingestion_jobs": active_heavy_ingest,
+                },
+            )
+
     try:
         job = create_classification_job(
             store,
@@ -1302,6 +1436,50 @@ def create_classification_job_route(
                 "message": str(exc) or "could not create classification job",
             },
         ) from exc
+    return _classification_job_response(job)
+
+
+# Phase 35A — IMPORTANT: ``/active`` is a literal path segment and
+# must be declared BEFORE ``/{job_id}``. FastAPI matches routes in
+# declaration order; if ``/{job_id}`` came first, the framework
+# would try to parse "active" as a UUID and 422 the request.
+@api_router.get(
+    "/projects/{project_id}/classification-jobs/active",
+    response_model=ClassificationJobResponse,
+)
+def get_active_classification_job_route(
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    upload_id: UUID,
+    methodology: Methodology = Methodology.PROTEIN_TRACKER,
+) -> ClassificationJobResponse:
+    """Phase 35A — find the most-recent non-terminal classification
+    job for the (upload, methodology) pair.
+
+    The wizard calls this on Step 4 mount. If a job is returned,
+    the wizard renders "Reprendre la classification" pointing at
+    the existing job instead of creating a new one — preventing
+    duplicate work after a network blip, page refresh, or Render
+    restart.
+
+    Returns 404 ``no_active_job`` when nothing is in flight. The
+    frontend treats 404 as the "nothing to resume" signal and shows
+    the regular "Lancer la classification IA" button.
+    """
+    job = store.find_active_classification_job(
+        upload_id=upload_id, methodology=methodology
+    )
+    if job is None or job.project_id != project.id:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "no_active_job",
+                "message": (
+                    f"no in-flight classification job for upload "
+                    f"{upload_id} + methodology {methodology.value}"
+                ),
+            },
+        )
     return _classification_job_response(job)
 
 
@@ -1345,12 +1523,21 @@ def advance_classification_job_route(
     Each call takes one batch (default 25 products) and at most ~10–20s
     even with retries. The browser polls this endpoint until the
     response's ``status`` is terminal.
+
+    Phase 35D — emits one structured log line per advance call so
+    Render Pro logs can attribute slow batches to the right
+    (org, project, upload). The log includes pre/post processed
+    counts so a stuck-at-N pattern is immediately visible.
     """
+    import logging
+    import time
+
     from altera_api.ai.config import get_ai_provider
     from altera_api.api.classification_job_orchestrator import (
         advance_classification_job,
     )
 
+    log = logging.getLogger("altera_api.classification_advance")
     existing = store.get_classification_job(job_id)
     if existing is None or existing.project_id != project.id:
         raise HTTPException(
@@ -1368,9 +1555,29 @@ def advance_classification_job_route(
         ClassificationJobConflict,
     )
 
+    t0 = time.perf_counter()
     try:
         job = advance_classification_job(
             store, job_id, ai_provider=ai_provider
+        )
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log.info(
+            "advance.ok job_id=%s org=%s project=%s upload=%s "
+            "batch_size=%d processed=%d→%d total=%d failed=%d "
+            "retry_batches=%d recovered=%d status=%s duration_ms=%.1f",
+            job_id,
+            existing.organisation_id,
+            project.id,
+            existing.upload_id,
+            existing.batch_size,
+            existing.processed_products,
+            job.processed_products,
+            job.total_products,
+            job.failed_total,
+            job.retry_batches,
+            job.recovered_rows,
+            job.status.value,
+            elapsed_ms,
         )
     except LookupError as exc:
         raise HTTPException(
@@ -1391,6 +1598,15 @@ def advance_classification_job_route(
         # The orchestrator itself catches provider errors per-batch.
         # An exception escaping here means a true programming bug.
         # Return structured 502 so the wizard surfaces a clean banner.
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log.exception(
+            "advance.failed job_id=%s project=%s elapsed_ms=%.1f exc=%s: %s",
+            job_id,
+            project.id,
+            elapsed_ms,
+            type(exc).__name__,
+            exc,
+        )
         raise HTTPException(
             status_code=502,
             detail={

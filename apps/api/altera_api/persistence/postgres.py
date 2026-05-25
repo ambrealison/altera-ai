@@ -1014,6 +1014,68 @@ class PostgresRepository:
             classification_job_from_row(row) for row in (r.data or [])
         ]
 
+    def find_active_classification_job(
+        self,
+        *,
+        upload_id: UUID,
+        methodology: Methodology,
+    ):  # type: ignore[no-untyped-def]
+        """Phase 35A — return the most-recent non-terminal job for
+        the (upload, methodology) pair, or None.
+
+        ``not is_terminal`` translates to status IN (queued, running)
+        — the four terminal states (completed, completed_with_errors,
+        failed, cancelled) are explicitly excluded.
+        """
+        from altera_api.persistence.mappers import (
+            classification_job_from_row,
+        )
+
+        r = (
+            self._rls.table("classification_jobs")
+            .select("*")
+            .eq("upload_id", str(upload_id))
+            .eq("methodology", methodology.value)
+            .in_("status", ["queued", "running"])
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not r.data:
+            return None
+        return classification_job_from_row(r.data[0])
+
+    def count_active_heavy_classification_jobs(
+        self, *, min_total_products: int = 500
+    ) -> int:
+        """Phase 35B — count non-terminal heavy classification jobs
+        visible under the caller's RLS scope. Used by the heavy-job
+        guard to decide whether to admit a new heavy job.
+
+        Uses PostgREST's count-only ``head=True`` so no row data
+        crosses the wire — just the count via Content-Range header.
+        """
+        r = (
+            self._rls.table("classification_jobs")
+            .select("id", count="exact", head=True)
+            .in_("status", ["queued", "running"])
+            .gte("total_products", min_total_products)
+            .execute()
+        )
+        return int(r.count or 0)
+
+    def count_active_heavy_ingestion_jobs(
+        self, *, min_total_rows: int = 1000
+    ) -> int:
+        r = (
+            self._rls.table("ingestion_jobs")
+            .select("id", count="exact", head=True)
+            .in_("status", ["queued", "running"])
+            .gte("total_rows", min_total_rows)
+            .execute()
+        )
+        return int(r.count or 0)
+
     # ------------------------------------------------------------------
     # Ingestion jobs (Phase 34X)
     # ------------------------------------------------------------------

@@ -1235,6 +1235,29 @@ export function createApi(accessToken: string | null) {
         accessToken,
       ),
 
+    // Phase 35A — resume support. Looks up the most-recent
+    // non-terminal classification job for the given (upload,
+    // methodology) pair. Returns ``null`` when the backend says
+    // 404 ``no_active_job`` — that's the "nothing to resume" signal
+    // for the wizard's Step 4 mount.
+    getActiveClassificationJob: async (
+      projectId: string,
+      uploadId: string,
+      methodology: Methodology,
+    ): Promise<ClassificationJob | null> => {
+      try {
+        return await request<ClassificationJob>(
+          `/api/v1/projects/${projectId}/classification-jobs/active` +
+            `?upload_id=${uploadId}&methodology=${methodology}`,
+          { method: "GET" },
+          accessToken,
+        );
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }
+    },
+
     advanceClassificationJob: (projectId: string, jobId: string) =>
       request<ClassificationJob>(
         `/api/v1/projects/${projectId}/classification-jobs/${jobId}/advance`,

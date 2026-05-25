@@ -221,6 +221,26 @@ class StoreProtocol(Protocol):
     def list_classification_jobs_for_upload(
         self, upload_id: UUID
     ) -> list[ClassificationJob]: ...
+    # Phase 35A — resume support. Returns the most-recent
+    # non-terminal classification job for the (upload_id,
+    # methodology) pair, or None. The frontend uses this to detect
+    # an interrupted job on wizard re-mount and offer a "Reprendre"
+    # button instead of duplicating the work.
+    def find_active_classification_job(
+        self,
+        *,
+        upload_id: UUID,
+        methodology: Methodology,
+    ) -> ClassificationJob | None: ...
+    # Phase 35B — heavy-job guard. Returns counts of non-terminal
+    # heavy jobs visible to the caller's RLS scope. Used to block
+    # the creation of a NEW heavy job when another is in flight.
+    def count_active_heavy_classification_jobs(
+        self, *, min_total_products: int = 500
+    ) -> int: ...
+    def count_active_heavy_ingestion_jobs(
+        self, *, min_total_rows: int = 1000
+    ) -> int: ...
 
     # ------------------------------------------------------------------
     # Ingestion jobs (Phase 34X) — chunked, resumable CSV ingestion

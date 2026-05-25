@@ -425,6 +425,7 @@ function StepAIClassification({
   busy,
   error,
   onRun,
+  onResume,
   onRetryFailed,
   onNext,
 }: {
@@ -439,6 +440,10 @@ function StepAIClassification({
   busy: boolean;
   error: string | null;
   onRun: () => void;
+  // Phase 35A — resume an existing non-terminal job (used by both
+  // the auto-resume on mount and the "Reprendre" button after a
+  // 5-failures dead-end).
+  onResume: (jobId: string) => void;
   onRetryFailed: () => void;
   onNext: () => void;
 }) {
@@ -604,9 +609,21 @@ function StepAIClassification({
           {isComplete || isNotNeeded ? (
             <Button onClick={onNext}>Continuer vers Validation</Button>
           ) : currentJob &&
-            (currentJob.status === "queued" || currentJob.status === "running") ? (
+            (currentJob.status === "queued" || currentJob.status === "running") &&
+            busy ? (
+            // Loop is actively polling — disable to prevent duplicates.
             <Button disabled>
               {`Classification en cours… (${currentJob.processed_products}/${currentJob.total_products})`}
+            </Button>
+          ) : currentJob &&
+            (currentJob.status === "queued" || currentJob.status === "running") &&
+            !busy ? (
+            // Phase 35A — non-terminal job exists but the poll loop
+            // is NOT running (e.g. 5 consecutive network failures
+            // stopped it, or the user just navigated back to the
+            // step). Offer Reprendre instead of leaving them stuck.
+            <Button onClick={() => onResume(currentJob.job_id)}>
+              {`Reprendre la classification (${currentJob.processed_products}/${currentJob.total_products})`}
             </Button>
           ) : currentJob && currentJob.status === "completed_with_errors" ? (
             <>
@@ -1452,6 +1469,35 @@ export default function WorkflowWizardPage() {
   const latestUpload: UploadResult | null = uploads[0] ?? null;
   const latestRun: Run | null = runs[0] ?? null;
 
+  // Phase 35A — auto-detect an active classification job on Step 4
+  // entry. If the user closed the tab or got disconnected after the
+  // wizard hit "Trop d'échecs réseau consécutifs", this picks the
+  // job back up the moment they return to the AI step.
+  useEffect(() => {
+    if (activeIdx !== 2) return;
+    if (currentJob) return; // already have one
+    if (!latestUpload || !status) return;
+    const methodology = status.methodologies_enabled[0] as
+      | "protein_tracker"
+      | "wwf";
+    let cancelled = false;
+    void api
+      .getActiveClassificationJob(projectId, latestUpload.id, methodology)
+      .then((job) => {
+        if (cancelled || !job) return;
+        setCurrentJob(job);
+      })
+      .catch(() => {
+        // Silent — 404 is the "nothing to resume" case which the
+        // client already converts to null. Any other failure is a
+        // transient backend issue we shouldn't surface here.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIdx, latestUpload?.id, status?.methodologies_enabled.join(",")]);
+
   async function runAction(fn: () => Promise<void>) {
     // Phase 34P — guard against duplicate invocation if the user clicks
     // the action button twice (e.g. while the network is slow). Without
@@ -1546,8 +1592,13 @@ export default function WorkflowWizardPage() {
             "Connexion temporairement interrompue. Nouvelle tentative…",
           );
           if (consecutiveFailures >= 5) {
+            // Phase 35C — improved dead-end message. The job state
+            // is persisted server-side; the user just has to click
+            // "Reprendre la classification" (which the StepAI block
+            // now renders thanks to ``currentJob`` being non-terminal
+            // and ``busy`` being false after this return).
             setJobError(
-              "Trop d'échecs réseau consécutifs. Cliquez sur Réessayer pour reprendre.",
+              "Connexion interrompue. Le traitement est sauvegardé et peut être repris.",
             );
             return;
           }
@@ -1560,6 +1611,32 @@ export default function WorkflowWizardPage() {
     },
     [api, projectId, refresh],
   );
+
+  // Phase 35A — resume the existing active job instead of creating
+  // a duplicate. Used by:
+  //   - Step 4 mount when a non-terminal job was found.
+  //   - The 5-failures dead-end ("Reprendre la classification" button).
+  //   - The 409 ``classification_job_active`` short-circuit.
+  function handleResumeClassify(jobId: string) {
+    if (busy) return;
+    setBusy(true);
+    setActionError(null);
+    setJobError(null);
+    api
+      .getClassificationJob(projectId, jobId)
+      .then(async (job) => {
+        setCurrentJob(job);
+        if (!CLASSIFICATION_JOB_TERMINAL_STATUSES.includes(job.status)) {
+          await pollJob(job.job_id);
+        }
+      })
+      .catch((e: Error) => {
+        setActionError(e.message ?? "Impossible de reprendre la classification.");
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  }
 
   function handleClassifyAI() {
     if (!latestUpload || !status) return;
@@ -1582,7 +1659,28 @@ export default function WorkflowWizardPage() {
       })
       .catch((e: Error) => {
         if (e instanceof ApiError && typeof e.detail === "object" && e.detail !== null) {
-          const d = e.detail as { message?: string; error_code?: string };
+          const d = e.detail as {
+            message?: string;
+            error_code?: string;
+            job_id?: string;
+            active_classification_jobs?: number;
+            active_ingestion_jobs?: number;
+          };
+          // Phase 35B — map new heavy-job / resume error codes.
+          if (d.error_code === "classification_job_active" && d.job_id) {
+            // Server says a job is already active for this exact
+            // upload+methodology. Auto-resume it instead of erroring.
+            void handleResumeClassify(d.job_id);
+            return;
+          }
+          if (d.error_code === "heavy_job_in_progress") {
+            setActionError(
+              "Un traitement volumineux est déjà en cours sur la plateforme. " +
+                "Il peut provenir d'une autre organisation. Réessayez dans " +
+                "quelques minutes ou reprenez votre traitement en cours.",
+            );
+            return;
+          }
           setActionError(d.message ?? String(e));
         } else if (e.message?.includes("Failed to fetch")) {
           setActionError(
@@ -1791,6 +1889,7 @@ export default function WorkflowWizardPage() {
             busy={busy}
             error={actionError}
             onRun={handleClassifyAI}
+            onResume={handleResumeClassify}
             onRetryFailed={handleRetryFailed}
             onNext={advanceNext}
           />

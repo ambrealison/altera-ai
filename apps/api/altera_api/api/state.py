@@ -739,6 +739,53 @@ class InMemoryStore:
             if j.upload_id == upload_id
         ]
 
+    def find_active_classification_job(
+        self,
+        *,
+        upload_id: UUID,
+        methodology: Methodology,
+    ) -> ClassificationJob | None:
+        """Phase 35A — return the most-recent non-terminal
+        classification job for the (upload, methodology) pair.
+
+        The frontend calls this on Step 4 mount; if it returns a job
+        the wizard renders "Reprendre la classification" instead of
+        "Lancer la classification IA".
+        """
+        candidates = [
+            j
+            for j in self.classification_jobs.values()
+            if j.upload_id == upload_id
+            and j.methodology is methodology
+            and not j.is_terminal
+        ]
+        if not candidates:
+            return None
+        # Most recent first.
+        return max(
+            candidates,
+            key=lambda j: j.updated_at or j.created_at or datetime.min,
+        )
+
+    def count_active_heavy_classification_jobs(
+        self, *, min_total_products: int = 500
+    ) -> int:
+        # Phase 35B — heavy-job guard input.
+        return sum(
+            1
+            for j in self.classification_jobs.values()
+            if not j.is_terminal and j.total_products >= min_total_products
+        )
+
+    def count_active_heavy_ingestion_jobs(
+        self, *, min_total_rows: int = 1000
+    ) -> int:
+        return sum(
+            1
+            for j in self.ingestion_jobs.values()
+            if not j.is_terminal and j.total_rows >= min_total_rows
+        )
+
     # ------------------------------------------------------------------
     # Ingestion jobs (Phase 34X) — chunked CSV ingestion
     # ------------------------------------------------------------------
