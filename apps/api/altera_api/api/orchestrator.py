@@ -158,6 +158,17 @@ class ClassifySummary:
     # there was nothing to recover.
     ai_retry_batches: int = 0
     ai_recovered_rows: int = 0
+    # Phase 34Q — coverage-oriented counters. A product with a
+    # concrete category counts as ``categorized`` even if it ALSO
+    # needs review (``review_required``). The wizard's Step 4 banner
+    # uses these to say "100 catégorisés, 67 acceptés, 33 à vérifier"
+    # instead of misleadingly implying review-required products have
+    # no category.
+    categorized_total: int = 0
+    accepted_total: int = 0
+    review_required_total: int = 0
+    out_of_scope_total: int = 0
+    unknown_total: int = 0
 
 
 @dataclass(frozen=True)
@@ -681,6 +692,39 @@ def classify_upload(
                     ai_failed += 1
                     queued += 1
 
+    # Phase 34Q — walk the store at the end of the run to compute the
+    # coverage-oriented counters. We do this here (after all upserts)
+    # instead of inline because deterministic + AI + manual paths each
+    # touch the classification table; reading the final state is the
+    # only source of truth for "did this product end up with a
+    # concrete pt_group?".
+    categorized_total = 0
+    accepted_total = 0
+    review_required_total = 0
+    out_of_scope_total = 0
+    unknown_total = 0
+    if methodology is Methodology.PROTEIN_TRACKER:
+        for product_id in upload_record.product_ids:
+            cls = store.get_pt_classification(product_id)
+            if cls is None:
+                continue
+            group = cls.pt_group
+            if group is ProteinTrackerGroup.UNKNOWN:
+                unknown_total += 1
+            elif group is ProteinTrackerGroup.OUT_OF_SCOPE:
+                # out_of_scope is technically "categorized as not-food"
+                # — count it both in out_of_scope_total and as
+                # categorized so the wizard can show the gross number
+                # of products that were resolved by AI.
+                out_of_scope_total += 1
+                categorized_total += 1
+            else:
+                categorized_total += 1
+        review_required_total = queued
+        # accepted = categorized minus those still in review with a
+        # concrete category. Anything in review needs verification.
+        accepted_total = max(0, categorized_total - review_required_total)
+
     return ClassifySummary(
         methodology=methodology,
         matched=matched,
@@ -700,6 +744,11 @@ def classify_upload(
         ai_sample_errors=ai_sample_errors,
         ai_retry_batches=ai_retry_batches,
         ai_recovered_rows=ai_recovered_rows,
+        categorized_total=categorized_total,
+        accepted_total=accepted_total,
+        review_required_total=review_required_total,
+        out_of_scope_total=out_of_scope_total,
+        unknown_total=unknown_total,
     )
 
 

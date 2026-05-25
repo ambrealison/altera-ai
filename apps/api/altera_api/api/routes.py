@@ -741,6 +741,15 @@ class ClassifyResponse(BaseModel):
     # when the main pass succeeded outright.
     ai_retry_batches: int = 0
     ai_recovered_rows: int = 0
+    # Phase 34Q — coverage-oriented counters. ``categorized_total``
+    # includes review_required rows (they have a proposed pt_group)
+    # so the wizard's Step 4 banner can stop misleadingly implying
+    # that review = uncategorized.
+    categorized_total: int = 0
+    accepted_total: int = 0
+    review_required_total: int = 0
+    out_of_scope_total: int = 0
+    unknown_total: int = 0
 
 
 def _ai_disabled_reason(deterministic_only: bool) -> str | None:
@@ -854,6 +863,11 @@ def classify_route(
         ai_sample_errors=list(summary.ai_sample_errors),
         ai_retry_batches=summary.ai_retry_batches,
         ai_recovered_rows=summary.ai_recovered_rows,
+        categorized_total=summary.categorized_total,
+        accepted_total=summary.accepted_total,
+        review_required_total=summary.review_required_total,
+        out_of_scope_total=summary.out_of_scope_total,
+        unknown_total=summary.unknown_total,
     )
 
 

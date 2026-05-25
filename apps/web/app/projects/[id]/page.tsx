@@ -116,6 +116,21 @@ export default function ProjectDetail() {
         ai_recovered_rows: summaries.reduce(
           (s, x) => s + (x.ai_recovered_rows ?? 0), 0,
         ),
+        categorized_total: summaries.reduce(
+          (s, x) => s + (x.categorized_total ?? 0), 0,
+        ),
+        accepted_total: summaries.reduce(
+          (s, x) => s + (x.accepted_total ?? 0), 0,
+        ),
+        review_required_total: summaries.reduce(
+          (s, x) => s + (x.review_required_total ?? 0), 0,
+        ),
+        out_of_scope_total: summaries.reduce(
+          (s, x) => s + (x.out_of_scope_total ?? 0), 0,
+        ),
+        unknown_total: summaries.reduce(
+          (s, x) => s + (x.unknown_total ?? 0), 0,
+        ),
       };
       setClassifyResult(merged);
       const updated = await api.getProject(id);

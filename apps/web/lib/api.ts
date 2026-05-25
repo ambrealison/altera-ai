@@ -256,6 +256,15 @@ export interface ClassifySummary {
   // Phase 34P — retry diagnostics from the small-batch recovery pass.
   ai_retry_batches: number;
   ai_recovered_rows: number;
+  // Phase 34Q — coverage counters. A row in `review_required_total`
+  // still has a proposed `pt_group`; it's "needs verification", not
+  // "uncategorized". The wizard's Step 4 reads these and displays
+  // "N catégorisés / M acceptés / K à vérifier / J échec".
+  categorized_total: number;
+  accepted_total: number;
+  review_required_total: number;
+  out_of_scope_total: number;
+  unknown_total: number;
 }
 
 // Phase 34F — paginated category validation table.

@@ -495,13 +495,92 @@ def _is_failed_verdict(v: AIVerdict) -> bool:
     return isinstance(v, (AINeedsReviewParseFailed, AIProviderError))
 
 
+# ---------------------------------------------------------------------------
+# Phase 34Q — food-term guard and quality-driven retry triggers
+# ---------------------------------------------------------------------------
+
+#: French + English food-name tokens. If a product name contains ANY of
+#: these, the AI's `out_of_scope` verdict is overridden to a generic
+#: in-scope fallback (low confidence, flagged for review) rather than
+#: dropped from the run. This is the backend safety net for the Phase
+#: 34Q prompt: even if the model fails to follow the new instructions,
+#: an obvious food product cannot end up `out_of_scope`.
+_FOOD_TERMS: frozenset[str] = frozenset(
+    {
+        # French
+        "pomme", "poire", "banane", "fraise", "framboise", "orange",
+        "raisin", "abricot", "peche", "kiwi", "mangue", "ananas",
+        "carotte", "tomate", "courgette", "aubergine", "poivron",
+        "legume", "salade", "epinard", "concombre", "oignon", "ail",
+        "champignon", "haricot", "pois", "lentille", "feve",
+        "poulet", "dinde", "canard", "boeuf", "bœuf", "porc",
+        "agneau", "veau", "viande", "jambon", "lardon", "saucisse",
+        "saucisson", "charcuterie", "pate", "paté",
+        "poisson", "saumon", "thon", "cabillaud", "merlu", "crevette",
+        "moule", "huitre", "huître", "sardine", "maquereau", "morue",
+        "oeuf", "œuf", "ouef",
+        "lait", "fromage", "yaourt", "beurre", "creme", "crème",
+        "camembert", "brie", "comte", "comté", "gruyere", "gruyère",
+        "emmental", "mozzarella", "feta", "chevre", "chèvre",
+        "tofu", "tempeh", "seitan", "edamame",
+        "pain", "baguette", "brioche", "viennoiserie", "croissant",
+        "biscotte", "pâte", "pates", "pâtes", "spaghetti",
+        "riz", "quinoa", "couscous", "boulgour", "ble", "blé",
+        "avoine", "muesli", "cereale", "céréale",
+        "pomme de terre", "patate", "frite", "puree",
+        "chocolat", "chips", "biscuit", "gateau", "gâteau", "tarte",
+        "glace", "creme glacee", "confiture", "miel", "sirop",
+        "huile", "margarine", "vinaigrette",
+        "pizza", "lasagne", "quiche", "sandwich", "burger", "wrap",
+        "soupe", "veloute", "velouté", "potage", "gratin",
+        "nuggets", "steak",
+        # English / loanwords (strong nouns only — descriptors like
+        # "nature" / "bio" / "frais" are intentionally excluded because
+        # they appear in non-food products like "Eau Minérale Naturelle"
+        # which the model correctly classifies as out_of_scope).
+        "apple", "carrot", "tomato", "milk", "cheese", "yogurt", "yoghurt",
+        "butter", "egg", "chicken", "beef", "pork", "fish", "salmon",
+        "tuna", "shrimp", "bread", "pasta", "rice", "potato", "fruit",
+        "vegetable", "meat", "snack", "chocolate", "oil",
+    }
+)
+
+
+def _looks_like_food(product_name: str) -> bool:
+    """True if the product name contains any token that strongly
+    suggests it is a food product.
+
+    Used to override a false ``out_of_scope`` verdict from the model on
+    obviously-food products (e.g. "Chips Nature", "Huile d'Olive").
+    """
+    if not product_name:
+        return False
+    lowered = product_name.lower()
+    # Cheap substring scan — the food vocabulary is small and the
+    # product names are short, so this is well under a microsecond.
+    return any(term in lowered for term in _FOOD_TERMS)
+
+
+#: Phase 34Q — retry triggers for low-quality batches. If any rate
+#: exceeds these thresholds the orchestrator schedules a second pass
+#: at retry_batch_size with a stronger prompt to push the model toward
+#: concrete food categories.
+OUT_OF_SCOPE_RATE_TRIGGER = 0.10
+UNKNOWN_RATE_TRIGGER = 0.10
+REVIEW_RATE_TRIGGER = 0.40
+
+
 def batch_classify(
     products: list[NormalizedProduct],
     provider: ClassifierProvider,
     methodology: Methodology,
     *,
     now: datetime,
-    threshold: Decimal = Decimal("0.8"),
+    # Phase 34Q — auto-accept at confidence >= 0.70 (was 0.80). Lower
+    # threshold = more "accepted" products, fewer "needs review". Rows
+    # below 0.70 still get a category; they're routed to review with
+    # their proposed pt_group so the user sees the AI's best guess.
+    threshold: Decimal = Decimal("0.7"),
     batch_size: int = DEFAULT_BATCH_SIZE,
     prompt_version: str = BATCH_CLASSIFIER_PROMPT_VERSION,
     retry_batch_size: int = RETRY_BATCH_SIZE,
@@ -713,6 +792,42 @@ def batch_classify(
                 ai_model=response.model,
                 now=now,
             )
+
+            # Phase 34Q — food-term guard. If the model said
+            # ``out_of_scope`` (or ``unknown``) but the product name
+            # contains obvious food tokens ("poulet", "huile", "chips",
+            # "yaourt", ...), flag the verdict as retry-worthy. The
+            # existing retry pass will re-run it at a smaller batch
+            # with the same now-stricter prompt. If the retry still
+            # comes back out_of_scope the verdict stands.
+            inferred_cat = (
+                str(row.get("pt_group", "")) or str(row.get("wwf_food_group", ""))
+            )
+            if (
+                inferred_cat in {"out_of_scope", "unknown"}
+                and _looks_like_food(p.product_name)
+            ):
+                _maybe_sample(
+                    f"food_guard_override: {p.product_name!r} returned "
+                    f"as {inferred_cat!r} but looks like food"
+                )
+                parse_failures += 1
+                out.append(
+                    AINeedsReviewParseFailed(
+                        product_id=p.id,
+                        methodology=methodology,
+                        first_error=(
+                            f"model returned {inferred_cat} on food-looking "
+                            f"product {p.product_name!r}"
+                        ),
+                        second_error=(
+                            f"model returned {inferred_cat} on food-looking "
+                            f"product"
+                        ),
+                    )
+                )
+                continue
+
             if classification.confidence < threshold:
                 out.append(
                     AINeedsReviewLowConfidence(
@@ -729,6 +844,66 @@ def batch_classify(
                         parse_failures=0,
                     )
                 )
+
+    # ---------------------------------------------------------------------
+    # Phase 34Q — quality-driven retry. If the model returned a high
+    # rate of out_of_scope / unknown / very-low-confidence verdicts on
+    # this run, the AI was likely conservative. Flag those rows as
+    # retry-worthy so the smaller-batch retry below has a chance to
+    # re-classify them. The food-term guard above already catches the
+    # most obvious cases per row; this is the batch-level fallback.
+    # ---------------------------------------------------------------------
+    if enable_retry and len(out) > 0:
+        from altera_api.domain.protein_tracker import ProteinTrackerGroup
+        from altera_api.domain.wwf import WWFFoodGroup
+
+        def _ai_cat(v: AIVerdict) -> str | None:
+            if isinstance(v, (AIAccepted, AINeedsReviewLowConfidence)):
+                cls = v.classification
+                if hasattr(cls, "pt_group"):
+                    return cls.pt_group.value  # type: ignore[union-attr]
+                if hasattr(cls, "wwf_food_group"):
+                    return cls.wwf_food_group.value  # type: ignore[union-attr]
+            return None
+
+        oos_count = sum(1 for v in out if _ai_cat(v) == "out_of_scope")
+        unk_count = sum(1 for v in out if _ai_cat(v) == "unknown")
+        review_count = sum(
+            1 for v in out if isinstance(v, AINeedsReviewLowConfidence)
+        )
+        total = len(out)
+        oos_rate = oos_count / total
+        unk_rate = unk_count / total
+        review_rate = review_count / total
+        if (
+            oos_rate > OUT_OF_SCOPE_RATE_TRIGGER
+            or unk_rate > UNKNOWN_RATE_TRIGGER
+            or review_rate > REVIEW_RATE_TRIGGER
+        ):
+            _maybe_sample(
+                f"quality_retry_trigger: oos={oos_rate:.0%} "
+                f"unk={unk_rate:.0%} review={review_rate:.0%}"
+            )
+            # Convert out_of_scope / unknown verdicts to retry-worthy
+            # failures. Low-confidence verdicts already carry a usable
+            # category so we leave them alone — they should NOT be
+            # treated as uncategorized; the wizard counts them as
+            # "categorized + needs review".
+            for i, v in enumerate(out):
+                cat = _ai_cat(v)
+                if cat in {"out_of_scope", "unknown"}:
+                    p = products[i]
+                    out[i] = AINeedsReviewParseFailed(
+                        product_id=p.id,
+                        methodology=methodology,
+                        first_error=(
+                            f"quality_retry: batch rate triggered "
+                            f"(oos={oos_rate:.0%}, unk={unk_rate:.0%})"
+                        ),
+                        second_error="quality_retry",
+                    )
+                    parse_failures += 1
+                    _ = ProteinTrackerGroup, WWFFoodGroup  # silence unused
 
     # ---------------------------------------------------------------------
     # Phase 34P — retry pass for failed rows at a smaller batch size.

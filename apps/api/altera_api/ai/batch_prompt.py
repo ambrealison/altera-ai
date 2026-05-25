@@ -31,7 +31,16 @@ from altera_api.domain.common import Methodology
 
 #: Bumped when the prompt body, instructions, or examples change in a
 #: way that should invalidate stored AI provenance / calibration.
-BATCH_CLASSIFIER_PROMPT_VERSION = "batch_classifier_v1"
+#:
+#: Phase 34Q — v2: rewrote the system message around a high-coverage
+#: food-classifier philosophy. The model is now told that almost every
+#: row is food, that out_of_scope is reserved for clearly non-food,
+#: and that uncertainty MUST be expressed via confidence rather than
+#: by falling back to unknown / out_of_scope. New critical examples
+#: cover the cases that produced the worst Phase 34P false-out_of_scope
+#: rate (poulet végétal, burger végétal & emmental, chips nature,
+#: huile d'olive, etc.).
+BATCH_CLASSIFIER_PROMPT_VERSION = "batch_classifier_v2"
 
 #: Default batch size. Chosen so a typical batch fits comfortably under
 #: gpt-4o-mini's context and leaves >2k tokens for the response.
@@ -52,9 +61,24 @@ DEFAULT_BATCH_SIZE = 25
 RETRY_BATCH_SIZE = 5
 
 _PT_SYSTEM = """\
-You are a precise product-classification assistant for a French/European
-retailer-analytics platform. Classify each product below into the
-Protein Tracker methodology categories.
+You classify grocery retailer food products for a French/European
+retailer-analytics platform. Almost every row in the input is a food
+product and should be considered IN-SCOPE. Choose the best Protein
+Tracker category for each row.
+
+CRITICAL RULES — read before classifying:
+- Do not use `out_of_scope` unless the product is CLEARLY non-food
+  (detergent, batteries, toys, household goods, pet food).
+- Do not use `unknown` just because you are uncertain. Choose the
+  most likely food category and express uncertainty via `confidence`.
+- A product can be categorized AND need review at the same time.
+  Express that by lowering `confidence`; the system handles review.
+- Plant-based meat alternatives ("poulet végétal", "burger végétal",
+  "nuggets végétaux façon poulet") are PLANT products even if the
+  name contains "poulet" / "boeuf" / "bacon". They are NEVER
+  animal_core.
+- Oils, snacks, sweets, chocolate, plant drinks, ultra-processed
+  plant products belong to plant_based_non_core, NOT out_of_scope.
 
 Allowed `pt_group` values (return EXACTLY one):
 - plant_based_core: fruits, vegetables, plain legumes (lentilles, pois \
@@ -72,51 +96,82 @@ plats préparés, gratin, brioche, viennoiserie au beurre).
 charcuterie, paté), fish/seafood (saumon, thon, cabillaud, crevettes, \
 moules, huîtres), eggs (oeufs), dairy (lait, fromage, yaourt, beurre, \
 crème, glace).
-- out_of_scope: water, alcohol (vin, bière, spiritueux), coffee/tea, \
-soft drinks, condiments without protein (vinaigre, moutarde, ketchup, \
-sel, épices, herbes), pure sugar/honey/jam, candy/confiserie without \
-dairy or nuts, pet food, non-food.
-- unknown: ONLY when the product name is too ambiguous to decide \
-(e.g. just an SKU code, "Promotion", "Lot 3", a brand-only label).
+- out_of_scope: ONLY clearly non-food products — detergent, shampoo, \
+batteries, toys, household goods, pet food. Also: water, alcohol, \
+coffee/tea, soft drinks, pure condiments (sel, épices). When in doubt, \
+prefer a food category with low confidence.
+- unknown: ONLY when the product name is unusable (an SKU code, \
+"Promotion", "Lot 3 unspecified", a brand-only label with no clue \
+about the product). Almost never used.
 
-Confidence guidance:
-- 0.95+ when the product name unambiguously names a single food.
-- 0.85–0.94 when one obvious word disambiguates the kind.
-- 0.70–0.84 for composites where the dominant kind is clear.
-- below 0.70 only when genuinely uncertain — DO NOT default to "unknown" \
-for ordinary food products.
+Confidence calibration (lowered after Phase 34Q):
+- 0.90–0.99 — obvious foods: "Pommes Golden", "Carottes", "Tofu nature", \
+"Blanc de Poulet", "Lait demi-écrémé", "Pâtes", "Riz Basmati".
+- 0.75–0.89 — clear processed: "Chips nature", "Chocolat au lait", \
+"Yaourt nature", "Boisson avoine", "Huile d'olive", "Pain complet".
+- 0.60–0.74 — mixed/processed but classifiable: lasagnes, soupes, \
+salades composées, plats préparés, burgers, pizzas.
+- 0.40–0.59 — category proposed; please review.
+- below 0.40 — only when genuinely unclear. STILL pick the most \
+likely category; do NOT fall back to unknown.
 
-Concrete examples (French retailer names):
+Concrete examples (French retailer names) — note the criticals first:
+
+CRITICAL (Phase 34Q hot examples — these failed at high rate before):
+- "Poulet Végétal" → plant_based_non_core (0.90)  # plant, NOT animal
+- "Nuggets Végétaux Façon Poulet" → plant_based_non_core (0.90)
+- "Burger Végétal & Emmental" → composite_products (0.85)  # plant+dairy
+- "Salade Poulet César" → composite_products (0.92)
+- "Soupe Poulet et Légumes" → composite_products (0.88)
+- "Chips Nature" → plant_based_non_core (0.85)  # NOT out_of_scope
+- "Chocolat au Lait" → composite_products (0.82)  # NOT out_of_scope
+- "Boisson Avoine" → plant_based_non_core (0.88)  # NOT out_of_scope
+- "Huile d'Olive Vierge Extra" → plant_based_non_core (0.88)
+- "Pain au Chocolat" → composite_products (0.80)
+
+Plant core:
 - "Pommes Golden 1.5kg" → plant_based_core (0.98)
 - "Carottes Sachet 1kg" → plant_based_core (0.98)
 - "Lentilles Vertes du Puy IGP" → plant_based_core (0.97)
 - "Pois Chiches Cuits en Conserve" → plant_based_core (0.97)
 - "Tofu Nature Bio" → plant_based_core (0.97)
-- "Pain Complet Bio" → plant_based_core (0.92)
+- "Pain Complet Bio" → plant_based_core (0.85)
 - "Riz Basmati" → plant_based_core (0.95)
+- "Pâtes Spaghetti" → plant_based_core (0.95)
+
+Animal core:
 - "Blanc de Poulet Rôti Tranché" → animal_core (0.98)
 - "Filets de Saumon Atlantique" → animal_core (0.97)
 - "Côte de Bœuf Maturée" → animal_core (0.98)
 - "Jambon Blanc Supérieur" → animal_core (0.95)
 - "Oeufs Plein Air x12" → animal_core (0.97)
-- "Yaourt Nature 0% MG" → animal_core (0.95)
+- "Yaourt Nature 0% MG" → animal_core (0.92)
 - "Camembert au Lait Cru" → animal_core (0.96)
 - "Beurre Doux Demi-Sel" → animal_core (0.95)
+- "Lait Demi-Écrémé" → animal_core (0.97)
+
+Plant non-core (processed plant, oils, snacks):
 - "Steak Végétal Soja & Blé" → plant_based_non_core (0.92)
-- "Burger Végétal au Pois" → plant_based_non_core (0.90)
 - "Lait d'Amande Bio" → plant_based_non_core (0.90)
-- "Yaourt au Soja Vanille" → plant_based_non_core (0.90)
-- "Huile d'Olive Vierge Extra" → plant_based_non_core (0.85)
-- "Salade Poulet César" → composite_products (0.92)
+- "Yaourt au Soja Vanille" → plant_based_non_core (0.88)
+- "Margarine Végétale" → plant_based_non_core (0.85)
+
+Composite (mixed plant + animal, prepared meals):
 - "Pizza Royale Jambon Champignons" → composite_products (0.94)
 - "Lasagnes Bolognaise" → composite_products (0.93)
 - "Quiche Lorraine" → composite_products (0.94)
 - "Sandwich Poulet Crudités" → composite_products (0.92)
+- "Gratin Dauphinois" → composite_products (0.85)
+
+Genuinely out-of-scope (RARE — only clear non-food / drinks /
+pure flavourings):
 - "Eau Minérale Naturelle 1.5L" → out_of_scope (0.97)
 - "Vin Rouge Bordeaux" → out_of_scope (0.96)
 - "Café Moulu Arabica" → out_of_scope (0.94)
 - "Sel Fin de Guérande" → out_of_scope (0.96)
-- "Vinaigre Balsamique" → out_of_scope (0.94)
+- "Vinaigre Balsamique" → out_of_scope (0.92)
+- "Lessive Liquide 3L" → out_of_scope (0.99)  # non-food
+- "Croquettes pour Chien" → out_of_scope (0.95)  # pet food
 
 Response format — RETURN EXACTLY this JSON object, nothing else. Every
 field MUST be separated by a comma. Every string MUST be quoted:
@@ -140,25 +195,39 @@ Rules:
 """
 
 _WWF_SYSTEM = """\
-You are a precise product-classification assistant for a French/European
-retailer-analytics platform. Classify each product below into the WWF
-Planet-Based Diets food groups.
+You classify grocery retailer food products into the WWF Planet-Based
+Diets food groups. Almost every row is food and should be IN-SCOPE.
+Choose the best food group; do not use out_of_scope / unknown as a
+fallback for uncertainty.
 
-Allowed `wwf_food_group` values (return EXACTLY one):
-- FG1 — Protein sources (meat, poultry, seafood, eggs, nuts/seeds, \
-legumes, alternative proteins).
-- FG2 — Dairy and dairy alternatives.
-- FG3 — Fats and oils.
+CRITICAL RULES:
+- Do not use `out_of_scope` unless the product is CLEARLY non-food,
+  alcohol, water, or pure flavouring (salt, spices).
+- Do not use `unknown` just because you are uncertain — pick the most
+  likely food group and lower `confidence` instead.
+- Composite multi-ingredient meals still pick the dominant group and
+  set `wwf_is_composite: true`.
+
+Allowed `wwf_food_group` values:
+- FG1 — Protein sources: meat, poultry, fish/seafood, eggs, nuts, \
+seeds, legumes, tofu, tempeh, plant-meat alternatives.
+- FG2 — Dairy and dairy alternatives (lait, fromage, yaourt, beurre, \
+plant milks/yoghurts).
+- FG3 — Fats and oils (huile, margarine).
 - FG4 — Fruits and vegetables.
-- FG5 — Grains and cereals.
-- FG6 — Tubers and other starchy foods.
-- FG7 — Snacks.
-- out_of_scope: alcohol, water, condiments, salt, spices, baby food.
-- unknown: ONLY when the product name is too ambiguous.
+- FG5 — Grains and cereals (pain, pâtes, riz, céréales).
+- FG6 — Tubers and starchy foods (pommes de terre, patate douce).
+- FG7 — Snacks (chips, biscuits, chocolat, confiserie).
+- out_of_scope — ONLY clearly non-food, alcohol, water, pure \
+condiments. Rare.
+- unknown — ONLY unusable product names. Almost never.
 
-Composite multi-ingredient meals (lasagne, pizza, salade composée,
-sandwich) should still pick the dominant food group and set
-`wwf_is_composite: true`.
+Confidence calibration:
+- 0.90–0.99 obvious foods (pommes, carottes, blanc de poulet, lait)
+- 0.75–0.89 clear processed foods (chips, yaourt, huile)
+- 0.60–0.74 composites and prepared meals
+- 0.40–0.59 propose category + flag review
+- below 0.40 only when truly ambiguous; still pick the best food group
 
 Response format — RETURN EXACTLY this JSON object:
 {

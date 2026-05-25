@@ -403,19 +403,35 @@ function StepAIClassification({
                   : "border-rose-200 bg-rose-50 text-rose-800")
               }
             >
-              IA exécutée sur {lastClassifyResult.ai_attempted} produit(s) en{" "}
-              {lastClassifyResult.ai_batch_count} batch(s)
-              {lastClassifyResult.ai_retry_batches > 0 && (
-                <>
-                  {" "}+ {lastClassifyResult.ai_retry_batches} retry
-                  {lastClassifyResult.ai_recovered_rows > 0 && (
-                    <> ({lastClassifyResult.ai_recovered_rows} récupéré(s))</>
-                  )}
-                </>
-              )}{" "}
-              · {lastClassifyResult.ai_accepted} classifié(s),{" "}
-              {lastClassifyResult.ai_review} en validation manuelle,{" "}
-              {lastClassifyResult.ai_failed} en échec.
+              {/* Phase 34Q — coverage-oriented copy. A product with
+                  a proposed category that needs review is still
+                  *categorized*; the wizard must never imply otherwise. */}
+              <div className="font-medium">
+                {lastClassifyResult.categorized_total} catégorisé(s) ·{" "}
+                {lastClassifyResult.accepted_total} accepté(s) ·{" "}
+                {lastClassifyResult.review_required_total} à vérifier ·{" "}
+                {lastClassifyResult.ai_failed} échec.
+              </div>
+              <div className="mt-1 text-xs opacity-80">
+                IA exécutée sur {lastClassifyResult.ai_attempted} produit(s) en{" "}
+                {lastClassifyResult.ai_batch_count} batch(s)
+                {lastClassifyResult.ai_retry_batches > 0 && (
+                  <>
+                    {" "}+ {lastClassifyResult.ai_retry_batches} retry
+                    {lastClassifyResult.ai_recovered_rows > 0 && (
+                      <> ({lastClassifyResult.ai_recovered_rows} récupéré(s))</>
+                    )}
+                  </>
+                )}
+                {lastClassifyResult.out_of_scope_total > 0 && (
+                  <>
+                    {" "}· {lastClassifyResult.out_of_scope_total} hors périmètre
+                  </>
+                )}
+                {lastClassifyResult.unknown_total > 0 && (
+                  <> · {lastClassifyResult.unknown_total} inconnu(s)</>
+                )}
+              </div>
             </div>
             {/* Phase 34F — finer breakdown when something failed. */}
             {(lastClassifyResult.ai_parse_failures > 0 ||
