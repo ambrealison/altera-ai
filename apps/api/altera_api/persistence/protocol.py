@@ -242,6 +242,13 @@ class StoreProtocol(Protocol):
     def list_enrichment_records_for_project(
         self, project_id: UUID
     ) -> list[NutritionEnrichmentRecord]: ...
+    # Phase 34Z — bulk enrichment lookup for workflow-status.
+    # Returns a dict keyed by product_id so the workflow aggregator
+    # can replace per-product round-trips with a single
+    # ``WHERE product_id IN (…)`` query.
+    def get_enrichment_records_bulk(
+        self, product_ids: list[UUID]
+    ) -> dict[UUID, list[NutritionEnrichmentRecord]]: ...
 
     # ------------------------------------------------------------------
     # Nutrition reference tables (Phase 33H — NEVO and CIQUAL lookup)

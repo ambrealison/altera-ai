@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Literal
+from uuid import UUID
 
 from altera_api.domain.common import Methodology
 from altera_api.domain.enrichment import (
@@ -104,21 +105,65 @@ class _Counts:
 
 
 def _gather_counts(store: StoreProtocol, project: Project) -> _Counts:
+    """Phase 34Z — single-pass aggregator with bulk lookups.
+
+    The previous implementation made up to 4 × N + 3 Supabase HTTP
+    round-trips on a Postgres-backed store: 1 products fetch, 1
+    uploads, 1 reviews, then ``get_pt_classification`` ×N (×2 loops),
+    plus ``get_enrichment_records_for_product`` ×N (×2 loops). On a
+    1050-product project that's >4200 round-trips, far beyond
+    Render's request timeout, and the underlying PostgREST query
+    eventually fails with ``JSON could not be generated``.
+
+    This rewrite does **5** total HTTP round-trips regardless of N:
+
+      1. ``list_uploads_for_project``       (1 call)
+      2. ``list_products_for_project``      (1 call, paginated)
+      3. ``list_review_items_for_project``  (1 call)
+      4. ``get_pt_classifications_bulk``    (1 call, IN(…))
+      5. ``get_enrichment_records_bulk``    (1 call, IN(…))
+
+    Then the per-product checks are pure Python set/dict membership.
+    """
     counts = _Counts()
     counts.total_uploads = len(store.list_uploads_for_project(project.id))
     products = store.list_products_for_project(project.id)
     counts.total_products = len(products)
 
-    pt_enabled_for_project = Methodology.PROTEIN_TRACKER in project.methodologies_enabled
+    pt_enabled_for_project = (
+        Methodology.PROTEIN_TRACKER in project.methodologies_enabled
+    )
 
-    # Quick lookup for review items.
     review_items = {
         item.product_id: item
         for item in store.list_review_items_for_project(
             project.id,
-            methodology=Methodology.PROTEIN_TRACKER if pt_enabled_for_project else None,
+            methodology=(
+                Methodology.PROTEIN_TRACKER if pt_enabled_for_project else None
+            ),
         )
     }
+
+    # Phase 34Z — pre-fetch classifications + enrichment records for
+    # every PT-eligible product in this project in two HTTP calls.
+    pt_product_ids: list[UUID] = []
+    if pt_enabled_for_project:
+        pt_product_ids = [
+            p.id
+            for p in products
+            if p.pt_fields is not None
+            and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
+        ]
+    classifications = (
+        store.get_pt_classifications_bulk(pt_product_ids)
+        if pt_product_ids
+        else {}
+    )
+    enrichment_by_product = (
+        store.get_enrichment_records_bulk(pt_product_ids)
+        if pt_product_ids
+        else {}
+    )
 
     for product in products:
         if (
@@ -129,7 +174,7 @@ def _gather_counts(store: StoreProtocol, project: Project) -> _Counts:
             continue
         counts.pt_products += 1
 
-        classification = store.get_pt_classification(product.id)
+        classification = classifications.get(product.id)
         has_unknown = (
             classification is not None
             and classification.pt_group.value == "unknown"
@@ -137,13 +182,11 @@ def _gather_counts(store: StoreProtocol, project: Project) -> _Counts:
         review = review_items.get(product.id)
         review_is_open = (
             review is not None
-            and review.status in (ManualReviewStatus.IN_QUEUE, ManualReviewStatus.REVIEWING)
+            and review.status
+            in (ManualReviewStatus.IN_QUEUE, ManualReviewStatus.REVIEWING)
         )
 
-        if classification is None:
-            # Not classified yet at all.
-            pass
-        else:
+        if classification is not None:
             counts.pt_classified += 1
             if has_unknown:
                 counts.pt_unknown += 1
@@ -153,8 +196,13 @@ def _gather_counts(store: StoreProtocol, project: Project) -> _Counts:
         # Nutrition resolution: retailer first, then any ENRICHED record.
         if product.pt_fields.protein_pct is not None:
             counts.pt_protein_retailer += 1
+            if (
+                classification is not None
+                and not review_is_open
+            ):
+                counts.pt_eligible += 1
         else:
-            records = store.get_enrichment_records_for_product(product.id)
+            records = enrichment_by_product.get(product.id, [])
             protein_records = [
                 r
                 for r in records
@@ -164,10 +212,6 @@ def _gather_counts(store: StoreProtocol, project: Project) -> _Counts:
             ]
             if protein_records:
                 counts.pt_protein_enriched += 1
-                # Record source provenance for the per-source counters.
-                # A product may have records from multiple sources; we
-                # count each source once per product to keep totals
-                # meaningful in the UI.
                 sources = {r.source for r in protein_records}
                 if NutritionEnrichmentSource.NEVO in sources:
                     counts.pt_nevo_records += 1
@@ -189,40 +233,10 @@ def _gather_counts(store: StoreProtocol, project: Project) -> _Counts:
                         counts.pt_nevo_with_split += 1
                 elif NutritionEnrichmentSource.CIQUAL in sources:
                     counts.pt_ciqual_records += 1
+                if classification is not None and not review_is_open:
+                    counts.pt_eligible += 1
             else:
                 counts.pt_missing_nutrition += 1
-
-    # A row is eligible for calculation iff: classified (any group),
-    # NOT in open review, AND has usable nutrition (retailer or
-    # enrichment). The calculation skips out_of_scope / unknown groups
-    # when summing, but they still count as "eligible" structurally.
-    if pt_enabled_for_project:
-        for product in products:
-            if (
-                product.pt_fields is None
-                or Methodology.PROTEIN_TRACKER not in product.methodologies_enabled
-            ):
-                continue
-            classification = store.get_pt_classification(product.id)
-            if classification is None:
-                continue
-            review = review_items.get(product.id)
-            if review is not None and review.status in (
-                ManualReviewStatus.IN_QUEUE,
-                ManualReviewStatus.REVIEWING,
-            ):
-                continue
-            if product.pt_fields.protein_pct is not None:
-                counts.pt_eligible += 1
-                continue
-            records = store.get_enrichment_records_for_product(product.id)
-            if any(
-                r.nutrient == "protein_pct"
-                and r.status is NutritionEnrichmentStatus.ENRICHED
-                and r.enriched_value is not None
-                for r in records
-            ):
-                counts.pt_eligible += 1
     return counts
 
 
@@ -399,11 +413,18 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
     # on a project's products — Phase 34M now writes a FAILED record
     # even for no-match products so this signal is reliable across
     # both the in-memory and Postgres stores.
-    nevo_attempted = False
-    for product in store.list_products_for_project(project.id):
-        if store.get_enrichment_records_for_product(product.id):
-            nevo_attempted = True
-            break
+    # Phase 34Z — use the existing project-wide list_enrichment_
+    # records query (one HTTP call) instead of walking every product
+    # one-by-one. ``break`` on the legacy loop made worst-case N+1
+    # rare in practice but the path still fired ~1050 calls when a
+    # project had no enrichment records yet, contributing to the
+    # workflow-status timeout.
+    try:
+        nevo_attempted = bool(
+            store.list_enrichment_records_for_project(project.id)
+        )
+    except Exception:
+        nevo_attempted = False
     pt_needs_nutrition = counts.pt_missing_nutrition
     if pt_total == 0:
         nevo_status: StepStatus = "locked"

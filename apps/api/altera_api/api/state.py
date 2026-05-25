@@ -788,6 +788,21 @@ class InMemoryStore:
     ) -> list[NutritionEnrichmentRecord]:
         return list(self.enrichment_records.get(product_id, []))
 
+    def get_enrichment_records_bulk(
+        self, product_ids: list[UUID]
+    ) -> dict[UUID, list[NutritionEnrichmentRecord]]:
+        """Phase 34Z — dict-lookup bulk fetch. The workflow-status
+        aggregator previously called ``get_enrichment_records_for_product``
+        once per product in two nested loops, producing 2N HTTP
+        round-trips on Postgres. This single-pass replacement returns
+        the same shape but in O(1) lookups."""
+        out: dict[UUID, list[NutritionEnrichmentRecord]] = {}
+        for pid in product_ids:
+            recs = self.enrichment_records.get(pid)
+            if recs:
+                out[pid] = list(recs)
+        return out
+
     def list_enrichment_records_for_project(
         self, project_id: UUID
     ) -> list[NutritionEnrichmentRecord]:

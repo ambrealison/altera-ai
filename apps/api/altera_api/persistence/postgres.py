@@ -328,11 +328,33 @@ class PostgresRepository:
         proj = self.get_project(project_id)
         if proj is None:
             return []
-        r = self._rls.table("products").select("*").eq("project_id", str(project_id)).execute()
-        return [
-            product_from_row(row, methodologies_enabled=proj.methodologies_enabled)
-            for row in (r.data or [])
-        ]
+        # Phase 34Z — PostgREST's default range cap is 1000 rows per
+        # request. For projects with 1050+ products we paginate via
+        # ``.range()`` so the workflow aggregator sees every row.
+        # Without this, the aggregator silently misses the tail and
+        # downstream calculation totals are wrong.
+        out: list[NormalizedProduct] = []
+        PAGE = 1000
+        offset = 0
+        while True:
+            r = (
+                self._rls.table("products")
+                .select("*")
+                .eq("project_id", str(project_id))
+                .range(offset, offset + PAGE - 1)
+                .execute()
+            )
+            rows = r.data or []
+            for row in rows:
+                out.append(
+                    product_from_row(
+                        row, methodologies_enabled=proj.methodologies_enabled
+                    )
+                )
+            if len(rows) < PAGE:
+                break
+            offset += PAGE
+        return out
 
     def get_product(self, product_id: UUID) -> NormalizedProduct | None:
         r = self._rls.table("products").select("*").eq("id", str(product_id)).limit(1).execute()
@@ -991,6 +1013,38 @@ class PostgresRepository:
             .execute()
         )
         return [enrichment_record_from_row(row) for row in (r.data or [])]
+
+    def get_enrichment_records_bulk(
+        self, product_ids: list[UUID]
+    ) -> dict[UUID, list[NutritionEnrichmentRecord]]:
+        """Phase 34Z — single ``WHERE product_id IN (…)`` query instead
+        of N round-trips. The workflow-status aggregator was making
+        2N HTTP calls (two nested loops) on a 1050-product project
+        — that's >2100 round-trips and the dominant cause of the
+        PostgREST timeout/JSON error.
+
+        Returns the same shape as N individual
+        ``get_enrichment_records_for_product`` calls, keyed by
+        product_id. Missing ids are simply absent from the dict.
+        """
+        if not product_ids:
+            return {}
+        out: dict[UUID, list[NutritionEnrichmentRecord]] = {}
+        CHUNK = 500
+        for start in range(0, len(product_ids), CHUNK):
+            ids_str = [
+                str(pid) for pid in product_ids[start : start + CHUNK]
+            ]
+            r = (
+                self._rls.table("nutrition_enrichment_records")
+                .select("*")
+                .in_("product_id", ids_str)
+                .execute()
+            )
+            for row in r.data or []:
+                rec = enrichment_record_from_row(row)
+                out.setdefault(rec.product_id, []).append(rec)
+        return out
 
     def list_enrichment_records_for_project(
         self, project_id: UUID
