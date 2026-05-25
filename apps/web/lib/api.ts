@@ -209,8 +209,13 @@ export interface UploadResult {
   row_count: number | null;
   dropped_columns: string[];
   products_count: number;
+  // Phase 34S — `errors` and `warnings` are CAPPED to ~50 entries.
+  // The full counts live in `errors_total` / `warnings_total`. The
+  // wizard renders "Showing first 50 of N" for large CSVs.
   errors: ValidationEntry[];
   warnings: ValidationEntry[];
+  errors_total: number;
+  warnings_total: number;
   file_size_bytes: number | null;
   checksum_sha256: string | null;
   duplicate_of: string | null;

@@ -383,8 +383,16 @@ class UploadResponse(BaseModel):
     row_count: int | None
     dropped_columns: list[str]
     products_count: int
+    # Phase 34S — capped to UPLOAD_RESPONSE_DETAIL_LIMIT entries each.
+    # A 1050-row CSV with errors on every row used to return a 1050-
+    # item ``errors`` array (and another 1050-item ``warnings``),
+    # ballooning the response to several megabytes and triggering
+    # browser fetch timeouts. We now return at most ~50 entries plus
+    # the total counts below; the UI says "Showing first 50 of N".
     errors: list[ValidationEntryResponse]
     warnings: list[ValidationEntryResponse]
+    errors_total: int = 0
+    warnings_total: int = 0
     # Phase 15 metadata
     file_size_bytes: int | None = None
     checksum_sha256: str | None = None
@@ -395,8 +403,23 @@ class UploadResponse(BaseModel):
     ingestion_completed_at: str | None = None
 
 
+#: Phase 34S — maximum number of error/warning entries we serialise
+#: into a single UploadResponse. Keeps the response well under 1 MB
+#: even for a 15K-row CSV with errors on every row. The frontend
+#: still gets the *total* counts via ``errors_total`` /
+#: ``warnings_total`` so it can render "Showing first N of M".
+UPLOAD_RESPONSE_DETAIL_LIMIT = 50
+
+
 def _upload_response(summary: IngestSummary) -> UploadResponse:
     u = summary.upload
+    # Phase 34S — cap the per-row error/warning lists. A 1050-row CSV
+    # with errors on every row used to produce a ~1.5 MB response and
+    # trip the browser's fetch timeout; capping to the first 50 keeps
+    # the payload predictable while preserving the total counts the
+    # wizard needs to show "Showing first 50 of N".
+    all_errors = list(summary.report.errors)
+    all_warnings = list(summary.report.warnings)
     return UploadResponse(
         id=u.id,
         project_id=u.project_id,
@@ -409,14 +432,16 @@ def _upload_response(summary: IngestSummary) -> UploadResponse:
             ValidationEntryResponse(
                 row_number=e.row_number, field=e.field, code=e.code, message=e.message
             )
-            for e in summary.report.errors
+            for e in all_errors[:UPLOAD_RESPONSE_DETAIL_LIMIT]
         ],
         warnings=[
             ValidationEntryResponse(
                 row_number=w.row_number, field=w.field, code=w.code, message=w.message
             )
-            for w in summary.report.warnings
+            for w in all_warnings[:UPLOAD_RESPONSE_DETAIL_LIMIT]
         ],
+        errors_total=len(all_errors),
+        warnings_total=len(all_warnings),
         file_size_bytes=u.file_size_bytes,
         checksum_sha256=u.checksum_sha256,
         duplicate_of=summary.duplicate_of,
@@ -1076,6 +1101,10 @@ def advance_classification_job_route(
         ai_provider = get_ai_provider()
     except ValueError:
         ai_provider = None
+    from altera_api.api.classification_job_orchestrator import (
+        ClassificationJobConflict,
+    )
+
     try:
         job = advance_classification_job(
             store, job_id, ai_provider=ai_provider
@@ -1084,6 +1113,16 @@ def advance_classification_job_route(
         raise HTTPException(
             status_code=404,
             detail={"error_code": "job_not_found", "message": str(exc)},
+        ) from exc
+    except ClassificationJobConflict as exc:
+        # Two-tab race or rapid double-click — surface as 409 so the
+        # wizard can back off briefly before retrying its poll.
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error_code": "classification_job_conflict",
+                "message": str(exc),
+            },
         ) from exc
     except Exception as exc:  # noqa: BLE001
         # The orchestrator itself catches provider errors per-batch.

@@ -787,37 +787,90 @@ class PostgresRepository:
         return job_from_row(r.data[0])
 
     # ------------------------------------------------------------------
-    # Classification jobs (Phase 34R)
+    # Classification jobs (Phase 34S) — persisted async, chunked AI
+    # classification. Backed by the classification_jobs table introduced
+    # in migration 0034_phase34s_classification_jobs.sql. The optimistic
+    # concurrency token is the row's ``updated_at`` column; every
+    # store update bumps it.
     # ------------------------------------------------------------------
-    # Phase 34R initial implementation keeps classification jobs in
-    # process memory only. The Postgres backing requires a migration
-    # (see docs/development/ROADMAP.md). These methods exist so the
-    # StoreProtocol contract is satisfied; calling them surfaces a
-    # clear NotImplementedError instead of an opaque AttributeError.
-    def add_classification_job(self, job: object) -> None:
-        raise NotImplementedError(
-            "ClassificationJob persistence not yet implemented in "
-            "PostgresRepository — Phase 34R uses the in-memory store."
+    def add_classification_job(self, job) -> None:  # type: ignore[no-untyped-def]
+        from altera_api.persistence.mappers import (
+            classification_job_to_row,
         )
 
-    def update_classification_job(self, job: object) -> None:
-        raise NotImplementedError(
-            "ClassificationJob persistence not yet implemented in "
-            "PostgresRepository — Phase 34R uses the in-memory store."
+        self._rls.table("classification_jobs").insert(
+            classification_job_to_row(job)
+        ).execute()
+
+    def update_classification_job(self, job) -> None:  # type: ignore[no-untyped-def]
+        from datetime import UTC, datetime
+
+        from altera_api.persistence.mappers import (
+            classification_job_to_row,
         )
 
-    def get_classification_job(self, job_id: UUID) -> None:
-        return None
+        # Bump updated_at so the optimistic-lock check in advance can
+        # detect a concurrent write. We don't fail loudly if 0 rows
+        # were updated here because not every caller wants conflict
+        # semantics (e.g. cancel_classification_job is idempotent).
+        row = classification_job_to_row(job)
+        row["updated_at"] = datetime.now(UTC).isoformat()
+        row.pop("id", None)
+        self._rls.table("classification_jobs").update(row).eq(
+            "id", str(job.id)
+        ).execute()
+
+    def get_classification_job(self, job_id: UUID):  # type: ignore[no-untyped-def]
+        from altera_api.persistence.mappers import (
+            classification_job_from_row,
+        )
+
+        r = (
+            self._rls.table("classification_jobs")
+            .select("*")
+            .eq("id", str(job_id))
+            .limit(1)
+            .execute()
+        )
+        if not r.data:
+            return None
+        return classification_job_from_row(r.data[0])
 
     def list_classification_jobs_for_project(
         self, project_id: UUID
     ) -> list:
-        return []
+        from altera_api.persistence.mappers import (
+            classification_job_from_row,
+        )
+
+        r = (
+            self._rls.table("classification_jobs")
+            .select("*")
+            .eq("project_id", str(project_id))
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return [
+            classification_job_from_row(row) for row in (r.data or [])
+        ]
 
     def list_classification_jobs_for_upload(
         self, upload_id: UUID
     ) -> list:
-        return []
+        from altera_api.persistence.mappers import (
+            classification_job_from_row,
+        )
+
+        r = (
+            self._rls.table("classification_jobs")
+            .select("*")
+            .eq("upload_id", str(upload_id))
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return [
+            classification_job_from_row(row) for row in (r.data or [])
+        ]
 
     # ------------------------------------------------------------------
     # Nutrition enrichment (Phase 23A)

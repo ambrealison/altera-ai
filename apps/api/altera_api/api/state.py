@@ -670,12 +670,23 @@ class InMemoryStore:
     # Classification jobs (Phase 34R) — async, chunked AI classification
     # ------------------------------------------------------------------
     def add_classification_job(self, job: ClassificationJob) -> None:
+        from datetime import UTC, datetime
+
         with self._lock:
-            self.classification_jobs[job.id] = job
+            stamped = (
+                job
+                if job.updated_at is not None
+                else job.with_progress(updated_at=datetime.now(UTC))
+            )
+            self.classification_jobs[stamped.id] = stamped
 
     def update_classification_job(self, job: ClassificationJob) -> None:
+        from datetime import UTC, datetime
+
         with self._lock:
-            self.classification_jobs[job.id] = job
+            self.classification_jobs[job.id] = job.with_progress(
+                updated_at=datetime.now(UTC)
+            )
 
     def get_classification_job(
         self, job_id: UUID

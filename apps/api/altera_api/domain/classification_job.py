@@ -121,6 +121,13 @@ class ClassificationJob:
     # for the "retry failed" endpoint. Reset when overwrite=True or
     # when a fresh job is created.
     failed_product_ids: tuple[UUID, ...] = field(default_factory=tuple)
+    # Phase 34S — optimistic concurrency token. Every store update
+    # bumps ``updated_at``. ``advance`` reads the job, processes the
+    # batch, then commits with a WHERE clause that requires the
+    # previous ``updated_at`` to still match — if two advance calls
+    # race, the loser sees 0 rows updated and gets a 409 conflict.
+    updated_at: datetime | None = None
+    cancelled_at: datetime | None = None
 
     @property
     def is_terminal(self) -> bool:

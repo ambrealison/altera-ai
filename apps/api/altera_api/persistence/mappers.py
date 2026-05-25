@@ -716,6 +716,152 @@ def job_to_row(job: Job) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Classification jobs (Phase 34S) — Postgres persistence for the chunked
+# async classification flow introduced in Phase 34R.
+# ---------------------------------------------------------------------------
+
+
+def classification_job_to_row(job: object) -> dict:
+    """Serialize a ``ClassificationJob`` for the Supabase REST API.
+
+    JSONB columns receive Python lists (the Supabase client encodes
+    them as JSON over the wire); timestamptz columns are ISO strings;
+    UUIDs are str()'d. The mapper is intentionally exhaustive — every
+    column in the table appears here — so a future schema-validating
+    migration finds no gaps.
+    """
+    from altera_api.domain.classification_job import ClassificationJob
+
+    assert isinstance(job, ClassificationJob)
+    return {
+        "id": str(job.id),
+        "organisation_id": str(job.organisation_id),
+        "project_id": str(job.project_id),
+        "upload_id": str(job.upload_id),
+        "methodology": job.methodology.value,
+        "status": job.status.value,
+        "total_products": job.total_products,
+        "processed_products": job.processed_products,
+        "pending_product_ids": [str(p) for p in job.pending_product_ids],
+        "failed_product_ids": [str(p) for p in job.failed_product_ids],
+        "categorized_total": job.categorized_total,
+        "accepted_total": job.accepted_total,
+        "review_required_total": job.review_required_total,
+        "failed_total": job.failed_total,
+        "unknown_total": job.unknown_total,
+        "out_of_scope_total": job.out_of_scope_total,
+        "retry_batches": job.retry_batches,
+        "recovered_rows": job.recovered_rows,
+        "overwrite": job.overwrite,
+        "only_missing_or_failed": job.only_missing_or_failed,
+        "batch_size": job.batch_size,
+        "cancel_requested": job.cancel_requested,
+        "error_code": job.error_code,
+        "error_message": job.error_message,
+        "sample_errors": list(job.sample_errors),
+        "created_by": str(job.created_by) if job.created_by else None,
+        "created_at": (job.created_at or datetime.now(UTC)).isoformat(),
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "updated_at": (job.updated_at or datetime.now(UTC)).isoformat(),
+        "completed_at": (
+            job.completed_at.isoformat() if job.completed_at else None
+        ),
+        "cancelled_at": (
+            job.cancelled_at.isoformat() if job.cancelled_at else None
+        ),
+    }
+
+
+def classification_job_from_row(row: dict) -> object:
+    """Parse a ``classification_jobs`` row into the domain entity.
+
+    Tolerates JSONB columns coming back as either Python lists (the
+    Supabase client default) or JSON strings (some clients), and
+    timestamps as either datetimes or isoformat strings (handled by
+    ``_parse_dt``).
+    """
+    from altera_api.domain.classification_job import (
+        ClassificationJob,
+        ClassificationJobStatus,
+    )
+    from altera_api.domain.common import Methodology
+
+    def _parse_uuid_list(value: object) -> tuple[UUID, ...]:
+        if value is None:
+            return ()
+        if isinstance(value, str):
+            import json
+
+            value = json.loads(value)
+        if not isinstance(value, list):
+            return ()
+        return tuple(UUID(v) for v in value if v is not None)
+
+    def _parse_str_list(value: object) -> tuple[str, ...]:
+        if value is None:
+            return ()
+        if isinstance(value, str):
+            import json
+
+            value = json.loads(value)
+        if not isinstance(value, list):
+            return ()
+        return tuple(str(v) for v in value)
+
+    return ClassificationJob(
+        id=UUID(row["id"]),
+        organisation_id=UUID(row["organisation_id"]),
+        project_id=UUID(row["project_id"]),
+        upload_id=UUID(row["upload_id"]),
+        methodology=Methodology(row["methodology"]),
+        status=ClassificationJobStatus(row["status"]),
+        total_products=int(row.get("total_products") or 0),
+        processed_products=int(row.get("processed_products") or 0),
+        pending_product_ids=_parse_uuid_list(row.get("pending_product_ids")),
+        failed_product_ids=_parse_uuid_list(row.get("failed_product_ids")),
+        categorized_total=int(row.get("categorized_total") or 0),
+        accepted_total=int(row.get("accepted_total") or 0),
+        review_required_total=int(row.get("review_required_total") or 0),
+        failed_total=int(row.get("failed_total") or 0),
+        unknown_total=int(row.get("unknown_total") or 0),
+        out_of_scope_total=int(row.get("out_of_scope_total") or 0),
+        retry_batches=int(row.get("retry_batches") or 0),
+        recovered_rows=int(row.get("recovered_rows") or 0),
+        overwrite=bool(row.get("overwrite", False)),
+        only_missing_or_failed=bool(
+            row.get("only_missing_or_failed", True)
+        ),
+        batch_size=int(row.get("batch_size") or 25),
+        cancel_requested=bool(row.get("cancel_requested", False)),
+        error_code=row.get("error_code"),
+        error_message=row.get("error_message"),
+        sample_errors=_parse_str_list(row.get("sample_errors")),
+        created_by=(
+            UUID(row["created_by"]) if row.get("created_by") else None
+        ),
+        created_at=(
+            _parse_dt(row["created_at"]) if row.get("created_at") else None
+        ),
+        started_at=(
+            _parse_dt(row["started_at"]) if row.get("started_at") else None
+        ),
+        updated_at=(
+            _parse_dt(row["updated_at"]) if row.get("updated_at") else None
+        ),
+        completed_at=(
+            _parse_dt(row["completed_at"])
+            if row.get("completed_at")
+            else None
+        ),
+        cancelled_at=(
+            _parse_dt(row["cancelled_at"])
+            if row.get("cancelled_at")
+            else None
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Review decisions (Phase 19C)
 # ---------------------------------------------------------------------------
 
