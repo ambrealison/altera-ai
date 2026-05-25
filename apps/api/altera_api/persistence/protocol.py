@@ -235,11 +235,40 @@ class StoreProtocol(Protocol):
     # Phase 35B — heavy-job guard. Returns counts of non-terminal
     # heavy jobs visible to the caller's RLS scope. Used to block
     # the creation of a NEW heavy job when another is in flight.
+    #
+    # Phase 35-stale — ``max_age_minutes`` filters out jobs whose
+    # ``updated_at`` is older than the cutoff. A worker that crashes
+    # mid-job leaves a stale ``queued`` / ``running`` record that
+    # otherwise blocks every subsequent creation until manual
+    # cleanup. Default ``None`` means "no age filter" (counts all
+    # non-terminal jobs).
     def count_active_heavy_classification_jobs(
-        self, *, min_total_products: int = 500
+        self,
+        *,
+        min_total_products: int = 500,
+        max_age_minutes: int | None = None,
     ) -> int: ...
     def count_active_heavy_ingestion_jobs(
+        self,
+        *,
+        min_total_rows: int = 1000,
+        max_age_minutes: int | None = None,
+    ) -> int: ...
+    # Phase 35-stale — listings + bulk-heal for the admin endpoints.
+    # The list methods return full domain objects so the admin UI
+    # can show counts + ages; cancel_stale_* returns the number of
+    # rows that were transitioned to a terminal state.
+    def list_active_heavy_classification_jobs(
+        self, *, min_total_products: int = 500
+    ) -> list[ClassificationJob]: ...
+    def list_active_heavy_ingestion_jobs(
         self, *, min_total_rows: int = 1000
+    ) -> list[IngestionJob]: ...
+    def cancel_stale_classification_jobs(
+        self, *, stale_after_minutes: int = 30
+    ) -> int: ...
+    def cancel_stale_ingestion_jobs(
+        self, *, stale_after_minutes: int = 30
     ) -> int: ...
 
     # ------------------------------------------------------------------

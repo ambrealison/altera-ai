@@ -768,23 +768,161 @@ class InMemoryStore:
         )
 
     def count_active_heavy_classification_jobs(
-        self, *, min_total_products: int = 500
+        self,
+        *,
+        min_total_products: int = 500,
+        max_age_minutes: int | None = None,
     ) -> int:
         # Phase 35B — heavy-job guard input.
+        # Phase 35-stale — optional age filter so dead jobs from a
+        # previous OOM/restart don't block forever.
+        cutoff = None
+        if max_age_minutes is not None:
+            from datetime import timedelta
+
+            cutoff = datetime.now(UTC) - timedelta(minutes=max_age_minutes)
         return sum(
             1
             for j in self.classification_jobs.values()
-            if not j.is_terminal and j.total_products >= min_total_products
+            if not j.is_terminal
+            and j.total_products >= min_total_products
+            and (
+                cutoff is None
+                or (j.updated_at is not None and j.updated_at >= cutoff)
+            )
         )
 
     def count_active_heavy_ingestion_jobs(
-        self, *, min_total_rows: int = 1000
+        self,
+        *,
+        min_total_rows: int = 1000,
+        max_age_minutes: int | None = None,
     ) -> int:
+        cutoff = None
+        if max_age_minutes is not None:
+            from datetime import timedelta
+
+            cutoff = datetime.now(UTC) - timedelta(minutes=max_age_minutes)
         return sum(
             1
             for j in self.ingestion_jobs.values()
-            if not j.is_terminal and j.total_rows >= min_total_rows
+            if not j.is_terminal
+            and j.total_rows >= min_total_rows
+            and (
+                cutoff is None
+                or (j.updated_at is not None and j.updated_at >= cutoff)
+            )
         )
+
+    def list_active_heavy_classification_jobs(
+        self, *, min_total_products: int = 500
+    ) -> list[ClassificationJob]:
+        return [
+            j
+            for j in self.classification_jobs.values()
+            if not j.is_terminal and j.total_products >= min_total_products
+        ]
+
+    def list_active_heavy_ingestion_jobs(
+        self, *, min_total_rows: int = 1000
+    ) -> list[IngestionJob]:
+        return [
+            j
+            for j in self.ingestion_jobs.values()
+            if not j.is_terminal and j.total_rows >= min_total_rows
+        ]
+
+    def cancel_stale_classification_jobs(
+        self, *, stale_after_minutes: int = 30
+    ) -> int:
+        """Phase 35-stale — transition every non-terminal classification
+        job whose ``updated_at`` is older than the cutoff to a
+        terminal state. Returns the number of rows updated.
+
+        Used by:
+          - the admin POST /admin/heavy-jobs/cancel-stale endpoint;
+          - the opportunistic self-heal in the heavy-job guard.
+        """
+        from datetime import timedelta
+
+        from altera_api.domain.classification_job import (
+            ClassificationJobStatus,
+        )
+
+        cutoff = datetime.now(UTC) - timedelta(minutes=stale_after_minutes)
+        n = 0
+        with self._lock:
+            for jid, job in list(self.classification_jobs.items()):
+                if (
+                    not job.is_terminal
+                    and job.updated_at is not None
+                    and job.updated_at < cutoff
+                ):
+                    self.classification_jobs[jid] = job.with_progress(
+                        status=ClassificationJobStatus.CANCELLED,
+                        completed_at=datetime.now(UTC),
+                        updated_at=datetime.now(UTC),
+                        error_code="stale_auto_cancelled",
+                        error_message=(
+                            f"Auto-cancelled: no advance in "
+                            f">= {stale_after_minutes} minutes"
+                        ),
+                    )
+                    n += 1
+        return n
+
+    def cancel_stale_ingestion_jobs(
+        self, *, stale_after_minutes: int = 30
+    ) -> int:
+        from datetime import timedelta
+
+        from altera_api.domain.ingestion_job import IngestionJobStatus
+
+        cutoff = datetime.now(UTC) - timedelta(minutes=stale_after_minutes)
+        n = 0
+        with self._lock:
+            for jid, job in list(self.ingestion_jobs.items()):
+                if (
+                    not job.is_terminal
+                    and job.updated_at is not None
+                    and job.updated_at < cutoff
+                ):
+                    # Self-heal: if processed >= total, the work was
+                    # actually done — surface as completed (or
+                    # completed_with_errors) rather than cancelled.
+                    if (
+                        job.total_rows > 0
+                        and job.processed_rows >= job.total_rows
+                    ):
+                        new_status = (
+                            IngestionJobStatus.COMPLETED_WITH_ERRORS
+                            if job.errors_total > 0
+                            else IngestionJobStatus.COMPLETED
+                        )
+                    else:
+                        new_status = IngestionJobStatus.CANCELLED
+                    self.ingestion_jobs[jid] = job.with_progress(
+                        status=new_status,
+                        completed_at=datetime.now(UTC),
+                        updated_at=datetime.now(UTC),
+                        error_code=(
+                            None
+                            if new_status
+                            is not IngestionJobStatus.CANCELLED
+                            else "stale_auto_cancelled"
+                        ),
+                        error_message=(
+                            None
+                            if new_status
+                            is not IngestionJobStatus.CANCELLED
+                            else (
+                                f"Auto-cancelled: no advance in "
+                                f">= {stale_after_minutes} minutes"
+                            )
+                        ),
+                    )
+                    n += 1
+        return n
 
     # ------------------------------------------------------------------
     # Ingestion jobs (Phase 34X) — chunked CSV ingestion

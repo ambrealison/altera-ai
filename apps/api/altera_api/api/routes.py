@@ -672,13 +672,39 @@ async def create_ingestion_job_route(
     if len(payload) >= 100 * 1024:
         try:
             active_class = store.count_active_heavy_classification_jobs(
-                min_total_products=_HEAVY_CLASSIFICATION_THRESHOLD
+                min_total_products=_HEAVY_CLASSIFICATION_THRESHOLD,
+                max_age_minutes=_HEAVY_JOB_STALE_MINUTES,
             )
             active_ingest = store.count_active_heavy_ingestion_jobs(
-                min_total_rows=_HEAVY_INGESTION_THRESHOLD
+                min_total_rows=_HEAVY_INGESTION_THRESHOLD,
+                max_age_minutes=_HEAVY_JOB_STALE_MINUTES,
             )
         except Exception:
             active_class = active_ingest = 0
+        # Phase 35-stale opportunistic self-heal (same pattern as
+        # the classification guard above).
+        if active_class + active_ingest == 0:
+            try:
+                healed_class = store.cancel_stale_classification_jobs(
+                    stale_after_minutes=_HEAVY_JOB_STALE_MINUTES
+                )
+                healed_ingest = store.cancel_stale_ingestion_jobs(
+                    stale_after_minutes=_HEAVY_JOB_STALE_MINUTES
+                )
+                if healed_class + healed_ingest > 0:
+                    import logging
+
+                    logging.getLogger(
+                        "altera_api.heavy_job_guard"
+                    ).info(
+                        "heavy_job_guard.self_heal "
+                        "scope=ingestion classification=%d "
+                        "ingestion=%d",
+                        healed_class,
+                        healed_ingest,
+                    )
+            except Exception:
+                pass
         if active_class + active_ingest > 0:
             import logging
 
@@ -1342,6 +1368,16 @@ _HEAVY_CLASSIFICATION_THRESHOLD: int = int(
 _HEAVY_INGESTION_THRESHOLD: int = int(
     os.environ.get("ALTERA_HEAVY_INGESTION_THRESHOLD", "1000")
 )
+# Phase 35-stale — a job left in ``queued|running`` after this many
+# minutes is treated as dead. The heavy-job guard skips it (so it
+# stops blocking new heavy jobs) AND opportunistically transitions
+# it to a terminal state on the next guard check. Production
+# scenario this protects against: Render OOM-restart leaves stale
+# jobs that would otherwise lock out every subsequent classification
+# / ingestion until manual cleanup.
+_HEAVY_JOB_STALE_MINUTES: int = int(
+    os.environ.get("ALTERA_HEAVY_JOB_STALE_MINUTES", "30")
+)
 
 
 @api_router.post(
@@ -1424,6 +1460,12 @@ def create_classification_job_route(
     # products, but we can probe upfront on the upload's product
     # count. We use the upload record's product_ids length as a
     # cheap O(1) proxy.
+    #
+    # Phase 35-stale — only count jobs whose updated_at is recent
+    # enough to be plausibly alive. Stale jobs (worker died, never
+    # transitioned) used to block every subsequent creation; now
+    # they're invisible to the guard AND we opportunistically clean
+    # them up below.
     will_be_heavy = (
         len(upload_record.product_ids) >= _HEAVY_CLASSIFICATION_THRESHOLD
     )
@@ -1431,15 +1473,44 @@ def create_classification_job_route(
         try:
             active_heavy_class = (
                 store.count_active_heavy_classification_jobs(
-                    min_total_products=_HEAVY_CLASSIFICATION_THRESHOLD
+                    min_total_products=_HEAVY_CLASSIFICATION_THRESHOLD,
+                    max_age_minutes=_HEAVY_JOB_STALE_MINUTES,
                 )
             )
             active_heavy_ingest = store.count_active_heavy_ingestion_jobs(
-                min_total_rows=_HEAVY_INGESTION_THRESHOLD
+                min_total_rows=_HEAVY_INGESTION_THRESHOLD,
+                max_age_minutes=_HEAVY_JOB_STALE_MINUTES,
             )
         except Exception:
             active_heavy_class = active_heavy_ingest = 0
         active_heavy_total = active_heavy_class + active_heavy_ingest
+
+        # Phase 35-stale — opportunistic self-heal. If the recent-
+        # only count is zero but the unfiltered count is non-zero,
+        # we have stale ghosts; clean them up so future polls don't
+        # hit the same edge case.
+        if active_heavy_total == 0:
+            try:
+                healed_class = store.cancel_stale_classification_jobs(
+                    stale_after_minutes=_HEAVY_JOB_STALE_MINUTES
+                )
+                healed_ingest = store.cancel_stale_ingestion_jobs(
+                    stale_after_minutes=_HEAVY_JOB_STALE_MINUTES
+                )
+                if healed_class + healed_ingest > 0:
+                    import logging
+
+                    logging.getLogger(
+                        "altera_api.heavy_job_guard"
+                    ).info(
+                        "heavy_job_guard.self_heal "
+                        "classification=%d ingestion=%d",
+                        healed_class,
+                        healed_ingest,
+                    )
+            except Exception:
+                pass  # best-effort cleanup; never block the create
+
         if active_heavy_total > 0:
             import logging
 
@@ -5898,3 +5969,160 @@ def get_run_comparison_route(
     )
 
     return _comparison_response(result)
+
+
+# ---------------------------------------------------------------------------
+# Phase 35-stale — admin endpoints for diagnosing + healing stale
+# heavy jobs. Altera-internal staff only. The heavy-job guard
+# already self-heals opportunistically on every blocked create, but
+# these endpoints give support an explicit "list + reset" pair when
+# a customer reports a stuck wizard.
+# ---------------------------------------------------------------------------
+
+
+class _HeavyJobActiveItem(BaseModel):
+    job_id: UUID
+    kind: str  # "classification" | "ingestion"
+    project_id: UUID
+    upload_id: UUID
+    status: str
+    total: int
+    processed: int
+    age_seconds: float
+    updated_at: str | None
+
+
+class _HeavyJobActiveResponse(BaseModel):
+    classification: list[_HeavyJobActiveItem]
+    ingestion: list[_HeavyJobActiveItem]
+    stale_after_minutes: int
+
+
+@api_router.get(
+    "/admin/heavy-jobs/active",
+    response_model=_HeavyJobActiveResponse,
+)
+def admin_heavy_jobs_active(
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> _HeavyJobActiveResponse:
+    """List queued/running heavy jobs. Altera-internal only."""
+    if not auth.is_altera_internal:
+        raise_forbidden("admin endpoint")
+    now = datetime.now(UTC)
+
+    def _age(updated_at) -> float:  # type: ignore[no-untyped-def]
+        if updated_at is None:
+            return 0.0
+        return (now - updated_at).total_seconds()
+
+    try:
+        class_jobs = store.list_active_heavy_classification_jobs(
+            min_total_products=_HEAVY_CLASSIFICATION_THRESHOLD
+        )
+    except Exception:
+        class_jobs = []
+    try:
+        ingest_jobs = store.list_active_heavy_ingestion_jobs(
+            min_total_rows=_HEAVY_INGESTION_THRESHOLD
+        )
+    except Exception:
+        ingest_jobs = []
+
+    return _HeavyJobActiveResponse(
+        classification=[
+            _HeavyJobActiveItem(
+                job_id=j.id,
+                kind="classification",
+                project_id=j.project_id,
+                upload_id=j.upload_id,
+                status=j.status.value,
+                total=j.total_products,
+                processed=j.processed_products,
+                age_seconds=_age(j.updated_at),
+                updated_at=j.updated_at.isoformat() if j.updated_at else None,
+            )
+            for j in class_jobs
+        ],
+        ingestion=[
+            _HeavyJobActiveItem(
+                job_id=j.id,
+                kind="ingestion",
+                project_id=j.project_id,
+                upload_id=j.upload_id,
+                status=j.status.value,
+                total=j.total_rows,
+                processed=j.processed_rows,
+                age_seconds=_age(j.updated_at),
+                updated_at=j.updated_at.isoformat() if j.updated_at else None,
+            )
+            for j in ingest_jobs
+        ],
+        stale_after_minutes=_HEAVY_JOB_STALE_MINUTES,
+    )
+
+
+class _HeavyJobCancelStaleResponse(BaseModel):
+    cancelled_classification: int
+    cancelled_ingestion: int
+    stale_after_minutes: int
+
+
+@api_router.post(
+    "/admin/heavy-jobs/cancel-stale",
+    response_model=_HeavyJobCancelStaleResponse,
+)
+def admin_heavy_jobs_cancel_stale(
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+    stale_after_minutes: int | None = None,
+) -> _HeavyJobCancelStaleResponse:
+    """Force-terminalise stale heavy jobs. Altera-internal only.
+
+    ``stale_after_minutes`` query param overrides the default cutoff
+    (``ALTERA_HEAVY_JOB_STALE_MINUTES``). Useful when an operator
+    wants to clean up jobs that are 5 minutes old without waiting
+    for the full 30-minute heuristic.
+    """
+    if not auth.is_altera_internal:
+        raise_forbidden("admin endpoint")
+    cutoff = (
+        stale_after_minutes
+        if stale_after_minutes is not None
+        else _HEAVY_JOB_STALE_MINUTES
+    )
+    if cutoff < 1:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "invalid_stale_minutes",
+                "message": "stale_after_minutes must be >= 1",
+            },
+        )
+    try:
+        n_class = store.cancel_stale_classification_jobs(
+            stale_after_minutes=cutoff
+        )
+    except Exception:
+        n_class = 0
+    try:
+        n_ingest = store.cancel_stale_ingestion_jobs(
+            stale_after_minutes=cutoff
+        )
+    except Exception:
+        n_ingest = 0
+    import logging
+
+    logging.getLogger("altera_api.heavy_job_guard").info(
+        "admin.cancel_stale actor=%s cutoff_min=%d "
+        "cancelled_classification=%d cancelled_ingestion=%d",
+        auth.user_id,
+        cutoff,
+        n_class,
+        n_ingest,
+    )
+    return _HeavyJobCancelStaleResponse(
+        cancelled_classification=n_class,
+        cancelled_ingestion=n_ingest,
+        stale_after_minutes=cutoff,
+    )
