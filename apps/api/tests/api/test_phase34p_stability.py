@@ -45,7 +45,6 @@ from altera_api.domain.organisation import Organisation, UserProfile
 from altera_api.domain.product import NormalizedProduct, PTProductFields
 from altera_api.main import app
 
-
 # ---------------------------------------------------------------------------
 # Helpers (mirror prior phase fixtures)
 # ---------------------------------------------------------------------------

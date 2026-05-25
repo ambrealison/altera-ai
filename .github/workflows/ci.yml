@@ -22,10 +22,10 @@ jobs:
         working-directory: apps/api
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: "apps/api/uv.lock"
@@ -53,14 +53,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.1.2
 
       - name: Set up Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: "pnpm"
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install gitleaks
         run: |
@@ -107,7 +107,7 @@ jobs:
         run: gitleaks detect --source . --config .gitleaks.toml --no-git
 
       - name: Install uv (for secret-safety tests)
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: "apps/api/uv.lock"
