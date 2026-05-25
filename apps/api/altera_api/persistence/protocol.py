@@ -24,6 +24,7 @@ from altera_api.domain.ciqual import CiqualEntry
 from altera_api.domain.classification_job import ClassificationJob
 from altera_api.domain.common import Methodology, OrganisationType
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
+from altera_api.domain.ingestion_job import IngestionJob
 from altera_api.domain.job import Job, JobType
 from altera_api.domain.nevo import NevoEntry
 from altera_api.domain.organisation import Organisation, UserProfile
@@ -220,6 +221,16 @@ class StoreProtocol(Protocol):
     def list_classification_jobs_for_upload(
         self, upload_id: UUID
     ) -> list[ClassificationJob]: ...
+
+    # ------------------------------------------------------------------
+    # Ingestion jobs (Phase 34X) — chunked, resumable CSV ingestion
+    # ------------------------------------------------------------------
+    def add_ingestion_job(self, job: IngestionJob) -> None: ...
+    def update_ingestion_job(self, job: IngestionJob) -> None: ...
+    def get_ingestion_job(self, job_id: UUID) -> IngestionJob | None: ...
+    def list_ingestion_jobs_for_upload(
+        self, upload_id: UUID
+    ) -> list[IngestionJob]: ...
 
     # ------------------------------------------------------------------
     # Nutrition enrichment (Phase 23A)

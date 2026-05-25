@@ -920,6 +920,59 @@ class PostgresRepository:
         ]
 
     # ------------------------------------------------------------------
+    # Ingestion jobs (Phase 34X)
+    # ------------------------------------------------------------------
+    # Phase 34X initial Postgres implementation. Schema lives in
+    # migration 0036_phase34x_ingestion_jobs.sql. The ``pending_payload``
+    # column is JSONB; we keep the inline serialisation simple by
+    # storing the list of mapper rows directly (no separate table —
+    # the chunk size cap keeps the row size bounded).
+    def add_ingestion_job(self, job) -> None:  # type: ignore[no-untyped-def]
+        from altera_api.persistence.mappers import ingestion_job_to_row
+
+        self._rls.table("ingestion_jobs").insert(
+            ingestion_job_to_row(job)
+        ).execute()
+
+    def update_ingestion_job(self, job) -> None:  # type: ignore[no-untyped-def]
+        from datetime import UTC, datetime
+
+        from altera_api.persistence.mappers import ingestion_job_to_row
+
+        row = ingestion_job_to_row(job)
+        row["updated_at"] = datetime.now(UTC).isoformat()
+        row.pop("id", None)
+        self._rls.table("ingestion_jobs").update(row).eq(
+            "id", str(job.id)
+        ).execute()
+
+    def get_ingestion_job(self, job_id: UUID):  # type: ignore[no-untyped-def]
+        from altera_api.persistence.mappers import ingestion_job_from_row
+
+        r = (
+            self._rls.table("ingestion_jobs")
+            .select("*")
+            .eq("id", str(job_id))
+            .limit(1)
+            .execute()
+        )
+        if not r.data:
+            return None
+        return ingestion_job_from_row(r.data[0])
+
+    def list_ingestion_jobs_for_upload(self, upload_id: UUID) -> list:
+        from altera_api.persistence.mappers import ingestion_job_from_row
+
+        r = (
+            self._rls.table("ingestion_jobs")
+            .select("*")
+            .eq("upload_id", str(upload_id))
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return [ingestion_job_from_row(row) for row in (r.data or [])]
+
+    # ------------------------------------------------------------------
     # Nutrition enrichment (Phase 23A)
     # ------------------------------------------------------------------
 

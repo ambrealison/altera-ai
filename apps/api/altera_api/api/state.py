@@ -21,6 +21,7 @@ from altera_api.domain.ciqual import CiqualEntry
 from altera_api.domain.classification_job import ClassificationJob
 from altera_api.domain.common import Methodology, OrganisationType, Role
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
+from altera_api.domain.ingestion_job import IngestionJob
 from altera_api.domain.job import Job, JobStatus, JobType
 from altera_api.domain.nevo import NevoEntry
 from altera_api.domain.organisation import Organisation, UserProfile
@@ -191,6 +192,8 @@ class InMemoryStore:
         self.jobs: dict[UUID, Job] = {}
         # Phase 34R — async, chunked AI classification jobs.
         self.classification_jobs: dict[UUID, ClassificationJob] = {}
+        # Phase 34X — chunked CSV ingestion jobs.
+        self.ingestion_jobs: dict[UUID, IngestionJob] = {}
         # Phase 23A: enrichment records keyed by product_id
         self.enrichment_records: dict[UUID, list[NutritionEnrichmentRecord]] = {}
         # Phase 33H: in-memory nutrition reference tables (seeded in tests;
@@ -734,6 +737,38 @@ class InMemoryStore:
             j
             for j in self.classification_jobs.values()
             if j.upload_id == upload_id
+        ]
+
+    # ------------------------------------------------------------------
+    # Ingestion jobs (Phase 34X) — chunked CSV ingestion
+    # ------------------------------------------------------------------
+    def add_ingestion_job(self, job: IngestionJob) -> None:
+        from datetime import UTC, datetime
+
+        with self._lock:
+            stamped = (
+                job
+                if job.updated_at is not None
+                else job.with_progress(updated_at=datetime.now(UTC))
+            )
+            self.ingestion_jobs[stamped.id] = stamped
+
+    def update_ingestion_job(self, job: IngestionJob) -> None:
+        from datetime import UTC, datetime
+
+        with self._lock:
+            self.ingestion_jobs[job.id] = job.with_progress(
+                updated_at=datetime.now(UTC)
+            )
+
+    def get_ingestion_job(self, job_id: UUID) -> IngestionJob | None:
+        return self.ingestion_jobs.get(job_id)
+
+    def list_ingestion_jobs_for_upload(
+        self, upload_id: UUID
+    ) -> list[IngestionJob]:
+        return [
+            j for j in self.ingestion_jobs.values() if j.upload_id == upload_id
         ]
 
     # ------------------------------------------------------------------

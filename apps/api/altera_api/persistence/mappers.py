@@ -862,6 +862,128 @@ def classification_job_from_row(row: dict) -> object:
 
 
 # ---------------------------------------------------------------------------
+# Ingestion jobs (Phase 34X)
+# ---------------------------------------------------------------------------
+
+
+def ingestion_job_to_row(job: object) -> dict:
+    """Serialize an ``IngestionJob`` for Supabase REST.
+
+    The ``pending_payload`` JSONB column carries the list of
+    pre-parsed product dicts. Each entry is already row-shaped (the
+    output of ``product_to_row``) so the advance call can insert
+    them straight back into the products table without another
+    serialisation step.
+    """
+    from altera_api.domain.ingestion_job import IngestionJob
+
+    assert isinstance(job, IngestionJob)
+    return {
+        "id": str(job.id),
+        "organisation_id": str(job.organisation_id),
+        "project_id": str(job.project_id),
+        "upload_id": str(job.upload_id),
+        "status": job.status.value,
+        "total_rows": job.total_rows,
+        "processed_rows": job.processed_rows,
+        "inserted_products": job.inserted_products,
+        "errors_total": job.errors_total,
+        "warnings_total": job.warnings_total,
+        "sample_errors": list(job.sample_errors),
+        "pending_payload": list(job.pending_payload),
+        "mapping": dict(job.mapping),
+        "chunk_size": job.chunk_size,
+        "next_row_offset": job.next_row_offset,
+        "error_code": job.error_code,
+        "error_message": job.error_message,
+        "created_by": str(job.created_by) if job.created_by else None,
+        "created_at": (job.created_at or datetime.now(UTC)).isoformat(),
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "updated_at": (job.updated_at or datetime.now(UTC)).isoformat(),
+        "completed_at": (
+            job.completed_at.isoformat() if job.completed_at else None
+        ),
+    }
+
+
+def ingestion_job_from_row(row: dict) -> object:
+    from altera_api.domain.ingestion_job import (
+        IngestionJob,
+        IngestionJobStatus,
+    )
+
+    def _payload_list(value: object) -> tuple:
+        if value is None:
+            return ()
+        if isinstance(value, str):
+            import json
+
+            value = json.loads(value)
+        if isinstance(value, list):
+            return tuple(value)
+        return ()
+
+    def _str_list(value: object) -> tuple[str, ...]:
+        if value is None:
+            return ()
+        if isinstance(value, str):
+            import json
+
+            value = json.loads(value)
+        if isinstance(value, list):
+            return tuple(str(v) for v in value)
+        return ()
+
+    def _mapping_dict(value: object) -> dict[str, str]:
+        if value is None:
+            return {}
+        if isinstance(value, str):
+            import json
+
+            value = json.loads(value)
+        if isinstance(value, dict):
+            return {str(k): str(v) for k, v in value.items()}
+        return {}
+
+    return IngestionJob(
+        id=UUID(row["id"]),
+        organisation_id=UUID(row["organisation_id"]),
+        project_id=UUID(row["project_id"]),
+        upload_id=UUID(row["upload_id"]),
+        status=IngestionJobStatus(row["status"]),
+        total_rows=int(row.get("total_rows") or 0),
+        processed_rows=int(row.get("processed_rows") or 0),
+        inserted_products=int(row.get("inserted_products") or 0),
+        errors_total=int(row.get("errors_total") or 0),
+        warnings_total=int(row.get("warnings_total") or 0),
+        sample_errors=_str_list(row.get("sample_errors")),
+        pending_payload=_payload_list(row.get("pending_payload")),
+        mapping=_mapping_dict(row.get("mapping")),
+        chunk_size=int(row.get("chunk_size") or 500),
+        next_row_offset=int(row.get("next_row_offset") or 0),
+        error_code=row.get("error_code"),
+        error_message=row.get("error_message"),
+        created_by=(
+            UUID(row["created_by"]) if row.get("created_by") else None
+        ),
+        created_at=(
+            _parse_dt(row["created_at"]) if row.get("created_at") else None
+        ),
+        started_at=(
+            _parse_dt(row["started_at"]) if row.get("started_at") else None
+        ),
+        updated_at=(
+            _parse_dt(row["updated_at"]) if row.get("updated_at") else None
+        ),
+        completed_at=(
+            _parse_dt(row["completed_at"])
+            if row.get("completed_at")
+            else None
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Review decisions (Phase 19C)
 # ---------------------------------------------------------------------------
 

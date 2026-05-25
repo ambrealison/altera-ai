@@ -339,6 +339,119 @@ def ingest_upload(
     )
 
 
+@dataclass(frozen=True)
+class IngestionParseResult:
+    """Phase 34X — the slice of ingest_upload's output the new
+    chunked-ingestion-job entry point needs to hand off to its
+    orchestrator.
+
+    Crucially, this carries the parsed ``products`` list — the
+    chunked advance flow stores those on the IngestionJob row and
+    inserts them in batches across subsequent /advance calls. The
+    regular ``IngestSummary`` doesn't expose products because the
+    legacy path inserts them inline.
+    """
+
+    upload: Upload
+    report: ValidationReport
+    products: tuple[NormalizedProduct, ...]
+    dropped_columns: tuple[str, ...]
+    duplicate_of: UUID | None
+
+
+def _create_upload_record_for_ingestion_job(
+    store: StoreProtocol,
+    *,
+    project: Project,
+    upload_id: UUID | None,
+    file_bytes: bytes,
+    original_filename: str,
+    uploaded_by: UUID,
+    content_type: str | None = None,
+    column_mapping: dict[str, str] | None = None,
+) -> IngestionParseResult:
+    """Phase 34X — parse + persist the Upload record WITHOUT inserting
+    products. The chunked ingestion-job advance loop is responsible
+    for batch-inserting the products one chunk at a time.
+
+    Returns a full :class:`IngestionParseResult` carrying the parsed
+    products so the caller can hand them to
+    ``create_ingestion_job`` without re-parsing the CSV bytes.
+    """
+    now = datetime.now(UTC)
+    the_upload_id = upload_id or uuid4()
+    actual_path = f"in_memory/{the_upload_id}"
+    file_size_bytes = len(file_bytes)
+    checksum = compute_sha256(file_bytes)
+
+    existing = store.find_upload_by_checksum(project.id, checksum)
+    duplicate_of = (
+        existing.id
+        if existing is not None and existing.id != the_upload_id
+        else None
+    )
+
+    validation_start = datetime.now(UTC)
+    result = ingest_csv_bytes(
+        file_bytes,
+        upload_id=the_upload_id,
+        project_id=project.id,
+        organisation_id=project.organisation_id,
+        methodologies_enabled=project.methodologies_enabled,
+        column_mapping=column_mapping or None,
+        now=now,
+    )
+    validation_end = datetime.now(UTC)
+
+    is_invalid = (
+        result.read_error is not None or result.report.is_blocking
+    )
+    terminal_status = (
+        UploadStatus.VALIDATION_FAILED
+        if is_invalid
+        else UploadStatus.READY_FOR_CLASSIFICATION
+    )
+
+    upload = Upload(
+        id=the_upload_id,
+        organisation_id=project.organisation_id,
+        project_id=project.id,
+        storage_path=actual_path,
+        original_filename=original_filename,
+        status=terminal_status,
+        row_count=result.report.total_rows,
+        dropped_columns=result.dropped_columns,
+        content_type=content_type,
+        file_size_bytes=file_size_bytes,
+        checksum_sha256=checksum,
+        uploaded_by=uploaded_by,
+        created_at=now,
+        validation_started_at=validation_start,
+        validation_completed_at=validation_end,
+        ingestion_started_at=None,  # Set by ingestion job
+        ingestion_completed_at=None,
+    )
+
+    product_ids = [p.id for p in result.products]
+    existing_rec = store.get_upload(the_upload_id)
+    if existing_rec is not None:
+        store.update_upload(upload, product_ids=product_ids)
+    else:
+        store.add_upload(upload, product_ids=product_ids)
+
+    store.set_upload_validation_report(
+        the_upload_id, result.report, duplicate_of=duplicate_of
+    )
+
+    return IngestionParseResult(
+        upload=upload,
+        report=result.report,
+        products=tuple(result.products),
+        dropped_columns=result.dropped_columns,
+        duplicate_of=duplicate_of,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Classification (rules engine only at this phase — AI orchestration
 # is Phase 7 logic that needs a real provider configured)

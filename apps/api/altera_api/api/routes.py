@@ -506,6 +506,229 @@ async def upload_csv(
     return _upload_response(summary)
 
 
+# ---------------------------------------------------------------------------
+# Phase 34X — chunked CSV ingestion jobs
+# ---------------------------------------------------------------------------
+
+
+class IngestionJobResponse(BaseModel):
+    """Compact projection of an :class:`IngestionJob` for the wizard.
+
+    Intentionally excludes ``pending_payload`` (which can be several
+    MB inline) so the polling loop stays cheap. The wizard never
+    needs the raw pending rows; it only needs progress counters.
+    """
+
+    job_id: UUID
+    project_id: UUID
+    upload_id: UUID
+    status: str
+    total_rows: int
+    processed_rows: int
+    inserted_products: int
+    progress_pct: float
+    errors_total: int
+    warnings_total: int
+    sample_errors: list[str]
+    chunk_size: int
+    started_at: str | None
+    completed_at: str | None
+    error_code: str | None
+    error_message: str | None
+
+
+def _ingestion_job_response(job: object) -> IngestionJobResponse:
+    from altera_api.domain.ingestion_job import IngestionJob
+
+    assert isinstance(job, IngestionJob)
+    return IngestionJobResponse(
+        job_id=job.id,
+        project_id=job.project_id,
+        upload_id=job.upload_id,
+        status=job.status.value,
+        total_rows=job.total_rows,
+        processed_rows=job.processed_rows,
+        inserted_products=job.inserted_products,
+        progress_pct=job.progress_pct,
+        errors_total=job.errors_total,
+        warnings_total=job.warnings_total,
+        sample_errors=list(job.sample_errors),
+        chunk_size=job.chunk_size,
+        started_at=job.started_at.isoformat() if job.started_at else None,
+        completed_at=job.completed_at.isoformat() if job.completed_at else None,
+        error_code=job.error_code,
+        error_message=job.error_message,
+    )
+
+
+@api_router.post(
+    "/projects/{project_id}/uploads/{upload_id}/ingestion-jobs",
+    response_model=IngestionJobResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_ingestion_job_route(
+    upload_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+    user_id: Annotated[UUID, Depends(current_user_id)],
+    file: Annotated[UploadFile, File(description="CSV file")],
+    column_mapping: Annotated[str | None, Form(...)] = None,
+    chunk_size: Annotated[int, Form()] = 500,
+) -> IngestionJobResponse:
+    """Phase 34X — start a chunked CSV ingestion job.
+
+    The route parses the CSV up-front (CPU-only, fast) and persists
+    the parsed product list inline on the job row. No products are
+    inserted into the products table here; that happens in the
+    follow-up ``/advance`` polling loop.
+    """
+    from altera_api.api.ingestion_job_orchestrator import (
+        create_ingestion_job,
+    )
+    from altera_api.api.orchestrator import (
+        _create_upload_record_for_ingestion_job,
+    )
+
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "missing_file",
+                "message": "file is required",
+            },
+        )
+    payload = await file.read()
+    pre_errors = validate_upload(
+        file.filename, payload, content_type=file.content_type
+    )
+    if pre_errors:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "invalid_csv",
+                "message": "; ".join(pre_errors),
+            },
+        )
+    parsed_mapping: dict[str, str] | None = None
+    if column_mapping:
+        try:
+            parsed_mapping = json.loads(column_mapping)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error_code": "invalid_mapping",
+                    "message": f"column_mapping is not valid JSON: {exc}",
+                },
+            ) from exc
+
+    # Parse CSV in pure Python (fast, no DB hits).
+    try:
+        parse_result = _create_upload_record_for_ingestion_job(
+            store,
+            project=project,
+            upload_id=upload_id,
+            file_bytes=payload,
+            original_filename=file.filename,
+            uploaded_by=user_id,
+            content_type=file.content_type,
+            column_mapping=parsed_mapping,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error_code": "ingestion_create_failed",
+                "message": str(exc) or "could not parse CSV",
+            },
+        ) from exc
+
+    job = create_ingestion_job(
+        store,
+        organisation_id=auth.organisation_id,
+        project=project,
+        upload_id=parse_result.upload.id,
+        parsed_products=list(parse_result.products),
+        mapping=parsed_mapping,
+        chunk_size=chunk_size,
+        created_by=user_id,
+        initial_errors_total=len(parse_result.report.errors),
+        initial_warnings_total=len(parse_result.report.warnings),
+        initial_sample_errors=tuple(
+            f"row {e.row_number}: {e.code}: {e.message}"
+            for e in parse_result.report.errors[:20]
+        ),
+    )
+    return _ingestion_job_response(job)
+
+
+@api_router.get(
+    "/projects/{project_id}/ingestion-jobs/{job_id}",
+    response_model=IngestionJobResponse,
+)
+def get_ingestion_job_route(
+    job_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+) -> IngestionJobResponse:
+    """Pure status read of an ingestion job."""
+    job = store.get_ingestion_job(job_id)
+    if job is None or job.project_id != project.id:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "ingestion_job_not_found",
+                "message": f"ingestion job {job_id} not found",
+            },
+        )
+    return _ingestion_job_response(job)
+
+
+@api_router.post(
+    "/projects/{project_id}/ingestion-jobs/{job_id}/advance",
+    response_model=IngestionJobResponse,
+)
+def advance_ingestion_job_route(
+    job_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+) -> IngestionJobResponse:
+    """Process the next chunk and return updated state."""
+    from altera_api.api.ingestion_job_orchestrator import (
+        advance_ingestion_job,
+    )
+
+    existing = store.get_ingestion_job(job_id)
+    if existing is None or existing.project_id != project.id:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "ingestion_job_not_found",
+                "message": f"ingestion job {job_id} not found",
+            },
+        )
+    try:
+        job = advance_ingestion_job(store, job_id, project=project)
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "ingestion_job_not_found",
+                "message": str(exc),
+            },
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error_code": "ingestion_advance_failed",
+                "message": str(exc) or "advance crashed",
+            },
+        ) from exc
+    return _ingestion_job_response(job)
+
+
 @api_router.get(
     "/projects/{project_id}/uploads",
     response_model=Page[UploadResponse],
