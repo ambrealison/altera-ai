@@ -19,10 +19,15 @@ import { useState } from "react";
 import { Button, Card, Pill } from "@/components/ui";
 import type {
   ColumnMappingEntry,
+  IngestionJob,
   MappingPreviewResult,
   UploadResult,
 } from "@/lib/api";
-import { ApiError, createApi } from "@/lib/api";
+import {
+  ApiError,
+  createApi,
+  INGESTION_JOB_TERMINAL_STATUSES,
+} from "@/lib/api";
 
 // Canonical fields the user can map a CSV column to. Kept in sync with
 // the legacy upload page; "ignore" is added as a sentinel for columns
@@ -187,6 +192,12 @@ export function InlineUpload({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMapping, setShowMapping] = useState(false);
+  // Phase 34Y — chunked ingestion job state. When non-null, the
+  // widget renders a progress bar instead of the submit button.
+  // ``transientError`` carries a temporary network-blip message that
+  // does NOT wipe job state (Phase 34W resilience pattern).
+  const [job, setJob] = useState<IngestionJob | null>(null);
+  const [transientError, setTransientError] = useState<string | null>(null);
 
   const api = createApi(accessToken);
 
@@ -221,31 +232,111 @@ export function InlineUpload({
     }
   }
 
+  /**
+   * Phase 34Y — chunked ingestion job flow.
+   *
+   * Replaces the single-request ``api.uploadCsv`` path that failed
+   * with "Failed to fetch" on 1050+ row CSVs because the synchronous
+   * route blocked Render's worker for ~60s. The new flow:
+   *
+   *   1. Mint a client-side upload UUID.
+   *   2. POST /uploads/{uid}/ingestion-jobs — returns within 1s.
+   *      Parses the CSV server-side but defers product inserts to
+   *      the advance loop.
+   *   3. Loop POST /ingestion-jobs/{jid}/advance — each call
+   *      processes one ``chunk_size`` (default 500) batch of
+   *      products in ~500ms.
+   *   4. When status is terminal, refresh workflow state.
+   *
+   * Transient 5xx / network errors do NOT wipe job state — they
+   * surface a "reconnecting" banner and the loop retries up to 5
+   * times before giving up.
+   */
+  async function pollJob(jobId: string) {
+    let consecutiveFailures = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        const updated = await api.advanceIngestionJob(projectId, jobId);
+        setJob(updated);
+        setTransientError(null);
+        consecutiveFailures = 0;
+        if (INGESTION_JOB_TERMINAL_STATUSES.includes(updated.status)) {
+          await onUploaded();
+          return;
+        }
+      } catch (e) {
+        consecutiveFailures += 1;
+        setTransientError(
+          "Connexion temporairement interrompue. Nouvelle tentative…",
+        );
+        if (consecutiveFailures >= 5) {
+          setError(
+            "Trop d'échecs réseau consécutifs. Cliquez sur Réessayer pour reprendre l'import.",
+          );
+          setTransientError(null);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 3000));
+        continue;
+      }
+      // Brief pause between successful advances so the wizard's
+      // progress bar feels responsive without hammering the API.
+      await new Promise((r) => setTimeout(r, 800));
+    }
+  }
+
   async function submit() {
     if (!file) return;
     setSubmitting(true);
     setError(null);
+    setTransientError(null);
     try {
-      // The server treats values that match canonical_field as no-ops; we
-      // only need to send entries where the user picked something
-      // different (or chose to ignore).
       const columnMapping: Record<string, string> = {};
       for (const [k, v] of Object.entries(overrides)) {
         if (v && v !== "__none__") columnMapping[k] = v;
       }
-      await api.uploadCsv(
+      // Mint the upload id client-side. The route param ties the
+      // ingestion job to a specific upload record from creation.
+      const uploadId = crypto.randomUUID();
+      const created = await api.createIngestionJob(
         projectId,
+        uploadId,
         file,
-        Object.keys(columnMapping).length > 0 ? columnMapping : undefined,
+        {
+          columnMapping:
+            Object.keys(columnMapping).length > 0 ? columnMapping : undefined,
+          chunkSize: 500,
+        },
       );
-      await onUploaded();
+      setJob(created);
+      await pollJob(created.job_id);
+      // Cleanup is only done on success — failed/cancelled jobs keep
+      // the file picker populated so the user can retry.
       setFile(null);
       setPreview(null);
       setOverrides({});
     } catch (e) {
       if (e instanceof ApiError && typeof e.detail === "object" && e.detail) {
-        const d = e.detail as { message?: string };
-        setError(d.message ?? `${e.status} ${e}`);
+        const d = e.detail as { message?: string; error_code?: string };
+        // Phase 34Y — map known ingestion error codes to friendly French.
+        const friendly =
+          d.error_code === "invalid_csv"
+            ? `Fichier CSV invalide : ${d.message ?? "vérifier l'encodage / le format"}`
+            : d.error_code === "invalid_mapping"
+            ? `Mapping invalide : ${d.message ?? "vérifier les correspondances"}`
+            : d.error_code === "ingestion_create_failed"
+            ? "Le serveur n'a pas pu créer la tâche d'import. Réessayez."
+            : d.error_code === "ingestion_advance_failed"
+            ? "Le serveur a rencontré une erreur pendant l'import. Réessayez."
+            : d.error_code === "ingestion_job_not_found"
+            ? "Tâche d'import introuvable — le serveur a peut-être redémarré. Re-cliquez Importer."
+            : d.message;
+        setError(friendly ?? `${e.status} ${e}`);
+      } else if (e instanceof Error && e.message.includes("Failed to fetch")) {
+        setError(
+          "Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.",
+        );
       } else {
         setError(e instanceof Error ? e.message : "Échec de l’import.");
       }
@@ -381,12 +472,31 @@ export function InlineUpload({
               />
             )}
 
+            {/* Phase 34Y — chunked ingestion progress bar. Renders
+                while a job is queued/running and remains visible
+                after a terminal status for a moment so the user
+                sees the final counts. */}
+            {job && (
+              <div className="mt-3 space-y-2">
+                <IngestionJobProgress job={job} transient={transientError} />
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2 pt-1">
               <Button
                 onClick={() => void submit()}
-                disabled={submitting || !productNameMapped}
+                disabled={
+                  submitting ||
+                  !productNameMapped ||
+                  (job !== null &&
+                    !INGESTION_JOB_TERMINAL_STATUSES.includes(job.status))
+                }
               >
-                {submitting ? "Import en cours…" : "Importer le fichier"}
+                {submitting && job
+                  ? `Import en cours… (${job.processed_rows}/${job.total_rows})`
+                  : submitting
+                  ? "Import en cours…"
+                  : "Importer le fichier"}
               </Button>
               <Button
                 variant="ghost"
@@ -395,8 +505,14 @@ export function InlineUpload({
                   setPreview(null);
                   setOverrides({});
                   setShowMapping(false);
+                  setJob(null);
+                  setTransientError(null);
                 }}
-                disabled={submitting}
+                disabled={
+                  submitting ||
+                  (job !== null &&
+                    !INGESTION_JOB_TERMINAL_STATUSES.includes(job.status))
+                }
               >
                 Annuler
               </Button>
@@ -404,6 +520,92 @@ export function InlineUpload({
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+
+/**
+ * Phase 34Y — presentational progress component for the chunked
+ * ingestion job. Pure: all state comes from the ``job`` prop. The
+ * widget never fetches; the parent owns the polling loop.
+ */
+function IngestionJobProgress({
+  job,
+  transient,
+}: {
+  job: IngestionJob;
+  transient: string | null;
+}) {
+  const pct = Math.max(0, Math.min(100, Math.round(job.progress_pct)));
+  const tone =
+    job.status === "completed"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+      : job.status === "completed_with_errors"
+      ? "border-amber-200 bg-amber-50 text-amber-900"
+      : job.status === "failed"
+      ? "border-rose-200 bg-rose-50 text-rose-900"
+      : job.status === "cancelled"
+      ? "border-gray-200 bg-gray-50 text-gray-700"
+      : "border-brand-200 bg-brand-50 text-brand-900";
+  const badge =
+    job.status === "queued"
+      ? "En file d'attente"
+      : job.status === "running"
+      ? "Import en cours…"
+      : job.status === "completed"
+      ? "Import terminé"
+      : job.status === "completed_with_errors"
+      ? "Terminé avec erreurs"
+      : job.status === "failed"
+      ? "Échec"
+      : "Annulé";
+  return (
+    <div className={`rounded-md border px-3 py-2 text-sm ${tone}`}>
+      <div className="flex items-center justify-between">
+        <div className="font-medium">{badge}</div>
+        <div className="text-xs opacity-70">
+          {job.processed_rows}/{job.total_rows} · {pct.toFixed(0)}%
+        </div>
+      </div>
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/60">
+        <div
+          className="h-full rounded-full bg-current opacity-60 transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="mt-2 text-xs font-medium">
+        {job.inserted_products} produit(s) insérés
+        {job.errors_total > 0 && <> · {job.errors_total} erreur(s)</>}
+        {job.warnings_total > 0 && <> · {job.warnings_total} avertissement(s)</>}
+      </div>
+      {(job.status === "running" || job.status === "queued") && (
+        <div className="mt-2 text-xs opacity-80">
+          {"Vous pouvez laisser cette page ouverte — la progression est sauvegardée côté serveur."}
+        </div>
+      )}
+      {transient && (
+        <div className="mt-2 text-xs opacity-90">{transient}</div>
+      )}
+      {job.error_message && (
+        <div className="mt-2 text-xs">
+          <strong>{job.error_code ?? "Erreur"} :</strong> {job.error_message}
+        </div>
+      )}
+      {job.sample_errors.length > 0 && (
+        <details className="mt-1">
+          <summary className="cursor-pointer text-xs opacity-80 hover:underline">
+            Voir un échantillon des erreurs ({job.sample_errors.length})
+          </summary>
+          <ul className="mt-1 list-disc pl-4 text-xs opacity-80">
+            {job.sample_errors.slice(0, 10).map((m, i) => (
+              <li key={i} className="break-all">
+                {m}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

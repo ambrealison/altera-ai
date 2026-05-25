@@ -276,6 +276,42 @@ export interface ClassifySummary {
   unknown_total: number;
 }
 
+// Phase 34X — async, chunked CSV ingestion jobs.
+
+export type IngestionJobStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "completed_with_errors"
+  | "failed"
+  | "cancelled";
+
+export interface IngestionJob {
+  job_id: string;
+  project_id: string;
+  upload_id: string;
+  status: IngestionJobStatus;
+  total_rows: number;
+  processed_rows: number;
+  inserted_products: number;
+  progress_pct: number;
+  errors_total: number;
+  warnings_total: number;
+  sample_errors: string[];
+  chunk_size: number;
+  started_at: string | null;
+  completed_at: string | null;
+  error_code: string | null;
+  error_message: string | null;
+}
+
+export const INGESTION_JOB_TERMINAL_STATUSES: IngestionJobStatus[] = [
+  "completed",
+  "completed_with_errors",
+  "failed",
+  "cancelled",
+];
+
 // Phase 34R — async, chunked AI classification jobs.
 
 export type ClassificationJobStatus =
@@ -1062,6 +1098,51 @@ export function createApi(accessToken: string | null) {
         accessToken,
       );
     },
+
+    // Phase 34Y — chunked CSV ingestion job (Phase 34X backend).
+    // The wizard uses this in place of `uploadCsv` for all files:
+    // create returns quickly with a job id, then the wizard polls
+    // advance until the job is terminal. Each request stays well
+    // under Render's HTTP timeout regardless of file size.
+    //
+    // Frontend mints a UUID for the upload_id so the path parameter
+    // is known before the multipart request returns; the backend
+    // creates the Upload record up-front with that id and the
+    // ingestion job processes products into it chunk-by-chunk.
+    createIngestionJob: async (
+      projectId: string,
+      uploadId: string,
+      file: File,
+      options?: { columnMapping?: Record<string, string>; chunkSize?: number },
+    ): Promise<IngestionJob> => {
+      const fd = new FormData();
+      fd.append("file", file);
+      if (options?.columnMapping) {
+        fd.append("column_mapping", JSON.stringify(options.columnMapping));
+      }
+      if (options?.chunkSize != null) {
+        fd.append("chunk_size", String(options.chunkSize));
+      }
+      return request<IngestionJob>(
+        `/api/v1/projects/${projectId}/uploads/${uploadId}/ingestion-jobs`,
+        { method: "POST", body: fd },
+        accessToken,
+      );
+    },
+
+    getIngestionJob: (projectId: string, jobId: string) =>
+      request<IngestionJob>(
+        `/api/v1/projects/${projectId}/ingestion-jobs/${jobId}`,
+        { method: "GET" },
+        accessToken,
+      ),
+
+    advanceIngestionJob: (projectId: string, jobId: string) =>
+      request<IngestionJob>(
+        `/api/v1/projects/${projectId}/ingestion-jobs/${jobId}/advance`,
+        { method: "POST" },
+        accessToken,
+      ),
 
     prepareUpload: (projectId: string, filename: string): Promise<PrepareUploadResult> =>
       request<PrepareUploadResult>(
