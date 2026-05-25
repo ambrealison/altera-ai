@@ -168,8 +168,15 @@ class TestRunCreateRequest:
 
 
 class TestPromptV4:
-    def test_version_bumped_to_v4(self) -> None:
-        assert BATCH_CLASSIFIER_PROMPT_VERSION.endswith("v4")
+    def test_version_bumped_to_v4_or_higher(self) -> None:
+        # Bumped to v4 in Phase 34U; subsequent phases continue
+        # incrementing (v5 in Phase 34V). The contract is "≥ v4".
+        ver = BATCH_CLASSIFIER_PROMPT_VERSION
+        # Extract the trailing version number.
+        m = ver.rsplit("v", 1)
+        assert len(m) == 2 and m[1].isdigit() and int(m[1]) >= 4, (
+            f"prompt version {ver!r} is below v4"
+        )
 
     def test_composite_rules_call_out_biscuits_cakes_with_dairy(
         self,

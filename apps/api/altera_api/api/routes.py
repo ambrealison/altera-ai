@@ -2267,7 +2267,29 @@ def create_run(
         )
         blockers = list(calc_step.blocking_reasons) if calc_step else []
         if body.allow_partial:
-            blockers = [b for b in blockers if b.code != "nutrition_required"]
+            # Phase 34V — partial mode is the user explicitly opting
+            # in to "compute on whatever rows are ready". Strip the
+            # blockers that describe per-product readiness gaps; the
+            # calc engine drops those rows naturally and the
+            # zero_usable_nutrition guard catches the catastrophic
+            # "nothing is ready" case after the run executes.
+            #
+            # Hard blockers that stay even in partial mode:
+            #   - no_eligible_products (literally zero PT products)
+            #
+            # Stripped in partial mode (these describe rows the
+            # engine will skip, not rows that block the engine):
+            #   - nutrition_required   — no usable protein on some rows
+            #   - review_pending       — products still in needs_review
+            #   - classification_required — products without category
+            _PARTIAL_OK_CODES = {
+                "nutrition_required",
+                "review_pending",
+                "classification_required",
+            }
+            blockers = [
+                b for b in blockers if b.code not in _PARTIAL_OK_CODES
+            ]
         run_ready = (
             calc_step is not None
             and (
@@ -4503,6 +4525,58 @@ def apply_reference_enrichment_route(
                 and match.entry.protein_g_per_100g is not None
                 and match.match_type != "food_group_average"
             ):
+                # Phase 34V — family-compatibility guard. Fuzzy token
+                # matching produced ~40% precision in production
+                # (Corn Flakes ↔ chicken schnitzel, Vinaigre ↔ pork
+                # brawn, etc.). Reject matches where the retailer
+                # product and the NEVO candidate live in incompatible
+                # food families. Wrong nutrition is worse than
+                # missing nutrition for the calculation.
+                from altera_api.enrichment.family_guard import (
+                    is_family_compatible,
+                    nevo_candidate_family,
+                    product_family,
+                )
+
+                p_family = product_family(product.product_name)
+                c_family = nevo_candidate_family(
+                    match.entry.food_group, match.entry.food_name_en
+                )
+                if not is_family_compatible(p_family, c_family):
+                    # Record a FAILED enrichment with a clear rationale so
+                    # the wizard's NEVO panel can explain WHY a candidate
+                    # was rejected ("Sans correspondance" with reason).
+                    store.add_enrichment_record(
+                        _record(
+                            product.id,
+                            "protein_pct",
+                            None,
+                            NutritionEnrichmentSource.NEVO,
+                            None,
+                            (
+                                f"NEVO candidate rejected: "
+                                f"product family {p_family.value!r} "
+                                f"incompatible with candidate family "
+                                f"{c_family.value!r} "
+                                f"(candidate {match.entry.food_name_en!r})"
+                            ),
+                            status=NutritionEnrichmentStatus.FAILED,
+                            match_method="none",
+                        )
+                    )
+                    counts["no_match"] += 1
+                    product_results.append(
+                        ProductEnrichmentDetail(
+                            product_id=str(product.id),
+                            product_name=product.product_name,
+                            outcome="no_match",
+                            source=None,
+                            reference_name=None,
+                            match_type="family_mismatch",
+                            has_split=False,
+                        )
+                    )
+                    continue
                 rationale = (
                     f"NEVO {match.entry.source_version}: {match.match_type} "
                     f"match on {match.entry.food_name_en!r} "

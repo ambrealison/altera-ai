@@ -36,12 +36,18 @@ from altera_api.domain.common import Methodology
 #: Phase 34T v3 — corrected the plant_based_core / plant_based_non_core
 #: split.
 #: Phase 34U v4 — explicit COMPOSITE coverage of biscuits/cakes/ice
-#: cream containing butter/egg/milk (the model previously sent these
-#: to plant_based_non_core, missing the animal-protein contribution).
-#: Plus explicit OUT_OF_SCOPE rule for beverages with no significant
-#: protein contribution (water, soda, coffee, tea) so the model stops
-#: putting them in plant_based_core.
-BATCH_CLASSIFIER_PROMPT_VERSION = "batch_classifier_v4"
+#: cream containing butter/egg/milk + explicit OUT_OF_SCOPE rule for
+#: water/soda/coffee/tea.
+#: Phase 34V v5 — final edge-case sweep from the 91%-correct test:
+#:   - Hygiene / cleaning / pet-food MUST be out_of_scope, not unknown.
+#:   - Honey / pure sugar / pure flavourings → out_of_scope (no
+#:     meaningful protein).
+#:   - "Blinis Moelleux", "Épinards Crème", "Baguettes Viennoises",
+#:     bakery products likely containing milk / butter / egg →
+#:     composite (the model previously sent these to non_core).
+#:   - unknown ONLY for truly unusable names (empty, "Divers",
+#:     "Produit 123"). NEVER for non-food (which is out_of_scope).
+BATCH_CLASSIFIER_PROMPT_VERSION = "batch_classifier_v5"
 
 #: Default batch size. Chosen so a typical batch fits comfortably under
 #: gpt-4o-mini's context and leaves >2k tokens for the response.
@@ -143,6 +149,26 @@ PROTEIN TRACKER TAXONOMY (Phase 34T — strict):
    code with no description, unreadable text. If the name is
    interpretable, pick the best category and lower confidence.
 
+   IMPORTANT (Phase 34V): obvious non-food products (Papier
+   Toilette, Couches bébé, Dentifrice, Lessive, Croquettes Chat,
+   Pâtée Chien, Shampooing, Essuie-Tout, Nettoyant Multi-Usages)
+   MUST be ``out_of_scope``, NEVER ``unknown``. The product name
+   IS interpretable — it just isn't human food.
+
+   Pure flavourings with no meaningful protein (Miel de Fleurs,
+   Sucre, Sel, Poivre, Vinaigre seul) are also ``out_of_scope``,
+   not ``unknown``.
+
+   Bakery products likely containing milk / butter / egg
+   (Blinis Moelleux, Baguettes Viennoises, Pain au Lait,
+   Brioches industrielles) are ``composite_products`` even if
+   the recipe isn't spelled out — most retailer viennoiseries
+   carry dairy / egg / butter and the safe default is composite.
+
+   Vegetable products served in cream / butter / cheese sauce
+   (Épinards à la Crème, Gratin Dauphinois) are
+   ``composite_products`` because they carry dairy protein.
+
 Confidence calibration:
 - 0.90–0.99 — obvious foods: "Pommes Golden", "Carottes",
   "Tofu nature", "Blanc de Poulet", "Lait demi-écrémé",
@@ -224,14 +250,33 @@ composite_products (animal + plant in same recipe):
 - "Glace à la Vanille" → composite_products (0.88)  # dairy
 - "Crème Brûlée" → composite_products (0.92)
 - "Mousse au Chocolat" → composite_products (0.85)
+- # Phase 34V — bakery products likely w/ milk/butter/egg → composite:
+- "Blinis Moelleux" → composite_products (0.80)
+- "Baguettes Viennoises" → composite_products (0.78)
+- "Pain au Lait" → composite_products (0.85)
+- "Brioche Tranchée" → composite_products (0.85)
+- # Vegetables in cream/butter sauce → composite:
+- "Épinards à la Crème" → composite_products (0.88)
+- "Épinards Branches Crème" → composite_products (0.85)
+- "Purée de Pommes de Terre au Lait" → composite_products (0.82)
 
 out_of_scope (non-food, hygiene, pet food, beverages w/o protein):
 - "Lessive Liquide 3L" → out_of_scope (0.99)
 - "Dentifrice Menthe" → out_of_scope (0.99)
 - "Papier Toilette" → out_of_scope (0.99)
+- "Essuie-Tout" → out_of_scope (0.99)
+- "Couches Bébé Taille 4" → out_of_scope (0.99)
 - "Croquettes pour Chien" → out_of_scope (0.97)
+- "Croquettes pour Chat" → out_of_scope (0.97)
+- "Pâtée Chien" → out_of_scope (0.97)
+- "Pâtée Chat" → out_of_scope (0.97)
 - "Shampooing Doux" → out_of_scope (0.99)
 - "Savon de Marseille" → out_of_scope (0.99)
+- "Nettoyant Multi-Usages" → out_of_scope (0.99)
+- "Lingettes Désinfectantes" → out_of_scope (0.99)
+- # Pure flavourings (Phase 34V — these were going to unknown):
+- "Miel de Fleurs" → out_of_scope (0.92)  # negligible protein
+- "Confiture de Fraises" → out_of_scope (0.88)
 - # Beverages with negligible protein:
 - "Eau Minérale Naturelle 1.5L" → out_of_scope (0.97)
 - "Coca-Cola 1.5L" → out_of_scope (0.96)  # soda
