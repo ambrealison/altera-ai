@@ -330,10 +330,41 @@ def get_workflow_status_route(
     render the stepper, progress bar, blocking reasons, and the single
     "next recommended action" CTA. The same payload also powers the
     Phase 34A run preflight so the gate is identical end-to-end.
+
+    Phase 34Z-fix — production diagnostics. The workflow-status path
+    is currently the most likely 1050-row trip-wire (PostgREST URL
+    limits + Supabase RTT amplification). We log start + end + total
+    duration so Render logs surface the slow project_id immediately
+    when an incident recurs. The duration is the only extra cost on
+    the hot path.
     """
+    import logging
+    import time
+
     from altera_api.api.workflow import compute_workflow_status
 
-    status_obj = compute_workflow_status(store, project)
+    log = logging.getLogger("altera_api.workflow_status")
+    t0 = time.perf_counter()
+    try:
+        status_obj = compute_workflow_status(store, project)
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log.exception(
+            "workflow_status.failed project_id=%s elapsed_ms=%.1f "
+            "exc=%s: %s",
+            project.id,
+            elapsed_ms,
+            type(exc).__name__,
+            exc,
+        )
+        raise
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    log.info(
+        "workflow_status.ok project_id=%s elapsed_ms=%.1f steps=%d",
+        project.id,
+        elapsed_ms,
+        len(status_obj.steps),
+    )
     return WorkflowStatusResponse(
         project_id=status_obj.project_id,
         methodologies_enabled=status_obj.methodologies_enabled,

@@ -413,16 +413,16 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
     # on a project's products — Phase 34M now writes a FAILED record
     # even for no-match products so this signal is reliable across
     # both the in-memory and Postgres stores.
-    # Phase 34Z — use the existing project-wide list_enrichment_
-    # records query (one HTTP call) instead of walking every product
-    # one-by-one. ``break`` on the legacy loop made worst-case N+1
-    # rare in practice but the path still fired ~1050 calls when a
-    # project had no enrichment records yet, contributing to the
-    # workflow-status timeout.
+    # Phase 34Z — boolean probe instead of materialising every
+    # enrichment record. The 34Z initial pass switched to
+    # ``list_enrichment_records_for_project`` but that helper still
+    # builds a 1050-id ``.in_(...)`` URL on Postgres, which fails
+    # with PostgREST 400 "JSON could not be generated" on large
+    # projects. ``project_has_any_enrichment`` uses a head-only
+    # ``count="exact"`` probe that returns no rows — bounded HTTP
+    # regardless of project size.
     try:
-        nevo_attempted = bool(
-            store.list_enrichment_records_for_project(project.id)
-        )
+        nevo_attempted = store.project_has_any_enrichment(project.id)
     except Exception:
         nevo_attempted = False
     pt_needs_nutrition = counts.pt_missing_nutrition

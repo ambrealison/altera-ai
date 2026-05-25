@@ -249,6 +249,12 @@ class StoreProtocol(Protocol):
     def get_enrichment_records_bulk(
         self, product_ids: list[UUID]
     ) -> dict[UUID, list[NutritionEnrichmentRecord]]: ...
+    # Phase 34Z-fix — boolean probe for ``nevo_attempted``.
+    # ``compute_workflow_status`` only needs "did NEVO ever run?",
+    # which doesn't require loading every record. The Postgres impl
+    # uses a count-only ``head=True`` query; the in-memory impl
+    # checks dict size.
+    def project_has_any_enrichment(self, project_id: UUID) -> bool: ...
 
     # ------------------------------------------------------------------
     # Nutrition reference tables (Phase 33H — NEVO and CIQUAL lookup)

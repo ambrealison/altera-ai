@@ -803,6 +803,20 @@ class InMemoryStore:
                 out[pid] = list(recs)
         return out
 
+    def project_has_any_enrichment(self, project_id: UUID) -> bool:
+        """Phase 34Z-fix — boolean probe used by workflow-status to
+        decide ``nevo_attempted``. Avoids materialising every
+        enrichment record for a 15K-row project just to test
+        ``bool(...)``.
+        """
+        for pid, recs in self.enrichment_records.items():
+            if not recs:
+                continue
+            product = self.products.get(pid)
+            if product is not None and product.project_id == project_id:
+                return True
+        return False
+
     def list_enrichment_records_for_project(
         self, project_id: UUID
     ) -> list[NutritionEnrichmentRecord]:

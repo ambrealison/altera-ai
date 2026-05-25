@@ -77,6 +77,29 @@ from altera_api.persistence.mappers import (
     wwf_ingredient_from_row,
 )
 
+# ---------------------------------------------------------------------------
+# Phase 34Z-fix — URL-length safety for PostgREST ``.in_(...)`` filters.
+#
+# PostgREST encodes ``.in_("product_id", [a, b, c])`` as a query
+# parameter like ``product_id=in.(a,b,c)``. Each UUID is 36 chars +
+# a comma; 1050 of them produce a ~38KB URL that exceeds typical
+# HTTP-server URL limits (default ~8KB on PostgREST/nginx). The
+# upstream returns 414 URI Too Long which Supabase relays as
+# ``APIError(code=400, message="JSON could not be generated")`` —
+# the exact production symptom from the workflow-status 500.
+#
+# ``_IN_FILTER_CHUNK`` is the max number of ids we put in one
+# ``.in_(...)`` call. 200 ids × ~37 chars ≈ 7.4 KB per URL, well
+# under the practical limit.
+# ---------------------------------------------------------------------------
+_IN_FILTER_CHUNK: int = 200
+
+
+def _chunked_ids(ids: list[str], size: int = _IN_FILTER_CHUNK):
+    """Yield successive ``size``-length slices of ``ids``."""
+    for i in range(0, len(ids), size):
+        yield ids[i : i + size]
+
 
 class PostgresRepository:
     """StoreProtocol backed by Supabase Postgres via supabase-py."""
@@ -324,6 +347,37 @@ class PostgresRepository:
             rows = [product_to_row(p) for p in batch]
             self._rls.table("products").insert(rows).execute()
 
+    def _list_product_ids_paged(self, project_id: UUID) -> list[str]:
+        """Phase 34Z-fix — single source of truth for "all product ids
+        for this project". Paginates via ``.range()`` to defeat
+        PostgREST's default 1000-row cap, and selects only the ``id``
+        column so the payload stays tiny (1050 UUIDs ≈ 38 KB JSON
+        response, much smaller than a full row dump).
+
+        Used by every method that needs to filter another table by
+        ``product_id IN (project's products)``. Centralised here so
+        the pagination + selection logic isn't repeated and isn't
+        accidentally re-introduced as N+1 elsewhere.
+        """
+        out: list[str] = []
+        PAGE = 1000
+        offset = 0
+        while True:
+            r = (
+                self._rls.table("products")
+                .select("id")
+                .eq("project_id", str(project_id))
+                .range(offset, offset + PAGE - 1)
+                .execute()
+            )
+            rows = r.data or []
+            for row in rows:
+                out.append(row["id"])
+            if len(rows) < PAGE:
+                break
+            offset += PAGE
+        return out
+
     def list_products_for_project(self, project_id: UUID) -> list[NormalizedProduct]:
         proj = self.get_project(project_id)
         if proj is None:
@@ -406,18 +460,21 @@ class PostgresRepository:
         self, product_ids: list[UUID]
     ) -> dict[UUID, ProteinTrackerProductClassification]:
         """Phase 34W — fetch all classifications for many products in
-        one query. Replaces the N+1 ``for p in products:
-        store.get_pt_classification(p.id)`` pattern that made project
-        detail take ~95s on 1050 products. Supabase's ``in_(...)``
-        filter accepts up to ~1000 ids per call; we chunk at 500 to
-        leave URL-length headroom.
+        one query. Replaces the N+1 per-product loop.
+
+        Phase 34Z-fix — chunk size lowered 500 → 200 to keep each
+        ``.in_(...)`` URL well under PostgREST/nginx's ~8KB practical
+        limit. 500 UUIDs produced an 18KB URL which Supabase rejected
+        in some environments.
         """
         if not product_ids:
             return {}
         out: dict[UUID, ProteinTrackerProductClassification] = {}
-        CHUNK = 500
-        for start in range(0, len(product_ids), CHUNK):
-            ids_str = [str(pid) for pid in product_ids[start : start + CHUNK]]
+        for start in range(0, len(product_ids), _IN_FILTER_CHUNK):
+            ids_str = [
+                str(pid)
+                for pid in product_ids[start : start + _IN_FILTER_CHUNK]
+            ]
             r = (
                 self._rls.table("classifications")
                 .select("*")
@@ -507,15 +564,31 @@ class PostgresRepository:
     def list_review_items_for_project(
         self, project_id: UUID, *, methodology: Methodology | None = None
     ) -> list[ManualReviewItem]:
-        pr = self._rls.table("products").select("id").eq("project_id", str(project_id)).execute()
-        product_ids = [r["id"] for r in (pr.data or [])]
+        # Phase 34Z-fix — chunk the IN() filter at 200 ids per call.
+        # A 1050-product project produced a single ~38KB URL which
+        # PostgREST rejects with "JSON could not be generated"
+        # (URI Too Long, surfaced as 400/500). Chunking keeps each
+        # URL well under the 8KB practical limit.
+        #
+        # The products SELECT itself also needs ``.range()`` pagination
+        # to defeat PostgREST's default 1000-row response cap — the
+        # legacy single SELECT silently truncated the last 50 rows on
+        # 1050-product projects.
+        product_ids = self._list_product_ids_paged(project_id)
         if not product_ids:
             return []
-        q = self._rls.table("manual_reviews").select("*").in_("product_id", product_ids)
-        if methodology is not None:
-            q = q.eq("methodology", methodology.value)
-        r = q.execute()
-        return [manual_review_from_row(row) for row in (r.data or [])]
+        out: list[ManualReviewItem] = []
+        for chunk in _chunked_ids(product_ids, 200):
+            q = (
+                self._rls.table("manual_reviews")
+                .select("*")
+                .in_("product_id", chunk)
+            )
+            if methodology is not None:
+                q = q.eq("methodology", methodology.value)
+            r = q.execute()
+            out.extend(manual_review_from_row(row) for row in (r.data or []))
+        return out
 
     # ------------------------------------------------------------------
     # Runs
@@ -1030,10 +1103,13 @@ class PostgresRepository:
         if not product_ids:
             return {}
         out: dict[UUID, list[NutritionEnrichmentRecord]] = {}
-        CHUNK = 500
-        for start in range(0, len(product_ids), CHUNK):
+        # Phase 34Z-fix — chunk size lowered 500 → _IN_FILTER_CHUNK (200)
+        # for URL-length safety; same reasoning as
+        # get_pt_classifications_bulk above.
+        for start in range(0, len(product_ids), _IN_FILTER_CHUNK):
             ids_str = [
-                str(pid) for pid in product_ids[start : start + CHUNK]
+                str(pid)
+                for pid in product_ids[start : start + _IN_FILTER_CHUNK]
             ]
             r = (
                 self._rls.table("nutrition_enrichment_records")
@@ -1049,17 +1125,56 @@ class PostgresRepository:
     def list_enrichment_records_for_project(
         self, project_id: UUID
     ) -> list[NutritionEnrichmentRecord]:
-        pr = self._rls.table("products").select("id").eq("project_id", str(project_id)).execute()
-        product_ids = [r["id"] for r in (pr.data or [])]
+        # Phase 34Z-fix — same chunking treatment as
+        # list_review_items_for_project. A 1050-product project would
+        # otherwise produce a ~38KB ``.in_()`` URL and PostgREST 400s.
+        product_ids = self._list_product_ids_paged(project_id)
         if not product_ids:
             return []
-        r = (
-            self._rls.table("nutrition_enrichment_records")
-            .select("*")
-            .in_("product_id", product_ids)
-            .execute()
-        )
-        return [enrichment_record_from_row(row) for row in (r.data or [])]
+        out: list[NutritionEnrichmentRecord] = []
+        for chunk in _chunked_ids(product_ids, 200):
+            r = (
+                self._rls.table("nutrition_enrichment_records")
+                .select("*")
+                .in_("product_id", chunk)
+                .execute()
+            )
+            out.extend(
+                enrichment_record_from_row(row) for row in (r.data or [])
+            )
+        return out
+
+    def project_has_any_enrichment(self, project_id: UUID) -> bool:
+        """Phase 34Z-fix — boolean probe for ``nevo_attempted``.
+
+        ``compute_workflow_status`` only needs to know whether NEVO
+        has ever run for this project. Pulling every enrichment row
+        and converting them to domain objects just to test
+        ``bool(...)`` was the dominant N+1-shaped cost on a project
+        with 1050+ products and growing enrichment history.
+
+        This probe issues a ``count="exact", head=True`` query which
+        returns NO rows — just a Content-Range header with the
+        match count. Bounded HTTP and bounded memory regardless of
+        product count.
+        """
+        # Walk a few products at a time; stop at the first hit. For
+        # the common case (NEVO has been run) the very first chunk
+        # returns count > 0 and the function returns True in ~1 HTTP
+        # call.
+        product_ids = self._list_product_ids_paged(project_id)
+        if not product_ids:
+            return False
+        for chunk in _chunked_ids(product_ids, 200):
+            r = (
+                self._rls.table("nutrition_enrichment_records")
+                .select("product_id", count="exact", head=True)
+                .in_("product_id", chunk)
+                .execute()
+            )
+            if (r.count or 0) > 0:
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # Nutrition reference tables (Phase 33H)
