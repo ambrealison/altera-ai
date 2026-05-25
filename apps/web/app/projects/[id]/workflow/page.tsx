@@ -1674,10 +1674,15 @@ export default function WorkflowWizardPage() {
             return;
           }
           if (d.error_code === "heavy_job_in_progress") {
+            // Phase 36A — this 409 now means a heavy job is ACTIVELY
+            // running (last advance < 2 min ago). Paused/idle jobs
+            // no longer trip the guard; if the wizard hits this, the
+            // platform really is processing something else right now.
             setActionError(
-              "Un traitement volumineux est déjà en cours sur la plateforme. " +
-                "Il peut provenir d'une autre organisation. Réessayez dans " +
-                "quelques minutes ou reprenez votre traitement en cours.",
+              "Un traitement volumineux est actuellement en cours sur la " +
+                "plateforme. Il peut provenir d'une autre organisation. " +
+                "Réessayez dans quelques minutes — un traitement en pause " +
+                "sur votre fichier reste reprenable.",
             );
             return;
           }

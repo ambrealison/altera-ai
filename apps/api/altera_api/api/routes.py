@@ -670,14 +670,17 @@ async def create_ingestion_job_route(
     # certainly contains 1000+ rows. Apply the cheap pre-parse
     # check so we reject heavy ingestion before paying parse cost.
     if len(payload) >= 100 * 1024:
+        # Phase 36A — only jobs with a recent advance count as
+        # blockers; paused-but-resumable jobs (advanced > active
+        # window but < stale window ago) are silently let through.
         try:
             active_class = store.count_active_heavy_classification_jobs(
                 min_total_products=_HEAVY_CLASSIFICATION_THRESHOLD,
-                max_age_minutes=_HEAVY_JOB_STALE_MINUTES,
+                max_age_minutes=_HEAVY_JOB_ACTIVE_MINUTES,
             )
             active_ingest = store.count_active_heavy_ingestion_jobs(
                 min_total_rows=_HEAVY_INGESTION_THRESHOLD,
-                max_age_minutes=_HEAVY_JOB_STALE_MINUTES,
+                max_age_minutes=_HEAVY_JOB_ACTIVE_MINUTES,
             )
         except Exception:
             active_class = active_ingest = 0
@@ -1386,6 +1389,22 @@ _HEAVY_INGESTION_THRESHOLD: int = int(
 _HEAVY_JOB_STALE_MINUTES: int = int(
     os.environ.get("ALTERA_HEAVY_JOB_STALE_MINUTES", "30")
 )
+# Phase 36A — distinguish "actively running right now" from "paused
+# but resumable". The heavy-job guard only treats a job as a blocker
+# if it has advanced within ``_HEAVY_JOB_ACTIVE_MINUTES``; anything
+# older is treated as paused (still findable via Phase 35A resume
+# short-circuit for its own upload, but invisible to the cross-org
+# guard). Anything older than ``_HEAVY_JOB_STALE_MINUTES`` is stale
+# and gets auto-cancelled by the self-heal pass.
+#
+# Default of 2 min matches Render's typical advance cadence: the
+# wizard polls every ~1.5s, so a healthy job always has an
+# ``updated_at`` < 60s. 2 min gives plenty of headroom for one slow
+# OpenAI batch without letting a closed-tab job lock out the
+# platform indefinitely.
+_HEAVY_JOB_ACTIVE_MINUTES: int = int(
+    os.environ.get("ALTERA_HEAVY_JOB_ACTIVE_MINUTES", "2")
+)
 
 
 @api_router.post(
@@ -1478,16 +1497,21 @@ def create_classification_job_route(
         len(upload_record.product_ids) >= _HEAVY_CLASSIFICATION_THRESHOLD
     )
     if will_be_heavy:
+        # Phase 36A — guard uses the ACTIVE window (2 min) not the
+        # stale window (30 min). A paused job whose last advance is
+        # 5 min old is resumable (same-upload short-circuit above
+        # would have caught it) but does NOT block other heavy jobs
+        # on other uploads / orgs.
         try:
             active_heavy_class = (
                 store.count_active_heavy_classification_jobs(
                     min_total_products=_HEAVY_CLASSIFICATION_THRESHOLD,
-                    max_age_minutes=_HEAVY_JOB_STALE_MINUTES,
+                    max_age_minutes=_HEAVY_JOB_ACTIVE_MINUTES,
                 )
             )
             active_heavy_ingest = store.count_active_heavy_ingestion_jobs(
                 min_total_rows=_HEAVY_INGESTION_THRESHOLD,
-                max_age_minutes=_HEAVY_JOB_STALE_MINUTES,
+                max_age_minutes=_HEAVY_JOB_ACTIVE_MINUTES,
             )
         except Exception:
             active_heavy_class = active_heavy_ingest = 0
@@ -1535,10 +1559,11 @@ def create_classification_job_route(
                 detail={
                     "error_code": "heavy_job_in_progress",
                     "message": (
-                        "Un traitement volumineux est déjà en cours sur "
-                        "la plateforme. Il peut provenir d'une autre "
-                        "organisation. Réessayez dans quelques minutes "
-                        "ou reprenez votre traitement en cours."
+                        "Un traitement volumineux est actuellement en cours "
+                        "sur la plateforme. Il peut provenir d'une autre "
+                        "organisation. Réessayez dans quelques minutes — "
+                        "un traitement en pause sur votre fichier reste "
+                        "reprenable."
                     ),
                     "active_classification_jobs": active_heavy_class,
                     "active_ingestion_jobs": active_heavy_ingest,
