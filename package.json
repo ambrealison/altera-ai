@@ -11,9 +11,6 @@
   },
   "packageManager": "pnpm@11.1.2",
   "engines": {
-    "node": ">=22.13"
-  },
-  "devDependencies": {
-    "next": "15.0.3"
+    "node": "22.x"
   }
 }
