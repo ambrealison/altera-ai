@@ -13,7 +13,7 @@ import json
 import os
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import (
@@ -2016,95 +2016,196 @@ def list_classifications_route(
 
     Used by Step 5 (validation) to let the analyst see every product's
     assigned Protein Tracker / WWF category, the source (rule / AI /
-    manual), confidence, and current review status. Designed to scale
-    to 10k–15k rows by returning aggregate counts plus a single page.
+    manual), confidence, and current review status.
+
+    Phase 36B — kills the N+1 that made the table 60–90s slow on
+    1050-row projects. Previously the route looped over every product
+    and called ``get_pt_classification`` (+ ``get_wwf_classification``
+    when WWF was enabled) per id — 1050–2100 PostgREST round trips
+    at ~40ms each before serialisation. Now we bulk-fetch
+    classifications once, project to lightweight dicts for filtering
+    + counting, and only materialise ``ClassificationRow`` Pydantic
+    objects for the requested page.
 
     Filters apply in conjunction (AND). ``product_search`` is a
     case-insensitive substring match on product_name or brand.
     """
-    products = store.list_products_for_project(project.id)
+    import logging
+    import time
+
+    t_total = time.perf_counter()
     pt_enabled = Methodology.PROTEIN_TRACKER in project.methodologies_enabled
     wwf_enabled = Methodology.WWF in project.methodologies_enabled
 
-    # Lookup table for review items keyed by product_id (PT only — the
-    # Step 5 validation table is the PT review surface).
-    review_items_pt = {
-        item.product_id: item
-        for item in store.list_review_items_for_project(
-            project.id, methodology=Methodology.PROTEIN_TRACKER
-        )
-    } if pt_enabled else {}
+    t0 = time.perf_counter()
+    products = store.list_products_for_project(project.id)
+    products_ms = (time.perf_counter() - t0) * 1000
 
-    rows: list[ClassificationRow] = []
+    product_ids = [p.id for p in products]
+
+    t0 = time.perf_counter()
+    pt_map = (
+        store.get_pt_classifications_bulk(product_ids)
+        if pt_enabled and product_ids
+        else {}
+    )
+    wwf_map = (
+        store.get_wwf_classifications_bulk(product_ids)
+        if wwf_enabled and product_ids
+        else {}
+    )
+    classifications_ms = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    # PT review queue only (the Step 5 validation table is the PT
+    # review surface). ``list_review_items_for_project`` already
+    # chunks the IN() filter at 200 ids/URL — Phase 34Z-fix.
+    review_items_pt = (
+        {
+            item.product_id: item
+            for item in store.list_review_items_for_project(
+                project.id, methodology=Methodology.PROTEIN_TRACKER
+            )
+        }
+        if pt_enabled
+        else {}
+    )
+    review_ms = (time.perf_counter() - t0) * 1000
+
+    # Phase 36B — build a lightweight projection dict per product
+    # carrying ONLY the fields needed for filtering + counting.
+    # Avoids 1000+ Pydantic ``ClassificationRow`` instantiations when
+    # the caller only wants page 1 of 50.
+    t0 = time.perf_counter()
     pt_eligible_total = 0
+    projections: list[dict[str, Any]] = []
     for product in products:
-        if pt_enabled and Methodology.PROTEIN_TRACKER in product.methodologies_enabled:
+        is_pt_eligible = (
+            pt_enabled
+            and Methodology.PROTEIN_TRACKER in product.methodologies_enabled
+        )
+        if is_pt_eligible:
             pt_eligible_total += 1
-        pt = store.get_pt_classification(product.id) if pt_enabled else None
-        wwf = store.get_wwf_classification(product.id) if wwf_enabled else None
+        pt = pt_map.get(product.id) if pt_enabled else None
+        wwf = wwf_map.get(product.id) if wwf_enabled else None
         review_item = review_items_pt.get(product.id)
-        rows.append(
+        projections.append(
+            {
+                "product": product,
+                "pt_group": pt.pt_group.value if pt is not None else None,
+                "pt_source": pt.source.value if pt is not None else None,
+                "pt_confidence": (
+                    float(pt.confidence) if pt is not None else None
+                ),
+                "pt_rule_id": pt.rule_id if pt is not None else None,
+                "pt_ai_model": pt.ai_model if pt is not None else None,
+                "wwf": wwf,
+                "review_status": (
+                    review_item.status.value
+                    if review_item is not None
+                    else None
+                ),
+            }
+        )
+
+    def _keep(proj: dict[str, Any]) -> bool:
+        if source is not None:
+            if source == "unknown":
+                if proj["pt_source"] is not None:
+                    return False
+            elif proj["pt_source"] != source:
+                return False
+        if pt_group is not None and proj["pt_group"] != pt_group:
+            return False
+        if min_confidence is not None:
+            c = proj["pt_confidence"]
+            if c is None or c < min_confidence:
+                return False
+        if max_confidence is not None:
+            c = proj["pt_confidence"]
+            if c is None or c > max_confidence:
+                return False
+        if review_status is not None:
+            if proj["review_status"] != review_status.value:
+                return False
+        if product_search:
+            q = product_search.lower()
+            product = proj["product"]
+            hay = (product.product_name + " " + (product.brand or "")).lower()
+            if q not in hay:
+                return False
+        return True
+
+    filtered = [p for p in projections if _keep(p)]
+
+    counts_by_source: dict[str, int] = {}
+    counts_by_pt_group: dict[str, int] = {}
+    for proj in filtered:
+        key = proj["pt_source"] or "unknown"
+        counts_by_source[key] = counts_by_source.get(key, 0) + 1
+        if proj["pt_group"] is not None:
+            counts_by_pt_group[proj["pt_group"]] = (
+                counts_by_pt_group.get(proj["pt_group"], 0) + 1
+            )
+    counts_ms = (time.perf_counter() - t0) * 1000
+
+    # Phase 36B — materialise Pydantic rows only for the page.
+    t0 = time.perf_counter()
+    page_projections = filtered[
+        pagination.offset : pagination.offset + pagination.limit
+    ]
+    items: list[ClassificationRow] = []
+    for proj in page_projections:
+        product = proj["product"]
+        wwf = proj["wwf"]
+        items.append(
             ClassificationRow(
                 product_id=product.id,
                 product_name=product.product_name,
                 brand=product.brand,
                 retailer_category=product.retailer_category,
                 retailer_subcategory=product.retailer_subcategory,
-                pt_group=pt.pt_group.value if pt is not None else None,
-                pt_source=pt.source.value if pt is not None else None,
-                pt_confidence=float(pt.confidence) if pt is not None else None,
-                pt_rule_id=pt.rule_id if pt is not None else None,
-                pt_ai_model=pt.ai_model if pt is not None else None,
-                wwf_food_group=wwf.wwf_food_group.value if wwf is not None else None,
-                wwf_source=wwf.source.value if wwf is not None else None,
-                wwf_confidence=float(wwf.confidence) if wwf is not None else None,
-                review_status=(
-                    review_item.status.value if review_item is not None else None
+                pt_group=proj["pt_group"],
+                pt_source=proj["pt_source"],
+                pt_confidence=proj["pt_confidence"],
+                pt_rule_id=proj["pt_rule_id"],
+                pt_ai_model=proj["pt_ai_model"],
+                wwf_food_group=(
+                    wwf.wwf_food_group.value if wwf is not None else None
                 ),
+                wwf_source=(
+                    wwf.source.value if wwf is not None else None
+                ),
+                wwf_confidence=(
+                    float(wwf.confidence) if wwf is not None else None
+                ),
+                review_status=proj["review_status"],
             )
         )
+    serialize_ms = (time.perf_counter() - t0) * 1000
 
-    # Filter.
-    def _keep(r: ClassificationRow) -> bool:
-        if source is not None:
-            if source == "unknown":
-                if r.pt_source is not None:
-                    return False
-            elif r.pt_source != source:
-                return False
-        if pt_group is not None and r.pt_group != pt_group:
-            return False
-        if min_confidence is not None:
-            if r.pt_confidence is None or r.pt_confidence < min_confidence:
-                return False
-        if max_confidence is not None:
-            if r.pt_confidence is None or r.pt_confidence > max_confidence:
-                return False
-        if review_status is not None:
-            if r.review_status != review_status.value:
-                return False
-        if product_search:
-            q = product_search.lower()
-            hay = (r.product_name + " " + (r.brand or "")).lower()
-            if q not in hay:
-                return False
-        return True
-
-    filtered = [r for r in rows if _keep(r)]
-
-    counts_by_source: dict[str, int] = {}
-    counts_by_pt_group: dict[str, int] = {}
-    for r in filtered:
-        key = r.pt_source or "unknown"
-        counts_by_source[key] = counts_by_source.get(key, 0) + 1
-        if r.pt_group is not None:
-            counts_by_pt_group[r.pt_group] = counts_by_pt_group.get(r.pt_group, 0) + 1
-
-    # Paginate.
-    page = paginate(filtered, pagination)
+    total_ms = (time.perf_counter() - t_total) * 1000
+    logging.getLogger("altera_api.classification_table").info(
+        "classification_table.timing project_id=%s limit=%d offset=%d "
+        "n_products=%d products_ms=%.1f classifications_ms=%.1f "
+        "review_ms=%.1f counts_ms=%.1f serialize_ms=%.1f total_ms=%.1f "
+        "rows_returned=%d total_filtered=%d",
+        project.id,
+        pagination.limit,
+        pagination.offset,
+        len(products),
+        products_ms,
+        classifications_ms,
+        review_ms,
+        counts_ms,
+        serialize_ms,
+        total_ms,
+        len(items),
+        len(filtered),
+    )
     return ClassificationsResponse(
-        items=page.items,
-        total=page.total,
+        items=items,
+        total=len(filtered),
         counts_by_source=counts_by_source,
         counts_by_pt_group=counts_by_pt_group,
         pt_eligible_total=pt_eligible_total,
