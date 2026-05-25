@@ -91,7 +91,14 @@ class IngestionJob:
     # be stateless w.r.t. external storage.
     pending_payload: tuple[dict[str, Any], ...] = ()
     mapping: dict[str, str] = field(default_factory=dict)
-    chunk_size: int = 500
+    # Phase 35-OOM — default dropped 500 → 250 to halve per-advance
+    # peak memory. Each advance materialises chunk_size product dicts
+    # in the orchestrator AND keeps them alive while the JSONB
+    # ``pending_payload`` write goes back to Postgres. On Render's
+    # 512 MB instance with two concurrent jobs the previous default
+    # tipped the worker into OOM. Callers can still pass an explicit
+    # value via the ``chunk_size`` form field.
+    chunk_size: int = 250
     next_row_offset: int = 0
     error_code: str | None = None
     error_message: str | None = None

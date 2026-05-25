@@ -142,11 +142,21 @@ def _project_response(store: StoreProtocol, project: Project) -> ProjectResponse
 
     Phase 34P: per-field defensive so one bad classification row
     can't 500 the whole list.
-    Phase 34W: bulk classification lookup. The previous N+1 path made
-    GET /projects/{id} take ~95s for a 1050-product project (1 list
-    fetch + 1050 individual classification fetches). The new path
-    uses ``get_pt_classifications_bulk`` — one SELECT WHERE
-    product_id IN (…) — bringing project-detail to ~constant time.
+    Phase 34W: bulk classification lookup — replaced the N+1 per-
+    product loop with ``get_pt_classifications_bulk``.
+    Phase 35-OOM: STOP loading the full ``NormalizedProduct`` list
+    on every project response. The previous implementation called
+    ``list_products_for_project`` just to count unclassified rows;
+    each call materialised 1050 Pydantic objects (≈2-3 MB of
+    Python memory) plus a parallel ``list_uploads_for_project``
+    that ALSO loads all 1050 product ids. Compounded across
+    concurrent GET /projects calls during a Render restart, this
+    pushed the worker over the 512 MB limit and triggered OOM
+    restarts that the wizard mistook for network failures.
+
+    The new path uses the upload's ``product_ids`` tuple — already
+    loaded by ``list_uploads_for_project`` — plus a single bulk
+    classification fetch. Zero ``NormalizedProduct`` allocations.
     """
 
     def _safe_count(fn, default: int = 0) -> int:
@@ -155,37 +165,36 @@ def _project_response(store: StoreProtocol, project: Project) -> ProjectResponse
         except Exception:
             return default
 
+    # Phase 35-OOM — load uploads once; reuse the product_ids tuples
+    # for the unclassified count instead of calling
+    # ``list_products_for_project`` (which would re-fetch the same
+    # rows AS full domain objects, then throw them away).
+    try:
+        upload_records = store.list_uploads_for_project(project.id)
+    except Exception:
+        upload_records = []
+
     unclassified_pt_count = 0
     if Methodology.PROTEIN_TRACKER in project.methodologies_enabled:
-
-        def _compute_unclassified() -> int:
-            products = store.list_products_for_project(project.id)
-            # Collect PT-eligible product ids first; bulk-fetch their
-            # classifications in ONE call.
-            pt_eligible_ids: list[UUID] = [
-                p.id
-                for p in products
-                if p.pt_fields is not None
-                and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
-            ]
-            if not pt_eligible_ids:
-                return 0
+        all_product_ids: list[UUID] = []
+        for ur in upload_records:
+            try:
+                all_product_ids.extend(ur.product_ids)
+            except Exception:
+                continue
+        if all_product_ids:
             try:
                 classified = store.get_pt_classifications_bulk(
-                    pt_eligible_ids
+                    all_product_ids
+                )
+                unclassified_pt_count = max(
+                    0, len(all_product_ids) - len(classified)
                 )
             except Exception:
-                # If bulk lookup fails, treat the project as
-                # fully-unclassified so the wizard prompts the user
-                # to retry the classify step.
-                return len(pt_eligible_ids)
-            return sum(
-                1
-                for pid in pt_eligible_ids
-                if pid not in classified
-            )
-
-        unclassified_pt_count = _safe_count(_compute_unclassified)
+                # Unreadable classifications shouldn't break the
+                # projects list — surface the upper bound so the
+                # wizard prompts the user to retry classify.
+                unclassified_pt_count = len(all_product_ids)
 
     return ProjectResponse(
         id=project.id,
@@ -194,7 +203,7 @@ def _project_response(store: StoreProtocol, project: Project) -> ProjectResponse
         methodologies_enabled=sorted(m.value for m in project.methodologies_enabled),
         reporting_period_label=project.reporting_period_label,
         pt_validation_status=project.pt_validation_status.value,
-        upload_count=_safe_count(lambda: len(store.list_uploads_for_project(project.id))),
+        upload_count=len(upload_records),
         review_queue_count=_safe_count(
             lambda: len(store.list_review_items_for_project(project.id))
         ),
@@ -606,7 +615,7 @@ async def create_ingestion_job_route(
     user_id: Annotated[UUID, Depends(current_user_id)],
     file: Annotated[UploadFile, File(description="CSV file")],
     column_mapping: Annotated[str | None, Form(...)] = None,
-    chunk_size: Annotated[int, Form()] = 500,
+    chunk_size: Annotated[int, Form()] = 250,
 ) -> IngestionJobResponse:
     """Phase 34X — start a chunked CSV ingestion job.
 
@@ -768,11 +777,22 @@ def advance_ingestion_job_route(
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
 ) -> IngestionJobResponse:
-    """Process the next chunk and return updated state."""
+    """Process the next chunk and return updated state.
+
+    Phase 35-OOM — also emits a memory probe log on every advance so
+    we can correlate Render OOM restarts with specific (project_id,
+    upload_id, pending_count) triples. The probe uses
+    ``resource.getrusage`` which is POSIX-standard and always
+    available on Render's Linux containers.
+    """
+    import logging
+    import time
+
     from altera_api.api.ingestion_job_orchestrator import (
         advance_ingestion_job,
     )
 
+    log = logging.getLogger("altera_api.ingestion_advance")
     existing = store.get_ingestion_job(job_id)
     if existing is None or existing.project_id != project.id:
         raise HTTPException(
@@ -782,6 +802,7 @@ def advance_ingestion_job_route(
                 "message": f"ingestion job {job_id} not found",
             },
         )
+    t0 = time.perf_counter()
     try:
         job = advance_ingestion_job(store, job_id, project=project)
     except LookupError as exc:
@@ -800,6 +821,35 @@ def advance_ingestion_job_route(
                 "message": str(exc) or "advance crashed",
             },
         ) from exc
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+
+    # Memory probe — ru_maxrss is in kilobytes on Linux. Logged
+    # only if the import succeeds, so the probe never breaks the
+    # request path.
+    rss_mb: float | None = None
+    try:
+        import resource as _r
+
+        rss_mb = _r.getrusage(_r.RUSAGE_SELF).ru_maxrss / 1024.0
+    except Exception:
+        rss_mb = None
+    log.info(
+        "ingestion_advance.ok job_id=%s project=%s upload=%s "
+        "batch_size=%d processed=%d→%d total=%d inserted=%d "
+        "pending_remaining=%d status=%s duration_ms=%.1f rss_mb=%s",
+        job_id,
+        project.id,
+        existing.upload_id,
+        existing.chunk_size,
+        existing.processed_rows,
+        job.processed_rows,
+        job.total_rows,
+        job.inserted_products,
+        max(0, job.total_rows - job.processed_rows),
+        job.status.value,
+        elapsed_ms,
+        f"{rss_mb:.1f}" if rss_mb is not None else "?",
+    )
     return _ingestion_job_response(job)
 
 

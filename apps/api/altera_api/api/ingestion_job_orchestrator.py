@@ -69,7 +69,7 @@ def create_ingestion_job(
     upload_id: UUID,
     parsed_products: list[Any],
     mapping: dict[str, str] | None = None,
-    chunk_size: int = 500,
+    chunk_size: int = 250,
     created_by: UUID | None = None,
     initial_errors_total: int = 0,
     initial_warnings_total: int = 0,

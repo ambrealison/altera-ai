@@ -314,15 +314,30 @@ class PostgresRepository:
         if not rows:
             return []
         upload_ids = [row["id"] for row in rows]
-        pr = (
-            self._rls.table("products")
-            .select("id, upload_id")
-            .in_("upload_id", upload_ids)
-            .execute()
-        )
+        # Phase 35-OOM — paginate the products fetch with .range() to
+        # defeat PostgREST's default 1000-row response cap. Without
+        # this, projects with 1050+ products silently lose the last
+        # ~50 product ids from their UploadRecord, then every count
+        # downstream is wrong. Plus the original single-call response
+        # for a 10K-row project would be ~400KB of JSON across the
+        # wire just to populate product_ids tuples.
         products_by_upload: dict[str, list[dict]] = defaultdict(list)
-        for p in pr.data or []:
-            products_by_upload[p["upload_id"]].append(p)
+        PAGE = 1000
+        offset = 0
+        while True:
+            pr = (
+                self._rls.table("products")
+                .select("id, upload_id")
+                .in_("upload_id", upload_ids)
+                .range(offset, offset + PAGE - 1)
+                .execute()
+            )
+            page_rows = pr.data or []
+            for p in page_rows:
+                products_by_upload[p["upload_id"]].append(p)
+            if len(page_rows) < PAGE:
+                break
+            offset += PAGE
         return [upload_record_from_rows(row, products_by_upload.get(row["id"], [])) for row in rows]
 
     def add_product(self, product: NormalizedProduct) -> None:
