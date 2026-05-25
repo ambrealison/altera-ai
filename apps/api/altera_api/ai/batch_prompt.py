@@ -33,10 +33,23 @@ from altera_api.domain.common import Methodology
 #: way that should invalidate stored AI provenance / calibration.
 BATCH_CLASSIFIER_PROMPT_VERSION = "batch_classifier_v1"
 
-#: Default batch size. Chosen so a typical batch (~50 short French
-#: product names) fits comfortably under gpt-4o-mini's 16k context and
-#: leaves >2k tokens for the response.
-DEFAULT_BATCH_SIZE = 50
+#: Default batch size. Chosen so a typical batch fits comfortably under
+#: gpt-4o-mini's context and leaves >2k tokens for the response.
+#:
+#: Phase 34P — reduced 50 → 25 after a 100-row test showed envelope
+#: truncation at batch sizes ≥ 40: the model occasionally hits its
+#: max_completion_tokens cap mid-row, producing a half-written object
+#: that the tolerant parser cannot recover. Smaller batches mean shorter
+#: responses and therefore fewer truncation failures; the trade-off is
+#: roughly 2x the number of API round-trips, which is acceptable for a
+#: hotfix.
+DEFAULT_BATCH_SIZE = 25
+
+#: Phase 34P — even smaller batches for the retry pass. When a batch
+#: produces parse failures or missing ids, we re-batch just the failing
+#: rows at this size. Tiny batches almost always succeed because the
+#: model has enough completion budget for short, well-formed JSON.
+RETRY_BATCH_SIZE = 5
 
 _PT_SYSTEM = """\
 You are a precise product-classification assistant for a French/European

@@ -151,6 +151,13 @@ class ClassifySummary:
     ai_provider_errors: int = 0
     ai_batch_count: int = 0
     ai_sample_errors: tuple[str, ...] = ()
+    # Phase 34P — retry diagnostics. ``ai_retry_batches`` is how many
+    # extra small-batch calls the orchestrator issued to recover failed
+    # rows; ``ai_recovered_rows`` is how many of those rows came back
+    # as a usable verdict. Both default to 0 when retry is disabled or
+    # there was nothing to recover.
+    ai_retry_batches: int = 0
+    ai_recovered_rows: int = 0
 
 
 @dataclass(frozen=True)
@@ -359,6 +366,9 @@ def classify_upload(
     ai_parse_failures = ai_unsupported_category = ai_provider_errors = 0
     ai_batch_count = 0
     ai_sample_errors: tuple[str, ...] = ()
+    # Phase 34P — retry diagnostics for the new small-batch recovery pass.
+    ai_retry_batches = 0
+    ai_recovered_rows = 0
 
     # Phase 34F — when the provider supports batched calls (OpenAI does),
     # collect pass-through products and classify them in one batch per
@@ -619,6 +629,8 @@ def classify_upload(
             ai_unsupported_category = bundle.unsupported_category_failures
             ai_provider_errors = bundle.provider_errors
             ai_sample_errors = tuple(bundle.sample_errors)
+            ai_retry_batches = bundle.retry_batches
+            ai_recovered_rows = bundle.recovered_rows
             for product, ai_v_any in zip(
                 target_products, bundle.verdicts, strict=True
             ):
@@ -686,6 +698,8 @@ def classify_upload(
         ai_provider_errors=ai_provider_errors,
         ai_batch_count=ai_batch_count,
         ai_sample_errors=ai_sample_errors,
+        ai_retry_batches=ai_retry_batches,
+        ai_recovered_rows=ai_recovered_rows,
     )
 
 

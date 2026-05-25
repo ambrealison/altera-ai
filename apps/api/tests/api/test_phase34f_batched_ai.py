@@ -394,7 +394,11 @@ class TestBatchClassifyOrchestrator:
         assert isinstance(bundle.verdicts[1], AINeedsReviewParseFailed)
 
     def test_chunking_at_default_batch_size(self) -> None:
-        # 120 products with batch_size 50 → 3 batches.
+        # Phase 34P — DEFAULT_BATCH_SIZE was reduced from 50 to 25 after
+        # production showed envelope truncation at the larger size.
+        # 120 products / 25 = 5 batches.
+        from altera_api.ai.batch_prompt import DEFAULT_BATCH_SIZE
+
         products = [_make_product(f"Tofu lot {i}") for i in range(120)]
         provider = BatchKeywordFakeProvider(
             rules={"tofu": ("plant_based_core", 0.95)}
@@ -405,7 +409,8 @@ class TestBatchClassifyOrchestrator:
             Methodology.PROTEIN_TRACKER,
             now=datetime.now(UTC),
         )
-        assert bundle.batch_count == 3
+        expected = (len(products) + DEFAULT_BATCH_SIZE - 1) // DEFAULT_BATCH_SIZE
+        assert bundle.batch_count == expected
         assert all(isinstance(v, AIAccepted) for v in bundle.verdicts)
 
 

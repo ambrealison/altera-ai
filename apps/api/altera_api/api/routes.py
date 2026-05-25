@@ -137,17 +137,45 @@ class ProjectResponse(BaseModel):
 
 
 def _project_response(store: StoreProtocol, project: Project) -> ProjectResponse:
+    """Build a ProjectResponse, never raising for a single project.
+
+    Phase 34P: the projects list MUST stay usable even if one project's
+    derived counts are unreachable (e.g. classification records in a
+    transient bad shape after a failed classify, Supabase rate limit on
+    one of the N+1 lookups, etc.). Each derived count is wrapped in its
+    own ``try``; a failure becomes ``0`` rather than a 500. The frontend
+    still gets the project's name + methodologies, so the workspace
+    never appears empty.
+    """
+
+    def _safe_count(fn, default: int = 0) -> int:
+        try:
+            return fn()
+        except Exception:
+            return default
+
+    unclassified_pt_count = 0
     if Methodology.PROTEIN_TRACKER in project.methodologies_enabled:
-        products = store.list_products_for_project(project.id)
-        unclassified_pt_count = sum(
-            1
-            for p in products
-            if p.pt_fields is not None
-            and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
-            and store.get_pt_classification(p.id) is None
-        )
-    else:
-        unclassified_pt_count = 0
+
+        def _compute_unclassified() -> int:
+            products = store.list_products_for_project(project.id)
+            count = 0
+            for p in products:
+                if (
+                    p.pt_fields is not None
+                    and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
+                ):
+                    try:
+                        if store.get_pt_classification(p.id) is None:
+                            count += 1
+                    except Exception:
+                        # One unreadable classification must not corrupt
+                        # the whole project's response — count it as
+                        # unclassified so the wizard still surfaces work.
+                        count += 1
+            return count
+
+        unclassified_pt_count = _safe_count(_compute_unclassified)
 
     return ProjectResponse(
         id=project.id,
@@ -156,9 +184,11 @@ def _project_response(store: StoreProtocol, project: Project) -> ProjectResponse
         methodologies_enabled=sorted(m.value for m in project.methodologies_enabled),
         reporting_period_label=project.reporting_period_label,
         pt_validation_status=project.pt_validation_status.value,
-        upload_count=len(store.list_uploads_for_project(project.id)),
-        review_queue_count=len(store.list_review_items_for_project(project.id)),
-        run_count=len(store.list_runs_for_project(project.id)),
+        upload_count=_safe_count(lambda: len(store.list_uploads_for_project(project.id))),
+        review_queue_count=_safe_count(
+            lambda: len(store.list_review_items_for_project(project.id))
+        ),
+        run_count=_safe_count(lambda: len(store.list_runs_for_project(project.id))),
         unclassified_pt_count=unclassified_pt_count,
     )
 
@@ -187,10 +217,45 @@ def list_projects_route(
     auth: AuthContext = Depends(authed_user),
     store: StoreProtocol = Depends(get_data_store),
 ) -> Page[ProjectResponse]:
-    projects = store.list_projects()
+    """List every project visible to the caller.
+
+    Phase 34P: per-project failures (e.g. an unreachable Supabase
+    classification table after a failed classify, a stale enum value
+    in one project's pt_validation_status) MUST NOT take down the whole
+    response. We assemble a minimal-safe fallback for any project whose
+    full response builder raised, so the workspace never goes blank.
+    """
+    try:
+        projects = store.list_projects()
+    except Exception:
+        # Outer store call failing is exceptional but still must not
+        # 500 the workspace — return an empty page so the wizard's
+        # "Create your first project" path stays available.
+        projects = []
     if not auth.is_altera_internal:
         projects = [p for p in projects if p.organisation_id == auth.organisation_id]
-    return paginate([_project_response(store, p) for p in projects], pagination)
+    items: list[ProjectResponse] = []
+    for p in projects:
+        try:
+            items.append(_project_response(store, p))
+        except Exception:
+            items.append(
+                ProjectResponse(
+                    id=p.id,
+                    organisation_id=p.organisation_id,
+                    name=p.name,
+                    methodologies_enabled=sorted(
+                        m.value for m in p.methodologies_enabled
+                    ),
+                    reporting_period_label=p.reporting_period_label,
+                    pt_validation_status=p.pt_validation_status.value,
+                    upload_count=0,
+                    review_queue_count=0,
+                    run_count=0,
+                    unclassified_pt_count=0,
+                )
+            )
+    return paginate(items, pagination)
 
 
 @api_router.get("/projects/{project_id}", response_model=ProjectResponse)
@@ -669,6 +734,13 @@ class ClassifyResponse(BaseModel):
     ai_provider_errors: int = 0
     ai_batch_count: int = 0
     ai_sample_errors: list[str] = Field(default_factory=list)
+    # Phase 34P — retry diagnostics. ``ai_retry_batches`` is how many
+    # extra small-batch calls the orchestrator issued after a parse or
+    # provider failure in the main pass; ``ai_recovered_rows`` is how
+    # many of those rows came back with a usable verdict. Both are 0
+    # when the main pass succeeded outright.
+    ai_retry_batches: int = 0
+    ai_recovered_rows: int = 0
 
 
 def _ai_disabled_reason(deterministic_only: bool) -> str | None:
@@ -733,9 +805,33 @@ def classify_route(
             skip_deterministic=body.skip_deterministic,
         )
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "upload_not_found",
+                "message": str(exc),
+            },
+        ) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "classify_invalid_request",
+                "message": str(exc),
+            },
+        ) from exc
+    except Exception as exc:  # noqa: BLE001 — last-resort guard
+        # Phase 34P — every other failure mode must become a structured
+        # 502 with a machine-readable error_code, never a bare 500 with
+        # a stack trace. The wizard handler maps "classify_failed" to a
+        # short French banner and lets the user retry.
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error_code": "classify_failed",
+                "message": str(exc) or "classify orchestrator raised",
+            },
+        ) from exc
     upload_record = store.get_upload(upload_id)
     total = len(upload_record.product_ids) if upload_record is not None else 0
     return ClassifyResponse(
@@ -756,6 +852,8 @@ def classify_route(
         ai_provider_errors=summary.ai_provider_errors,
         ai_batch_count=summary.ai_batch_count,
         ai_sample_errors=list(summary.ai_sample_errors),
+        ai_retry_batches=summary.ai_retry_batches,
+        ai_recovered_rows=summary.ai_recovered_rows,
     )
 
 

@@ -55,6 +55,7 @@ from pydantic import ValidationError as _PydanticValidationError
 from altera_api.ai.batch_prompt import (
     BATCH_CLASSIFIER_PROMPT_VERSION,
     DEFAULT_BATCH_SIZE,
+    RETRY_BATCH_SIZE,
     build_batch_classifier_prompt,
     build_repair_batch_classifier_prompt,
 )
@@ -90,6 +91,12 @@ class BatchVerdictBundle:
     provider_errors: int
     unsupported_category_failures: int
     sample_errors: list[str]
+    # Phase 34P — diagnostics for the retry pass. ``retry_batches`` is
+    # the number of small-batch retries we issued; ``recovered_rows`` is
+    # how many of the originally-failing rows came back as a usable
+    # verdict (Accepted or LowConfidence) after retry.
+    retry_batches: int = 0
+    recovered_rows: int = 0
 
 
 def _chunked(
@@ -482,6 +489,12 @@ def _safe_diag(raw_text: str | None, max_chars: int = 500) -> str:
     return cleaned[:max_chars] + "…"
 
 
+def _is_failed_verdict(v: AIVerdict) -> bool:
+    """True when a verdict represents a parse or provider failure that
+    the Phase 34P retry pass should attempt to recover."""
+    return isinstance(v, (AINeedsReviewParseFailed, AIProviderError))
+
+
 def batch_classify(
     products: list[NormalizedProduct],
     provider: ClassifierProvider,
@@ -491,6 +504,8 @@ def batch_classify(
     threshold: Decimal = Decimal("0.8"),
     batch_size: int = DEFAULT_BATCH_SIZE,
     prompt_version: str = BATCH_CLASSIFIER_PROMPT_VERSION,
+    retry_batch_size: int = RETRY_BATCH_SIZE,
+    enable_retry: bool = True,
 ) -> BatchVerdictBundle:
     """Classify ``products`` in batches and return ordered verdicts.
 
@@ -715,6 +730,70 @@ def batch_classify(
                     )
                 )
 
+    # ---------------------------------------------------------------------
+    # Phase 34P — retry pass for failed rows at a smaller batch size.
+    #
+    # The dominant failure modes at batch_size=25 are (a) the model
+    # truncating the JSON envelope mid-row when its completion budget
+    # runs out, and (b) a transient provider error (rate limit, timeout)
+    # that hit a single batch. Both recover well when the failing rows
+    # are retried at a much smaller batch (default 5): the completion
+    # is short enough to fit and the retry is on fresh state.
+    #
+    # We only retry verdicts of type AINeedsReviewParseFailed or
+    # AIProviderError. AINeedsReviewLowConfidence and AIAccepted are
+    # already usable. The retry replaces the verdict in-place; if the
+    # retry still fails the original verdict stays so the wizard can
+    # still route the row to manual review.
+    # ---------------------------------------------------------------------
+    retry_batches_used = 0
+    recovered_rows = 0
+    if enable_retry and retry_batch_size > 0 and retry_batch_size < batch_size:
+        failed_indices = [i for i, v in enumerate(out) if _is_failed_verdict(v)]
+        # Cap retry effort so a totally-broken provider can't blow up
+        # latency. We retry at most one full batch_size worth of rows.
+        max_retry_rows = max(batch_size, retry_batch_size * 10)
+        retry_indices = failed_indices[:max_retry_rows]
+        if retry_indices:
+            failed_products = [products[i] for i in retry_indices]
+            for chunk_start in range(0, len(failed_products), retry_batch_size):
+                retry_products = failed_products[
+                    chunk_start : chunk_start + retry_batch_size
+                ]
+                retry_indices_slice = retry_indices[
+                    chunk_start : chunk_start + retry_batch_size
+                ]
+                retry_bundle = batch_classify(
+                    retry_products,
+                    provider,
+                    methodology,
+                    now=now,
+                    threshold=threshold,
+                    batch_size=retry_batch_size,
+                    prompt_version=prompt_version,
+                    enable_retry=False,  # no recursive retry
+                )
+                retry_batches_used += retry_bundle.batch_count
+                for local_idx, new_verdict in enumerate(retry_bundle.verdicts):
+                    target = retry_indices_slice[local_idx]
+                    prior = out[target]
+                    if _is_failed_verdict(prior) and not _is_failed_verdict(
+                        new_verdict
+                    ):
+                        out[target] = new_verdict
+                        recovered_rows += 1
+                        # Decrement the matching counter so the wizard
+                        # final number reflects the rows that came back.
+                        if isinstance(prior, AINeedsReviewParseFailed):
+                            parse_failures = max(0, parse_failures - 1)
+                        elif isinstance(prior, AIProviderError):
+                            provider_errors = max(0, provider_errors - 1)
+            if recovered_rows > 0 and len(sample_errors) < 10:
+                sample_errors.append(
+                    f"retry_recovered: {recovered_rows} row(s) salvaged "
+                    f"via {retry_batches_used} retry batch(es)"
+                )
+
     return BatchVerdictBundle(
         verdicts=out,
         batch_count=batch_count,
@@ -722,4 +801,6 @@ def batch_classify(
         provider_errors=provider_errors,
         unsupported_category_failures=unsupported_category_failures,
         sample_errors=sample_errors,
+        retry_batches=retry_batches_used,
+        recovered_rows=recovered_rows,
     )

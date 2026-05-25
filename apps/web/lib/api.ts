@@ -253,6 +253,9 @@ export interface ClassifySummary {
   ai_provider_errors: number;
   ai_batch_count: number;
   ai_sample_errors: string[];
+  // Phase 34P — retry diagnostics from the small-batch recovery pass.
+  ai_retry_batches: number;
+  ai_recovered_rows: number;
 }
 
 // Phase 34F — paginated category validation table.

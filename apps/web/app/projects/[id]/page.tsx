@@ -110,6 +110,12 @@ export default function ProjectDetail() {
           (s, x) => s + (x.ai_batch_count ?? 0), 0,
         ),
         ai_sample_errors: summaries.flatMap((x) => x.ai_sample_errors ?? []),
+        ai_retry_batches: summaries.reduce(
+          (s, x) => s + (x.ai_retry_batches ?? 0), 0,
+        ),
+        ai_recovered_rows: summaries.reduce(
+          (s, x) => s + (x.ai_recovered_rows ?? 0), 0,
+        ),
       };
       setClassifyResult(merged);
       const updated = await api.getProject(id);

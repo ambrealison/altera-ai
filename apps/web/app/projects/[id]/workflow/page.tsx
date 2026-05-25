@@ -404,8 +404,16 @@ function StepAIClassification({
               }
             >
               IA exécutée sur {lastClassifyResult.ai_attempted} produit(s) en{" "}
-              {lastClassifyResult.ai_batch_count} batch(s) ·{" "}
-              {lastClassifyResult.ai_accepted} classifié(s),{" "}
+              {lastClassifyResult.ai_batch_count} batch(s)
+              {lastClassifyResult.ai_retry_batches > 0 && (
+                <>
+                  {" "}+ {lastClassifyResult.ai_retry_batches} retry
+                  {lastClassifyResult.ai_recovered_rows > 0 && (
+                    <> ({lastClassifyResult.ai_recovered_rows} récupéré(s))</>
+                  )}
+                </>
+              )}{" "}
+              · {lastClassifyResult.ai_accepted} classifié(s),{" "}
               {lastClassifyResult.ai_review} en validation manuelle,{" "}
               {lastClassifyResult.ai_failed} en échec.
             </div>
@@ -1302,6 +1310,12 @@ export default function WorkflowWizardPage() {
   const latestRun: Run | null = runs[0] ?? null;
 
   async function runAction(fn: () => Promise<void>) {
+    // Phase 34P — guard against duplicate invocation if the user clicks
+    // the action button twice (e.g. while the network is slow). Without
+    // this guard a second classify call could fire and stomp the first
+    // run's state. The component buttons already gate on ``busy`` but
+    // we also gate here as a defence-in-depth.
+    if (busy) return;
     setBusy(true);
     setActionError(null);
     try {
@@ -1309,8 +1323,21 @@ export default function WorkflowWizardPage() {
       await refresh();
     } catch (e) {
       if (e instanceof ApiError && typeof e.detail === "object" && e.detail !== null) {
-        const d = e.detail as { message?: string };
-        setActionError(d.message ?? String(e));
+        const d = e.detail as { message?: string; error_code?: string };
+        // Phase 34P — map known classify failure codes to friendly French.
+        const friendly =
+          d.error_code === "classify_failed"
+            ? "La classification IA a échoué côté serveur. Réessayez ou contactez l'équipe Altera."
+            : d.error_code === "upload_not_found"
+            ? "Fichier introuvable — il a peut-être été supprimé. Re-importez le CSV."
+            : d.error_code === "classify_invalid_request"
+            ? `Requête invalide : ${d.message ?? "vérifier les options"}`
+            : d.message;
+        setActionError(friendly ?? String(e));
+      } else if (e instanceof Error && e.message.includes("Failed to fetch")) {
+        setActionError(
+          "Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.",
+        );
       } else {
         setActionError(e instanceof Error ? e.message : "Erreur inattendue");
       }
