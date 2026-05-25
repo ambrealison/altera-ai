@@ -1287,7 +1287,10 @@ class ClassificationJobCreateRequest(BaseModel):
     methodology: Methodology = Methodology.PROTEIN_TRACKER
     overwrite: bool = False
     only_missing_or_failed: bool = True
-    batch_size: int = 25
+    # Phase 35-perf — None means "use server default from env
+    # ALTERA_AI_CLASSIFICATION_BATCH_SIZE" (defaults to 25). Lets ops
+    # bump this without a frontend redeploy.
+    batch_size: int | None = None
 
 
 class ClassificationJobResponse(BaseModel):
@@ -1320,6 +1323,10 @@ class ClassificationJobResponse(BaseModel):
     error_code: str | None
     error_message: str | None
     sample_errors: list[str]
+    # Phase 35-perf — surface the effective batch size so ops can
+    # verify the env override (ALTERA_AI_CLASSIFICATION_BATCH_SIZE)
+    # is reaching the job without scraping logs.
+    batch_size: int
 
 
 def _classification_job_response(job: object) -> ClassificationJobResponse:
@@ -1349,6 +1356,7 @@ def _classification_job_response(job: object) -> ClassificationJobResponse:
         error_code=job.error_code,
         error_message=job.error_message,
         sample_errors=list(job.sample_errors),
+        batch_size=job.batch_size,
     )
 
 

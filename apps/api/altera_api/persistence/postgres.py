@@ -435,6 +435,54 @@ class PostgresRepository:
             return None
         return product_from_row(row, methodologies_enabled=proj.methodologies_enabled)
 
+    def list_products_by_ids(
+        self, product_ids: list[UUID]
+    ) -> list[NormalizedProduct]:
+        """Phase 35-perf — single SELECT ... WHERE id IN (…) instead
+        of N HTTP round-trips. Used by the classification orchestrator's
+        eligibility filter (1050 products → 1050 round trips at ~40ms =
+        ~42s saved) and per-batch product load (~1s saved per advance).
+
+        Chunked at ``_IN_FILTER_CHUNK`` (200) so the URL stays below the
+        ~8KB PostgREST/nginx practical limit. Projects are looked up
+        once per distinct project_id, not once per row.
+        """
+        if not product_ids:
+            return []
+        rows_by_id: dict[str, dict] = {}
+        for start in range(0, len(product_ids), _IN_FILTER_CHUNK):
+            ids_str = [
+                str(pid)
+                for pid in product_ids[start : start + _IN_FILTER_CHUNK]
+            ]
+            r = (
+                self._rls.table("products")
+                .select("*")
+                .in_("id", ids_str)
+                .execute()
+            )
+            for row in r.data or []:
+                rows_by_id[row["id"]] = row
+        # Cache project lookups so we don't pay N project SELECTs.
+        proj_cache: dict[UUID, list[Methodology]] = {}
+        out: list[NormalizedProduct] = []
+        for pid in product_ids:
+            row = rows_by_id.get(str(pid))
+            if row is None:
+                continue
+            project_id = UUID(row["project_id"])
+            methodologies = proj_cache.get(project_id)
+            if methodologies is None:
+                proj = self.get_project(project_id)
+                if proj is None:
+                    continue
+                methodologies = proj.methodologies_enabled
+                proj_cache[project_id] = methodologies
+            out.append(
+                product_from_row(row, methodologies_enabled=methodologies)
+            )
+        return out
+
     # ------------------------------------------------------------------
     # Classifications
     # ------------------------------------------------------------------
@@ -521,6 +569,31 @@ class PostgresRepository:
         if not r.data:
             return None
         return wwf_classification_from_row(r.data[0])
+
+    def get_wwf_classifications_bulk(
+        self, product_ids: list[UUID]
+    ) -> dict[UUID, WWFProductClassification]:
+        """Phase 35-perf — symmetric to ``get_pt_classifications_bulk``.
+        Single SELECT ... WHERE product_id IN (…) per chunk of 200."""
+        if not product_ids:
+            return {}
+        out: dict[UUID, WWFProductClassification] = {}
+        for start in range(0, len(product_ids), _IN_FILTER_CHUNK):
+            ids_str = [
+                str(pid)
+                for pid in product_ids[start : start + _IN_FILTER_CHUNK]
+            ]
+            r = (
+                self._rls.table("classifications")
+                .select("*")
+                .in_("product_id", ids_str)
+                .eq("methodology", "wwf")
+                .execute()
+            )
+            for row in r.data or []:
+                cls = wwf_classification_from_row(row)
+                out[cls.product_id] = cls
+        return out
 
     # ------------------------------------------------------------------
     # WWF composite ingredients

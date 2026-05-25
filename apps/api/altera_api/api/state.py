@@ -591,8 +591,32 @@ class InMemoryStore:
                 out[pid] = cls
         return out
 
+    def list_products_by_ids(
+        self, product_ids: list[UUID]
+    ) -> list[NormalizedProduct]:
+        """Phase 35-perf — bulk product lookup. Order matches the
+        input ids so the orchestrator can zip them with the original
+        upload ordering."""
+        out: list[NormalizedProduct] = []
+        for pid in product_ids:
+            p = self.products.get(pid)
+            if p is not None:
+                out.append(p)
+        return out
+
     def get_wwf_classification(self, product_id: UUID) -> WWFProductClassification | None:
         return self.wwf_classifications.get(product_id)
+
+    def get_wwf_classifications_bulk(
+        self, product_ids: list[UUID]
+    ) -> dict[UUID, WWFProductClassification]:
+        # Phase 35-perf — symmetric to ``get_pt_classifications_bulk``.
+        out: dict[UUID, WWFProductClassification] = {}
+        for pid in product_ids:
+            cls = self.wwf_classifications.get(pid)
+            if cls is not None:
+                out[pid] = cls
+        return out
 
     def get_wwf_ingredients_by_project(
         self, project_id: UUID

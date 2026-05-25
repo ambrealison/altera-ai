@@ -1218,11 +1218,17 @@ export function createApi(accessToken: string | null) {
         `/api/v1/projects/${projectId}/uploads/${uploadId}/classification-jobs`,
         {
           method: "POST",
+          // Phase 35-perf — omit batch_size when the caller didn't
+          // specify one, letting the backend pick from
+          // ALTERA_AI_CLASSIFICATION_BATCH_SIZE. The env override lets
+          // ops bench 25 / 40 / 50 without a frontend redeploy.
           body: JSON.stringify({
             methodology: body.methodology,
             overwrite: body.overwrite ?? false,
             only_missing_or_failed: body.only_missing_or_failed ?? true,
-            batch_size: body.batch_size ?? 25,
+            ...(body.batch_size !== undefined
+              ? { batch_size: body.batch_size }
+              : {}),
           }),
         },
         accessToken,

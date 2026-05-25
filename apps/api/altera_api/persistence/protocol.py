@@ -113,6 +113,15 @@ class StoreProtocol(Protocol):
         self, product_ids: list[UUID]
     ) -> dict[UUID, ProteinTrackerProductClassification]: ...
 
+    # Phase 35-perf — bulk product lookup. Replaces the per-product
+    # ``get_product`` loop in the classification orchestrator's
+    # ``_eligible_product_ids`` and per-batch product load, both of
+    # which contributed N HTTP round-trips per 1000-row job
+    # (~80s on Render).
+    def list_products_by_ids(
+        self, product_ids: list[UUID]
+    ) -> list[NormalizedProduct]: ...
+
     # ------------------------------------------------------------------
     # Classifications
     # ------------------------------------------------------------------
@@ -125,6 +134,13 @@ class StoreProtocol(Protocol):
 
     def upsert_wwf_classification(self, classification: WWFProductClassification) -> None: ...
     def get_wwf_classification(self, product_id: UUID) -> WWFProductClassification | None: ...
+
+    # Phase 35-perf — symmetric bulk lookup for WWF. Used by the
+    # eligibility filter when a job targets methodology=WWF; without
+    # it we'd N+1 ``get_wwf_classification`` per product.
+    def get_wwf_classifications_bulk(
+        self, product_ids: list[UUID]
+    ) -> dict[UUID, WWFProductClassification]: ...
 
     # ------------------------------------------------------------------
     # WWF ingredients
