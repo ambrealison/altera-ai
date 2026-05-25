@@ -159,6 +159,32 @@ def create_app() -> FastAPI:
                 },
             )
 
+    # Phase 34U — JSON serialization safety net.
+    #
+    # On large CSVs (1050+ rows) some response paths were emitting raw
+    # ``Decimal``, ``float('nan')`` or ``float('inf')`` inside an
+    # untyped ``dict[str, object]`` response field. FastAPI's
+    # ``jsonable_encoder`` (and the underlying ``json.dumps``) reject
+    # those, producing a hard 500 with no body ("JSON could not be
+    # generated"). The two changes here make the failure mode
+    # diagnosable instead of catastrophic:
+    #
+    # 1. ``SafeJSONResponse`` — a JSONResponse subclass with a custom
+    #    ``default`` that converts ``Decimal`` → str, ``NaN``/``Inf``
+    #    → None, plus the usual UUID/datetime/Enum/set fallbacks. Set
+    #    as the app's ``default_response_class`` so every route that
+    #    returns a Pydantic model OR a raw dict benefits.
+    # 2. A ``ValueError`` exception handler that turns serialization
+    #    failures into a structured 500 with ``error_code=
+    #    response_serialization_failed`` instead of a bare 500.
+    from altera_api.observability.safe_json import (
+        SafeJSONResponse,
+        install_serialization_safety_net,
+    )
+
+    app.router.default_response_class = SafeJSONResponse  # type: ignore[assignment]
+    install_serialization_safety_net(app)
+
     app.include_router(api_router)
     app.include_router(admin_router)
     app.include_router(mapping_router)

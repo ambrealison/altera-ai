@@ -34,12 +34,14 @@ from altera_api.domain.common import Methodology
 #:
 #: Phase 34Q v2 — high-coverage food classifier philosophy.
 #: Phase 34T v3 — corrected the plant_based_core / plant_based_non_core
-#: split. PT taxonomy says plant_based_core is ONLY for protein-relevant
-#: plants (legumes, nuts/seeds, tofu/tempeh, plant-based substitutes
-#: for meat/milk/eggs). Bread, rice, pasta, fruits, vegetables, oils,
-#: juices belong to plant_based_non_core. The previous prompt mixed
-#: these, producing only ~70% taxonomy correctness on retailer CSVs.
-BATCH_CLASSIFIER_PROMPT_VERSION = "batch_classifier_v3"
+#: split.
+#: Phase 34U v4 — explicit COMPOSITE coverage of biscuits/cakes/ice
+#: cream containing butter/egg/milk (the model previously sent these
+#: to plant_based_non_core, missing the animal-protein contribution).
+#: Plus explicit OUT_OF_SCOPE rule for beverages with no significant
+#: protein contribution (water, soda, coffee, tea) so the model stops
+#: putting them in plant_based_core.
+BATCH_CLASSIFIER_PROMPT_VERSION = "batch_classifier_v4"
 
 #: Default batch size. Chosen so a typical batch fits comfortably under
 #: gpt-4o-mini's context and leaves >2k tokens for the response.
@@ -106,17 +108,35 @@ PROTEIN TRACKER TAXONOMY (Phase 34T — strict):
    Bread / rice / pasta / fruits / vegetables / oils ARE plant-
    based but they are NOT core; they are non_core.
 
-4. `composite_products` — animal AND plant proteins both present:
-   pizza, quiche, lasagne, sandwich poulet, salade poulet césar,
-   soupe poulet et légumes, burger végétal & emmental, breaded
-   meat/fish, butter/egg cake, pâtisserie au beurre, gratin.
+4. `composite_products` — animal AND plant proteins both present
+   in the recipe. Common cases:
+   - pizza, quiche, lasagne, sandwich poulet, salade poulet césar,
+     soupe poulet et légumes, burger végétal & emmental, gratin
+   - breaded meat / breaded fish (pané) — cereal coating around
+     an animal protein
+   - vegetable products coated in cheese / dairy / egg
+   - BISCUITS, CAKES, PASTRIES containing butter, eggs, or milk
+     (biscuit au beurre, gâteau aux œufs, brioche au beurre,
+     pâtisserie au beurre, viennoiserie)
+   - ICE CREAM and CREAM-BASED products (glace à la crème,
+     crème brûlée, mousse au chocolat)
+   - prepared meals with animal + plant ingredients
 
-5. `out_of_scope` — NON-HUMAN-FOOD only:
-   detergent (lessive), toothpaste (dentifrice), paper, pet food
-   (croquettes), hygiene (shampooing), household products, toys,
-   batteries. Plus alcohol, water, coffee, tea, soda (treated as
-   out_of_scope: beverages with negligible protein are not in
-   Protein Tracker scope).
+5. `out_of_scope` — non-human-food OR beverages with negligible
+   protein contribution:
+   - NON-FOOD: detergent (lessive), toothpaste (dentifrice), paper
+     (papier toilette), pet food (croquettes), hygiene (shampooing,
+     savon), household, toys, batteries.
+   - BEVERAGES with no significant protein under current Protein
+     Tracker rules: water (eau), soda, coffee (café), tea (thé),
+     alcohol (vin, bière, spiritueux), sport drinks, energy drinks.
+   - PURE FLAVOURINGS: salt (sel), sugar (sucre), spices (épices),
+     plain vinegar.
+
+   IMPORTANT: do NOT classify coffee, tea, water, or soda as
+   plant_based_core or plant_based_non_core. They are out_of_scope
+   under the current methodology because their protein contribution
+   is negligible.
 
 6. `unknown` — ONLY when the product name is unusable:
    empty/missing product_name, "Produit 123", "Divers", an SKU
@@ -182,7 +202,7 @@ plant_based_non_core (CRITICAL — bread/rice/pasta/fruits/veg/oils):
 - "Sauce Tomate" → plant_based_non_core (0.85)
 - "Margarine Végétale" → plant_based_non_core (0.88)
 
-composite_products:
+composite_products (animal + plant in same recipe):
 - "Pizza Royale Jambon Champignons" → composite_products (0.94)
 - "Lasagnes Bolognaise" → composite_products (0.93)
 - "Quiche Lorraine" → composite_products (0.94)
@@ -190,20 +210,40 @@ composite_products:
 - "Burger Végétal & Emmental" → composite_products (0.88)
 - "Salade Poulet César" → composite_products (0.92)
 - "Soupe Poulet et Légumes" → composite_products (0.88)
-- "Gâteau au Beurre et Oeufs" → composite_products (0.85)
 - "Gratin Dauphinois" → composite_products (0.85)
-- "Brioche au Beurre" → composite_products (0.85)
+- "Cordon Bleu Volaille Pané" → composite_products (0.90)  # breaded
+- "Filet de Poisson Pané" → composite_products (0.90)
+- # Biscuits / cakes / pastries WITH dairy or egg → composite:
+- "Biscuits au Beurre" → composite_products (0.85)
+- "Madeleine au Beurre" → composite_products (0.85)
+- "Gâteau au Beurre et Oeufs" → composite_products (0.88)
+- "Brioche au Beurre" → composite_products (0.88)
+- "Pain au Chocolat" → composite_products (0.82)  # butter + dough
+- "Croissant au Beurre" → composite_products (0.85)
+- # Ice cream / cream-based desserts → composite:
+- "Glace à la Vanille" → composite_products (0.88)  # dairy
+- "Crème Brûlée" → composite_products (0.92)
+- "Mousse au Chocolat" → composite_products (0.85)
 
-out_of_scope (RARE — non-human-food / beverages):
+out_of_scope (non-food, hygiene, pet food, beverages w/o protein):
 - "Lessive Liquide 3L" → out_of_scope (0.99)
 - "Dentifrice Menthe" → out_of_scope (0.99)
 - "Papier Toilette" → out_of_scope (0.99)
 - "Croquettes pour Chien" → out_of_scope (0.97)
 - "Shampooing Doux" → out_of_scope (0.99)
-- "Eau Minérale Naturelle 1.5L" → out_of_scope (0.95)
+- "Savon de Marseille" → out_of_scope (0.99)
+- # Beverages with negligible protein:
+- "Eau Minérale Naturelle 1.5L" → out_of_scope (0.97)
+- "Coca-Cola 1.5L" → out_of_scope (0.96)  # soda
+- "Limonade" → out_of_scope (0.95)
+- "Café Moulu Arabica" → out_of_scope (0.95)
+- "Thé Vert" → out_of_scope (0.95)
 - "Vin Rouge Bordeaux" → out_of_scope (0.96)
-- "Café Moulu Arabica" → out_of_scope (0.94)
+- "Bière Blonde" → out_of_scope (0.96)
+- # Pure flavourings:
 - "Sel Fin de Guérande" → out_of_scope (0.96)
+- "Sucre en Poudre" → out_of_scope (0.94)
+- "Poivre Noir" → out_of_scope (0.95)
 
 unknown (ALMOST NEVER — only when name is unusable):
 - "Produit 123" → unknown (0.10)

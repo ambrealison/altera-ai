@@ -2433,21 +2433,37 @@ def _compute_pt_coverage(
 
     pt_eligible = len(eligible_ids)
     excluded = max(0, pt_total - rows_count)
-    product_pct = float(100 * rows_count / pt_total) if pt_total > 0 else 0.0
-    volume_pct = (
-        float(100 * volume_eligible / volume_total)
-        if volume_total > 0
-        else 0.0
-    )
+    # Phase 34U — guard against NaN/Inf reaching JSON serialization.
+    # The previous guard ``if pt_total > 0`` was not sufficient: a
+    # Decimal volume_total accumulated from many zero-items rows can
+    # be Decimal("0.0") which is > 0 but still produces a Decimal
+    # division by zero when items_eligible is non-zero in degenerate
+    # data. We use a strict-positive threshold via a try/except so any
+    # pathological input becomes 0.0 rather than NaN/Inf.
+    import math as _math
+
+    def _safe_pct(num: float, denom: float) -> float:
+        if denom is None or denom == 0:
+            return 0.0
+        try:
+            v = float(num) / float(denom) * 100.0
+        except (ZeroDivisionError, ArithmeticError, ValueError):
+            return 0.0
+        if _math.isnan(v) or _math.isinf(v):
+            return 0.0
+        return round(max(0.0, min(100.0, v)), 1)
+
+    product_pct = _safe_pct(rows_count, pt_total)
+    volume_pct = _safe_pct(float(volume_eligible), float(volume_total))
     return {
         "total_products_start": pt_total,
         "eligible_products_total": pt_eligible,
         "products_included_in_calculation": rows_count,
         "products_excluded_missing_nutrition": excluded,
-        "product_coverage_pct": round(product_pct, 1),
+        "product_coverage_pct": product_pct,
         "volume_total_start": str(volume_total),
         "volume_included_in_calculation": str(volume_eligible),
-        "volume_coverage_pct": round(volume_pct, 1),
+        "volume_coverage_pct": volume_pct,
         "is_partial": excluded > 0,
     }
 

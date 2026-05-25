@@ -1348,7 +1348,7 @@ export function createApi(accessToken: string | null) {
     createRun: (
       projectId: string,
       methodology: Methodology,
-      options?: { allow_partial?: boolean },
+      options?: { allow_partial?: boolean; use_enriched_nutrition?: boolean },
     ) =>
       request<Run>(
         `/api/v1/projects/${projectId}/runs`,
@@ -1361,6 +1361,11 @@ export function createApi(accessToken: string | null) {
             // engine drops those products; the run summary carries
             // coverage metrics so the report can disclose the gap.
             allow_partial: options?.allow_partial ?? false,
+            // Phase 34U — explicitly send use_enriched_nutrition=true
+            // for partial runs. The backend already defaults to true
+            // but being explicit means a future server-side default
+            // change can't silently break partial calculation.
+            use_enriched_nutrition: options?.use_enriched_nutrition ?? true,
           }),
         },
         accessToken,

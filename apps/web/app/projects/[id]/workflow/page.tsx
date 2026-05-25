@@ -1467,7 +1467,7 @@ export default function WorkflowWizardPage() {
     } catch (e) {
       if (e instanceof ApiError && typeof e.detail === "object" && e.detail !== null) {
         const d = e.detail as { message?: string; error_code?: string };
-        // Phase 34P — map known classify failure codes to friendly French.
+        // Phase 34P+U — map known failure codes to friendly French.
         const friendly =
           d.error_code === "classify_failed"
             ? "La classification IA a échoué côté serveur. Réessayez ou contactez l'équipe Altera."
@@ -1475,6 +1475,14 @@ export default function WorkflowWizardPage() {
             ? "Fichier introuvable — il a peut-être été supprimé. Re-importez le CSV."
             : d.error_code === "classify_invalid_request"
             ? `Requête invalide : ${d.message ?? "vérifier les options"}`
+            : d.error_code === "zero_usable_nutrition"
+            ? "Aucun produit ne dispose de données protéiques exploitables. Complétez au moins une ligne dans la validation nutritionnelle (ou exécutez NEVO si ce n'est pas encore fait)."
+            : d.error_code === "run_not_ready"
+            ? `Le calcul ne peut pas être lancé : ${d.message ?? "des étapes restent à compléter"}.`
+            : d.error_code === "response_serialization_failed"
+            ? "Le serveur a renvoyé une réponse invalide. L'équipe Altera a été notifiée — réessayez dans quelques instants."
+            : d.error_code === "classification_job_conflict"
+            ? "Une autre exécution est en cours. Patientez quelques secondes puis réessayez."
             : d.message;
         setActionError(friendly ?? String(e));
       } else if (e instanceof Error && e.message.includes("Failed to fetch")) {
