@@ -51,6 +51,23 @@ class NutritionEnrichmentStatus(StrEnum):
     NEEDS_MANUAL_REVIEW = "needs_manual_review"  # conflicting or low-confidence result
 
 
+class NutritionMatchMethod(StrEnum):
+    """How the reference row for an enrichment record was selected.
+
+    Phase 34T — promoted from a free-form string to a closed enum so
+    the Python side cannot accidentally emit a value the database
+    CHECK constraint rejects (which was the production 500-error root
+    cause). The migration 0035_phase34t_match_method_none.sql defines
+    the matching DB constraint:
+    ``check (match_method in ('deterministic','ai_assisted','manual','none'))``.
+    """
+
+    DETERMINISTIC = "deterministic"  # exact / alias / token match
+    AI_ASSISTED = "ai_assisted"      # LLM picked from deterministic shortlist
+    MANUAL = "manual"                # analyst entered via validation table
+    NONE = "none"                    # no match found; record is an audit trail
+
+
 class NutritionEnrichmentRecord(DomainBase):
     """One enrichment observation for a single nutrient on a single product.
 

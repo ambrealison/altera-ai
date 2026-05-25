@@ -32,15 +32,14 @@ from altera_api.domain.common import Methodology
 #: Bumped when the prompt body, instructions, or examples change in a
 #: way that should invalidate stored AI provenance / calibration.
 #:
-#: Phase 34Q — v2: rewrote the system message around a high-coverage
-#: food-classifier philosophy. The model is now told that almost every
-#: row is food, that out_of_scope is reserved for clearly non-food,
-#: and that uncertainty MUST be expressed via confidence rather than
-#: by falling back to unknown / out_of_scope. New critical examples
-#: cover the cases that produced the worst Phase 34P false-out_of_scope
-#: rate (poulet végétal, burger végétal & emmental, chips nature,
-#: huile d'olive, etc.).
-BATCH_CLASSIFIER_PROMPT_VERSION = "batch_classifier_v2"
+#: Phase 34Q v2 — high-coverage food classifier philosophy.
+#: Phase 34T v3 — corrected the plant_based_core / plant_based_non_core
+#: split. PT taxonomy says plant_based_core is ONLY for protein-relevant
+#: plants (legumes, nuts/seeds, tofu/tempeh, plant-based substitutes
+#: for meat/milk/eggs). Bread, rice, pasta, fruits, vegetables, oils,
+#: juices belong to plant_based_non_core. The previous prompt mixed
+#: these, producing only ~70% taxonomy correctness on retailer CSVs.
+BATCH_CLASSIFIER_PROMPT_VERSION = "batch_classifier_v3"
 
 #: Default batch size. Chosen so a typical batch fits comfortably under
 #: gpt-4o-mini's context and leaves >2k tokens for the response.
@@ -68,7 +67,7 @@ Tracker category for each row.
 
 CRITICAL RULES — read before classifying:
 - Do not use `out_of_scope` unless the product is CLEARLY non-food
-  (detergent, batteries, toys, household goods, pet food).
+  (detergent, batteries, toys, household goods, pet food, hygiene).
 - Do not use `unknown` just because you are uncertain. Choose the
   most likely food category and express uncertainty via `confidence`.
 - A product can be categorized AND need review at the same time.
@@ -77,101 +76,139 @@ CRITICAL RULES — read before classifying:
   "nuggets végétaux façon poulet") are PLANT products even if the
   name contains "poulet" / "boeuf" / "bacon". They are NEVER
   animal_core.
-- Oils, snacks, sweets, chocolate, plant drinks, ultra-processed
-  plant products belong to plant_based_non_core, NOT out_of_scope.
 
-Allowed `pt_group` values (return EXACTLY one):
-- plant_based_core: fruits, vegetables, plain legumes (lentilles, pois \
-chiches, haricots, fèves), nuts (amandes, noix), tofu, tempeh, seitan, \
-edamame, plain cereals (riz, pâtes, quinoa, avoine), plain bread, plant \
-milks not heavily processed, soy/pea protein.
-- plant_based_non_core: plant-based meat/cheese/yoghurt substitutes \
-(steak végétal, burger végétal, mock chicken, vegan cheese, plant \
-yoghurt, plant cream), refined plant oils (olive, sunflower, rapeseed).
-- composite_products: prepared meals or products mixing animal AND plant \
-ingredients (lasagnes, pizza, quiche, sandwich, salade composée, sushi, \
-plats préparés, gratin, brioche, viennoiserie au beurre).
-- animal_core: meat (boeuf, porc, veau, agneau, mouton, gibier), poultry \
-(poulet, dinde, canard, pintade), processed meat (jambon, saucisse, \
-charcuterie, paté), fish/seafood (saumon, thon, cabillaud, crevettes, \
-moules, huîtres), eggs (oeufs), dairy (lait, fromage, yaourt, beurre, \
-crème, glace).
-- out_of_scope: ONLY clearly non-food products — detergent, shampoo, \
-batteries, toys, household goods, pet food. Also: water, alcohol, \
-coffee/tea, soft drinks, pure condiments (sel, épices). When in doubt, \
-prefer a food category with low confidence.
-- unknown: ONLY when the product name is unusable (an SKU code, \
-"Promotion", "Lot 3 unspecified", a brand-only label with no clue \
-about the product). Almost never used.
+PROTEIN TRACKER TAXONOMY (Phase 34T — strict):
 
-Confidence calibration (lowered after Phase 34Q):
-- 0.90–0.99 — obvious foods: "Pommes Golden", "Carottes", "Tofu nature", \
-"Blanc de Poulet", "Lait demi-écrémé", "Pâtes", "Riz Basmati".
-- 0.75–0.89 — clear processed: "Chips nature", "Chocolat au lait", \
-"Yaourt nature", "Boisson avoine", "Huile d'olive", "Pain complet".
-- 0.60–0.74 — mixed/processed but classifiable: lasagnes, soupes, \
-salades composées, plats préparés, burgers, pizzas.
+1. `animal_core` — animal proteins are majority or exclusive.
+   Includes: meat, poultry, fish, seafood, eggs, milk, cheese,
+   yoghurt, butter, cream. French: viande, poulet, bœuf, porc,
+   poisson, saumon, thon, œufs, lait, fromage, yaourt, beurre, crème.
+
+2. `plant_based_core` — PROTEIN-RELEVANT plant products ONLY:
+   - legumes / pulses (lentilles, pois chiches, haricots, fèves)
+   - nuts and seeds (amandes, noix, cajou, graines)
+   - tofu / tempeh / seitan
+   - plant-based substitutes for meat / milk / eggs (steak végétal,
+     burger végétal, vegan cheese, oat/soy/almond milk if treated
+     as a dairy substitute)
+   This category is NARROW. Do NOT put bread, rice, pasta, fruits,
+   vegetables, oils, juices, snacks, or biscuits here.
+
+3. `plant_based_non_core` — other plant foods and plant-derived
+   products:
+   - bread, rice, pasta, flour, semolina, breakfast cereals
+   - fruits and vegetables (pommes, carottes, salade, courgette)
+   - potatoes and other starches
+   - oils, margarines, plant sauces
+   - juices, smoothies, plant drinks NOT treated as milk substitutes
+   - chips, biscuits, sweets WITHOUT significant animal protein
+   IMPORTANT: this is where most ordinary retailer rows belong.
+   Bread / rice / pasta / fruits / vegetables / oils ARE plant-
+   based but they are NOT core; they are non_core.
+
+4. `composite_products` — animal AND plant proteins both present:
+   pizza, quiche, lasagne, sandwich poulet, salade poulet césar,
+   soupe poulet et légumes, burger végétal & emmental, breaded
+   meat/fish, butter/egg cake, pâtisserie au beurre, gratin.
+
+5. `out_of_scope` — NON-HUMAN-FOOD only:
+   detergent (lessive), toothpaste (dentifrice), paper, pet food
+   (croquettes), hygiene (shampooing), household products, toys,
+   batteries. Plus alcohol, water, coffee, tea, soda (treated as
+   out_of_scope: beverages with negligible protein are not in
+   Protein Tracker scope).
+
+6. `unknown` — ONLY when the product name is unusable:
+   empty/missing product_name, "Produit 123", "Divers", an SKU
+   code with no description, unreadable text. If the name is
+   interpretable, pick the best category and lower confidence.
+
+Confidence calibration:
+- 0.90–0.99 — obvious foods: "Pommes Golden", "Carottes",
+  "Tofu nature", "Blanc de Poulet", "Lait demi-écrémé",
+  "Pâtes", "Riz Basmati".
+- 0.75–0.89 — clear processed: "Chips nature", "Chocolat au lait",
+  "Yaourt nature", "Boisson avoine", "Huile d'olive",
+  "Pain complet".
+- 0.60–0.74 — mixed/processed but classifiable: lasagnes, soupes,
+  salades composées, plats préparés, burgers, pizzas.
 - 0.40–0.59 — category proposed; please review.
-- below 0.40 — only when genuinely unclear. STILL pick the most \
-likely category; do NOT fall back to unknown.
+- below 0.40 — only when genuinely unclear. STILL pick the most
+  likely category; do NOT fall back to unknown.
 
-Concrete examples (French retailer names) — note the criticals first:
+Concrete examples (Phase 34T canonical set):
 
-CRITICAL (Phase 34Q hot examples — these failed at high rate before):
-- "Poulet Végétal" → plant_based_non_core (0.90)  # plant, NOT animal
-- "Nuggets Végétaux Façon Poulet" → plant_based_non_core (0.90)
-- "Burger Végétal & Emmental" → composite_products (0.85)  # plant+dairy
-- "Salade Poulet César" → composite_products (0.92)
-- "Soupe Poulet et Légumes" → composite_products (0.88)
-- "Chips Nature" → plant_based_non_core (0.85)  # NOT out_of_scope
-- "Chocolat au Lait" → composite_products (0.82)  # NOT out_of_scope
-- "Boisson Avoine" → plant_based_non_core (0.88)  # NOT out_of_scope
-- "Huile d'Olive Vierge Extra" → plant_based_non_core (0.88)
-- "Pain au Chocolat" → composite_products (0.80)
-
-Plant core:
-- "Pommes Golden 1.5kg" → plant_based_core (0.98)
-- "Carottes Sachet 1kg" → plant_based_core (0.98)
-- "Lentilles Vertes du Puy IGP" → plant_based_core (0.97)
-- "Pois Chiches Cuits en Conserve" → plant_based_core (0.97)
-- "Tofu Nature Bio" → plant_based_core (0.97)
-- "Pain Complet Bio" → plant_based_core (0.85)
-- "Riz Basmati" → plant_based_core (0.95)
-- "Pâtes Spaghetti" → plant_based_core (0.95)
-
-Animal core:
+animal_core:
 - "Blanc de Poulet Rôti Tranché" → animal_core (0.98)
 - "Filets de Saumon Atlantique" → animal_core (0.97)
 - "Côte de Bœuf Maturée" → animal_core (0.98)
 - "Jambon Blanc Supérieur" → animal_core (0.95)
 - "Oeufs Plein Air x12" → animal_core (0.97)
-- "Yaourt Nature 0% MG" → animal_core (0.92)
+- "Lait Demi-Écrémé UHT" → animal_core (0.97)
+- "Yaourt Nature" → animal_core (0.95)
+- "Fromage Blanc" → animal_core (0.95)
+- "Beurre Doux" → animal_core (0.95)
 - "Camembert au Lait Cru" → animal_core (0.96)
-- "Beurre Doux Demi-Sel" → animal_core (0.95)
-- "Lait Demi-Écrémé" → animal_core (0.97)
 
-Plant non-core (processed plant, oils, snacks):
-- "Steak Végétal Soja & Blé" → plant_based_non_core (0.92)
-- "Lait d'Amande Bio" → plant_based_non_core (0.90)
-- "Yaourt au Soja Vanille" → plant_based_non_core (0.88)
-- "Margarine Végétale" → plant_based_non_core (0.85)
+plant_based_core (NARROW — protein-relevant plants only):
+- "Tofu Nature Bio" → plant_based_core (0.97)
+- "Pois Chiches Cuits en Conserve" → plant_based_core (0.97)
+- "Lentilles Vertes du Puy IGP" → plant_based_core (0.97)
+- "Haricots Rouges" → plant_based_core (0.95)
+- "Steak Végétal Soja & Blé" → plant_based_core (0.92)
+- "Burger Végétal au Pois" → plant_based_core (0.90)
+- "Poulet Végétal" → plant_based_core (0.92)
+- "Nuggets Végétaux Façon Poulet" → plant_based_core (0.90)
+- "Boisson Avoine Bio" → plant_based_core (0.85)  # milk substitute
+- "Lait d'Amande" → plant_based_core (0.88)  # milk substitute
+- "Noix de Cajou" → plant_based_core (0.93)
+- "Amandes Entières" → plant_based_core (0.93)
+- "Tempeh Bio" → plant_based_core (0.95)
 
-Composite (mixed plant + animal, prepared meals):
+plant_based_non_core (CRITICAL — bread/rice/pasta/fruits/veg/oils):
+- "Pommes Golden 1.5kg" → plant_based_non_core (0.95)
+- "Carottes Sachet 1kg" → plant_based_non_core (0.95)
+- "Pommes de Terre" → plant_based_non_core (0.94)
+- "Tomates Cerises" → plant_based_non_core (0.95)
+- "Pâtes Spaghetti" → plant_based_non_core (0.94)
+- "Riz Basmati" → plant_based_non_core (0.94)
+- "Pain de Mie" → plant_based_non_core (0.92)
+- "Pain Complet Bio" → plant_based_non_core (0.90)
+- "Huile d'Olive Vierge Extra" → plant_based_non_core (0.93)
+- "Chips Nature" → plant_based_non_core (0.88)
+- "Jus d'Orange Pressé" → plant_based_non_core (0.92)
+- "Biscuits Sablés" → plant_based_non_core (0.80)
+- "Farine de Blé T55" → plant_based_non_core (0.92)
+- "Sauce Tomate" → plant_based_non_core (0.85)
+- "Margarine Végétale" → plant_based_non_core (0.88)
+
+composite_products:
 - "Pizza Royale Jambon Champignons" → composite_products (0.94)
 - "Lasagnes Bolognaise" → composite_products (0.93)
 - "Quiche Lorraine" → composite_products (0.94)
 - "Sandwich Poulet Crudités" → composite_products (0.92)
+- "Burger Végétal & Emmental" → composite_products (0.88)
+- "Salade Poulet César" → composite_products (0.92)
+- "Soupe Poulet et Légumes" → composite_products (0.88)
+- "Gâteau au Beurre et Oeufs" → composite_products (0.85)
 - "Gratin Dauphinois" → composite_products (0.85)
+- "Brioche au Beurre" → composite_products (0.85)
 
-Genuinely out-of-scope (RARE — only clear non-food / drinks /
-pure flavourings):
-- "Eau Minérale Naturelle 1.5L" → out_of_scope (0.97)
+out_of_scope (RARE — non-human-food / beverages):
+- "Lessive Liquide 3L" → out_of_scope (0.99)
+- "Dentifrice Menthe" → out_of_scope (0.99)
+- "Papier Toilette" → out_of_scope (0.99)
+- "Croquettes pour Chien" → out_of_scope (0.97)
+- "Shampooing Doux" → out_of_scope (0.99)
+- "Eau Minérale Naturelle 1.5L" → out_of_scope (0.95)
 - "Vin Rouge Bordeaux" → out_of_scope (0.96)
 - "Café Moulu Arabica" → out_of_scope (0.94)
 - "Sel Fin de Guérande" → out_of_scope (0.96)
-- "Vinaigre Balsamique" → out_of_scope (0.92)
-- "Lessive Liquide 3L" → out_of_scope (0.99)  # non-food
-- "Croquettes pour Chien" → out_of_scope (0.95)  # pet food
+
+unknown (ALMOST NEVER — only when name is unusable):
+- "Produit 123" → unknown (0.10)
+- "Divers" → unknown (0.10)
+- "" → unknown (0.05)
 
 Response format — RETURN EXACTLY this JSON object, nothing else. Every
 field MUST be separated by a comma. Every string MUST be quoted:

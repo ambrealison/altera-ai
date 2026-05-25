@@ -4232,7 +4232,12 @@ class ApplyReferencesResponse(BaseModel):
     ai_enabled: bool = False
     ai_model: str | None = None
     # Phase 34C — per-product detail for wizard UI.
+    # Phase 34T — CAPPED to APPLY_REFERENCES_DETAIL_LIMIT entries to keep
+    # the response bounded at 10K-15K product scale. The wizard shows
+    # "Showing first 100 of N"; the full counts are still exposed in
+    # the diagnostic counters above.
     product_results: list[ProductEnrichmentDetail] = []
+    product_results_total: int = 0
     # Phase 34D — diagnostic table size + warning so wizard can never
     # show a silent "0 matched" result. If the NEVO table is empty, the
     # wizard surfaces an admin-facing error message instead of an
@@ -4240,6 +4245,13 @@ class ApplyReferencesResponse(BaseModel):
     nevo_total_references: int = 0
     ciqual_total_references: int = 0
     warning: str | None = None
+
+
+#: Phase 34T — maximum number of per-product enrichment details we
+#: serialise into a single ApplyReferencesResponse. Keeps the response
+#: payload bounded for 10K-15K row CSVs; the totals in the counters
+#: above expose the full aggregate.
+APPLY_REFERENCES_DETAIL_LIMIT = 100
 
 
 @api_router.post(
@@ -4779,7 +4791,12 @@ def apply_reference_enrichment_route(
         **counts,
         ai_enabled=ai_provider is not None,
         ai_model=ai_provider.model if ai_provider is not None else None,
-        product_results=product_results,
+        # Phase 34T — cap per-product details so a 10K-row enrichment
+        # response stays under a few hundred KB. The aggregate counts
+        # remain in the response top-level so the wizard's diagnostics
+        # panel never loses fidelity for large CSVs.
+        product_results=product_results[:APPLY_REFERENCES_DETAIL_LIMIT],
+        product_results_total=len(product_results),
         nevo_total_references=nevo_total,
         ciqual_total_references=ciqual_total,
         warning=warning,

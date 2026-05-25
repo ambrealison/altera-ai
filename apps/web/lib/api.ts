@@ -170,7 +170,11 @@ export interface ApplyReferencesSummary {
   ai_enabled: boolean;
   ai_model: string | null;
   // Phase 34C — per-product enrichment outcomes.
+  // Phase 34T — capped to APPLY_REFERENCES_DETAIL_LIMIT entries (100).
+  // The full count lives in `product_results_total` so the wizard can
+  // render "Showing first 100 of N" for large CSVs.
   product_results: ProductEnrichmentDetail[];
+  product_results_total: number;
   // Phase 34D — diagnostic table sizes + hard warning when result is 0.
   nevo_total_references: number;
   ciqual_total_references: number;
