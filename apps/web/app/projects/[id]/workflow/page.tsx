@@ -29,7 +29,9 @@ import {
   createApi,
   type ApplyReferencesSummary,
   type CalculationPreflightResponse,
+  type ClassificationJob,
   type ClassifySummary,
+  CLASSIFICATION_JOB_TERMINAL_STATUSES,
   type Methodology,
   type Run,
   type UploadResult,
@@ -332,23 +334,112 @@ function StepMethodology({
 // for tests and admin/debug, reachable only by passing
 // deterministic_only=true to /uploads/{uid}/classify.
 
+// Phase 34R — chunked-job progress UI. Renders a progress bar, the
+// running counts, and a French-language status badge. The component
+// is presentational: data comes entirely from the `job` prop, which
+// the wizard refreshes by polling ``POST /advance``.
+function ClassificationJobProgress({ job }: { job: ClassificationJob }) {
+  const pct = Math.max(0, Math.min(100, Math.round(job.progress_pct)));
+  const tone =
+    job.status === "completed"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+      : job.status === "completed_with_errors"
+      ? "border-amber-200 bg-amber-50 text-amber-900"
+      : job.status === "failed"
+      ? "border-rose-200 bg-rose-50 text-rose-900"
+      : job.status === "cancelled"
+      ? "border-gray-200 bg-gray-50 text-gray-700"
+      : "border-brand-200 bg-brand-50 text-brand-900";
+  const badge =
+    job.status === "queued"
+      ? "En file d'attente"
+      : job.status === "running"
+      ? "En cours…"
+      : job.status === "completed"
+      ? "Terminé"
+      : job.status === "completed_with_errors"
+      ? "Terminé avec erreurs"
+      : job.status === "failed"
+      ? "Échec"
+      : "Annulé";
+  return (
+    <div className={`rounded-md border px-3 py-2 text-sm ${tone}`}>
+      <div className="flex items-center justify-between">
+        <div className="font-medium">{badge}</div>
+        <div className="text-xs opacity-70">
+          {job.processed_products}/{job.total_products} ·{" "}
+          {pct.toFixed(0)}%
+        </div>
+      </div>
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/60">
+        <div
+          className="h-full rounded-full bg-current opacity-60 transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="mt-2 text-xs font-medium">
+        {job.categorized_total} catégorisé(s) · {job.accepted_total} accepté(s)
+        · {job.review_required_total} à vérifier · {job.failed_total} échec
+      </div>
+      {(job.retry_batches > 0 ||
+        job.out_of_scope_total > 0 ||
+        job.unknown_total > 0) && (
+        <div className="mt-1 text-xs opacity-80">
+          {job.retry_batches > 0 && (
+            <>
+              {job.retry_batches} retry
+              {job.recovered_rows > 0 && (
+                <> ({job.recovered_rows} récupéré(s))</>
+              )}
+            </>
+          )}
+          {job.out_of_scope_total > 0 && (
+            <> · {job.out_of_scope_total} hors périmètre</>
+          )}
+          {job.unknown_total > 0 && (
+            <> · {job.unknown_total} inconnu(s)</>
+          )}
+        </div>
+      )}
+      {(job.status === "running" || job.status === "queued") && (
+        <div className="mt-2 text-xs opacity-80">
+          {"Vous pouvez laisser cette page ouverte — la progression est sauvegardée."}
+        </div>
+      )}
+      {job.error_message && (
+        <div className="mt-2 text-xs">
+          <strong>{job.error_code ?? "Erreur"} :</strong> {job.error_message}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StepAIClassification({
   step,
   latestUpload,
   methodologies,
   lastClassifyResult,
+  currentJob,
+  jobError,
   busy,
   error,
   onRun,
+  onRetryFailed,
   onNext,
 }: {
   step: WorkflowStep;
   latestUpload: UploadResult | null;
   methodologies: string[];
   lastClassifyResult: ClassifySummary | null;
+  // Phase 34R — async classification job state. When non-null, the
+  // step renders a progress bar and disables duplicate-click.
+  currentJob: ClassificationJob | null;
+  jobError: string | null;
   busy: boolean;
   error: string | null;
   onRun: () => void;
+  onRetryFailed: () => void;
   onNext: () => void;
 }) {
   const isComplete = step.status === "complete";
@@ -492,6 +583,18 @@ function StepAIClassification({
             <BlockerList step={step} />
           </>
         )}
+        {/* Phase 34R — async job progress UI. Renders only while a
+            classification job is active OR has just finished. */}
+        {currentJob && (
+          <div className="mb-3 space-y-2">
+            <ClassificationJobProgress job={currentJob} />
+            {jobError && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                {jobError}
+              </div>
+            )}
+          </div>
+        )}
         {error && (
           <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
             {error}
@@ -500,6 +603,24 @@ function StepAIClassification({
         <div className="mt-4 flex flex-wrap gap-3">
           {isComplete || isNotNeeded ? (
             <Button onClick={onNext}>Continuer vers Validation</Button>
+          ) : currentJob &&
+            (currentJob.status === "queued" || currentJob.status === "running") ? (
+            <Button disabled>
+              {`Classification en cours… (${currentJob.processed_products}/${currentJob.total_products})`}
+            </Button>
+          ) : currentJob && currentJob.status === "completed_with_errors" ? (
+            <>
+              <Button onClick={onRetryFailed} disabled={busy}>
+                {`Réessayer ${currentJob.failed_product_count} échec(s)`}
+              </Button>
+              <Button onClick={onNext} variant="secondary">
+                Continuer vers Validation
+              </Button>
+            </>
+          ) : currentJob && currentJob.status === "failed" ? (
+            <Button onClick={onRun} disabled={busy || !latestUpload || !ptEnabled}>
+              Réessayer la classification IA
+            </Button>
           ) : (
             <Button onClick={onRun} disabled={busy || !latestUpload || !ptEnabled}>
               {busy ? "Classification IA en cours…" : "Lancer la classification IA"}
@@ -1273,6 +1394,12 @@ export default function WorkflowWizardPage() {
   // Phase 34N — calculation preflight diagnostic. Fetched on every
   // refresh; null until the first fetch completes.
   const [preflight, setPreflight] = useState<CalculationPreflightResponse | null>(null);
+  // Phase 34R — async classification job state. The wizard polls
+  // POST /advance every 2s until the status is terminal; ``jobError``
+  // carries a transient polling failure that should NOT wipe the
+  // current job state (see L below).
+  const [currentJob, setCurrentJob] = useState<ClassificationJob | null>(null);
+  const [jobError, setJobError] = useState<string | null>(null);
 
   // ----------- data loading -----------
 
@@ -1373,21 +1500,113 @@ export default function WorkflowWizardPage() {
     advanceTo(next);
   }
 
-  // Phase 34I — AI is the primary classifier. The wizard's Step 3
-  // ("Classification IA") calls classify with skip_deterministic=true,
-  // which makes the orchestrator route every eligible non-manually-
-  // locked product straight to batched AI classification (no
-  // deterministic rule keyword traps like "poulet végétal" → animal).
+  // Phase 34R — Chunked async classification.
+  // Synchronous classify is gone for 100+ row CSVs because Render's
+  // HTTP timeout (~30-60s) is far shorter than what a real OpenAI
+  // run takes at scale (1050 rows ~= 5+ minutes). The new flow:
+  //
+  //   1. POST  /classification-jobs              → create + return job_id
+  //   2. POST  /classification-jobs/:id/advance  → process next ~25 products
+  //   3. Loop step 2 every ~2s until status is terminal.
+  //
+  // The browser drives the loop; if the user closes the tab the job
+  // halts at the last persisted batch and resumes on next visit.
+  const pollJob = useCallback(
+    async (jobId: string) => {
+      // Each tick advances by one batch then sleeps 1.5s. If a tick
+      // throws (network blip), we surface a transient warning but
+      // keep the previous job state — the loop retries.
+      let consecutiveFailures = 0;
+      // Outer loop is intentional — we want to keep polling until
+      // terminal even if individual ticks fail.
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        try {
+          const updated = await api.advanceClassificationJob(projectId, jobId);
+          setCurrentJob(updated);
+          setJobError(null);
+          consecutiveFailures = 0;
+          if (
+            CLASSIFICATION_JOB_TERMINAL_STATUSES.includes(updated.status)
+          ) {
+            await refresh();
+            return;
+          }
+        } catch (e) {
+          consecutiveFailures += 1;
+          setJobError(
+            "Connexion temporairement interrompue. Nouvelle tentative…",
+          );
+          if (consecutiveFailures >= 5) {
+            setJobError(
+              "Trop d'échecs réseau consécutifs. Cliquez sur Réessayer pour reprendre.",
+            );
+            return;
+          }
+          // Catch-all: wait a bit longer between retries.
+          await new Promise((r) => setTimeout(r, 3000));
+          continue;
+        }
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    },
+    [api, projectId, refresh],
+  );
+
   function handleClassifyAI() {
     if (!latestUpload || !status) return;
-    const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
-    void runAction(() =>
-      api.classify(projectId, latestUpload.id, methodology, {
-        deterministic_only: false,
-        skip_deterministic: true,
+    if (busy) return; // defence-in-depth duplicate-click guard
+    const methodology = status.methodologies_enabled[0] as
+      | "protein_tracker"
+      | "wwf";
+    setBusy(true);
+    setActionError(null);
+    setJobError(null);
+    api
+      .createClassificationJob(projectId, latestUpload.id, {
+        methodology,
+        overwrite: false,
+        only_missing_or_failed: true,
       })
-        .then((result) => { setLastClassifyResult(result); })
-    );
+      .then(async (job) => {
+        setCurrentJob(job);
+        await pollJob(job.job_id);
+      })
+      .catch((e: Error) => {
+        if (e instanceof ApiError && typeof e.detail === "object" && e.detail !== null) {
+          const d = e.detail as { message?: string; error_code?: string };
+          setActionError(d.message ?? String(e));
+        } else if (e.message?.includes("Failed to fetch")) {
+          setActionError(
+            "Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.",
+          );
+        } else {
+          setActionError(e.message ?? "Échec de la classification IA.");
+        }
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  }
+
+  function handleRetryFailed() {
+    if (!currentJob) return;
+    if (busy) return;
+    setBusy(true);
+    setActionError(null);
+    setJobError(null);
+    api
+      .retryFailedClassificationJob(projectId, currentJob.job_id)
+      .then(async (job) => {
+        setCurrentJob(job);
+        await pollJob(job.job_id);
+      })
+      .catch((e: Error) => {
+        setActionError(e.message ?? "Échec lors du redémarrage de la classification IA.");
+      })
+      .finally(() => {
+        setBusy(false);
+      });
   }
 
   function handleApplyNEVO() {
@@ -1559,9 +1778,12 @@ export default function WorkflowWizardPage() {
             latestUpload={latestUpload}
             methodologies={status.methodologies_enabled}
             lastClassifyResult={lastClassifyResult}
+            currentJob={currentJob}
+            jobError={jobError}
             busy={busy}
             error={actionError}
             onRun={handleClassifyAI}
+            onRetryFailed={handleRetryFailed}
             onNext={advanceNext}
           />
         )}

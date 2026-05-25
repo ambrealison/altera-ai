@@ -267,6 +267,48 @@ export interface ClassifySummary {
   unknown_total: number;
 }
 
+// Phase 34R — async, chunked AI classification jobs.
+
+export type ClassificationJobStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "completed_with_errors"
+  | "failed"
+  | "cancelled";
+
+export interface ClassificationJob {
+  job_id: string;
+  project_id: string;
+  upload_id: string;
+  methodology: string;
+  status: ClassificationJobStatus;
+  total_products: number;
+  processed_products: number;
+  progress_pct: number;
+  categorized_total: number;
+  accepted_total: number;
+  review_required_total: number;
+  failed_total: number;
+  unknown_total: number;
+  out_of_scope_total: number;
+  retry_batches: number;
+  recovered_rows: number;
+  failed_product_count: number;
+  started_at: string | null;
+  completed_at: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  sample_errors: string[];
+}
+
+export const CLASSIFICATION_JOB_TERMINAL_STATUSES: ClassificationJobStatus[] = [
+  "completed",
+  "completed_with_errors",
+  "failed",
+  "cancelled",
+];
+
 // Phase 34F — paginated category validation table.
 export interface ClassificationRow {
   product_id: string;
@@ -1068,6 +1110,59 @@ export function createApi(accessToken: string | null) {
       request<void>(
         `/api/v1/projects/${projectId}/uploads/${uploadId}`,
         { method: "DELETE" },
+        accessToken,
+      ),
+
+    // Phase 34R — async, chunked AI classification jobs.
+    createClassificationJob: (
+      projectId: string,
+      uploadId: string,
+      body: {
+        methodology: Methodology;
+        overwrite?: boolean;
+        only_missing_or_failed?: boolean;
+        batch_size?: number;
+      },
+    ) =>
+      request<ClassificationJob>(
+        `/api/v1/projects/${projectId}/uploads/${uploadId}/classification-jobs`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            methodology: body.methodology,
+            overwrite: body.overwrite ?? false,
+            only_missing_or_failed: body.only_missing_or_failed ?? true,
+            batch_size: body.batch_size ?? 25,
+          }),
+        },
+        accessToken,
+      ),
+
+    getClassificationJob: (projectId: string, jobId: string) =>
+      request<ClassificationJob>(
+        `/api/v1/projects/${projectId}/classification-jobs/${jobId}`,
+        { method: "GET" },
+        accessToken,
+      ),
+
+    advanceClassificationJob: (projectId: string, jobId: string) =>
+      request<ClassificationJob>(
+        `/api/v1/projects/${projectId}/classification-jobs/${jobId}/advance`,
+        { method: "POST" },
+        accessToken,
+      ),
+
+    cancelClassificationJob: (projectId: string, jobId: string) =>
+      request<ClassificationJob>(
+        `/api/v1/projects/${projectId}/classification-jobs/${jobId}/cancel`,
+        { method: "POST" },
+        accessToken,
+      ),
+
+    retryFailedClassificationJob: (projectId: string, jobId: string) =>
+      request<ClassificationJob>(
+        `/api/v1/projects/${projectId}/classification-jobs/${jobId}/retry-failed`,
+        { method: "POST" },
         accessToken,
       ),
 

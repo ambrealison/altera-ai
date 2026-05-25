@@ -21,6 +21,7 @@ from altera_api.api.state import (
 )
 from altera_api.domain.audit import AuditEvent
 from altera_api.domain.ciqual import CiqualEntry
+from altera_api.domain.classification_job import ClassificationJob
 from altera_api.domain.common import Methodology, OrganisationType
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
 from altera_api.domain.job import Job, JobType
@@ -194,6 +195,21 @@ class StoreProtocol(Protocol):
     def get_job(self, job_id: UUID) -> Job | None: ...
     def list_jobs_for_project(self, project_id: UUID) -> list[Job]: ...
     def find_active_job(self, *, job_type: JobType, idempotency_key: str) -> Job | None: ...
+
+    # ------------------------------------------------------------------
+    # Classification jobs (Phase 34R) — async, chunked AI classification
+    # ------------------------------------------------------------------
+    def add_classification_job(self, job: ClassificationJob) -> None: ...
+    def update_classification_job(self, job: ClassificationJob) -> None: ...
+    def get_classification_job(
+        self, job_id: UUID
+    ) -> ClassificationJob | None: ...
+    def list_classification_jobs_for_project(
+        self, project_id: UUID
+    ) -> list[ClassificationJob]: ...
+    def list_classification_jobs_for_upload(
+        self, upload_id: UUID
+    ) -> list[ClassificationJob]: ...
 
     # ------------------------------------------------------------------
     # Nutrition enrichment (Phase 23A)

@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 
 from altera_api.domain.audit import AuditEvent
 from altera_api.domain.ciqual import CiqualEntry
+from altera_api.domain.classification_job import ClassificationJob
 from altera_api.domain.common import Methodology, OrganisationType, Role
 from altera_api.domain.enrichment import NutritionEnrichmentRecord
 from altera_api.domain.job import Job, JobStatus, JobType
@@ -188,6 +189,8 @@ class InMemoryStore:
         self.audit_events: list[AuditEvent] = []
         self.wwf_ingredients: dict[UUID, list[WWFCompositeIngredient]] = {}
         self.jobs: dict[UUID, Job] = {}
+        # Phase 34R — async, chunked AI classification jobs.
+        self.classification_jobs: dict[UUID, ClassificationJob] = {}
         # Phase 23A: enrichment records keyed by product_id
         self.enrichment_records: dict[UUID, list[NutritionEnrichmentRecord]] = {}
         # Phase 33H: in-memory nutrition reference tables (seeded in tests;
@@ -662,6 +665,40 @@ class InMemoryStore:
             ):
                 return job
         return None
+
+    # ------------------------------------------------------------------
+    # Classification jobs (Phase 34R) — async, chunked AI classification
+    # ------------------------------------------------------------------
+    def add_classification_job(self, job: ClassificationJob) -> None:
+        with self._lock:
+            self.classification_jobs[job.id] = job
+
+    def update_classification_job(self, job: ClassificationJob) -> None:
+        with self._lock:
+            self.classification_jobs[job.id] = job
+
+    def get_classification_job(
+        self, job_id: UUID
+    ) -> ClassificationJob | None:
+        return self.classification_jobs.get(job_id)
+
+    def list_classification_jobs_for_project(
+        self, project_id: UUID
+    ) -> list[ClassificationJob]:
+        return [
+            j
+            for j in self.classification_jobs.values()
+            if j.project_id == project_id
+        ]
+
+    def list_classification_jobs_for_upload(
+        self, upload_id: UUID
+    ) -> list[ClassificationJob]:
+        return [
+            j
+            for j in self.classification_jobs.values()
+            if j.upload_id == upload_id
+        ]
 
     # ------------------------------------------------------------------
     # Nutrition enrichment (Phase 23A)

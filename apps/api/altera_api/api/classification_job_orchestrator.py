@@ -1,0 +1,496 @@
+"""Phase 34R — chunked classification job orchestrator.
+
+The wizard's Step 4 ("Classification IA") no longer waits on one long
+synchronous OpenAI run. Instead it:
+
+1. ``POST /classification-jobs`` to create a :class:`ClassificationJob`
+   record (status=queued). Returns immediately with the job id, total
+   eligible products, and an empty progress payload.
+2. ``POST /classification-jobs/{id}/advance`` in a polling loop. Each
+   advance call processes ONE batch of up to ``batch_size`` (default
+   25) products from the job's pending list and persists progress
+   back to the store before returning. Wall time per call: well under
+   Render's HTTP timeout.
+3. ``GET /classification-jobs/{id}`` to read current state without
+   doing work (used when the wizard re-mounts or the user revisits
+   the project mid-job).
+
+Invariants:
+- Classifications are written DIRECTLY to the PT/WWF classification
+  tables as each batch completes. The job record is metadata.
+- The pending list is the source of truth for "what's left". Each
+  advance call slices the head, classifies those rows, and persists
+  the trimmed list. If the API process dies mid-batch, the worst
+  case is that one batch's OpenAI work is wasted; the next advance
+  call picks up from the persisted pending list.
+- An advance call NEVER raises an unhandled exception out to the
+  route layer. Any error is captured into the job's ``error_code`` /
+  ``error_message`` / ``sample_errors`` fields and the job is moved
+  to a terminal status if the failure is unrecoverable.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import TYPE_CHECKING
+from uuid import UUID, uuid4
+
+from altera_api.ai.batch_classifier import batch_classify as ai_batch_classify
+from altera_api.ai.classifier import (
+    AIAccepted,
+    AINeedsReviewLowConfidence,
+    AINeedsReviewParseFailed,
+    AIProviderError,
+)
+from altera_api.api.orchestrator import (
+    _enqueue_review_item,
+    _queue_unknown_pt,
+    _queue_unknown_wwf,
+)
+from altera_api.domain.classification_job import (
+    ClassificationJob,
+    ClassificationJobStatus,
+)
+from altera_api.domain.common import Methodology
+from altera_api.domain.product import NormalizedProduct
+from altera_api.domain.protein_tracker import ProteinTrackerGroup
+from altera_api.domain.review import ManualReviewQueueReason
+
+if TYPE_CHECKING:
+    from altera_api.ai.provider import ClassifierProvider
+    from altera_api.persistence.protocol import StoreProtocol
+
+
+# Maximum batch_size we accept from clients. Higher values would risk
+# returning the request past Render's HTTP timeout for one advance call.
+MAX_BATCH_SIZE = 30
+
+
+def _eligible_product_ids(
+    store: StoreProtocol,
+    upload_id: UUID,
+    methodology: Methodology,
+    *,
+    overwrite: bool,
+    only_missing_or_failed: bool,
+) -> list[UUID]:
+    """Return the list of product ids in ``upload_id`` that this job
+    should still classify.
+
+    Filters applied:
+    - The product must be ingested under this upload.
+    - The product must have the target methodology enabled.
+    - If ``overwrite=False`` and ``only_missing_or_failed=True`` (the
+      default), products that already have a non-UNKNOWN classification
+      from a prior run are skipped — this is what makes a "retry-failed"
+      pass cheap.
+    """
+    upload_record = store.get_upload(upload_id)
+    if upload_record is None:
+        return []
+    out: list[UUID] = []
+    for product_id in upload_record.product_ids:
+        product = store.get_product(product_id)
+        if product is None:
+            continue
+        if methodology not in product.methodologies_enabled:
+            continue
+        if methodology is Methodology.PROTEIN_TRACKER:
+            if product.pt_fields is None:
+                continue
+            if not overwrite and only_missing_or_failed:
+                existing = store.get_pt_classification(product_id)
+                if (
+                    existing is not None
+                    and existing.pt_group is not ProteinTrackerGroup.UNKNOWN
+                ):
+                    continue
+        else:  # WWF
+            if product.wwf_fields is None:
+                continue
+            if not overwrite and only_missing_or_failed:
+                existing = store.get_wwf_classification(product_id)
+                if existing is not None:
+                    continue
+        out.append(product_id)
+    return out
+
+
+def create_classification_job(
+    store: StoreProtocol,
+    *,
+    organisation_id: UUID,
+    project_id: UUID,
+    upload_id: UUID,
+    methodology: Methodology,
+    overwrite: bool = False,
+    only_missing_or_failed: bool = True,
+    batch_size: int = 25,
+    created_by: UUID | None = None,
+) -> ClassificationJob:
+    """Create a queued classification job. No OpenAI calls happen here.
+
+    The caller (route handler) commits the job to the store and returns
+    it to the client. The browser then drives the advance loop.
+    """
+    if batch_size <= 0 or batch_size > MAX_BATCH_SIZE:
+        batch_size = min(max(batch_size, 1), MAX_BATCH_SIZE)
+    eligible = _eligible_product_ids(
+        store,
+        upload_id,
+        methodology,
+        overwrite=overwrite,
+        only_missing_or_failed=only_missing_or_failed,
+    )
+    now = datetime.now(UTC)
+    job = ClassificationJob(
+        id=uuid4(),
+        organisation_id=organisation_id,
+        project_id=project_id,
+        upload_id=upload_id,
+        methodology=methodology,
+        status=ClassificationJobStatus.QUEUED,
+        total_products=len(eligible),
+        processed_products=0,
+        pending_product_ids=tuple(eligible),
+        overwrite=overwrite,
+        only_missing_or_failed=only_missing_or_failed,
+        batch_size=batch_size,
+        created_by=created_by,
+        created_at=now,
+        started_at=None,
+        completed_at=None,
+    )
+    store.add_classification_job(job)
+    return job
+
+
+def _refresh_coverage_counters(
+    store: StoreProtocol,
+    job: ClassificationJob,
+) -> dict[str, int]:
+    """Walk the classification table for the job's upload and bucket
+    products by their final pt_group. Used after every advance call so
+    the wizard's progress bar reflects the actual stored state."""
+    categorized = accepted = review = failed = unknown = oos = 0
+    if job.methodology is Methodology.PROTEIN_TRACKER:
+        upload_record = store.get_upload(job.upload_id)
+        product_ids = (
+            upload_record.product_ids if upload_record is not None else []
+        )
+        for pid in product_ids:
+            cls = store.get_pt_classification(pid)
+            if cls is None:
+                continue
+            if cls.pt_group is ProteinTrackerGroup.UNKNOWN:
+                unknown += 1
+            elif cls.pt_group is ProteinTrackerGroup.OUT_OF_SCOPE:
+                oos += 1
+                categorized += 1
+            else:
+                categorized += 1
+        # Anything queued for review on this upload counts as
+        # review_required. Failed (no usable category) is a subset of
+        # unknown — we expose it explicitly so the wizard can show
+        # "0 échec" when the retry pass cleaned everything.
+        review = sum(
+            1
+            for item in store.list_review_items_for_project(job.project_id)
+            if item.methodology is Methodology.PROTEIN_TRACKER
+            and item.product_id in product_ids
+        )
+        failed = sum(
+            1
+            for item in store.list_review_items_for_project(job.project_id)
+            if item.methodology is Methodology.PROTEIN_TRACKER
+            and item.product_id in product_ids
+            and item.reason
+            in (
+                ManualReviewQueueReason.AI_PARSE_FAILED,
+                ManualReviewQueueReason.AI_PROVIDER_ERROR,
+            )
+        )
+        accepted = max(0, categorized - review)
+    return {
+        "categorized_total": categorized,
+        "accepted_total": accepted,
+        "review_required_total": review,
+        "failed_total": failed,
+        "unknown_total": unknown,
+        "out_of_scope_total": oos,
+    }
+
+
+def advance_classification_job(
+    store: StoreProtocol,
+    job_id: UUID,
+    *,
+    ai_provider: ClassifierProvider | None,
+) -> ClassificationJob:
+    """Process the next batch for ``job_id``.
+
+    Returns the updated job. If the job is already terminal or has no
+    pending products, returns it unchanged.
+
+    The function is the single chokepoint where AI calls happen during
+    a job; it MUST stay short enough that the surrounding HTTP request
+    completes well under Render's timeout. With batch_size<=30 and one
+    OpenAI call (~5-10s), one advance call is comfortably under 20s
+    even with retries enabled.
+    """
+    job = store.get_classification_job(job_id)
+    if job is None:
+        raise LookupError(f"classification job {job_id} not found")
+    if job.is_terminal:
+        return job
+    if job.cancel_requested:
+        cancelled = job.with_progress(
+            status=ClassificationJobStatus.CANCELLED,
+            completed_at=datetime.now(UTC),
+        )
+        store.update_classification_job(cancelled)
+        return cancelled
+    if ai_provider is None:
+        failed = job.with_progress(
+            status=ClassificationJobStatus.FAILED,
+            error_code="ai_provider_unavailable",
+            error_message=(
+                "AI classifier is disabled or misconfigured on this server. "
+                "Check ALTERA_AI_CLASSIFIER_ENABLED, ALTERA_AI_PROVIDER, "
+                "and OPENAI_API_KEY."
+            ),
+            completed_at=datetime.now(UTC),
+        )
+        store.update_classification_job(failed)
+        return failed
+    if not job.pending_product_ids:
+        # Nothing to do — finalise.
+        coverage = _refresh_coverage_counters(store, job)
+        finished = job.with_progress(
+            status=(
+                ClassificationJobStatus.COMPLETED_WITH_ERRORS
+                if coverage["failed_total"] > 0
+                else ClassificationJobStatus.COMPLETED
+            ),
+            completed_at=datetime.now(UTC),
+            **coverage,
+        )
+        store.update_classification_job(finished)
+        return finished
+
+    now = datetime.now(UTC)
+    # Slice the head of the pending list. Cap defensively at MAX_BATCH_SIZE
+    # in case an old job record carries a larger batch_size from a
+    # previous version of the code.
+    take = max(1, min(job.batch_size, MAX_BATCH_SIZE))
+    chunk_ids = list(job.pending_product_ids[:take])
+    remaining = tuple(job.pending_product_ids[take:])
+
+    # Load product records.
+    products: list[NormalizedProduct] = []
+    for pid in chunk_ids:
+        p = store.get_product(pid)
+        if p is not None:
+            products.append(p)
+
+    # Single OpenAI call for this batch (with the existing in-batch
+    # retry pass disabled — we keep retry control at the job level).
+    running = job.with_progress(
+        status=ClassificationJobStatus.RUNNING,
+        started_at=job.started_at or now,
+    )
+    store.update_classification_job(running)
+
+    failed_ids: list[UUID] = []
+    try:
+        bundle = ai_batch_classify(
+            products,
+            ai_provider,
+            job.methodology,
+            now=now,
+            batch_size=take,
+            enable_retry=True,  # internal small-batch retry stays on
+        )
+    except Exception as exc:  # noqa: BLE001 — surface any provider crash
+        # Provider blew up — record the error sample but DON'T fail
+        # the whole job. Mark these rows as failed and continue. The
+        # client can retry-failed later.
+        sample = (
+            *job.sample_errors,
+            f"advance_provider_error: {type(exc).__name__}: {exc}",
+        )[-10:]
+        failed_ids = chunk_ids
+        for p in products:
+            _queue_unknown_pt(
+                store, p, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+            ) if job.methodology is Methodology.PROTEIN_TRACKER else _queue_unknown_wwf(
+                store, p, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+            )
+        coverage = _refresh_coverage_counters(store, job)
+        new_status = (
+            ClassificationJobStatus.COMPLETED_WITH_ERRORS
+            if not remaining
+            else ClassificationJobStatus.RUNNING
+        )
+        updated = job.with_progress(
+            status=new_status,
+            pending_product_ids=remaining,
+            processed_products=job.processed_products + len(chunk_ids),
+            failed_product_ids=tuple({*job.failed_product_ids, *failed_ids}),
+            sample_errors=sample,
+            completed_at=now if new_status.value.startswith("completed") else None,
+            **coverage,
+        )
+        store.update_classification_job(updated)
+        return updated
+
+    # Apply verdicts to the store.
+    for p, verdict in zip(products, bundle.verdicts, strict=True):
+        if isinstance(verdict, AIAccepted):
+            if job.methodology is Methodology.PROTEIN_TRACKER:
+                store.upsert_pt_classification(verdict.classification)
+            else:
+                store.upsert_wwf_classification(verdict.classification)
+            store.remove_review_item(p.id, job.methodology)
+        elif isinstance(verdict, AINeedsReviewLowConfidence):
+            if job.methodology is Methodology.PROTEIN_TRACKER:
+                store.upsert_pt_classification(verdict.classification)
+            else:
+                store.upsert_wwf_classification(verdict.classification)
+            _enqueue_review_item(
+                store,
+                p.id,
+                job.methodology,
+                ManualReviewQueueReason.LOW_CONFIDENCE,
+                now,
+            )
+        elif isinstance(verdict, AINeedsReviewParseFailed):
+            failed_ids.append(p.id)
+            if job.methodology is Methodology.PROTEIN_TRACKER:
+                _queue_unknown_pt(
+                    store, p, ManualReviewQueueReason.AI_PARSE_FAILED, now
+                )
+            else:
+                _queue_unknown_wwf(
+                    store, p, ManualReviewQueueReason.AI_PARSE_FAILED, now
+                )
+        elif isinstance(verdict, AIProviderError):
+            failed_ids.append(p.id)
+            if job.methodology is Methodology.PROTEIN_TRACKER:
+                _queue_unknown_pt(
+                    store, p, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+                )
+            else:
+                _queue_unknown_wwf(
+                    store, p, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+                )
+
+    # Aggregate diagnostics across this batch into the job record.
+    next_sample = (*job.sample_errors, *bundle.sample_errors)[-10:]
+    next_processed = job.processed_products + len(chunk_ids)
+    coverage = _refresh_coverage_counters(store, job)
+    is_done = not remaining
+    new_status = (
+        (
+            ClassificationJobStatus.COMPLETED_WITH_ERRORS
+            if coverage["failed_total"] > 0
+            else ClassificationJobStatus.COMPLETED
+        )
+        if is_done
+        else ClassificationJobStatus.RUNNING
+    )
+    updated = job.with_progress(
+        status=new_status,
+        pending_product_ids=remaining,
+        processed_products=next_processed,
+        failed_product_ids=tuple({*job.failed_product_ids, *failed_ids}),
+        retry_batches=job.retry_batches + bundle.retry_batches,
+        recovered_rows=job.recovered_rows + bundle.recovered_rows,
+        sample_errors=next_sample,
+        completed_at=now if is_done else None,
+        **coverage,
+    )
+    store.update_classification_job(updated)
+    return updated
+
+
+def cancel_classification_job(
+    store: StoreProtocol, job_id: UUID
+) -> ClassificationJob:
+    """Flag the job for cancellation.
+
+    The actual transition to CANCELLED happens on the next advance
+    call. Already-terminal jobs are returned unchanged.
+    """
+    job = store.get_classification_job(job_id)
+    if job is None:
+        raise LookupError(f"classification job {job_id} not found")
+    if job.is_terminal:
+        return job
+    cancelled = job.with_progress(
+        cancel_requested=True,
+        status=ClassificationJobStatus.CANCELLED,
+        completed_at=datetime.now(UTC),
+    )
+    store.update_classification_job(cancelled)
+    return cancelled
+
+
+def retry_failed_in_classification_job(
+    store: StoreProtocol,
+    job_id: UUID,
+    *,
+    created_by: UUID | None = None,
+) -> ClassificationJob:
+    """Create a NEW job whose pending list is the previous job's
+    failed_product_ids. The original job stays intact for audit.
+
+    Returns the new job (queued). The wizard then advances it like
+    any other.
+    """
+    prev = store.get_classification_job(job_id)
+    if prev is None:
+        raise LookupError(f"classification job {job_id} not found")
+    if not prev.failed_product_ids:
+        # No failures to retry — return a no-op completed job so the
+        # client gets a coherent shape back.
+        empty = ClassificationJob(
+            id=uuid4(),
+            organisation_id=prev.organisation_id,
+            project_id=prev.project_id,
+            upload_id=prev.upload_id,
+            methodology=prev.methodology,
+            status=ClassificationJobStatus.COMPLETED,
+            total_products=0,
+            processed_products=0,
+            pending_product_ids=(),
+            batch_size=prev.batch_size,
+            created_by=created_by,
+            created_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+        )
+        store.add_classification_job(empty)
+        return empty
+    now = datetime.now(UTC)
+    job = ClassificationJob(
+        id=uuid4(),
+        organisation_id=prev.organisation_id,
+        project_id=prev.project_id,
+        upload_id=prev.upload_id,
+        methodology=prev.methodology,
+        status=ClassificationJobStatus.QUEUED,
+        total_products=len(prev.failed_product_ids),
+        processed_products=0,
+        pending_product_ids=prev.failed_product_ids,
+        overwrite=True,  # retry must rewrite the unknown rows
+        only_missing_or_failed=False,
+        batch_size=prev.batch_size,
+        created_by=created_by,
+        created_at=now,
+    )
+    store.add_classification_job(job)
+    # Suppress unused import lint when Decimal is not used.
+    _ = Decimal
+    return job

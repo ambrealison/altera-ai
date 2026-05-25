@@ -872,6 +872,291 @@ def classify_route(
 
 
 # ---------------------------------------------------------------------------
+# Phase 34R — async, chunked AI classification jobs
+# ---------------------------------------------------------------------------
+
+
+class ClassificationJobCreateRequest(BaseModel):
+    methodology: Methodology = Methodology.PROTEIN_TRACKER
+    overwrite: bool = False
+    only_missing_or_failed: bool = True
+    batch_size: int = 25
+
+
+class ClassificationJobResponse(BaseModel):
+    """Public shape of a classification job.
+
+    Stays compact so the frontend's 2s polling loop is cheap and
+    survives a temporary network blip — there's no nested product list
+    here, just counters + sample errors.
+    """
+
+    job_id: UUID
+    project_id: UUID
+    upload_id: UUID
+    methodology: str
+    status: str
+    total_products: int
+    processed_products: int
+    progress_pct: float
+    categorized_total: int
+    accepted_total: int
+    review_required_total: int
+    failed_total: int
+    unknown_total: int
+    out_of_scope_total: int
+    retry_batches: int
+    recovered_rows: int
+    failed_product_count: int
+    started_at: str | None
+    completed_at: str | None
+    error_code: str | None
+    error_message: str | None
+    sample_errors: list[str]
+
+
+def _classification_job_response(job: object) -> ClassificationJobResponse:
+    from altera_api.domain.classification_job import ClassificationJob
+
+    assert isinstance(job, ClassificationJob)
+    return ClassificationJobResponse(
+        job_id=job.id,
+        project_id=job.project_id,
+        upload_id=job.upload_id,
+        methodology=job.methodology.value,
+        status=job.status.value,
+        total_products=job.total_products,
+        processed_products=job.processed_products,
+        progress_pct=job.progress_pct,
+        categorized_total=job.categorized_total,
+        accepted_total=job.accepted_total,
+        review_required_total=job.review_required_total,
+        failed_total=job.failed_total,
+        unknown_total=job.unknown_total,
+        out_of_scope_total=job.out_of_scope_total,
+        retry_batches=job.retry_batches,
+        recovered_rows=job.recovered_rows,
+        failed_product_count=len(job.failed_product_ids),
+        started_at=job.started_at.isoformat() if job.started_at else None,
+        completed_at=job.completed_at.isoformat() if job.completed_at else None,
+        error_code=job.error_code,
+        error_message=job.error_message,
+        sample_errors=list(job.sample_errors),
+    )
+
+
+@api_router.post(
+    "/projects/{project_id}/uploads/{upload_id}/classification-jobs",
+    response_model=ClassificationJobResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_classification_job_route(
+    upload_id: UUID,
+    body: ClassificationJobCreateRequest,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: AuthContext = Depends(authed_user),
+) -> ClassificationJobResponse:
+    """Create a new chunked AI classification job.
+
+    Returns immediately with the job id and total eligible product
+    count. The browser then polls ``advance`` to process batches.
+    """
+    from altera_api.api.classification_job_orchestrator import (
+        create_classification_job,
+    )
+
+    if body.methodology not in project.methodologies_enabled:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "methodology_not_enabled",
+                "message": (
+                    f"methodology {body.methodology.value} is not "
+                    f"enabled on project {project.id}"
+                ),
+            },
+        )
+    upload_record = store.get_upload(upload_id)
+    if upload_record is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "upload_not_found",
+                "message": f"upload {upload_id} not found",
+            },
+        )
+    if upload_record.upload.project_id != project.id:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "upload_not_found",
+                "message": "upload does not belong to this project",
+            },
+        )
+    try:
+        job = create_classification_job(
+            store,
+            organisation_id=auth.organisation_id,
+            project_id=project.id,
+            upload_id=upload_id,
+            methodology=body.methodology,
+            overwrite=body.overwrite,
+            only_missing_or_failed=body.only_missing_or_failed,
+            batch_size=body.batch_size,
+            created_by=auth.user_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error_code": "classify_failed",
+                "message": str(exc) or "could not create classification job",
+            },
+        ) from exc
+    return _classification_job_response(job)
+
+
+@api_router.get(
+    "/projects/{project_id}/classification-jobs/{job_id}",
+    response_model=ClassificationJobResponse,
+)
+def get_classification_job_route(
+    job_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+) -> ClassificationJobResponse:
+    """Pure read of a classification job's current state.
+
+    No side effects — does NOT advance the job. Used when the wizard
+    re-mounts mid-job and wants the latest persisted progress.
+    """
+    job = store.get_classification_job(job_id)
+    if job is None or job.project_id != project.id:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "job_not_found",
+                "message": f"classification job {job_id} not found",
+            },
+        )
+    return _classification_job_response(job)
+
+
+@api_router.post(
+    "/projects/{project_id}/classification-jobs/{job_id}/advance",
+    response_model=ClassificationJobResponse,
+)
+def advance_classification_job_route(
+    job_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+) -> ClassificationJobResponse:
+    """Process the next batch and return updated state.
+
+    Each call takes one batch (default 25 products) and at most ~10–20s
+    even with retries. The browser polls this endpoint until the
+    response's ``status`` is terminal.
+    """
+    from altera_api.ai.config import get_ai_provider
+    from altera_api.api.classification_job_orchestrator import (
+        advance_classification_job,
+    )
+
+    existing = store.get_classification_job(job_id)
+    if existing is None or existing.project_id != project.id:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "job_not_found",
+                "message": f"classification job {job_id} not found",
+            },
+        )
+    try:
+        ai_provider = get_ai_provider()
+    except ValueError:
+        ai_provider = None
+    try:
+        job = advance_classification_job(
+            store, job_id, ai_provider=ai_provider
+        )
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={"error_code": "job_not_found", "message": str(exc)},
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        # The orchestrator itself catches provider errors per-batch.
+        # An exception escaping here means a true programming bug.
+        # Return structured 502 so the wizard surfaces a clean banner.
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error_code": "advance_failed",
+                "message": str(exc) or "advance crashed",
+            },
+        ) from exc
+    return _classification_job_response(job)
+
+
+@api_router.post(
+    "/projects/{project_id}/classification-jobs/{job_id}/cancel",
+    response_model=ClassificationJobResponse,
+)
+def cancel_classification_job_route(
+    job_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+) -> ClassificationJobResponse:
+    from altera_api.api.classification_job_orchestrator import (
+        cancel_classification_job,
+    )
+
+    existing = store.get_classification_job(job_id)
+    if existing is None or existing.project_id != project.id:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "job_not_found",
+                "message": f"classification job {job_id} not found",
+            },
+        )
+    job = cancel_classification_job(store, job_id)
+    return _classification_job_response(job)
+
+
+@api_router.post(
+    "/projects/{project_id}/classification-jobs/{job_id}/retry-failed",
+    response_model=ClassificationJobResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def retry_failed_classification_job_route(
+    job_id: UUID,
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: AuthContext = Depends(authed_user),
+) -> ClassificationJobResponse:
+    """Create a fresh job whose pending list is the prior failures."""
+    from altera_api.api.classification_job_orchestrator import (
+        retry_failed_in_classification_job,
+    )
+
+    existing = store.get_classification_job(job_id)
+    if existing is None or existing.project_id != project.id:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "job_not_found",
+                "message": f"classification job {job_id} not found",
+            },
+        )
+    job = retry_failed_in_classification_job(
+        store, job_id, created_by=auth.user_id
+    )
+    return _classification_job_response(job)
+
+
+# ---------------------------------------------------------------------------
 # Review
 # ---------------------------------------------------------------------------
 class ReviewItemResponse(BaseModel):

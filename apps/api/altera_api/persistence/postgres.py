@@ -787,6 +787,39 @@ class PostgresRepository:
         return job_from_row(r.data[0])
 
     # ------------------------------------------------------------------
+    # Classification jobs (Phase 34R)
+    # ------------------------------------------------------------------
+    # Phase 34R initial implementation keeps classification jobs in
+    # process memory only. The Postgres backing requires a migration
+    # (see docs/development/ROADMAP.md). These methods exist so the
+    # StoreProtocol contract is satisfied; calling them surfaces a
+    # clear NotImplementedError instead of an opaque AttributeError.
+    def add_classification_job(self, job: object) -> None:
+        raise NotImplementedError(
+            "ClassificationJob persistence not yet implemented in "
+            "PostgresRepository — Phase 34R uses the in-memory store."
+        )
+
+    def update_classification_job(self, job: object) -> None:
+        raise NotImplementedError(
+            "ClassificationJob persistence not yet implemented in "
+            "PostgresRepository — Phase 34R uses the in-memory store."
+        )
+
+    def get_classification_job(self, job_id: UUID) -> None:
+        return None
+
+    def list_classification_jobs_for_project(
+        self, project_id: UUID
+    ) -> list:
+        return []
+
+    def list_classification_jobs_for_upload(
+        self, upload_id: UUID
+    ) -> list:
+        return []
+
+    # ------------------------------------------------------------------
     # Nutrition enrichment (Phase 23A)
     # ------------------------------------------------------------------
 
