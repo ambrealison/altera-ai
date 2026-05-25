@@ -305,6 +305,25 @@ class PostgresRepository:
     def add_product(self, product: NormalizedProduct) -> None:
         self._rls.table("products").insert(product_to_row(product)).execute()
 
+    def add_products_bulk(
+        self, products: list[NormalizedProduct]
+    ) -> None:
+        """Phase 34W — single Supabase insert for N products.
+
+        Replaces the per-product loop that made ingestion of a
+        1050-row CSV take ~60s (1050 HTTP roundtrips). Supabase's
+        REST API accepts up to ~1000 rows per insert call; we
+        defensively chunk at 500 to leave headroom for the JSON
+        serialisation overhead.
+        """
+        if not products:
+            return
+        CHUNK = 500
+        for start in range(0, len(products), CHUNK):
+            batch = products[start : start + CHUNK]
+            rows = [product_to_row(p) for p in batch]
+            self._rls.table("products").insert(rows).execute()
+
     def list_products_for_project(self, project_id: UUID) -> list[NormalizedProduct]:
         proj = self.get_project(project_id)
         if proj is None:
@@ -360,6 +379,34 @@ class PostgresRepository:
         if not r.data:
             return None
         return pt_classification_from_row(r.data[0])
+
+    def get_pt_classifications_bulk(
+        self, product_ids: list[UUID]
+    ) -> dict[UUID, ProteinTrackerProductClassification]:
+        """Phase 34W — fetch all classifications for many products in
+        one query. Replaces the N+1 ``for p in products:
+        store.get_pt_classification(p.id)`` pattern that made project
+        detail take ~95s on 1050 products. Supabase's ``in_(...)``
+        filter accepts up to ~1000 ids per call; we chunk at 500 to
+        leave URL-length headroom.
+        """
+        if not product_ids:
+            return {}
+        out: dict[UUID, ProteinTrackerProductClassification] = {}
+        CHUNK = 500
+        for start in range(0, len(product_ids), CHUNK):
+            ids_str = [str(pid) for pid in product_ids[start : start + CHUNK]]
+            r = (
+                self._rls.table("classifications")
+                .select("*")
+                .in_("product_id", ids_str)
+                .eq("methodology", "protein_tracker")
+                .execute()
+            )
+            for row in r.data or []:
+                cls = pt_classification_from_row(row)
+                out[cls.product_id] = cls
+        return out
 
     def upsert_wwf_classification(self, classification: WWFProductClassification) -> None:
         org_id = self._get_org_id_for_product(classification.product_id)

@@ -139,13 +139,13 @@ class ProjectResponse(BaseModel):
 def _project_response(store: StoreProtocol, project: Project) -> ProjectResponse:
     """Build a ProjectResponse, never raising for a single project.
 
-    Phase 34P: the projects list MUST stay usable even if one project's
-    derived counts are unreachable (e.g. classification records in a
-    transient bad shape after a failed classify, Supabase rate limit on
-    one of the N+1 lookups, etc.). Each derived count is wrapped in its
-    own ``try``; a failure becomes ``0`` rather than a 500. The frontend
-    still gets the project's name + methodologies, so the workspace
-    never appears empty.
+    Phase 34P: per-field defensive so one bad classification row
+    can't 500 the whole list.
+    Phase 34W: bulk classification lookup. The previous N+1 path made
+    GET /projects/{id} take ~95s for a 1050-product project (1 list
+    fetch + 1050 individual classification fetches). The new path
+    uses ``get_pt_classifications_bulk`` — one SELECT WHERE
+    product_id IN (…) — bringing project-detail to ~constant time.
     """
 
     def _safe_count(fn, default: int = 0) -> int:
@@ -159,21 +159,30 @@ def _project_response(store: StoreProtocol, project: Project) -> ProjectResponse
 
         def _compute_unclassified() -> int:
             products = store.list_products_for_project(project.id)
-            count = 0
-            for p in products:
-                if (
-                    p.pt_fields is not None
-                    and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
-                ):
-                    try:
-                        if store.get_pt_classification(p.id) is None:
-                            count += 1
-                    except Exception:
-                        # One unreadable classification must not corrupt
-                        # the whole project's response — count it as
-                        # unclassified so the wizard still surfaces work.
-                        count += 1
-            return count
+            # Collect PT-eligible product ids first; bulk-fetch their
+            # classifications in ONE call.
+            pt_eligible_ids: list[UUID] = [
+                p.id
+                for p in products
+                if p.pt_fields is not None
+                and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
+            ]
+            if not pt_eligible_ids:
+                return 0
+            try:
+                classified = store.get_pt_classifications_bulk(
+                    pt_eligible_ids
+                )
+            except Exception:
+                # If bulk lookup fails, treat the project as
+                # fully-unclassified so the wizard prompts the user
+                # to retry the classify step.
+                return len(pt_eligible_ids)
+            return sum(
+                1
+                for pid in pt_eligible_ids
+                if pid not in classified
+            )
 
         unclassified_pt_count = _safe_count(_compute_unclassified)
 

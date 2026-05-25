@@ -323,8 +323,10 @@ def ingest_upload(
     else:
         store.add_upload(upload, product_ids=product_ids)
 
-    for product in result.products:
-        store.add_product(product)
+    # Phase 34W — bulk insert. The previous per-product loop made
+    # 1050-row ingestion take ~60s (one Supabase HTTP round-trip per
+    # product). add_products_bulk chunks at 500 rows per call.
+    store.add_products_bulk(list(result.products))
 
     store.set_upload_validation_report(the_upload_id, result.report, duplicate_of=duplicate_of)
 

@@ -365,6 +365,18 @@ class InMemoryStore:
         with self._lock:
             self.products[product.id] = product
 
+    def add_products_bulk(self, products: list[NormalizedProduct]) -> None:
+        """Phase 34W — single lock acquisition for N inserts.
+
+        Trivial perf win for the in-memory store but the API parity
+        matters: ingestion calls ``add_products_bulk`` regardless of
+        backing store, and Postgres benefits dramatically from the
+        same call shape.
+        """
+        with self._lock:
+            for product in products:
+                self.products[product.id] = product
+
     def list_products_for_project(self, project_id: UUID) -> list[NormalizedProduct]:
         return [p for p in self.products.values() if p.project_id == project_id]
 
@@ -562,6 +574,19 @@ class InMemoryStore:
 
     def get_pt_classification(self, product_id: UUID) -> ProteinTrackerProductClassification | None:
         return self.pt_classifications.get(product_id)
+
+    def get_pt_classifications_bulk(
+        self, product_ids: list[UUID]
+    ) -> dict[UUID, ProteinTrackerProductClassification]:
+        # Phase 34W — O(1) dict-lookup per id; the Postgres impl uses
+        # a single SELECT WHERE product_id IN (…) instead of N HTTP
+        # round-trips.
+        out: dict[UUID, ProteinTrackerProductClassification] = {}
+        for pid in product_ids:
+            cls = self.pt_classifications.get(pid)
+            if cls is not None:
+                out[pid] = cls
+        return out
 
     def get_wwf_classification(self, product_id: UUID) -> WWFProductClassification | None:
         return self.wwf_classifications.get(product_id)
