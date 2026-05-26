@@ -923,6 +923,26 @@ def batch_classify(
                 )
                 continue
 
+            # Phase 36I — deterministic taxonomy guards for the
+            # Protein Tracker. The 150-product audit surfaced four
+            # systematic error classes; ``apply_pt_guards`` detects
+            # them and substitutes a corrected category. The guard
+            # ALSO clamps confidence to 0.69 so the row routes to
+            # ``needs_review`` — we never silently auto-accept a
+            # guard-corrected verdict.
+            if methodology is Methodology.PROTEIN_TRACKER:
+                from altera_api.ai.pt_guards import apply_pt_guards
+
+                override = apply_pt_guards(
+                    p.product_name, classification
+                )
+                if override is not None:
+                    _maybe_sample(
+                        f"pt_guard: rule={override.rule} "
+                        f"name={p.product_name!r}"
+                    )
+                    classification = override.new_classification
+
             if classification.confidence < threshold:
                 out.append(
                     AINeedsReviewLowConfidence(

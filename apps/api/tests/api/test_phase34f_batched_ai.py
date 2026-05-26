@@ -268,9 +268,14 @@ class TestBatchClassifyOrchestrator:
         # 9 obvious products → accepted; 1 ambiguous ("Promotion XYZ").
         # Phase 36H — readable ambiguous names that the model returns
         # as ``unknown`` now go to needs_review (parse_failures
-        # counter) instead of being accepted as final unknown. The
-        # 9-accepted floor is what we actually care about here.
-        assert len(accepted) >= 9
+        # counter) instead of being accepted as final unknown.
+        # Phase 36I — "Salade Poulet César" is now reclassified by
+        # the animal_prepared_meal_composite guard from animal_core
+        # to composite_products + needs_review (the model rule fires
+        # ``poulet`` → animal_core 0.93 first, but a prepared-dish
+        # marker ``salade`` triggers the guard). The accepted floor
+        # therefore drops to 8 in this synthetic fixture.
+        assert len(accepted) >= 8
         assert bundle.provider_errors == 0
         # Spot-check categories.
         by_id = {
