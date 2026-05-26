@@ -982,6 +982,7 @@ function StepValidation({
   step,
   methodology,
   wwfEnabled,
+  ptEnabled,
   wwfOnly,
   onResolved,
   onNext,
@@ -991,6 +992,9 @@ function StepValidation({
   step: WorkflowStep;
   methodology: Methodology;
   wwfEnabled: boolean;
+  /** Phase WWF-I — true when PT is enabled on the project; lets the
+   *  validation table hide the PT toggle for WWF-only projects. */
+  ptEnabled: boolean;
   /** Phase WWF-G — when true, the "Continuer" CTA skips NEVO and
    *  goes straight to Calcul WWF. */
   wwfOnly: boolean;
@@ -1016,11 +1020,14 @@ function StepValidation({
         </p>
       </div>
 
-      {/* Phase 34F — full category validation table for ALL products. */}
+      {/* Phase 34F — full category validation table for ALL products.
+          Phase WWF-I — pass ``ptEnabled`` so the table can hide the
+          PT toggle for WWF-only projects and auto-default to WWF. */}
       <ValidationTable
         projectId={projectId}
         accessToken={accessToken}
         wwfEnabled={wwfEnabled}
+        ptEnabled={ptEnabled}
         onChanged={onResolved}
       />
 
@@ -2505,6 +2512,7 @@ export default function WorkflowWizardPage() {
             step={activeBackendStep}
             methodology={primaryMethodology}
             wwfEnabled={wwfEnabled}
+            ptEnabled={ptEnabled}
             wwfOnly={wwfOnly}
             onResolved={refresh}
             onNext={advanceNext}

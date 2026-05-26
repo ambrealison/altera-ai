@@ -19,6 +19,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { Button, Card, Pill } from "@/components/ui";
 import type {
@@ -29,6 +30,65 @@ import type {
   ProteinTrackerGroup,
 } from "@/lib/api";
 import { ApiError, createApi } from "@/lib/api";
+
+// Phase WWF-I — French labels for the WWF subgroups + composite buckets
+// shown in the WWF validation view. Falls back to the raw enum value
+// when a label isn't defined (keeps the table readable even if the
+// backend adds a new subgroup before the frontend ships the label).
+
+const WWF_FOOD_GROUP_LABELS_FR: Record<string, string> = {
+  FG1: "FG1 · Protéines",
+  FG2: "FG2 · Lait & substituts",
+  FG3: "FG3 · Matières grasses",
+  FG4: "FG4 · Fruits & légumes",
+  FG5: "FG5 · Céréales",
+  FG6: "FG6 · Tubercules",
+  FG7: "FG7 · Snacks",
+  out_of_scope: "Hors périmètre",
+  unknown: "Inconnu",
+};
+
+const WWF_FOOD_GROUP_TONE: Record<string, "ok" | "warn" | "neutral" | "brand"> = {
+  FG1: "brand",
+  FG2: "ok",
+  FG3: "ok",
+  FG4: "ok",
+  FG5: "ok",
+  FG6: "ok",
+  FG7: "warn",
+  out_of_scope: "neutral",
+  unknown: "neutral",
+};
+
+const WWF_BUCKET_LABELS_FR: Record<string, string> = {
+  meat_based: "Composite — viande",
+  seafood_based: "Composite — poisson",
+  vegetarian: "Composite — végétarien",
+  vegan: "Composite — végétalien",
+};
+
+function wwfFoodGroupLabel(fg: string | null | undefined): string {
+  if (!fg) return "—";
+  return WWF_FOOD_GROUP_LABELS_FR[fg] ?? fg;
+}
+
+function wwfBucketLabel(b: string | null | undefined): string {
+  if (!b) return "—";
+  return WWF_BUCKET_LABELS_FR[b] ?? b;
+}
+
+function wwfSubgroupOf(row: ClassificationRow): string | null {
+  // Pick whichever subgroup matches the current food group; only one
+  // ever applies per row (Pydantic invariant on the backend).
+  return (
+    row.wwf_fg1_subgroup ??
+    row.wwf_fg2_subgroup ??
+    row.wwf_fg3_subgroup ??
+    row.wwf_fg5_grain_kind ??
+    row.wwf_fg7_snack_kind ??
+    null
+  );
+}
 
 const PAGE_SIZE = 50;
 
@@ -87,14 +147,51 @@ export function ValidationTable({
   projectId,
   accessToken,
   wwfEnabled,
+  ptEnabled = true,
   onChanged,
 }: {
   projectId: string;
   accessToken: string | null;
   wwfEnabled: boolean;
+  /** Phase WWF-I — when false (WWF-only project), the table hides the
+   *  PT-only filters/columns and defaults the view to WWF. */
+  ptEnabled?: boolean;
   onChanged?: () => void | Promise<void>;
 }) {
   const api = useMemo(() => createApi(accessToken), [accessToken]);
+
+  // Phase WWF-I — read ?methodology=wwf | protein_tracker from the
+  // URL to preselect the validation view. The WWF dual-classification
+  // panel (Phase WWF-H) stamps this query param when the user clicks
+  // "Voir la validation WWF" / "Voir la validation Protein Tracker".
+  const searchParams = useSearchParams();
+  const queryMethodology = searchParams?.get("methodology") ?? null;
+
+  /** "wwf" → render the WWF view (food group / subgroup / composite /
+   *  bucket columns). "protein_tracker" → render the existing PT view.
+   *  Defaults: WWF-only projects open in WWF; PT-only and PT+WWF open
+   *  in PT unless the query param overrides. */
+  const initialView: Methodology = (() => {
+    if (queryMethodology === "wwf" && wwfEnabled) return "wwf";
+    if (queryMethodology === "protein_tracker" && ptEnabled) {
+      return "protein_tracker";
+    }
+    if (wwfEnabled && !ptEnabled) return "wwf";
+    return "protein_tracker";
+  })();
+  const [methodologyView, setMethodologyView] = useState<Methodology>(
+    initialView,
+  );
+  // Keep the URL in sync when the user manually switches view so a page
+  // reload / link copy preserves intent.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("methodology") !== methodologyView) {
+      url.searchParams.set("methodology", methodologyView);
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [methodologyView]);
 
   const [filters, setFilters] = useState<ClassificationsFilters>({});
   const [offset, setOffset] = useState(0);
@@ -197,13 +294,68 @@ export function ValidationTable({
   const pageCount = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
   const pageIdx = Math.floor(offset / PAGE_SIZE);
 
+  const isWwfView = methodologyView === "wwf";
+  const canToggle = ptEnabled && wwfEnabled;
+
   return (
     <Card>
+      {/* Phase WWF-I — methodology selector (only visible on PT+WWF
+          projects). Single-methodology projects skip the toggle. */}
+      {canToggle && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            Méthodologie :
+          </span>
+          <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5">
+            <button
+              type="button"
+              onClick={() => setMethodologyView("protein_tracker")}
+              className={
+                "rounded px-2 py-0.5 text-xs font-medium transition " +
+                (methodologyView === "protein_tracker"
+                  ? "bg-brand-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50")
+              }
+            >
+              Protein Tracker
+            </button>
+            <button
+              type="button"
+              onClick={() => setMethodologyView("wwf")}
+              className={
+                "rounded px-2 py-0.5 text-xs font-medium transition " +
+                (methodologyView === "wwf"
+                  ? "bg-brand-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50")
+              }
+            >
+              WWF
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Phase WWF-I — title + subtitle adapt to the active view. */}
+      <div className="mb-2">
+        <h3 className="text-sm font-semibold text-gray-800">
+          {isWwfView ? "Validation WWF" : "Validation Protein Tracker"}
+        </h3>
+        <p className="mt-0.5 text-xs text-gray-500">
+          {isWwfView
+            ? "Vérifiez les groupes alimentaires WWF, sous-groupes et produits composites."
+            : "Vérifiez les catégories Protein Tracker assignées par les règles déterministes et l'IA."}
+        </p>
+      </div>
+
       {/* Aggregate counters */}
       <div className="flex flex-wrap gap-2 text-xs">
         <span className="text-gray-600">
-          {data.total} produit(s) affiché(s) · {data.pt_eligible_total} dans le périmètre
-          Protein Tracker
+          {data.total} produit(s) affiché(s)
+          {!isWwfView && (
+            <>
+              {" "}· {data.pt_eligible_total} dans le périmètre Protein Tracker
+            </>
+          )}
         </span>
         {Object.entries(data.counts_by_source).map(([k, v]) => (
           <Pill
@@ -375,8 +527,20 @@ export function ValidationTable({
             <tr className="border-b border-gray-200 text-left text-gray-500 uppercase tracking-wider">
               <th className="py-2 pr-3 font-medium">Produit</th>
               <th className="py-2 pr-3 font-medium">Catégorie retailer</th>
-              <th className="py-2 pr-3 font-medium">PT</th>
-              {wwfEnabled && <th className="py-2 pr-3 font-medium">WWF</th>}
+              {isWwfView ? (
+                <>
+                  <th className="py-2 pr-3 font-medium">Groupe WWF</th>
+                  <th className="py-2 pr-3 font-medium">Sous-groupe</th>
+                  <th className="py-2 pr-3 font-medium">Composite</th>
+                </>
+              ) : (
+                <>
+                  <th className="py-2 pr-3 font-medium">PT</th>
+                  {wwfEnabled && (
+                    <th className="py-2 pr-3 font-medium">WWF</th>
+                  )}
+                </>
+              )}
               <th className="py-2 pr-3 font-medium">Source</th>
               <th className="py-2 pr-3 font-medium">Confiance</th>
               <th className="py-2 pr-3 font-medium">Statut</th>
@@ -386,7 +550,10 @@ export function ValidationTable({
           <tbody className="divide-y divide-gray-100">
             {data.items.length === 0 && (
               <tr>
-                <td colSpan={wwfEnabled ? 8 : 7} className="py-4 text-center text-gray-500">
+                <td
+                  colSpan={isWwfView ? 8 : wwfEnabled ? 8 : 7}
+                  className="py-4 text-center text-gray-500"
+                >
                   Aucun produit ne correspond aux filtres.
                 </td>
               </tr>
@@ -413,25 +580,64 @@ export function ValidationTable({
                       </div>
                     )}
                   </td>
-                  <td className="py-2 pr-3">
-                    {row.pt_group ? (
-                      <Pill tone={PT_GROUP_TONE[row.pt_group]}>
-                        {ptGroupLabel(row.pt_group)}
-                      </Pill>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  {wwfEnabled && (
-                    <td className="py-2 pr-3 text-gray-600">
-                      {row.wwf_food_group ?? "—"}
-                    </td>
+                  {isWwfView ? (
+                    <>
+                      <td className="py-2 pr-3">
+                        {row.wwf_food_group ? (
+                          <Pill
+                            tone={
+                              WWF_FOOD_GROUP_TONE[row.wwf_food_group] ??
+                              "neutral"
+                            }
+                          >
+                            {wwfFoodGroupLabel(row.wwf_food_group)}
+                          </Pill>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3 text-gray-600">
+                        {wwfSubgroupOf(row) ?? "—"}
+                      </td>
+                      <td className="py-2 pr-3 text-gray-600">
+                        {row.wwf_is_composite ? (
+                          <span title={row.wwf_composite_step1_bucket ?? ""}>
+                            {wwfBucketLabel(
+                              row.wwf_composite_step1_bucket ?? null,
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="py-2 pr-3">
+                        {row.pt_group ? (
+                          <Pill tone={PT_GROUP_TONE[row.pt_group]}>
+                            {ptGroupLabel(row.pt_group)}
+                          </Pill>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      {wwfEnabled && (
+                        <td className="py-2 pr-3 text-gray-600">
+                          {row.wwf_food_group ?? "—"}
+                        </td>
+                      )}
+                    </>
                   )}
                   <td className="py-2 pr-3 text-gray-600">
-                    {sourceLabel(row.pt_source)}
+                    {sourceLabel(
+                      isWwfView ? row.wwf_source : row.pt_source,
+                    )}
                   </td>
                   <td className="py-2 pr-3 text-gray-600">
-                    {confidenceText(row.pt_confidence)}
+                    {confidenceText(
+                      isWwfView ? row.wwf_confidence : row.pt_confidence,
+                    )}
                   </td>
                   <td className="py-2 pr-3">
                     {row.review_status ? (
@@ -452,43 +658,54 @@ export function ValidationTable({
                     )}
                   </td>
                   <td className="py-2">
-                    <div className="flex flex-wrap items-center gap-1">
-                      <select
-                        value={chosen ?? ""}
-                        onChange={(e) =>
-                          setOverrides((prev) => ({
-                            ...prev,
-                            [row.product_id]: e.target
-                              .value as ProteinTrackerGroup,
-                          }))
-                        }
-                        disabled={busy}
-                        className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
-                      >
-                        <option value="">Changer…</option>
-                        {PT_GROUP_OPTIONS.map((g) => (
-                          <option key={g} value={g}>
-                            {PT_GROUP_LABELS_FR[g]}
-                          </option>
-                        ))}
-                      </select>
-                      <Button
-                        variant="ghost"
-                        onClick={() => void submit(row, "changed")}
-                        disabled={busy || !chosen}
-                      >
-                        {busy ? "…" : "✎"}
-                      </Button>
-                      {inQueue && row.pt_group && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => void submit(row, "accepted")}
+                    {isWwfView ? (
+                      /* Phase WWF-I — WWF validation is read-only for
+                         now. Manual WWF correction UI would need
+                         multi-field editors (food group + subgroup +
+                         composite + bucket) and is deferred. The user
+                         can still inspect every classification. */
+                      <span className="text-xs text-gray-400">
+                        Lecture seule
+                      </span>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-1">
+                        <select
+                          value={chosen ?? ""}
+                          onChange={(e) =>
+                            setOverrides((prev) => ({
+                              ...prev,
+                              [row.product_id]: e.target
+                                .value as ProteinTrackerGroup,
+                            }))
+                          }
                           disabled={busy}
+                          className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
                         >
-                          {busy ? "…" : "✓"}
+                          <option value="">Changer…</option>
+                          {PT_GROUP_OPTIONS.map((g) => (
+                            <option key={g} value={g}>
+                              {PT_GROUP_LABELS_FR[g]}
+                            </option>
+                          ))}
+                        </select>
+                        <Button
+                          variant="ghost"
+                          onClick={() => void submit(row, "changed")}
+                          disabled={busy || !chosen}
+                        >
+                          {busy ? "…" : "✎"}
                         </Button>
-                      )}
-                    </div>
+                        {inQueue && row.pt_group && (
+                          <Button
+                            variant="secondary"
+                            onClick={() => void submit(row, "accepted")}
+                            disabled={busy}
+                          >
+                            {busy ? "…" : "✓"}
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

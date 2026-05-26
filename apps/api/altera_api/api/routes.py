@@ -2048,6 +2048,17 @@ class ClassificationRow(BaseModel):
     wwf_food_group: str | None
     wwf_source: str | None
     wwf_confidence: float | None
+    # Phase WWF-I — full WWF subgroup + composite payload so the
+    # WWF validation view can render food group + subgroup +
+    # composite bucket + confidence without a second round-trip.
+    wwf_fg1_subgroup: str | None = None
+    wwf_fg2_subgroup: str | None = None
+    wwf_fg3_subgroup: str | None = None
+    wwf_fg5_grain_kind: str | None = None
+    wwf_fg7_snack_kind: str | None = None
+    wwf_is_composite: bool | None = None
+    wwf_composite_step1_bucket: str | None = None
+    wwf_rule_id: str | None = None
     # Review state
     review_status: str | None         # "in_queue" | "reviewing" | "accepted" |
                                       #  "changed" | "deferred" | null
@@ -2246,6 +2257,46 @@ def list_classifications_route(
                 ),
                 wwf_confidence=(
                     float(wwf.confidence) if wwf is not None else None
+                ),
+                # Phase WWF-I — WWF subgroup + composite fields for
+                # the WWF validation view. ``None`` when the row
+                # has no WWF classification or the subgroup doesn't
+                # apply to the current food group.
+                wwf_fg1_subgroup=(
+                    wwf.fg1_subgroup.value
+                    if wwf is not None and wwf.fg1_subgroup is not None
+                    else None
+                ),
+                wwf_fg2_subgroup=(
+                    wwf.fg2_subgroup.value
+                    if wwf is not None and wwf.fg2_subgroup is not None
+                    else None
+                ),
+                wwf_fg3_subgroup=(
+                    wwf.fg3_subgroup.value
+                    if wwf is not None and wwf.fg3_subgroup is not None
+                    else None
+                ),
+                wwf_fg5_grain_kind=(
+                    wwf.fg5_grain_kind.value
+                    if wwf is not None and wwf.fg5_grain_kind is not None
+                    else None
+                ),
+                wwf_fg7_snack_kind=(
+                    wwf.fg7_snack_kind.value
+                    if wwf is not None and wwf.fg7_snack_kind is not None
+                    else None
+                ),
+                wwf_is_composite=(
+                    wwf.wwf_is_composite if wwf is not None else None
+                ),
+                wwf_composite_step1_bucket=(
+                    wwf.composite_step1_bucket.value
+                    if wwf is not None and wwf.composite_step1_bucket is not None
+                    else None
+                ),
+                wwf_rule_id=(
+                    wwf.rule_id if wwf is not None else None
                 ),
                 review_status=proj["review_status"],
             )

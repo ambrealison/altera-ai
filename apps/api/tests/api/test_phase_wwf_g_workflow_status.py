@@ -190,6 +190,43 @@ class TestPTWWFWorkflowStatus:
         cbm = body["classification_by_methodology"]
         assert list(cbm.keys()) == ["protein_tracker"]
 
+    def test_classifications_row_exposes_wwf_subgroup_fields(
+        self, client: TestClient, wwf_tiny_csv: bytes
+    ) -> None:
+        """Phase WWF-I — the /classifications row payload now includes
+        wwf subgroup + composite fields so the validation table can
+        render the WWF view without a second round-trip."""
+        pid = _create_project(client, methodologies=["wwf"])
+        upload = client.post(
+            f"/api/v1/projects/{pid}/uploads",
+            files={"file": ("wwf.csv", wwf_tiny_csv, "text/csv")},
+        ).json()
+        client.post(
+            f"/api/v1/projects/{pid}/uploads/{upload['id']}/classify",
+            json={"methodology": "wwf"},
+        )
+        r = client.get(f"/api/v1/projects/{pid}/classifications")
+        assert r.status_code == 200
+        items = r.json()["items"]
+        assert len(items) > 0
+        # Pick any row that has a WWF classification — its payload
+        # must expose ALL the new keys (even when null).
+        sample = items[0]
+        for key in (
+            "wwf_food_group",
+            "wwf_source",
+            "wwf_confidence",
+            "wwf_fg1_subgroup",
+            "wwf_fg2_subgroup",
+            "wwf_fg3_subgroup",
+            "wwf_fg5_grain_kind",
+            "wwf_fg7_snack_kind",
+            "wwf_is_composite",
+            "wwf_composite_step1_bucket",
+            "wwf_rule_id",
+        ):
+            assert key in sample, f"missing key {key!r} on WWF row payload"
+
     def test_pt_wwf_steps_emitted_normally(self, client: TestClient) -> None:
         pid = _create_project(
             client, methodologies=["protein_tracker", "wwf"]

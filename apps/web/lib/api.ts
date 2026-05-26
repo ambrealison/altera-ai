@@ -388,6 +388,15 @@ export interface ClassificationRow {
   wwf_food_group: WWFFoodGroup | null;
   wwf_source: "deterministic" | "ai" | "manual_review" | null;
   wwf_confidence: number | null;
+  // Phase WWF-I — full WWF subgroup + composite payload.
+  wwf_fg1_subgroup?: string | null;
+  wwf_fg2_subgroup?: string | null;
+  wwf_fg3_subgroup?: string | null;
+  wwf_fg5_grain_kind?: string | null;
+  wwf_fg7_snack_kind?: string | null;
+  wwf_is_composite?: boolean | null;
+  wwf_composite_step1_bucket?: string | null;
+  wwf_rule_id?: string | null;
   review_status: ManualReviewStatus | null;
 }
 
