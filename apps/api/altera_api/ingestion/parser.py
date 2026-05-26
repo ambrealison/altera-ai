@@ -23,6 +23,52 @@ from altera_api.ingestion.units import (
     normalise_weight_kg,
 )
 
+#: Phase WWF-I-hotfix2 — brand-type words that map to is_own_brand=True.
+#: Many retailer exports use full English/French words instead of
+#: boolean literals (e.g. "Own brand", "Private label", "Marque
+#: distributeur"). Without this map the parser rejected every row
+#: of a perfectly valid 100-product CSV with an "invalid_type" error.
+_BRAND_TYPE_TRUE_TOKENS: frozenset[str] = frozenset(
+    {
+        # English
+        "own brand",
+        "own-brand",
+        "ownbrand",
+        "own label",
+        "private label",
+        "private-label",
+        "store brand",
+        "store label",
+        "house brand",
+        "store-own label",
+        "pl",                     # common abbreviation
+        # French
+        "marque distributeur",
+        "marque du distributeur",
+        "marque propre",
+        "marque enseigne",
+        "mdd",
+    }
+)
+
+#: Brand-type words that map to is_own_brand=False (national brand).
+_BRAND_TYPE_FALSE_TOKENS: frozenset[str] = frozenset(
+    {
+        # English
+        "branded",
+        "brand",
+        "national brand",
+        "national-brand",
+        "manufacturer brand",
+        "manufacturer-brand",
+        "name brand",
+        # French
+        "marque nationale",
+        "marque fabricant",
+        "marque",
+    }
+)
+
 
 def _coerce_bool(value: Any) -> bool | None:
     if value is None:
@@ -33,6 +79,14 @@ def _coerce_bool(value: Any) -> bool | None:
     if s in {"true", "1", "yes", "y", "oui", "o", "vrai"}:
         return True
     if s in {"false", "0", "no", "n", "non", "faux"}:
+        return False
+    # Phase WWF-I-hotfix2 — brand-type free-text values used by
+    # real retailer CSVs. Normalise the whitespace + punctuation to
+    # match the lookup tables.
+    norm = " ".join(s.replace("_", " ").split())
+    if norm in _BRAND_TYPE_TRUE_TOKENS:
+        return True
+    if norm in _BRAND_TYPE_FALSE_TOKENS:
         return False
     return None  # caller treats as missing; downstream may emit an error
 
@@ -308,8 +362,8 @@ def parse_row(
             )
         )
 
-    retail_channel = _enum_or_error(
-        row.get("retail_channel"), RetailChannel, errors, row_number, "retail_channel"
+    retail_channel = _retail_channel_or_error(
+        row.get("retail_channel"), errors, row_number
     )
     protein_source = _enum_or_error(
         row.get("protein_source"), ProteinSource, errors, row_number, "protein_source"
@@ -385,6 +439,94 @@ def _decimal_or_error(
         )
         return None, True
     return coerced, False
+
+
+#: Phase WWF-I-hotfix2 — alias map for retail_channel free-text
+#: values that real retailer CSVs ship (English + French + slash and
+#: hyphen variants). The canonical RetailChannel enum stays as
+#: {fresh, grocery_ambient, frozen}; this map is the parser's
+#: tolerant projection.
+_RETAIL_CHANNEL_ALIASES: dict[str, RetailChannel] = {
+    # fresh
+    "fresh": RetailChannel.FRESH,
+    "frais": RetailChannel.FRESH,
+    "frais & traiteur": RetailChannel.FRESH,
+    "produits frais": RetailChannel.FRESH,
+    "chilled": RetailChannel.FRESH,
+    "refrigerated": RetailChannel.FRESH,
+    "refrigere": RetailChannel.FRESH,
+    # grocery_ambient
+    "grocery_ambient": RetailChannel.GROCERY_AMBIENT,
+    "grocery ambient": RetailChannel.GROCERY_AMBIENT,
+    "grocery/ambient": RetailChannel.GROCERY_AMBIENT,
+    "grocery-ambient": RetailChannel.GROCERY_AMBIENT,
+    "ambient": RetailChannel.GROCERY_AMBIENT,
+    "ambient grocery": RetailChannel.GROCERY_AMBIENT,
+    "grocery": RetailChannel.GROCERY_AMBIENT,
+    "epicerie": RetailChannel.GROCERY_AMBIENT,
+    "epicerie seche": RetailChannel.GROCERY_AMBIENT,
+    "sec": RetailChannel.GROCERY_AMBIENT,
+    "ambiant": RetailChannel.GROCERY_AMBIENT,
+    "shelf-stable": RetailChannel.GROCERY_AMBIENT,
+    "shelf stable": RetailChannel.GROCERY_AMBIENT,
+    "dry goods": RetailChannel.GROCERY_AMBIENT,
+    # frozen
+    "frozen": RetailChannel.FROZEN,
+    "frozen food": RetailChannel.FROZEN,
+    "surgele": RetailChannel.FROZEN,
+    "surgeles": RetailChannel.FROZEN,
+    "produits surgeles": RetailChannel.FROZEN,
+    "congele": RetailChannel.FROZEN,
+}
+
+
+def _retail_channel_or_error(
+    value: Any,
+    errors: list[ValidationError],
+    row_number: int,
+) -> RetailChannel | None:
+    """Phase WWF-I-hotfix2 — accept the wide variety of free-text
+    retail-channel values real retailer CSVs ship. The canonical enum
+    values still pass through; the alias map handles "Grocery/Ambient",
+    "Fresh", "Surgelé", etc. before we ever try ``RetailChannel(raw)``.
+
+    Falls back to the original ``_enum_or_error`` for unrecognised
+    values so the user still gets a structured ``invalid_enum`` error
+    rather than a silent ``None``.
+    """
+    raw = _coerce_str_or_none(value)
+    if raw is None:
+        return None
+    # Try the canonical lookup first (covers "fresh" / "grocery_ambient"
+    # / "frozen" literals).
+    try:
+        return RetailChannel(raw)
+    except ValueError:
+        pass
+    # Then the alias map. Lowercase + collapse whitespace + strip the
+    # ASCII-folded version so "Surgelé" matches "surgele".
+    import unicodedata
+    nf = unicodedata.normalize("NFKD", raw.lower())
+    folded = "".join(c for c in nf if not unicodedata.combining(c))
+    norm = " ".join(folded.split())
+    if norm in _RETAIL_CHANNEL_ALIASES:
+        return _RETAIL_CHANNEL_ALIASES[norm]
+    # Last-chance: unrecognised value → structured error so the user
+    # sees exactly which row + which value failed.
+    errors.append(
+        ValidationError(
+            row_number=row_number,
+            field="retail_channel",
+            code="invalid_enum",
+            message=(
+                f"retail_channel={raw!r} is not a valid RetailChannel "
+                f"(accepted: fresh, grocery_ambient, frozen — or aliases "
+                f"like 'Grocery/Ambient', 'Fresh', 'Frozen', 'Frais', "
+                f"'Surgelé', 'Épicerie')"
+            ),
+        )
+    )
+    return None
 
 
 _E = TypeVar("_E", bound=Enum)

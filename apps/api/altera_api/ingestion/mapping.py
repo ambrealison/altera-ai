@@ -117,6 +117,7 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "item_code",
         "product_code",
         "product_id",
+        "product_pk",
         "article_id",
         "article_code",
         "code_article",
@@ -188,6 +189,15 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "net_weight_grams",
         "grammage",
         "weight_per_item",
+        # Phase WWF-I-hotfix2 — alias for the "100-product dataset"
+        # template the operator was uploading. Pack weight in grams
+        # is the most common retailer export shape.
+        "pack_weight_g",
+        "pack_weight_grams",
+        "package_weight_g",
+        "unit_pack_weight_g",
+        "poids_paquet",
+        "poids_paquet_g",
     ],
     "brand": [
         "marque",
@@ -217,6 +227,9 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "famille_niveau1",
         "cat_l1",
         "category_l1",
+        # Phase WWF-I-hotfix2 — "100-product dataset" header.
+        "raw_product_category",
+        "raw_category",
     ],
     "retailer_subcategory": [
         "L2 category",
@@ -254,6 +267,9 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "raw_ingredients",
         "ingredient_declaration",
         "ingredient",                # Phase 33J — singular FR form
+        # Phase WWF-I-hotfix2 — "100-product dataset" header.
+        "ingredient_declaration_simulated",
+        "ingredient_text_simulated",
     ],
     "is_own_brand": [
         "Store label",
@@ -275,6 +291,11 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "marque_distributeur",
         "marque_du_distributeur",
         "marque_enseigne",
+        # Phase WWF-I-hotfix2 — "100-product dataset" header.
+        # ``brand_type`` carries values like "Own brand" / "Branded";
+        # the parser's enhanced _coerce_bool now understands those.
+        "brand_type",
+        "type_marque",
     ],
     "ean": [
         "EAN",
@@ -301,6 +322,10 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "ecolabel",
         "eco_labels",
         "certifs",
+        # Phase WWF-I-hotfix2 — "100-product dataset" header.
+        "label_claims_notes",
+        "label_claims",
+        "claims_notes",
     ],
     "country": [
         "pays",
@@ -372,6 +397,9 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "protein_100g",
         "prot_pct",
         "prot",
+        # Phase WWF-I-hotfix2 — "100-product dataset" header.
+        "protein_total_g_per_100g",
+        "proteines_totales_g_par_100g",
     ],
     "plant_protein_pct": [
         "Plant protein per 100g",
@@ -381,6 +409,8 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "proteines_vegetales",        # Phase 33J — French template header
         "proteines_vegetales_pct",
         "plant_prot",
+        # Phase WWF-I-hotfix2 — "100-product dataset" header.
+        "protein_plant_g_per_100g",
     ],
     "animal_protein_pct": [
         "Animal protein per 100g",
@@ -389,6 +419,8 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "proteines_animales",         # Phase 33J — French template header
         "proteines_animales_pct",
         "animal_prot",
+        # Phase WWF-I-hotfix2 — "100-product dataset" header.
+        "protein_animal_g_per_100g",
     ],
     "items_sold": [
         "units_sold",
@@ -427,6 +459,11 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "rayon_canal",
         "distribution_channel",
         "sales_channel",
+        # Phase WWF-I-hotfix2 — "100-product dataset" header.
+        # ``retail_category`` carries values like "Grocery/Ambient" /
+        # "Fresh" / "Frozen"; the parser's enhanced retail-channel
+        # alias map now understands them.
+        "retail_category",
     ],
 }
 
