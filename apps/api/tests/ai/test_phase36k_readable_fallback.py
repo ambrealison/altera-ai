@@ -181,10 +181,14 @@ class TestReadableFallbackPerFamily:
              "readable_fallback_non_food"),
             ("Couches bébé taille 4", ProteinTrackerGroup.OUT_OF_SCOPE,
              "readable_fallback_non_food"),
-            ("Croquettes chat bio", ProteinTrackerGroup.OUT_OF_SCOPE,
-             "readable_fallback_non_food"),
-            ("Pâtée chien adulte", ProteinTrackerGroup.OUT_OF_SCOPE,
-             "readable_fallback_non_food"),
+            # Phase 36K2 — petfood is IN-scope. Generic petfood with
+            # no explicit animal/plant anchor defaults to composite.
+            ("Croquettes chat bio",
+             ProteinTrackerGroup.COMPOSITE_PRODUCTS,
+             "readable_fallback_petfood_composite"),
+            ("Pâtée chien adulte",
+             ProteinTrackerGroup.COMPOSITE_PRODUCTS,
+             "readable_fallback_petfood_composite"),
             ("Lessive liquide", ProteinTrackerGroup.OUT_OF_SCOPE,
              "readable_fallback_non_food"),
             # Sweetener → out_of_scope.
@@ -322,21 +326,112 @@ class TestNewGuardFamilies:
     @pytest.mark.parametrize(
         "name",
         [
-            "Croquettes Chat Volaille",
-            "Pâtée Chien Adulte",
-            "Litière Chat Bio",
             "Lessive Liquide Concentrée",
             "Dentifrice Menthe Fraîche",
+            "Papier Toilette Ultra Doux",
+            "Gel Douche Bio",
         ],
     )
     def test_non_food_guard_reroutes_to_out_of_scope(
         self, name: str
     ) -> None:
-        # Even if the model said plant_based_non_core, non-food guard
-        # must override to out_of_scope.
+        # Household / hygiene / human-non-food: model said
+        # plant_based_non_core, non-food guard overrides to oos.
         group, rule = _apply(name, ProteinTrackerGroup.PLANT_BASED_NON_CORE)
         assert group is ProteinTrackerGroup.OUT_OF_SCOPE
         assert rule == "non_food_out_of_scope"
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "Litière Chat Bio",
+            "Jouet Chien Corde",
+            "Sacs Déjections Chien",
+        ],
+    )
+    def test_pet_accessory_guard_reroutes_to_out_of_scope(
+        self, name: str
+    ) -> None:
+        # Pet accessories (litter / toy / poop bags) → out_of_scope,
+        # using the dedicated pet_accessory_out_of_scope rule.
+        group, rule = _apply(
+            name, ProteinTrackerGroup.PLANT_BASED_NON_CORE
+        )
+        assert group is ProteinTrackerGroup.OUT_OF_SCOPE
+        assert rule == "pet_accessory_out_of_scope"
+
+    @pytest.mark.parametrize(
+        ("name", "expected_group", "expected_rule"),
+        [
+            # Generic petfood — composite by default.
+            ("Croquettes Chat",
+             ProteinTrackerGroup.COMPOSITE_PRODUCTS,
+             "petfood_generic_composite"),
+            ("Pâtée Chien Adulte",
+             ProteinTrackerGroup.COMPOSITE_PRODUCTS,
+             "petfood_generic_composite"),
+            # Petfood + explicit animal token → animal_core.
+            ("Croquettes Chat Saumon",
+             ProteinTrackerGroup.ANIMAL_CORE,
+             "petfood_animal_simple"),
+            ("Pâtée Chien Bœuf",
+             ProteinTrackerGroup.ANIMAL_CORE,
+             "petfood_animal_simple"),
+            # Petfood + plant-protein anchor → plant_based_core.
+            ("Croquettes Chien Tofu",
+             ProteinTrackerGroup.PLANT_BASED_CORE,
+             "petfood_plant_protein_core"),
+        ],
+    )
+    def test_petfood_guard_in_scope(
+        self,
+        name: str,
+        expected_group: ProteinTrackerGroup,
+        expected_rule: str,
+    ) -> None:
+        # The model returned plant_based_non_core (a typical wrong
+        # guess on petfood); the new petfood guard reroutes it.
+        group, rule = _apply(
+            name, ProteinTrackerGroup.PLANT_BASED_NON_CORE
+        )
+        assert group is expected_group, (
+            f"{name!r}: expected {expected_group}, got {group} "
+            f"(rule={rule})"
+        )
+        assert rule == expected_rule
+
+    @pytest.mark.parametrize(
+        ("name", "expected_group", "expected_rule"),
+        [
+            ("Boisson Amande Sans Sucres",
+             ProteinTrackerGroup.PLANT_BASED_CORE,
+             "plant_milk_substitute_core"),
+            ("Boisson Avoine Bio",
+             ProteinTrackerGroup.PLANT_BASED_CORE,
+             "plant_milk_substitute_core"),
+            ("Boisson Soja Vanille",
+             ProteinTrackerGroup.PLANT_BASED_CORE,
+             "plant_milk_substitute_core"),
+            ("Lait de Soja",
+             ProteinTrackerGroup.PLANT_BASED_CORE,
+             "plant_milk_substitute_core"),
+            ("Lait d'Amande Sans Sucre",
+             ProteinTrackerGroup.PLANT_BASED_CORE,
+             "plant_milk_substitute_core"),
+        ],
+    )
+    def test_plant_milk_substitute_guard(
+        self,
+        name: str,
+        expected_group: ProteinTrackerGroup,
+        expected_rule: str,
+    ) -> None:
+        # The model returned out_of_scope (mis-routed as a generic
+        # beverage); the plant-milk guard reroutes to
+        # plant_based_core.
+        group, rule = _apply(name, ProteinTrackerGroup.OUT_OF_SCOPE)
+        assert group is expected_group
+        assert rule == expected_rule
 
     @pytest.mark.parametrize(
         "name",

@@ -72,8 +72,15 @@ _GUARD_CONFIDENCE_CEILING: Decimal = Decimal("0.69")
 
 
 def _normalise(s: str) -> str:
-    """Lowercase + accent-fold for substring matching."""
-    nf = unicodedata.normalize("NFKD", s.lower())
+    """Lowercase + accent-fold for substring matching.
+
+    Unicode ligatures (``œ``, ``æ``) survive NFKD intact so we
+    expand them explicitly to ``oe`` / ``ae`` — without this,
+    "Bœuf" would NOT match the ``boeuf`` token in our
+    vocabularies.
+    """
+    lowered = s.lower().replace("œ", "oe").replace("æ", "ae")
+    nf = unicodedata.normalize("NFKD", lowered)
     return "".join(c for c in nf if not unicodedata.combining(c))
 
 
@@ -500,9 +507,14 @@ _PREPARED_DISH_MARKERS: tuple[str, ...] = (
 # ---------------------------------------------------------------------------
 
 
-#: Non-food / household / hygiene / pet-food tokens. Any readable
-#: product name containing one of these is out_of_scope regardless of
-#: what the model said.
+#: Non-food / household / hygiene tokens. Any readable product name
+#: containing one of these is out_of_scope regardless of what the
+#: model said.
+#:
+#: Phase 36K2 — pet FOOD has been removed from this set per product
+#: rule "pet food is in-scope food, only pet accessories /
+#: hygiene are out_of_scope". See ``_PETFOOD_IN_SCOPE_TOKENS`` and
+#: ``_PET_ACCESSORY_OOS_TOKENS`` below.
 _NON_FOOD_OOS_TOKENS: tuple[str, ...] = (
     # Cleaning / household
     "lessive",
@@ -521,7 +533,7 @@ _NON_FOOD_OOS_TOKENS: tuple[str, ...] = (
     "essuie tout",
     "film alimentaire",
     "aluminium menager",
-    # Personal hygiene
+    # Personal hygiene (human)
     "shampoing",
     "shampooing",
     "gel douche",
@@ -532,20 +544,103 @@ _NON_FOOD_OOS_TOKENS: tuple[str, ...] = (
     "lingettes bebe",
     "lingettes",
     "couches",
+    "couche bebe",
+    "couches bebe",
     "coton tige",
-    # Pet food / pet care
-    "croquettes chat",
-    "croquettes chien",
-    "patee chien",
-    "patee chat",
+)
+
+
+#: Phase 36K2 — pet ACCESSORIES (not food): litière, jouets,
+#: déjections, harnais, gamelles… → out_of_scope.
+_PET_ACCESSORY_OOS_TOKENS: tuple[str, ...] = (
     "litiere",
     "litiere chat",
-    "petfood",
-    "pet food",
-    "aliment chat",
-    "aliment chien",
+    "jouet chien",
+    "jouet chat",
+    "harnais",
+    "laisse chien",
+    "gamelle",
+    "sacs dejections",
+    "sac dejection",
+    "sac dejections",
+    "sacs dejection",
+    "tapis education",
+    "antiparasitaire",
+    "anti-puces",
+    "anti tiques",
+    "panier chien",
+    "panier chat",
+)
+
+
+#: Phase 36K2 — pet FOOD (in-scope). The brief mandates these are
+#: treated as food. Default category is ``composite_products`` with
+#: ``needs_review`` because most pet food is a mix of animal + cereal.
+#: If the name carries an explicit animal token (saumon/poulet/
+#: bœuf/thon), the guard refines to ``animal_core``. If the name
+#: carries an explicit vegan/plant-protein token, it stays
+#: ``plant_based_core``.
+_PETFOOD_IN_SCOPE_TOKENS: tuple[str, ...] = (
+    "croquettes chat",
+    "croquettes chien",
+    "croquettes poisson",
+    "croquettes oiseau",
+    "patee chien",
+    "patee chat",
+    "pâtée chien",
+    "pâtée chat",
     "friandise chien",
     "friandise chat",
+    "friandises chien",
+    "friandises chat",
+    "aliment chien",
+    "aliment chat",
+    "nourriture chien",
+    "nourriture chat",
+    "nourriture poisson",
+    "nourriture oiseau",
+    "petfood",
+    "pet food",
+)
+
+
+#: Phase 36K2 — plant-milk substitute drinks. The brief mandates
+#: these stay ``plant_based_core`` (substitut laitier protéique).
+#: Must be checked BEFORE the generic beverage_out_of_scope guard
+#: so a name like "Boisson Amande Sans Sucres" doesn't get routed
+#: to out_of_scope via the broader beverage match.
+_PLANT_MILK_SUBSTITUTE_TOKENS: tuple[str, ...] = (
+    "boisson amande",
+    "boisson amandes",
+    "boisson avoine",
+    "boisson soja",
+    "boisson riz",
+    "boisson noisette",
+    "boisson noix",
+    "boisson noix de coco",
+    "boisson coco",
+    "boisson chanvre",
+    "boisson epeautre",
+    "boisson épeautre",
+    "boisson quinoa",
+    "lait d'amande",
+    "lait amande",
+    "lait d'avoine",
+    "lait avoine",
+    "lait de soja",
+    "lait soja",
+    "lait de riz",
+    "lait riz",
+    "lait de coco",
+    "lait coco",
+    "lait noisette",
+    "lait vegetal",
+    "lait végétal",
+    "almond milk",
+    "oat milk",
+    "soy milk",
+    "rice milk",
+    "coconut milk",
 )
 
 
@@ -906,10 +1001,51 @@ def apply_pt_guards(
                 ),
             )
 
-    # Guard 5 — Phase 36K: non-food / household / pet-food strict
-    # out_of_scope. The model very occasionally mis-routes these to
-    # plant_based_non_core or unknown; the brief mandates
-    # out_of_scope.
+    # Guard 5a — Phase 36K2: pet ACCESSORIES (litière, jouet,
+    # harnais, sacs déjection…) → out_of_scope. Runs BEFORE the
+    # generic non_food check so a name like "Litière Chat" is
+    # captured before any food token could confuse the matcher.
+    if _contains_any_word(name, _PET_ACCESSORY_OOS_TOKENS):
+        if pt_group is not ProteinTrackerGroup.OUT_OF_SCOPE:
+            return _override(
+                classification,
+                ProteinTrackerGroup.OUT_OF_SCOPE,
+                rule="pet_accessory_out_of_scope",
+                detail=(
+                    "name is a pet accessory (litière/jouet/harnais/"
+                    "sacs déjection); routed to out_of_scope"
+                ),
+            )
+
+    # Guard 5b — Phase 36K2: pet FOOD is IN-scope per product rule.
+    # Defaults to composite_products (most pet food is a mix of
+    # animal + cereal), but refines to animal_core if the name
+    # carries an explicit animal token, or to plant_based_core if
+    # the name carries an explicit plant-protein anchor.
+    if _contains_any_word(name, _PETFOOD_IN_SCOPE_TOKENS):
+        target_group: ProteinTrackerGroup
+        if _contains_any_word(name, _PLANT_CORE_TOKENS):
+            target_group = ProteinTrackerGroup.PLANT_BASED_CORE
+            rule_id = "petfood_plant_protein_core"
+        elif _contains_any_word(name, _ANIMAL_SIMPLE_TOKENS):
+            target_group = ProteinTrackerGroup.ANIMAL_CORE
+            rule_id = "petfood_animal_simple"
+        else:
+            target_group = ProteinTrackerGroup.COMPOSITE_PRODUCTS
+            rule_id = "petfood_generic_composite"
+        if pt_group is not target_group:
+            return _override(
+                classification,
+                target_group,
+                rule=rule_id,
+                detail=(
+                    "name is pet food (in-scope per product rule); "
+                    f"routed to {target_group.value}"
+                ),
+            )
+
+    # Guard 5c — Phase 36K: non-food / household / human-hygiene
+    # strict out_of_scope.
     if _contains_any_word(name, _NON_FOOD_OOS_TOKENS):
         if pt_group is not ProteinTrackerGroup.OUT_OF_SCOPE:
             return _override(
@@ -917,8 +1053,26 @@ def apply_pt_guards(
                 ProteinTrackerGroup.OUT_OF_SCOPE,
                 rule="non_food_out_of_scope",
                 detail=(
-                    "name contains household/hygiene/pet-food token; "
+                    "name contains household/hygiene token; "
                     "routed to out_of_scope"
+                ),
+            )
+
+    # Guard 5d — Phase 36K2: plant-milk substitute drinks (boisson
+    # amande / avoine / soja / riz, lait d'amande, …) →
+    # plant_based_core. Must run BEFORE the generic
+    # beverage_out_of_scope check (some plant-milk names also
+    # match the broader "boisson" prefix that other beverages use).
+    if _contains_any_word(name, _PLANT_MILK_SUBSTITUTE_TOKENS):
+        if pt_group is not ProteinTrackerGroup.PLANT_BASED_CORE:
+            return _override(
+                classification,
+                ProteinTrackerGroup.PLANT_BASED_CORE,
+                rule="plant_milk_substitute_core",
+                detail=(
+                    "name is a plant-milk dairy substitute "
+                    "(boisson amande/avoine/soja/riz, lait végétal); "
+                    "routed to plant_based_core"
                 ),
             )
 
@@ -1040,7 +1194,46 @@ def classify_readable_fallback(
     if not name.strip():
         return None
 
-    # 1. Non-food / household / pet-food → out_of_scope.
+    # 1a. Pet accessories (litière/jouet/harnais/sacs déjection) →
+    # out_of_scope. Runs FIRST so pet-related accessory names
+    # don't accidentally hit a food token below.
+    if _contains_any_word(name, _PET_ACCESSORY_OOS_TOKENS):
+        return (
+            ProteinTrackerGroup.OUT_OF_SCOPE,
+            "readable_fallback_pet_accessory",
+        )
+
+    # 1b. Pet FOOD (in-scope per product rule). Default to
+    # composite; refine to animal_core if name carries an animal
+    # token, or plant_based_core if it carries a plant-protein
+    # anchor.
+    if _contains_any_word(name, _PETFOOD_IN_SCOPE_TOKENS):
+        if _contains_any_word(name, _PLANT_CORE_TOKENS):
+            return (
+                ProteinTrackerGroup.PLANT_BASED_CORE,
+                "readable_fallback_petfood_plant_core",
+            )
+        if _contains_any_word(name, _ANIMAL_SIMPLE_TOKENS):
+            return (
+                ProteinTrackerGroup.ANIMAL_CORE,
+                "readable_fallback_petfood_animal_core",
+            )
+        return (
+            ProteinTrackerGroup.COMPOSITE_PRODUCTS,
+            "readable_fallback_petfood_composite",
+        )
+
+    # 1c. Plant-milk substitute (boisson amande/avoine/soja/riz,
+    # lait végétal). Runs BEFORE the beverage OOS check so a
+    # readable plant-milk name doesn't get caught by a stray
+    # beverage token.
+    if _contains_any_word(name, _PLANT_MILK_SUBSTITUTE_TOKENS):
+        return (
+            ProteinTrackerGroup.PLANT_BASED_CORE,
+            "readable_fallback_plant_milk_substitute",
+        )
+
+    # 1d. Non-food / household / human-hygiene → out_of_scope.
     if _contains_any_word(name, _NON_FOOD_OOS_TOKENS):
         return (
             ProteinTrackerGroup.OUT_OF_SCOPE,

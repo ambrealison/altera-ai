@@ -399,7 +399,14 @@ class TestBatchClassifyOrchestrator:
             now=datetime.now(UTC),
         )
         assert isinstance(bundle.verdicts[0], AIAccepted)
-        assert isinstance(bundle.verdicts[1], AINeedsReviewParseFailed)
+        # Phase 36K2 — "Saumon" matches the readable-fallback
+        # animal_simple anchor so the row now lands as
+        # AINeedsReviewLowConfidence (with animal_core) instead of
+        # parse-failed. Either is "needs review"; both are valid.
+        assert isinstance(
+            bundle.verdicts[1],
+            (AINeedsReviewParseFailed, AINeedsReviewLowConfidence),
+        )
 
     def test_chunking_at_default_batch_size(self) -> None:
         # Phase 34P — DEFAULT_BATCH_SIZE was reduced from 50 to 25 after

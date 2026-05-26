@@ -214,11 +214,19 @@ class TestFoodGuard:
             retry_batch_size=2,
         )
         # Final verdict is NOT AIAccepted with out_of_scope.
+        # Phase 36K2 — "Huile" / "Olive" match the readable-fallback
+        # plant condiment family (huile aromatisee), so the row may
+        # now end as AINeedsReviewLowConfidence (plant_based_non_core)
+        # instead of AINeedsReviewParseFailed. The contract still
+        # holds: NOT silently accepted as out_of_scope.
         v = bundle.verdicts[0]
         if isinstance(v, AIAccepted):
             assert v.classification.pt_group is not ProteinTrackerGroup.OUT_OF_SCOPE
         else:
-            assert isinstance(v, AINeedsReviewParseFailed)
+            assert isinstance(
+                v,
+                (AINeedsReviewParseFailed, AINeedsReviewLowConfidence),
+            )
 
     def test_non_food_product_legitimately_out_of_scope_passes(self) -> None:
         prod = _make_product("Lessive Liquide 3L")

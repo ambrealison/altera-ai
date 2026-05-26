@@ -686,6 +686,68 @@ def batch_classify(
         if len(sample_errors) < 10:
             sample_errors.append(msg)
 
+    def _emit_failed_or_fallback(
+        p: NormalizedProduct,
+        first_err: str,
+        second_err: str,
+    ) -> AIVerdict:
+        """Phase 36K2 — last-chance readable fallback.
+
+        Called from every site that would otherwise emit an
+        ``AINeedsReviewParseFailed`` for a row. For PT methodology
+        with a readable product name we try the readable fallback
+        one more time; if it returns a category, we emit
+        ``AINeedsReviewLowConfidence`` with that category at
+        confidence 0.5 (below auto-accept) so the row lands in
+        ``needs_review`` rather than as a final ``unknown`` /
+        ``failed``. Otherwise we keep the legacy parse-failed
+        behaviour.
+        """
+        if (
+            methodology is Methodology.PROTEIN_TRACKER
+            and not _is_unusable_name(p.product_name)
+        ):
+            from altera_api.ai.pt_guards import (
+                classify_readable_fallback,
+            )
+            from altera_api.domain.common import (
+                ClassificationSource,
+            )
+            from altera_api.domain.protein_tracker import (
+                ProteinTrackerProductClassification,
+            )
+
+            fallback = classify_readable_fallback(p.product_name)
+            if fallback is not None:
+                fallback_group, fallback_rule = fallback
+                _maybe_sample(
+                    f"readable_fallback_last_chance: rule={fallback_rule} "
+                    f"name={p.product_name!r}"
+                )
+                guard_overrides_by_rule[fallback_rule] = (
+                    guard_overrides_by_rule.get(fallback_rule, 0) + 1
+                )
+                cls = ProteinTrackerProductClassification(
+                    product_id=p.id,
+                    pt_group=fallback_group,
+                    source=ClassificationSource.AI,
+                    confidence=Decimal("0.5"),
+                    ai_prompt_version=prompt_version,
+                    ai_model="readable_fallback",
+                    updated_at=now,
+                )
+                return AINeedsReviewLowConfidence(
+                    classification=cls,
+                    raw_text="",
+                    threshold=threshold,
+                )
+        return AINeedsReviewParseFailed(
+            product_id=p.id,
+            methodology=methodology,
+            first_error=first_err,
+            second_error=second_err,
+        )
+
     for chunk in _chunked(products, batch_size):
         batch_count += 1
         items = [
@@ -807,11 +869,10 @@ def batch_classify(
                     )
                     for p in chunk:
                         out.append(
-                            AINeedsReviewParseFailed(
-                                product_id=p.id,
-                                methodology=methodology,
-                                first_error=parse_error or "",
-                                second_error=str(exc),
+                            _emit_failed_or_fallback(
+                                p,
+                                parse_error or "",
+                                str(exc),
                             )
                         )
                     continue
@@ -828,11 +889,10 @@ def batch_classify(
                     f"parse_failed: id {p.id} missing from batched response"
                 )
                 out.append(
-                    AINeedsReviewParseFailed(
-                        product_id=p.id,
-                        methodology=methodology,
-                        first_error="id missing from batched response",
-                        second_error="id missing from batched response",
+                    _emit_failed_or_fallback(
+                        p,
+                        "id missing from batched response",
+                        "id missing from batched response",
                     )
                 )
                 continue
@@ -852,14 +912,7 @@ def batch_classify(
                 else:
                     parse_failures += 1
                     _maybe_sample(f"parse_failed: {msg}")
-                out.append(
-                    AINeedsReviewParseFailed(
-                        product_id=p.id,
-                        methodology=methodology,
-                        first_error=msg,
-                        second_error=msg,
-                    )
-                )
+                out.append(_emit_failed_or_fallback(p, msg, msg))
                 continue
 
             classification = result.to_classification(
@@ -937,14 +990,13 @@ def batch_classify(
                 )
                 parse_failures += 1
                 out.append(
-                    AINeedsReviewParseFailed(
-                        product_id=p.id,
-                        methodology=methodology,
-                        first_error=(
+                    _emit_failed_or_fallback(
+                        p,
+                        (
                             f"model returned {inferred_cat} on food-looking "
                             f"product {p.product_name!r}"
                         ),
-                        second_error=(
+                        (
                             f"model returned {inferred_cat} on food-looking "
                             f"product"
                         ),
@@ -1001,17 +1053,19 @@ def batch_classify(
                 )
                 parse_failures += 1
                 unknown_safety_net_total += 1
+                # Phase 36K2 — last-chance: try the readable fallback
+                # once more. If a rule fires (rare here because the
+                # Phase 36K early-fallback above already tried), we
+                # emit a needs_review_low_confidence verdict;
+                # otherwise we keep the legacy parse-failed path.
                 out.append(
-                    AINeedsReviewParseFailed(
-                        product_id=p.id,
-                        methodology=methodology,
-                        first_error=(
+                    _emit_failed_or_fallback(
+                        p,
+                        (
                             f"model returned unknown on readable product "
                             f"{p.product_name!r}; needs human review"
                         ),
-                        second_error=(
-                            "model returned unknown on readable product"
-                        ),
+                        "model returned unknown on readable product",
                     )
                 )
                 continue
@@ -1081,14 +1135,16 @@ def batch_classify(
                 cat = _ai_cat(v)
                 if cat in {"out_of_scope", "unknown"}:
                     p = products[i]
-                    out[i] = AINeedsReviewParseFailed(
-                        product_id=p.id,
-                        methodology=methodology,
-                        first_error=(
+                    # Phase 36K2 — apply the readable fallback when
+                    # the quality-retry sweep is about to mark a row
+                    # as parse-failed.
+                    out[i] = _emit_failed_or_fallback(
+                        p,
+                        (
                             f"quality_retry: batch rate triggered "
                             f"(oos={oos_rate:.0%}, unk={unk_rate:.0%})"
                         ),
-                        second_error="quality_retry",
+                        "quality_retry",
                     )
                     parse_failures += 1
                     _ = ProteinTrackerGroup, WWFFoodGroup  # silence unused

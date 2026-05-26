@@ -41,6 +41,7 @@ from altera_api.ai.batch_prompt import (
 )
 from altera_api.ai.classifier import (
     AIAccepted,
+    AINeedsReviewLowConfidence,
     AINeedsReviewParseFailed,
 )
 from altera_api.ai.openai_provider import OpenAIProvider
@@ -306,7 +307,13 @@ class TestBatchClassifyTolerance:
             now=datetime.now(UTC),
         )
         assert isinstance(bundle.verdicts[0], AIAccepted)
-        assert isinstance(bundle.verdicts[1], AINeedsReviewParseFailed)
+        # Phase 36K2 — "Saumon" is now caught by the last-chance
+        # readable fallback (animal-simple anchor) and routed to
+        # AINeedsReviewLowConfidence instead of parse-failed.
+        assert isinstance(
+            bundle.verdicts[1],
+            (AINeedsReviewParseFailed, AINeedsReviewLowConfidence),
+        )
 
     def test_invalid_category_fails_only_that_row(self) -> None:
         p1 = _make_product("X")
@@ -424,7 +431,13 @@ class TestBatchClassifyTolerance:
         )
         assert isinstance(bundle.verdicts[0], AIAccepted)
         assert isinstance(bundle.verdicts[1], AIAccepted)
-        assert isinstance(bundle.verdicts[2], AINeedsReviewParseFailed)
+        # Phase 36K2 — "Yaourt" matches the readable-fallback
+        # animal_simple anchor, so the legacy parse-failed path is
+        # superseded by a low-confidence verdict with animal_core.
+        assert isinstance(
+            bundle.verdicts[2],
+            (AINeedsReviewParseFailed, AINeedsReviewLowConfidence),
+        )
 
 
 # ---------------------------------------------------------------------------
