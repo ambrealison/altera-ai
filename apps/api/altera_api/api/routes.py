@@ -2289,18 +2289,30 @@ class NutritionValidationsResponse(BaseModel):
     counts_by_source: dict[str, int]
 
 
-def _nutrition_row_for(
-    store: StoreProtocol, product
-) -> NutritionValidationRow:
-    """Build one validation row for a PT product by reading the
-    latest enrichment + classification state from the store."""
+def _nutrition_row_fields(
+    product: Any,
+    classification: Any,
+    records: list[Any],
+) -> dict[str, Any]:
+    """Phase 36F — pure computation of a nutrition validation row.
+
+    Extracted from ``_nutrition_row_for`` so the list endpoint can
+    feed pre-fetched classification + records (via bulk lookups)
+    instead of triggering N+1 ``get_pt_classification`` /
+    ``get_enrichment_records_for_product`` calls per product.
+
+    Returns the row as a dict — callers wrap it in
+    ``NutritionValidationRow`` only when they actually need the
+    Pydantic object (for serialisation). The filter + count pass
+    works directly on the dict to avoid 1050 Pydantic
+    instantiations for one page of 50.
+    """
     from altera_api.domain.enrichment import (
         NutritionEnrichmentSource as _NES,
     )
     from altera_api.domain.enrichment import (
         NutritionEnrichmentStatus as _NSt,
     )
-    classification = store.get_pt_classification(product.id)
     pt_group = classification.pt_group.value if classification is not None else None
     retailer_pct = (
         str(product.pt_fields.protein_pct)
@@ -2308,7 +2320,6 @@ def _nutrition_row_for(
         else None
     )
 
-    records = store.get_enrichment_records_for_product(product.id)
     protein_rec = next(
         (
             r for r in records
@@ -2421,22 +2432,46 @@ def _nutrition_row_for(
             if classification is not None
             else "Produit non classifié"
         )
+    return {
+        "product_id": product.id,
+        "product_name": product.product_name,
+        "pt_group": pt_group,
+        "protein_pct": final_protein,
+        "plant_protein_pct": final_plant,
+        "animal_protein_pct": final_animal,
+        "retailer_protein_pct": retailer_pct,
+        "source": source,
+        "match_method": match_method,
+        "split_source": split_source,
+        "confidence": confidence,
+        "reference_name": reference_name,
+        "reference_code": reference_code,
+        "status": status,
+        "reason": reason,
+    }
+
+
+def _nutrition_row_for(
+    store: StoreProtocol,
+    product: Any,
+    *,
+    classification: Any = None,
+    records: list[Any] | None = None,
+) -> NutritionValidationRow:
+    """Build one validation row for a PT product.
+
+    Phase 36F — accepts pre-fetched ``classification`` + ``records``
+    so the list endpoint can drive the per-row computation off of
+    bulk lookups. When the caller doesn't pass them in (e.g. the
+    manual-nutrition single-product route) we fall back to the
+    original point lookups so the endpoint behaviour is unchanged.
+    """
+    if classification is None:
+        classification = store.get_pt_classification(product.id)
+    if records is None:
+        records = store.get_enrichment_records_for_product(product.id)
     return NutritionValidationRow(
-        product_id=product.id,
-        product_name=product.product_name,
-        pt_group=pt_group,
-        protein_pct=final_protein,
-        plant_protein_pct=final_plant,
-        animal_protein_pct=final_animal,
-        retailer_protein_pct=retailer_pct,
-        source=source,
-        match_method=match_method,
-        split_source=split_source,
-        confidence=confidence,
-        reference_name=reference_name,
-        reference_code=reference_code,
-        status=status,
-        reason=reason,
+        **_nutrition_row_fields(product, classification, records)
     )
 
 
@@ -2466,35 +2501,108 @@ def list_nutrition_validations_route(
     that would be used in the calculation plus their provenance. Used
     by the wizard's Step 6 to let the user inspect what NEVO produced
     before allowing the calculation to run.
+
+    Phase 36F — kills the N+1 that made this endpoint 60–90s on
+    1050-product projects. Previously every row paid two PostgREST
+    point lookups (``get_pt_classification`` +
+    ``get_enrichment_records_for_product``) AND was wrapped in a full
+    Pydantic ``NutritionValidationRow`` even when the caller wanted
+    a single page of 50. Now we bulk-fetch both tables once, filter
+    + count on lightweight dicts, and only materialise Pydantic rows
+    for the requested page — exactly the Phase 36B pattern.
     """
+    import logging
+    import time
+
+    t_total = time.perf_counter()
+    t0 = time.perf_counter()
     products = [
         p for p in store.list_products_for_project(project.id)
         if p.pt_fields is not None
         and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
     ]
-    rows = [_nutrition_row_for(store, p) for p in products]
+    products_ms = (time.perf_counter() - t0) * 1000
 
-    def _keep(r: NutritionValidationRow) -> bool:
-        if status is not None and r.status != status:
+    product_ids = [p.id for p in products]
+    t0 = time.perf_counter()
+    classification_map = (
+        store.get_pt_classifications_bulk(product_ids)
+        if product_ids
+        else {}
+    )
+    classifications_ms = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    enrichment_map = (
+        store.get_enrichment_records_bulk(product_ids)
+        if product_ids
+        else {}
+    )
+    enrichment_bulk_ms = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    projections: list[dict[str, Any]] = []
+    for p in products:
+        fields = _nutrition_row_fields(
+            p,
+            classification_map.get(p.id),
+            enrichment_map.get(p.id, []),
+        )
+        projections.append(fields)
+
+    def _keep(fields: dict[str, Any]) -> bool:
+        if status is not None and fields["status"] != status:
             return False
-        if source is not None and r.source != source:
+        if source is not None and fields["source"] != source:
             return False
         if product_search:
             q = product_search.lower()
-            if q not in r.product_name.lower():
+            if q not in fields["product_name"].lower():
                 return False
         return True
 
-    filtered = [r for r in rows if _keep(r)]
+    filtered = [p for p in projections if _keep(p)]
     counts_by_status: dict[str, int] = {}
     counts_by_source: dict[str, int] = {}
-    for r in filtered:
-        counts_by_status[r.status] = counts_by_status.get(r.status, 0) + 1
-        counts_by_source[r.source] = counts_by_source.get(r.source, 0) + 1
-    page = paginate(filtered, pagination)
+    for fields in filtered:
+        counts_by_status[fields["status"]] = (
+            counts_by_status.get(fields["status"], 0) + 1
+        )
+        counts_by_source[fields["source"]] = (
+            counts_by_source.get(fields["source"], 0) + 1
+        )
+    counts_ms = (time.perf_counter() - t0) * 1000
+
+    # Phase 36F — materialise Pydantic rows only for the page.
+    t0 = time.perf_counter()
+    page_fields = filtered[
+        pagination.offset : pagination.offset + pagination.limit
+    ]
+    items = [NutritionValidationRow(**fields) for fields in page_fields]
+    serialize_ms = (time.perf_counter() - t0) * 1000
+
+    total_ms = (time.perf_counter() - t_total) * 1000
+    logging.getLogger("altera_api.nutrition_table").info(
+        "nutrition_table.timing project_id=%s limit=%d offset=%d "
+        "total_products=%d products_ms=%.1f classifications_ms=%.1f "
+        "enrichment_bulk_ms=%.1f counts_ms=%.1f serialize_ms=%.1f "
+        "total_ms=%.1f rows_returned=%d total_filtered=%d",
+        project.id,
+        pagination.limit,
+        pagination.offset,
+        len(products),
+        products_ms,
+        classifications_ms,
+        enrichment_bulk_ms,
+        counts_ms,
+        serialize_ms,
+        total_ms,
+        len(items),
+        len(filtered),
+    )
     return NutritionValidationsResponse(
-        items=page.items,
-        total=page.total,
+        items=items,
+        total=len(filtered),
         counts_by_status=counts_by_status,
         counts_by_source=counts_by_source,
     )
