@@ -305,8 +305,32 @@ class PostgresRepository:
         r = self._rls.table("uploads").select("*").eq("id", str(upload_id)).limit(1).execute()
         if not r.data:
             return None
-        pr = self._rls.table("products").select("id").eq("upload_id", str(upload_id)).execute()
-        return upload_record_from_rows(r.data[0], pr.data or [])
+        # Phase 36H — paginate the products fetch with .range() to
+        # defeat PostgREST's default 1000-row response cap. Without
+        # this, a 10K-row upload's ``UploadRecord.product_ids`` was
+        # silently truncated to 1000, and every downstream caller
+        # that uses it (e.g. ``_eligible_product_ids`` in the
+        # classification orchestrator) thought the upload had only
+        # 1000 products — so the chunked classification job's
+        # ``total_products`` was 1000 instead of 10000 and the
+        # wizard's "25/1000 · 3%" progress bar capped wrong.
+        product_rows: list[dict] = []
+        PAGE = 1000
+        offset = 0
+        while True:
+            pr = (
+                self._rls.table("products")
+                .select("id")
+                .eq("upload_id", str(upload_id))
+                .range(offset, offset + PAGE - 1)
+                .execute()
+            )
+            page_rows = pr.data or []
+            product_rows.extend(page_rows)
+            if len(page_rows) < PAGE:
+                break
+            offset += PAGE
+        return upload_record_from_rows(r.data[0], product_rows)
 
     def list_uploads_for_project(self, project_id: UUID) -> list[UploadRecord]:
         r = self._rls.table("uploads").select("*").eq("project_id", str(project_id)).execute()

@@ -265,9 +265,12 @@ class TestBatchClassifyOrchestrator:
             products, provider, Methodology.PROTEIN_TRACKER, now=datetime.now(UTC)
         )
         accepted = [v for v in bundle.verdicts if isinstance(v, AIAccepted)]
-        # 9 obvious products → accepted; 1 ambiguous → low confidence.
+        # 9 obvious products → accepted; 1 ambiguous ("Promotion XYZ").
+        # Phase 36H — readable ambiguous names that the model returns
+        # as ``unknown`` now go to needs_review (parse_failures
+        # counter) instead of being accepted as final unknown. The
+        # 9-accepted floor is what we actually care about here.
         assert len(accepted) >= 9
-        assert bundle.parse_failures == 0
         assert bundle.provider_errors == 0
         # Spot-check categories.
         by_id = {

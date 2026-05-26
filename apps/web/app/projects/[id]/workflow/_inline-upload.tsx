@@ -575,9 +575,14 @@ function IngestionJobProgress({
         />
       </div>
       <div className="mt-2 text-xs font-medium">
+        {/* Phase 36H — hide warnings_total from the primary
+            progress summary. On a 10K-row upload the count routinely
+            reaches the "20 000 avertissement(s)" range (~2 warnings
+            per row for optional mapping fields), which scared
+            non-technical users into thinking the import had failed.
+            Blocking errors are still surfaced via ``errors_total``. */}
         {job.inserted_products} produit(s) insérés
         {job.errors_total > 0 && <> · {job.errors_total} erreur(s)</>}
-        {job.warnings_total > 0 && <> · {job.warnings_total} avertissement(s)</>}
       </div>
       {(job.status === "running" || job.status === "queued") && (
         <div className="mt-2 text-xs opacity-80">

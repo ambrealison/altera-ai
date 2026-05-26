@@ -119,12 +119,19 @@ def _eligible_product_ids(
     if upload_record is None:
         timings["list_products_ms"] = 0.0
         timings["existing_classifications_ms"] = 0.0
+        timings["upload_product_ids_count"] = 0
+        timings["products_loaded_count"] = 0
         return [], timings
 
     product_ids = list(upload_record.product_ids)
+    # Phase 36H — surface the upload size BEFORE filtering so a
+    # silent PostgREST 1000-row truncation on the products fetch
+    # (the 10K-upload bug) is immediately visible in production logs.
+    timings["upload_product_ids_count"] = float(len(product_ids))
     t0 = time.perf_counter()
     products = store.list_products_by_ids(product_ids)
     timings["list_products_ms"] = (time.perf_counter() - t0) * 1000
+    timings["products_loaded_count"] = float(len(products))
 
     # Filter for methodology + presence of methodology-specific fields.
     candidate_products: list[NormalizedProduct] = []
@@ -236,13 +243,16 @@ def create_classification_job(
     total_ms = (time.perf_counter() - t_total) * 1000
     logging.getLogger("altera_api.classification_create").info(
         "classify.create.timing project=%s upload=%s methodology=%s "
-        "total_products=%d eligible=%d "
+        "upload_product_ids_count=%d products_loaded_count=%d "
+        "eligible_count=%d total_products=%d "
         "get_upload_ms=%.1f list_products_ms=%.1f "
         "existing_cls_ms=%.1f add_job_ms=%.1f total_ms=%.1f "
         "batch_size=%d",
         project_id,
         upload_id,
         methodology.value,
+        int(timings.get("upload_product_ids_count", 0)),
+        int(timings.get("products_loaded_count", 0)),
         len(eligible),
         len(eligible),
         timings.get("get_upload_ms", 0.0),

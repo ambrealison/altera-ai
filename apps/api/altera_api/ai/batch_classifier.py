@@ -561,6 +561,70 @@ def _looks_like_food(product_name: str) -> bool:
     return any(term in lowered for term in _FOOD_TERMS)
 
 
+#: Phase 36H — placeholder / unusable product names. Only THESE are
+#: legitimate ``unknown`` reasons. Anything readable but ambiguous
+#: must be routed to ``needs_review`` with the model's best guess
+#: instead of left as a final ``unknown``.
+_UNUSABLE_NAME_TOKENS: frozenset[str] = frozenset(
+    {
+        "produit",
+        "produit divers",
+        "divers",
+        "article",
+        "articles",
+        "n/a",
+        "na",
+        "nan",
+        "none",
+        "null",
+        "xxx",
+        "test",
+        "tbd",
+        "?",
+        "??",
+        "???",
+        "...",
+        "-",
+        "--",
+        "---",
+        "_",
+        "tbc",
+    }
+)
+
+
+def _is_unusable_name(product_name: str | None) -> bool:
+    """True if the name is empty, too short, or a generic placeholder
+    that doesn't carry enough signal for ANY classification (food OR
+    non-food).
+
+    Phase 36H — the new product rule says ``unknown`` is reserved for
+    these unusable names only. A readable name like "Blinis Moelleux"
+    or "Dentifrice Menthe" must NEVER end up as final ``unknown``;
+    even when the model can't choose a category, we route to
+    ``needs_review`` so a human can pick.
+    """
+    if product_name is None:
+        return True
+    stripped = product_name.strip()
+    if not stripped:
+        return True
+    # Names shorter than 3 characters can't carry a meaningful
+    # classification signal — "p", "a3", "x" all qualify as unusable.
+    if len(stripped) < 3:
+        return True
+    lowered = stripped.lower()
+    if lowered in _UNUSABLE_NAME_TOKENS:
+        return True
+    # Mostly-digit / mostly-symbol names ("123456", "###", "..."):
+    # remove letters and check the remainder; if no alphabetic
+    # characters at all, it's unusable.
+    alphabetic = [c for c in lowered if c.isalpha()]
+    if not alphabetic:
+        return True
+    return False
+
+
 #: Phase 34Q — retry triggers for low-quality batches. If any rate
 #: exceeds these thresholds the orchestrator schedules a second pass
 #: at retry_batch_size with a stronger prompt to push the model toward
@@ -823,6 +887,37 @@ def batch_classify(
                         second_error=(
                             f"model returned {inferred_cat} on food-looking "
                             f"product"
+                        ),
+                    )
+                )
+                continue
+
+            # Phase 36H — unknown safety net. By product rule, the
+            # ``unknown`` category is reserved for truly unusable
+            # product names (empty, "Divers", placeholder strings).
+            # If the model returns ``unknown`` on ANY readable name we
+            # route to ``needs_review`` so a human can either accept
+            # the model's intent or pick a category — never leave a
+            # readable product as final ``unknown``.
+            if (
+                inferred_cat == "unknown"
+                and not _is_unusable_name(p.product_name)
+            ):
+                _maybe_sample(
+                    f"unknown_safety_net: {p.product_name!r} returned "
+                    f"as 'unknown' but name is readable; routed to review"
+                )
+                parse_failures += 1
+                out.append(
+                    AINeedsReviewParseFailed(
+                        product_id=p.id,
+                        methodology=methodology,
+                        first_error=(
+                            f"model returned unknown on readable product "
+                            f"{p.product_name!r}; needs human review"
+                        ),
+                        second_error=(
+                            "model returned unknown on readable product"
                         ),
                     )
                 )
