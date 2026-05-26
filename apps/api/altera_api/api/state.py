@@ -428,6 +428,26 @@ class InMemoryStore:
             out.append(item)
         return out
 
+    def count_review_items_for_product_ids(
+        self,
+        product_ids: list[UUID],
+        *,
+        methodology: Methodology | None = None,
+    ) -> int:
+        # Phase 36C — count-only probe; in-memory walks the dict
+        # directly. Postgres uses ``count="exact", head=True``.
+        if not product_ids:
+            return 0
+        wanted = set(product_ids)
+        n = 0
+        for item in self.review_queue.values():
+            if item.product_id not in wanted:
+                continue
+            if methodology is not None and item.methodology is not methodology:
+                continue
+            n += 1
+        return n
+
     @staticmethod
     def _review_key(product_id: UUID, methodology: Methodology) -> UUID:
         # We store one entry per (product, methodology); the UUID key
@@ -1041,6 +1061,11 @@ class InMemoryStore:
     # ------------------------------------------------------------------
     def list_nevo_entries(self) -> list[NevoEntry]:
         return list(self.nevo_entries)
+
+    def count_nevo_entries(self) -> int:
+        # Phase 36C — used by calculation-preflight; in-memory just
+        # reads the list length.
+        return len(self.nevo_entries)
 
     def list_ciqual_entries(self) -> list[CiqualEntry]:
         return list(self.ciqual_entries)

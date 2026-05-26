@@ -170,6 +170,17 @@ class StoreProtocol(Protocol):
     def list_review_items_for_project(
         self, project_id: UUID, *, methodology: Methodology | None = None
     ) -> list[ManualReviewItem]: ...
+    # Phase 36C — count-only probe for the projects-list endpoint.
+    # ``_project_response`` only needs ``len(list_review_items_*)``;
+    # loading every review row for that ``len()`` cost ~8 round-trips
+    # per project. Implementations use ``count="exact", head=True``
+    # so no rows cross the wire — just a Content-Range header.
+    def count_review_items_for_product_ids(
+        self,
+        product_ids: list[UUID],
+        *,
+        methodology: Methodology | None = None,
+    ) -> int: ...
     def add_review_decision(self, decision: ManualReviewDecision) -> None: ...
 
     # ------------------------------------------------------------------
@@ -325,6 +336,10 @@ class StoreProtocol(Protocol):
     # Nutrition reference tables (Phase 33H — NEVO and CIQUAL lookup)
     # ------------------------------------------------------------------
     def list_nevo_entries(self) -> list[NevoEntry]: ...
+    # Phase 36C — cheap count probe used by calculation-preflight. The
+    # endpoint only surfaces ``nevo_total_references`` (a single int);
+    # loading 2300+ NEVO rows just to call ``len()`` was wasteful.
+    def count_nevo_entries(self) -> int: ...
     def list_ciqual_entries(self) -> list[CiqualEntry]: ...
 
     # ------------------------------------------------------------------

@@ -649,6 +649,40 @@ class PostgresRepository:
             return None
         return manual_review_from_row(r.data[0])
 
+    def count_review_items_for_product_ids(
+        self,
+        product_ids: list[UUID],
+        *,
+        methodology: Methodology | None = None,
+    ) -> int:
+        """Phase 36C — count-only probe for ``_project_response``.
+
+        ``len(list_review_items_for_project(...))`` paid for paginating
+        the project's products AGAIN (after ``list_uploads_for_project``
+        already did it) and then fetched every review row across 6
+        chunks just to call ``len()``. This variant takes the product
+        ids the caller already has and uses ``count="exact", head=True``
+        per chunk — zero rows cross the wire.
+        """
+        if not product_ids:
+            return 0
+        total = 0
+        for start in range(0, len(product_ids), _IN_FILTER_CHUNK):
+            ids_str = [
+                str(pid)
+                for pid in product_ids[start : start + _IN_FILTER_CHUNK]
+            ]
+            q = (
+                self._rls.table("manual_reviews")
+                .select("product_id", count="exact", head=True)
+                .in_("product_id", ids_str)
+            )
+            if methodology is not None:
+                q = q.eq("methodology", methodology.value)
+            r = q.execute()
+            total += int(r.count or 0)
+        return total
+
     def list_review_items_for_project(
         self, project_id: UUID, *, methodology: Methodology | None = None
     ) -> list[ManualReviewItem]:
@@ -1486,6 +1520,23 @@ class PostgresRepository:
         # the cap silently truncated 60% of the table. We iterate with
         # explicit .range() windows until we drain the whole table.
         return [_nevo_entry_from_row(row) for row in self._fetch_all_rows("nevo_reference")]
+
+    def count_nevo_entries(self) -> int:
+        # Phase 36C — cheap count probe. Used by calculation-preflight
+        # which only surfaces ``nevo_total_references`` (a single int);
+        # we don't need to materialise 2300+ Pydantic ``NevoEntry``
+        # objects just to call ``len(...)`` on the list. The
+        # ``count="exact", head=True`` form returns NO rows — just a
+        # Content-Range header with the match count.
+        try:
+            r = (
+                self._svc.table("nevo_reference")
+                .select("id", count="exact", head=True)
+                .execute()
+            )
+            return int(r.count or 0)
+        except Exception:
+            return 0
 
     def list_ciqual_entries(self) -> list[CiqualEntry]:
         # Phase 34N — same fix as list_nevo_entries; CIQUAL is much

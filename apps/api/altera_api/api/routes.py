@@ -196,6 +196,24 @@ def _project_response(store: StoreProtocol, project: Project) -> ProjectResponse
                 # wizard prompts the user to retry classify.
                 unclassified_pt_count = len(all_product_ids)
 
+    # Phase 36C — use the count-only probe instead of fetching every
+    # review row just to call ``len(...)``. On a 1050-product project
+    # the old path paid 8 PostgREST round-trips (2 to paginate product
+    # ids + 6 to fetch ~38KB of review rows we then threw away) per
+    # project. The new probe pays the same chunk count but each call
+    # has ``head=True`` so no body bytes cross the wire.
+    all_product_ids_for_reviews: list[UUID] = []
+    for ur in upload_records:
+        try:
+            all_product_ids_for_reviews.extend(ur.product_ids)
+        except Exception:
+            continue
+    review_queue_count = _safe_count(
+        lambda: store.count_review_items_for_product_ids(
+            all_product_ids_for_reviews
+        )
+    )
+
     return ProjectResponse(
         id=project.id,
         organisation_id=project.organisation_id,
@@ -204,9 +222,7 @@ def _project_response(store: StoreProtocol, project: Project) -> ProjectResponse
         reporting_period_label=project.reporting_period_label,
         pt_validation_status=project.pt_validation_status.value,
         upload_count=len(upload_records),
-        review_queue_count=_safe_count(
-            lambda: len(store.list_review_items_for_project(project.id))
-        ),
+        review_queue_count=review_queue_count,
         run_count=_safe_count(lambda: len(store.list_runs_for_project(project.id))),
         unclassified_pt_count=unclassified_pt_count,
     )
@@ -243,7 +259,17 @@ def list_projects_route(
     in one project's pt_validation_status) MUST NOT take down the whole
     response. We assemble a minimal-safe fallback for any project whose
     full response builder raised, so the workspace never goes blank.
+
+    Phase 36C: emits ``projects_list.timing`` with per-stage breakdown
+    so production logs reveal whether the cost is in ``list_projects``
+    (cheap; one SELECT) or in the per-project ``_project_response``
+    walk (which still touches uploads + classifications + reviews).
     """
+    import logging
+    import time
+
+    t_total = time.perf_counter()
+    t0 = time.perf_counter()
     try:
         projects = store.list_projects()
     except Exception:
@@ -251,8 +277,10 @@ def list_projects_route(
         # 500 the workspace — return an empty page so the wizard's
         # "Create your first project" path stays available.
         projects = []
+    list_projects_ms = (time.perf_counter() - t0) * 1000
     if not auth.is_altera_internal:
         projects = [p for p in projects if p.organisation_id == auth.organisation_id]
+    t0 = time.perf_counter()
     items: list[ProjectResponse] = []
     for p in projects:
         try:
@@ -274,6 +302,16 @@ def list_projects_route(
                     unclassified_pt_count=0,
                 )
             )
+    per_project_summary_ms = (time.perf_counter() - t0) * 1000
+    total_ms = (time.perf_counter() - t_total) * 1000
+    logging.getLogger("altera_api.projects_list").info(
+        "projects_list.timing n_projects=%d list_projects_ms=%.1f "
+        "per_project_summary_ms=%.1f total_ms=%.1f",
+        len(projects),
+        list_projects_ms,
+        per_project_summary_ms,
+        total_ms,
+    )
     return paginate(items, pagination)
 
 
@@ -2513,12 +2551,48 @@ def calculation_preflight_route(
     same data the calculation engine walks. The wizard reads this to
     decide whether to enable the "Calculer sur les données
     disponibles" button.
+
+    Phase 36C — kills the two N+1 patterns that made this endpoint
+    40–46s on 1050-product projects:
+      * ``store.get_pt_classification(p.id)`` per product
+      * ``store.get_enrichment_records_for_product(p.id)`` per product
+
+    Plus drops the ``list_nevo_entries()`` call (materialised 2300+
+    Pydantic objects for ``len()``) in favour of ``count_nevo_entries``.
     """
+    import logging
+    import time
+
+    t_total = time.perf_counter()
+    t0 = time.perf_counter()
+    all_products = store.list_products_for_project(project.id)
     products = [
-        p for p in store.list_products_for_project(project.id)
+        p for p in all_products
         if p.pt_fields is not None
         and Methodology.PROTEIN_TRACKER in p.methodologies_enabled
     ]
+    list_products_ms = (time.perf_counter() - t0) * 1000
+
+    product_ids = [p.id for p in products]
+    t0 = time.perf_counter()
+    classification_map = (
+        store.get_pt_classifications_bulk(product_ids)
+        if product_ids
+        else {}
+    )
+    classifications_bulk_ms = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    enrichment_map = (
+        store.get_enrichment_records_bulk(product_ids)
+        if product_ids
+        else {}
+    )
+    enrichment_bulk_ms = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    nevo_total = store.count_nevo_entries()
+    nevo_refs_ms = (time.perf_counter() - t0) * 1000
 
     classified = 0
     with_volume = 0
@@ -2539,8 +2613,9 @@ def calculation_preflight_route(
             sample_reasons.append(reason)
 
     nevo_attempted = False
+    t0 = time.perf_counter()
     for p in products:
-        classification = store.get_pt_classification(p.id)
+        classification = classification_map.get(p.id)
         pt = p.pt_fields
         assert pt is not None  # filtered above
 
@@ -2562,7 +2637,7 @@ def calculation_preflight_route(
             out_of_scope += 1
 
         # Resolve protein.
-        records = store.get_enrichment_records_for_product(p.id)
+        records = enrichment_map.get(p.id, [])
         if records:
             nevo_attempted = True
         resolved = (
@@ -2615,7 +2690,26 @@ def calculation_preflight_route(
             _sample(
                 f"{p.product_name}: " + ", ".join(reason_parts or ["unknown reason"])
             )
+    loop_ms = (time.perf_counter() - t0) * 1000
 
+    total_ms = (time.perf_counter() - t_total) * 1000
+    logging.getLogger("altera_api.calculation_preflight").info(
+        "calculation_preflight.timing project_id=%s "
+        "total_products=%d list_products_ms=%.1f "
+        "classifications_bulk_ms=%.1f enrichment_bulk_ms=%.1f "
+        "nevo_refs_ms=%.1f loop_ms=%.1f total_ms=%.1f "
+        "ready=%d missing_nutrition=%d",
+        project.id,
+        len(products),
+        list_products_ms,
+        classifications_bulk_ms,
+        enrichment_bulk_ms,
+        nevo_refs_ms,
+        loop_ms,
+        total_ms,
+        ready,
+        missing_nutrition,
+    )
     return CalculationPreflightResponse(
         total_products=len(products),
         classified_products=classified,
@@ -2629,7 +2723,7 @@ def calculation_preflight_route(
         products_missing_classification=missing_classification,
         products_out_of_scope=out_of_scope,
         sample_exclusion_reasons=sample_reasons,
-        nevo_total_references=len(store.list_nevo_entries()),
+        nevo_total_references=nevo_total,
         nevo_attempted=nevo_attempted,
     )
 
