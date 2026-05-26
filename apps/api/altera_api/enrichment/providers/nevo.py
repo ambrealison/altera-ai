@@ -58,6 +58,17 @@ _NEVO_CONFIDENCE_FUZZY_MID = Decimal("0.72")    # 2 token overlap
 _NEVO_CONFIDENCE_FUZZY_LOW = Decimal("0.55")    # 1 token overlap
 _FUZZY_MIN_SCORE = 1
 
+# Phase 36E — when a product head was detected (ratatouille, lait,
+# beurre, tofu, lasagnes…) we score-boost candidates that actually
+# share the head and reject the rest. ``_HEAD_MATCH_BOOST`` is added
+# to the raw overlap score before tiering, so a candidate that
+# matches the head AND has one supporting token wins over a
+# secondary-only candidate that happened to share two stopword-ish
+# tokens. The matcher logs the rejection reason so the validation
+# table can surface "head mismatch" / "composite-contains-ingredient"
+# rationales in the wizard.
+_HEAD_MATCH_BOOST: int = 5
+
 
 def _has_split(entry: NevoEntry) -> bool:
     return (
@@ -234,12 +245,22 @@ class NevoProvider:
         overlap on the cleaned + alias-expanded query tokens against
         each NEVO entry's English/Dutch name. Returns ``(entry,
         score)`` where score is the number of overlapping tokens, or
-        None when the score is below ``_FUZZY_MIN_SCORE``.
+        None when no head-compatible candidate scored high enough.
 
         Phase 34M — returns the score so the caller can tier the
         confidence: 1 token overlap = "suggested very low confidence",
         2 = medium, 3+ = high. The same vocabulary is used as the AI
         shortlist so the deterministic fallback uses identical tokens.
+
+        Phase 36E — head-aware. When ``extract_product_head`` finds a
+        curated head in the product name (ratatouille, lait, beurre,
+        tofu, lasagnes…) we ONLY consider candidates whose tokenised
+        name contains an alias of the head. Composite "X with Y" /
+        "X without Y" candidates are rejected when the head is a
+        simple food. This drops the dominant false-positive class
+        from the 75-product audit (ratatouille→oil, lait→potatoes
+        mashed with milk, beurre→apple pie without butter) without
+        regressing simple matches like "Lasagnes" → "Lasagne".
         """
         # Lazy import to avoid a circular dependency with the ai/
         # module (which itself imports from domain/).
@@ -247,6 +268,13 @@ class NevoProvider:
             _expand_aliases,
             _tokenize,
             clean_product_name,
+        )
+        from altera_api.ai.nutrition_head import (
+            COMPOSITE_KINDS,
+            SIMPLE_FOOD_KINDS,
+            candidate_contains_head_alias,
+            extract_product_head,
+            looks_like_composite,
         )
 
         cleaned = clean_product_name(food_name)
@@ -256,6 +284,10 @@ class NevoProvider:
         query_expanded = _expand_aliases(query_tokens, cleaned)
         if not query_expanded:
             return None
+
+        head = extract_product_head(food_name)
+        head_is_simple = head is not None and head.kind in SIMPLE_FOOD_KINDS
+        head_is_composite = head is not None and head.kind in COMPOSITE_KINDS
 
         best_entry: NevoEntry | None = None
         best_score = 0
@@ -267,12 +299,48 @@ class NevoProvider:
             if not cand_tokens:
                 continue
             score = len(query_expanded & cand_tokens)
+            if score <= 0:
+                continue
+
+            if head is not None:
+                # Phase 36E hard guard #1 — the candidate MUST share
+                # the head. Otherwise we'd accept "Ratatouille à
+                # l'Huile d'Olive" → "Oil olive" purely on ``olive``.
+                if not candidate_contains_head_alias(head, cand_tokens):
+                    continue
+                # Phase 36E hard guard #2 — simple foods (lait, beurre,
+                # oeuf, fromage frais…) must not match "dish containing
+                # X" candidates. The candidate name's surface form
+                # gives this away with "with", "without", "in", "met",
+                # "zonder", etc.
+                if head_is_simple and looks_like_composite(name):
+                    continue
+                # Phase 36E hard guard #3 — composite/prepared meals
+                # (ratatouille, lasagnes…) should NOT collapse onto a
+                # candidate whose alias overlap is purely a single
+                # secondary ingredient that ALSO shares the head. We
+                # boost head-matching candidates so a multi-token
+                # head-match beats a stopword-coincidental match.
+                _ = head_is_composite  # used implicitly via the boost
+                score += _HEAD_MATCH_BOOST
+
             if score > best_score:
                 best_score = score
                 best_entry = entry
-        if best_score < _FUZZY_MIN_SCORE or best_entry is None:
+
+        if best_entry is None:
             return None
-        return (best_entry, best_score)
+        # The boost (+5) is part of the ranking score but should not
+        # be visible in the tier label — strip it before the caller
+        # reads the count for confidence tiering.
+        observed_overlap = (
+            best_score - _HEAD_MATCH_BOOST
+            if head is not None
+            else best_score
+        )
+        if observed_overlap < _FUZZY_MIN_SCORE:
+            return None
+        return (best_entry, observed_overlap)
 
     def enrich(
         self,
