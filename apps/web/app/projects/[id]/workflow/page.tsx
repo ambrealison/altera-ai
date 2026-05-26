@@ -56,22 +56,74 @@ import { NutritionTable } from "./_nutrition-table";
 // A new "Validation nutritionnelle" step takes its place so the user
 // can inspect and complete protein data before calculation. CIQUAL
 // code remains in the backend for admin/debug.
-const WIZARD_STEPS = [
-  { idx: 0, id: "import",           label: "Import",                       backendKey: "upload" },
-  { idx: 1, id: "methodology",      label: "Méthodologie",                 backendKey: "methodology" },
-  { idx: 2, id: "ai_class",         label: "Classification IA",            backendKey: "ai_classification" },
-  { idx: 3, id: "validation",       label: "Validation",                   backendKey: "manual_classification_review" },
-  { idx: 4, id: "nevo",             label: "NEVO",                         backendKey: "nutrition_enrichment_nevo" },
-  { idx: 5, id: "nutrition_val",    label: "Validation nutritionnelle",    backendKey: "nutrition_validation" },
-  { idx: 6, id: "calculation",      label: "Calcul",                       backendKey: "calculation" },
-  { idx: 7, id: "report",           label: "Résultat",                     backendKey: "report" },
+//
+// Phase WWF-G — wizard is now methodology-aware. NEVO + Nutrition
+// Validation are *PT-only* steps and are filtered out for WWF-only
+// projects so a WWF user never sees protein-flavoured copy or
+// blockers. Labels on the classification / validation / calculation /
+// report steps also shift to the WWF flavour for WWF-only projects.
+
+type WizardStepDef = {
+  id: string;
+  label: string;
+  backendKey: string;
+  /** Step is rendered when ANY of these methodologies are enabled.
+   *  ``"any"`` is shorthand for "always render". */
+  methodologyGate: "any" | "protein_tracker" | "wwf";
+};
+
+const ALL_WIZARD_STEPS: readonly WizardStepDef[] = [
+  { id: "import",        label: "Import",                       backendKey: "upload",                        methodologyGate: "any" },
+  { id: "methodology",   label: "Méthodologie",                 backendKey: "methodology",                   methodologyGate: "any" },
+  { id: "ai_class",      label: "Classification IA",            backendKey: "ai_classification",             methodologyGate: "any" },
+  { id: "validation",    label: "Validation",                   backendKey: "manual_classification_review",  methodologyGate: "any" },
+  { id: "nevo",          label: "NEVO",                         backendKey: "nutrition_enrichment_nevo",     methodologyGate: "protein_tracker" },
+  { id: "nutrition_val", label: "Validation nutritionnelle",    backendKey: "nutrition_validation",          methodologyGate: "protein_tracker" },
+  { id: "calculation",   label: "Calcul",                       backendKey: "calculation",                   methodologyGate: "any" },
+  { id: "report",        label: "Résultat",                     backendKey: "report",                        methodologyGate: "any" },
 ] as const;
 
-type WizardStepIdx = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+/** Phase WWF-G — wwf-flavoured labels override the PT defaults when
+ *  the project is WWF-only. Keys match ``WizardStepDef.id``. */
+const WWF_ONLY_STEP_LABELS: Record<string, string> = {
+  ai_class: "Catégorisation WWF",
+  validation: "Validation WWF",
+  calculation: "Calcul WWF",
+  report: "Rapport WWF",
+};
 
-function backendKeyToWizardIdx(key: string): WizardStepIdx {
-  const found = WIZARD_STEPS.find((s) => s.backendKey === key);
-  return (found?.idx ?? 0) as WizardStepIdx;
+/** Build the visible wizard step list for a given set of enabled
+ *  methodologies. Returns numbered (re-indexed) step entries. */
+function buildWizardSteps(
+  methodologies: readonly string[],
+): readonly (WizardStepDef & { idx: number })[] {
+  const ptOn = methodologies.includes("protein_tracker");
+  const wwfOn = methodologies.includes("wwf");
+  const wwfOnly = wwfOn && !ptOn;
+  return ALL_WIZARD_STEPS.filter((s) => {
+    if (s.methodologyGate === "any") return true;
+    if (s.methodologyGate === "protein_tracker") return ptOn;
+    if (s.methodologyGate === "wwf") return wwfOn;
+    return true;
+  }).map((s, idx) => ({
+    ...s,
+    label: wwfOnly && WWF_ONLY_STEP_LABELS[s.id]
+      ? WWF_ONLY_STEP_LABELS[s.id]
+      : s.label,
+    idx,
+  }));
+}
+
+// Type alias kept for the existing component contracts; the actual
+// index range is now dynamic (4-step minimum, 8-step maximum).
+type WizardStepIdx = number;
+
+function backendKeyToWizardIdx(
+  visibleSteps: readonly (WizardStepDef & { idx: number })[],
+  key: string,
+): WizardStepIdx {
+  const found = visibleSteps.find((s) => s.backendKey === key);
+  return found?.idx ?? 0;
 }
 
 function backendStep(status: WorkflowStatus, key: string): WorkflowStep | undefined {
@@ -90,7 +142,7 @@ function StepChip({
   summary,
   onClick,
 }: {
-  wizardStep: (typeof WIZARD_STEPS)[number];
+  wizardStep: WizardStepDef & { idx: number };
   currentIdx: WizardStepIdx;
   accessible: boolean;
   status: string;
@@ -419,6 +471,7 @@ function StepAIClassification({
   step,
   latestUpload,
   methodologies,
+  primaryMethodology,
   lastClassifyResult,
   currentJob,
   jobError,
@@ -432,6 +485,9 @@ function StepAIClassification({
   step: WorkflowStep;
   latestUpload: UploadResult | null;
   methodologies: string[];
+  /** Phase WWF-G — methodology the AI classifier will run against
+   *  (wwf for WWF-only, protein_tracker otherwise). */
+  primaryMethodology: Methodology;
   lastClassifyResult: ClassifySummary | null;
   // Phase 34R — async classification job state. When non-null, the
   // step renders a progress bar and disables duplicate-click.
@@ -450,6 +506,13 @@ function StepAIClassification({
   const isComplete = step.status === "complete";
   const isNotNeeded = step.status === "not_needed";
   const ptEnabled = methodologies.includes("protein_tracker");
+  const wwfEnabled = methodologies.includes("wwf");
+  const wwfOnly = wwfEnabled && !ptEnabled;
+  // Phase WWF-G — the classify button is gated on the *primary*
+  // methodology being enabled (always true for PT or WWF projects,
+  // but defence-in-depth: a project with neither enabled would
+  // disable the CTA).
+  const classifyEnabled = primaryMethodology === "wwf" ? wwfEnabled : ptEnabled;
 
   // Phase 34D — map machine-readable ai_disabled_reason to a French message
   // that explicitly names the env vars an admin must check. The banner is
@@ -473,9 +536,13 @@ function StepAIClassification({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">Classification IA</h2>
+        <h2 className="text-xl font-semibold">
+          {wwfOnly ? "Catégorisation WWF" : "Classification IA"}
+        </h2>
         <p className="mt-1 text-sm text-gray-600">
-          {"L'IA aide à catégoriser les produits restants à partir de champs non commerciaux."}
+          {wwfOnly
+            ? "Cette étape classe les produits en groupes alimentaires WWF (FG1–FG7) et identifie les produits composites."
+            : "L'IA aide à catégoriser les produits restants à partir de champs non commerciaux."}
         </p>
         <p className="mt-1 text-xs text-gray-500">
           {"Les champs commerciaux comme volumes, ventes, prix et marges ne sont pas envoyés à l'IA."}
@@ -635,12 +702,26 @@ function StepAIClassification({
               </Button>
             </>
           ) : currentJob && currentJob.status === "failed" ? (
-            <Button onClick={onRun} disabled={busy || !latestUpload || !ptEnabled}>
-              Réessayer la classification IA
+            <Button
+              onClick={onRun}
+              disabled={busy || !latestUpload || !classifyEnabled}
+            >
+              {wwfOnly
+                ? "Réessayer la catégorisation WWF"
+                : "Réessayer la classification IA"}
             </Button>
           ) : (
-            <Button onClick={onRun} disabled={busy || !latestUpload || !ptEnabled}>
-              {busy ? "Classification IA en cours…" : "Lancer la classification IA"}
+            <Button
+              onClick={onRun}
+              disabled={busy || !latestUpload || !classifyEnabled}
+            >
+              {busy
+                ? wwfOnly
+                  ? "Catégorisation WWF en cours…"
+                  : "Classification IA en cours…"
+                : wwfOnly
+                ? "Lancer la catégorisation WWF"
+                : "Lancer la classification IA"}
             </Button>
           )}
         </div>
@@ -660,6 +741,7 @@ function StepValidation({
   step,
   methodology,
   wwfEnabled,
+  wwfOnly,
   onResolved,
   onNext,
 }: {
@@ -668,6 +750,9 @@ function StepValidation({
   step: WorkflowStep;
   methodology: Methodology;
   wwfEnabled: boolean;
+  /** Phase WWF-G — when true, the "Continuer" CTA skips NEVO and
+   *  goes straight to Calcul WWF. */
+  wwfOnly: boolean;
   onResolved: () => void | Promise<void>;
   onNext: () => void;
 }) {
@@ -677,9 +762,13 @@ function StepValidation({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">Validation des catégories</h2>
+        <h2 className="text-xl font-semibold">
+          {wwfOnly ? "Validation WWF" : "Validation des catégories"}
+        </h2>
         <p className="mt-1 text-sm text-gray-600">
-          {"Tableau de validation : voir et corriger les catégories assignées par les règles déterministes et par l'IA."}
+          {wwfOnly
+            ? "Tableau de validation WWF : inspectez les groupes alimentaires (FG1–FG7), les sous-groupes et les buckets composites attribués par l'IA et les règles déterministes."
+            : "Tableau de validation : voir et corriger les catégories assignées par les règles déterministes et par l'IA."}
         </p>
         <p className="mt-1 text-xs text-gray-500">
           {"Seuls les champs non commerciaux sont affichés. Volumes, ventes, prix et marges ne sont jamais utilisés pour la classification ni envoyés à l'IA."}
@@ -723,7 +812,7 @@ function StepValidation({
             variant={isNotNeeded || pending === 0 ? "primary" : "secondary"}
             onClick={onNext}
           >
-            Continuer vers NEVO
+            {wwfOnly ? "Continuer vers Calcul WWF" : "Continuer vers NEVO"}
           </Button>
         </div>
       </Card>
@@ -942,17 +1031,26 @@ function StepCalculation({
   preflight,
   busy,
   error,
+  wwfOnly,
   onRun,
   onRunPartial,
   onGoToStep,
+  goToStepById,
 }: {
   step: WorkflowStep;
   preflight: CalculationPreflightResponse | null;
   busy: boolean;
   error: string | null;
+  /** Phase WWF-G — when true, swap PT (protéines/NEVO) labels for
+   *  WWF (volumes/groupes alimentaires) labels. */
+  wwfOnly: boolean;
   onRun: () => void;
   onRunPartial: () => void;
   onGoToStep: (idx: WizardStepIdx) => void;
+  /** Phase WWF-G — step indices are now methodology-dependent, so
+   *  the calculation step navigates by stable id instead of by a
+   *  hard-coded numeric index. */
+  goToStepById: (id: string) => void;
 }) {
   const isReady = step.status === "ready";
   const isBlocked = step.status === "blocked";
@@ -975,23 +1073,25 @@ function StepCalculation({
     step.blocking_reasons.find((r) => r.code === "nutrition_required")?.count ??
     0;
 
-  // Phase 34I — indexes shifted by 1 after removing the deterministic
-  // step. Classification now lives at idx 2 (was 3 before AI was
-  // primary); review at idx 3 (was 4); NEVO at idx 4 (was 5).
-  const BLOCKER_STEP: Record<string, WizardStepIdx> = {
-    no_eligible_products: 0,
-    classification_required: 2,
-    review_pending: 3,
-    nutrition_required: 4,
+  // Phase WWF-G — navigate by stable step id so the mapping is
+  // resilient to WWF-only mode (which drops NEVO + Nutrition).
+  const BLOCKER_STEP_ID: Record<string, string> = {
+    no_eligible_products: "import",
+    classification_required: "ai_class",
+    review_pending: "validation",
+    nutrition_required: "nevo",
   };
 
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">Calcul</h2>
+        <h2 className="text-xl font-semibold">
+          {wwfOnly ? "Calcul WWF" : "Calcul"}
+        </h2>
         <p className="mt-1 text-sm text-gray-600">
-          Lance le calcul du ratio protéines végétales / totales pour tous les produits éligibles.
-          Le calcul est bloqué tant que des pré-requis sont manquants.
+          {wwfOnly
+            ? "Lance le calcul des volumes WWF par groupe alimentaire (FG1–FG7) et la répartition des composites selon les buckets Step 1. Le calcul est bloqué tant que des pré-requis sont manquants."
+            : "Lance le calcul du ratio protéines végétales / totales pour tous les produits éligibles. Le calcul est bloqué tant que des pré-requis sont manquants."}
         </p>
       </div>
 
@@ -1068,7 +1168,7 @@ function StepCalculation({
                   </p>
                   <ul className="mt-2 space-y-1.5">
                     {classifBlockers.map((r) => {
-                      const targetIdx = BLOCKER_STEP[r.code];
+                      const targetId = BLOCKER_STEP_ID[r.code];
                       return (
                         <li
                           key={r.code}
@@ -1078,10 +1178,10 @@ function StepCalculation({
                             ▸ {r.label}
                             {r.count > 0 ? ` (${r.count})` : ""}
                           </span>
-                          {targetIdx !== undefined && (
+                          {targetId !== undefined && (
                             <button
                               type="button"
-                              onClick={() => onGoToStep(targetIdx)}
+                              onClick={() => goToStepById(targetId)}
                               className="shrink-0 text-xs text-brand-600 hover:underline"
                             >
                               Corriger →
@@ -1103,7 +1203,7 @@ function StepCalculation({
                   </p>
                   <ul className="mt-2 space-y-1.5">
                     {nutritionBlockers.map((r) => {
-                      const targetIdx = BLOCKER_STEP[r.code];
+                      const targetId = BLOCKER_STEP_ID[r.code];
                       return (
                         <li
                           key={r.code}
@@ -1113,10 +1213,10 @@ function StepCalculation({
                             ▸ {r.label}
                             {r.count > 0 ? ` (${r.count})` : ""}
                           </span>
-                          {targetIdx !== undefined && (
+                          {targetId !== undefined && (
                             <button
                               type="button"
-                              onClick={() => onGoToStep(targetIdx)}
+                              onClick={() => goToStepById(targetId)}
                               className="shrink-0 text-xs text-brand-600 hover:underline"
                             >
                               Corriger →
@@ -1449,40 +1549,63 @@ export default function WorkflowWizardPage() {
     void refresh();
   }, [refresh]);
 
+  // Phase WWF-G — methodology-aware visible step list. Memoised so
+  // identity is stable across renders. WWF-only projects drop NEVO
+  // + Nutrition Validation; the calculation/report labels also shift.
+  const visibleSteps = useMemo(
+    () => buildWizardSteps(status?.methodologies_enabled ?? []),
+    [status?.methodologies_enabled],
+  );
+  const maxIdx = Math.max(0, visibleSteps.length - 1);
+  const ptEnabled =
+    status?.methodologies_enabled.includes("protein_tracker") ?? true;
+  const wwfEnabled = status?.methodologies_enabled.includes("wwf") ?? false;
+  const wwfOnly = wwfEnabled && !ptEnabled;
+  /** Methodology to use for AI classification + calculation routes.
+   *  WWF-only → wwf; otherwise prefer Protein Tracker (which is the
+   *  primary methodology in PT+WWF projects today; the PT+WWF UX
+   *  for running BOTH classifications inline remains a follow-up). */
+  const primaryMethodology: Methodology = wwfOnly ? "wwf" : "protein_tracker";
+
   // Auto-select the active backend step when first loaded
   useEffect(() => {
     if (!status || activeIdx !== null) return;
     const stepParam = searchParams.get("step");
     if (stepParam) {
       const n = parseInt(stepParam, 10) - 1;
-      if (n >= 0 && n <= 7) {
+      if (n >= 0 && n <= maxIdx) {
         setActiveIdx(n as WizardStepIdx);
         return;
       }
     }
     const bKey = status.active_step ?? status.current_step;
-    setActiveIdx(backendKeyToWizardIdx(bKey));
-  }, [status, activeIdx, searchParams]);
+    setActiveIdx(backendKeyToWizardIdx(visibleSteps, bKey));
+  }, [status, activeIdx, searchParams, visibleSteps, maxIdx]);
 
   // ----------- actions -----------
 
   const latestUpload: UploadResult | null = uploads[0] ?? null;
   const latestRun: Run | null = runs[0] ?? null;
 
-  // Phase 35A — auto-detect an active classification job on Step 4
-  // entry. If the user closed the tab or got disconnected after the
-  // wizard hit "Trop d'échecs réseau consécutifs", this picks the
-  // job back up the moment they return to the AI step.
+  // Phase 35A — auto-detect an active classification job on the AI
+  // classification step. If the user closed the tab or got disconnected
+  // after the wizard hit "Trop d'échecs réseau consécutifs", this picks
+  // the job back up the moment they return to the AI step.
+  //
+  // Phase WWF-G — the AI step's index now depends on visibleSteps; look
+  // it up by id instead of hard-coding 2.
+  const aiStepIdx = visibleSteps.find((s) => s.id === "ai_class")?.idx ?? 2;
   useEffect(() => {
-    if (activeIdx !== 2) return;
+    if (activeIdx !== aiStepIdx) return;
     if (currentJob) return; // already have one
     if (!latestUpload || !status) return;
-    const methodology = status.methodologies_enabled[0] as
-      | "protein_tracker"
-      | "wwf";
     let cancelled = false;
     void api
-      .getActiveClassificationJob(projectId, latestUpload.id, methodology)
+      .getActiveClassificationJob(
+        projectId,
+        latestUpload.id,
+        primaryMethodology,
+      )
       .then((job) => {
         if (cancelled || !job) return;
         setCurrentJob(job);
@@ -1496,7 +1619,7 @@ export default function WorkflowWizardPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIdx, latestUpload?.id, status?.methodologies_enabled.join(",")]);
+  }, [activeIdx, aiStepIdx, latestUpload?.id, primaryMethodology]);
 
   async function runAction(fn: () => Promise<void>) {
     // Phase 34P — guard against duplicate invocation if the user clicks
@@ -1550,8 +1673,18 @@ export default function WorkflowWizardPage() {
 
   function advanceNext() {
     if (activeIdx === null) return;
-    const next = Math.min(7, activeIdx + 1) as WizardStepIdx;
+    const next = Math.min(maxIdx, activeIdx + 1) as WizardStepIdx;
     advanceTo(next);
+  }
+
+  // Phase WWF-G — navigate by stable step id (used by the calculation
+  // step's "Corriger" blocker links). Falls through silently if the
+  // requested step isn't visible (e.g. nutrition_required blocker on a
+  // WWF-only project should never appear, but defence-in-depth: a
+  // missing id is a no-op).
+  function goToStepById(id: string) {
+    const target = visibleSteps.find((s) => s.id === id);
+    if (target) advanceTo(target.idx as WizardStepIdx);
   }
 
   // Phase 34R — Chunked async classification.
@@ -1641,9 +1774,9 @@ export default function WorkflowWizardPage() {
   function handleClassifyAI() {
     if (!latestUpload || !status) return;
     if (busy) return; // defence-in-depth duplicate-click guard
-    const methodology = status.methodologies_enabled[0] as
-      | "protein_tracker"
-      | "wwf";
+    // Phase WWF-G — primary methodology is WWF for WWF-only projects,
+    // PT otherwise (PT-only or PT+WWF).
+    const methodology: Methodology = primaryMethodology;
     setBusy(true);
     setActionError(null);
     setJobError(null);
@@ -1735,13 +1868,12 @@ export default function WorkflowWizardPage() {
 
   function handleCreateRun() {
     if (!status) return;
-    const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
-    // Phase 34E — stay in the wizard. The run summary is rendered
-    // inline on the last step (idx 7 after Phase 34I); the legacy
-    // run-detail page is admin-only.
+    // Phase WWF-G — primary methodology drives the run; index of the
+    // report step is now dynamic (last step in visibleSteps).
+    const methodology: Methodology = primaryMethodology;
     void runAction(async () => {
       await api.createRun(projectId, methodology);
-      advanceTo(7);
+      goToStepById("report");
     });
   }
 
@@ -1750,10 +1882,10 @@ export default function WorkflowWizardPage() {
   // when products are missing nutrition data.
   function handleCreateRunPartial() {
     if (!status) return;
-    const methodology = status.methodologies_enabled[0] as "protein_tracker" | "wwf";
+    const methodology: Methodology = primaryMethodology;
     void runAction(async () => {
       await api.createRun(projectId, methodology, { allow_partial: true });
-      advanceTo(7);
+      goToStepById("report");
     });
   }
 
@@ -1779,20 +1911,30 @@ export default function WorkflowWizardPage() {
     return <div className="text-sm text-gray-500">Chargement…</div>;
   }
 
-  const currentStep = WIZARD_STEPS[activeIdx];
+  // Phase WWF-G — index into the methodology-aware visible step list.
+  // If the previously-selected index is now out of range (e.g. a WWF
+  // project re-opened the workflow page after a methodology change),
+  // we fall back to the first visible step.
+  const safeActiveIdx = Math.min(activeIdx, maxIdx);
+  const currentStep = visibleSteps[safeActiveIdx] ?? visibleSteps[0];
+  const activeStepId = currentStep.id;
   const backendStepForActive = backendStep(status, currentStep.backendKey);
 
   // Compute per-wizard-step accessibility from backend step data
-  function wizardStepAccessible(ws: (typeof WIZARD_STEPS)[number]): boolean {
+  function wizardStepAccessible(
+    ws: WizardStepDef & { idx: number },
+  ): boolean {
     const bs = backendStep(status!, ws.backendKey);
     return bs?.accessible ?? false;
   }
 
-  function wizardStepStatus(ws: (typeof WIZARD_STEPS)[number]): string {
+  function wizardStepStatus(ws: WizardStepDef & { idx: number }): string {
     return backendStep(status!, ws.backendKey)?.status ?? "locked";
   }
 
-  function wizardStepSummary(ws: (typeof WIZARD_STEPS)[number]): string | null {
+  function wizardStepSummary(
+    ws: WizardStepDef & { idx: number },
+  ): string | null {
     return backendStep(status!, ws.backendKey)?.summary ?? null;
   }
 
@@ -1813,9 +1955,14 @@ export default function WorkflowWizardPage() {
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Parcours guidé</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {wwfOnly
+              ? "Parcours WWF Planet-Based Diets"
+              : "Parcours guidé"}
+          </h1>
           <p className="mt-0.5 text-sm text-gray-500">
-            Étape {activeIdx + 1} sur 8 · Progression : {status.overall_progress_pct} %
+            Étape {safeActiveIdx + 1} sur {visibleSteps.length} · Progression :{" "}
+            {status.overall_progress_pct} %
           </p>
         </div>
         <Link
@@ -1836,9 +1983,9 @@ export default function WorkflowWizardPage() {
         />
       </div>
 
-      {/* Horizontal stepper */}
+      {/* Horizontal stepper — methodology-aware (Phase WWF-G). */}
       <div className="mt-5 flex items-start justify-between gap-1 overflow-x-auto pb-2">
-        {WIZARD_STEPS.map((ws, i) => {
+        {visibleSteps.map((ws, i) => {
           const accessible = wizardStepAccessible(ws);
           const wsStatus = wizardStepStatus(ws);
           const summary = wizardStepSummary(ws);
@@ -1847,7 +1994,7 @@ export default function WorkflowWizardPage() {
             <div key={ws.id} className="flex items-center gap-1">
               <StepChip
                 wizardStep={ws}
-                currentIdx={activeIdx}
+                currentIdx={safeActiveIdx}
                 accessible={accessible}
                 status={wsStatus}
                 summary={summary}
@@ -1855,7 +2002,7 @@ export default function WorkflowWizardPage() {
                   if (accessible) advanceTo(ws.idx as WizardStepIdx);
                 }}
               />
-              {i < WIZARD_STEPS.length - 1 && (
+              {i < visibleSteps.length - 1 && (
                 <div className="h-px w-4 shrink-0 bg-gray-200 mt-3.5" />
               )}
             </div>
@@ -1863,9 +2010,10 @@ export default function WorkflowWizardPage() {
         })}
       </div>
 
-      {/* Step content */}
+      {/* Step content — Phase WWF-G renders by stable step id so WWF-only
+          and PT-only flows can share the same switch. */}
       <div className="mt-6">
-        {activeIdx === 0 && (
+        {activeStepId === "import" && (
           <StepImport
             projectId={projectId}
             accessToken={accessToken}
@@ -1876,18 +2024,19 @@ export default function WorkflowWizardPage() {
             onNext={advanceNext}
           />
         )}
-        {activeIdx === 1 && (
+        {activeStepId === "methodology" && (
           <StepMethodology
             step={activeBackendStep}
             methodologies={status.methodologies_enabled}
             onNext={advanceNext}
           />
         )}
-        {activeIdx === 2 && (
+        {activeStepId === "ai_class" && (
           <StepAIClassification
             step={activeBackendStep}
             latestUpload={latestUpload}
             methodologies={status.methodologies_enabled}
+            primaryMethodology={primaryMethodology}
             lastClassifyResult={lastClassifyResult}
             currentJob={currentJob}
             jobError={jobError}
@@ -1899,21 +2048,19 @@ export default function WorkflowWizardPage() {
             onNext={advanceNext}
           />
         )}
-        {activeIdx === 3 && (
+        {activeStepId === "validation" && (
           <StepValidation
             projectId={projectId}
             accessToken={accessToken}
             step={activeBackendStep}
-            methodology={
-              (status.methodologies_enabled[0] as Methodology) ??
-              "protein_tracker"
-            }
-            wwfEnabled={status.methodologies_enabled.includes("wwf")}
+            methodology={primaryMethodology}
+            wwfEnabled={wwfEnabled}
+            wwfOnly={wwfOnly}
             onResolved={refresh}
             onNext={advanceNext}
           />
         )}
-        {activeIdx === 4 && (
+        {activeStepId === "nevo" && (
           <StepNEVO
             step={activeBackendStep}
             lastNevoResult={lastNevoResult}
@@ -1923,7 +2070,7 @@ export default function WorkflowWizardPage() {
             onNext={advanceNext}
           />
         )}
-        {activeIdx === 5 && (
+        {activeStepId === "nutrition_val" && (
           <div className="space-y-5">
             <div>
               <h2 className="text-xl font-semibold">
@@ -1952,18 +2099,20 @@ export default function WorkflowWizardPage() {
             </Card>
           </div>
         )}
-        {activeIdx === 6 && (
+        {activeStepId === "calculation" && (
           <StepCalculation
             step={activeBackendStep}
             preflight={preflight}
             busy={busy}
             error={actionError}
+            wwfOnly={wwfOnly}
             onRun={handleCreateRun}
             onRunPartial={handleCreateRunPartial}
             onGoToStep={advanceTo}
+            goToStepById={goToStepById}
           />
         )}
-        {activeIdx === 7 && (
+        {activeStepId === "report" && (
           <StepReport
             projectId={projectId}
             step={activeBackendStep}
@@ -1976,27 +2125,34 @@ export default function WorkflowWizardPage() {
       <div className="mt-8 flex items-center justify-between border-t border-gray-100 pt-4">
         <Button
           variant="secondary"
-          onClick={() => advanceTo(Math.max(0, activeIdx - 1) as WizardStepIdx)}
-          disabled={activeIdx === 0}
+          onClick={() =>
+            advanceTo(Math.max(0, safeActiveIdx - 1) as WizardStepIdx)
+          }
+          disabled={safeActiveIdx === 0}
         >
           ← Précédent
         </Button>
         <span className="text-xs text-gray-400">
-          {activeIdx + 1} / 8
+          {safeActiveIdx + 1} / {visibleSteps.length}
         </span>
         <Button
           variant="secondary"
-          onClick={() => advanceTo(Math.min(7, activeIdx + 1) as WizardStepIdx)}
-          disabled={activeIdx === 7}
+          onClick={() =>
+            advanceTo(
+              Math.min(maxIdx, safeActiveIdx + 1) as WizardStepIdx,
+            )
+          }
+          disabled={safeActiveIdx === maxIdx}
         >
           Suivant →
         </Button>
       </div>
 
+      {/* Phase WWF-G — privacy footer adapts to methodology context. */}
       <p className="mt-6 text-xs text-gray-400">
-        {"Note : l'IA peut aider à sélectionner certaines références, mais ne génère pas de valeurs"}
-        nutritionnelles. Les protéines proviennent uniquement des données fournies par le retailer,
-        de NEVO, de CIQUAL ou de la validation manuelle.
+        {wwfOnly
+          ? "Note : la catégorisation WWF utilise uniquement les descripteurs non commerciaux (nom, marque, catégorie retailer, ingrédients). Les volumes, ventes et prix ne sont jamais envoyés à l'IA."
+          : "Note : l'IA peut aider à sélectionner certaines références, mais ne génère pas de valeurs nutritionnelles. Les protéines proviennent uniquement des données fournies par le retailer, de NEVO, de CIQUAL ou de la validation manuelle."}
       </p>
     </div>
   );
