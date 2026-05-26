@@ -45,7 +45,7 @@ import json
 import re
 import unicodedata
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -97,6 +97,15 @@ class BatchVerdictBundle:
     # verdict (Accepted or LowConfidence) after retry.
     retry_batches: int = 0
     recovered_rows: int = 0
+    # Phase 36J — Phase-36I guard firings broken down by rule name.
+    # ``""`` (empty dict) means no guard fired in this batch. The
+    # orchestrator aggregates these across advance calls into the
+    # ``classify.advance.timing`` log line so operators can see exactly
+    # which AI taxonomy errors the guards are catching.
+    guard_overrides_by_rule: dict[str, int] = field(default_factory=dict)
+    # Phase 36J — unknown_safety_net firings (readable name → unknown
+    # rerouted to needs_review).
+    unknown_safety_net_total: int = 0
 
 
 def _chunked(
@@ -669,6 +678,9 @@ def batch_classify(
     provider_errors = 0
     unsupported_category_failures = 0
     sample_errors: list[str] = []
+    # Phase 36J — per-batch guard firing counters (Phase 36I).
+    guard_overrides_by_rule: dict[str, int] = {}
+    unknown_safety_net_total = 0
 
     def _maybe_sample(msg: str) -> None:
         if len(sample_errors) < 10:
@@ -892,13 +904,46 @@ def batch_classify(
                 )
                 continue
 
+            # Phase 36I — deterministic taxonomy guards for the
+            # Protein Tracker. The 150-product audit surfaced four
+            # systematic error classes; ``apply_pt_guards`` detects
+            # them and substitutes a corrected category. The guard
+            # ALSO clamps confidence to 0.69 so the row routes to
+            # ``needs_review`` — we never silently auto-accept a
+            # guard-corrected verdict.
+            #
+            # Phase 36J — guards run BEFORE the unknown safety net so
+            # a model ``unknown`` on a fruit-drink / smoothie name can
+            # be promoted to plant_based_non_core via
+            # ``fruit_drink_non_core`` instead of falling through to
+            # needs_review_parse_failed.
+            if methodology is Methodology.PROTEIN_TRACKER:
+                from altera_api.ai.pt_guards import apply_pt_guards
+
+                override = apply_pt_guards(
+                    p.product_name, classification
+                )
+                if override is not None:
+                    _maybe_sample(
+                        f"pt_guard: rule={override.rule} "
+                        f"name={p.product_name!r}"
+                    )
+                    guard_overrides_by_rule[override.rule] = (
+                        guard_overrides_by_rule.get(override.rule, 0) + 1
+                    )
+                    classification = override.new_classification
+                    # The guard already chose a category — skip the
+                    # downstream unknown safety net entirely.
+                    inferred_cat = classification.pt_group.value
+
             # Phase 36H — unknown safety net. By product rule, the
             # ``unknown`` category is reserved for truly unusable
             # product names (empty, "Divers", placeholder strings).
-            # If the model returns ``unknown`` on ANY readable name we
-            # route to ``needs_review`` so a human can either accept
-            # the model's intent or pick a category — never leave a
-            # readable product as final ``unknown``.
+            # If the model returns ``unknown`` on ANY readable name AND
+            # no Phase 36I guard reclassified it, we route to
+            # ``needs_review`` so a human can either accept the model's
+            # intent or pick a category — never leave a readable
+            # product as final ``unknown``.
             if (
                 inferred_cat == "unknown"
                 and not _is_unusable_name(p.product_name)
@@ -908,6 +953,7 @@ def batch_classify(
                     f"as 'unknown' but name is readable; routed to review"
                 )
                 parse_failures += 1
+                unknown_safety_net_total += 1
                 out.append(
                     AINeedsReviewParseFailed(
                         product_id=p.id,
@@ -922,26 +968,6 @@ def batch_classify(
                     )
                 )
                 continue
-
-            # Phase 36I — deterministic taxonomy guards for the
-            # Protein Tracker. The 150-product audit surfaced four
-            # systematic error classes; ``apply_pt_guards`` detects
-            # them and substitutes a corrected category. The guard
-            # ALSO clamps confidence to 0.69 so the row routes to
-            # ``needs_review`` — we never silently auto-accept a
-            # guard-corrected verdict.
-            if methodology is Methodology.PROTEIN_TRACKER:
-                from altera_api.ai.pt_guards import apply_pt_guards
-
-                override = apply_pt_guards(
-                    p.product_name, classification
-                )
-                if override is not None:
-                    _maybe_sample(
-                        f"pt_guard: rule={override.rule} "
-                        f"name={p.product_name!r}"
-                    )
-                    classification = override.new_classification
 
             if classification.confidence < threshold:
                 out.append(
@@ -1093,4 +1119,6 @@ def batch_classify(
         sample_errors=sample_errors,
         retry_batches=retry_batches_used,
         recovered_rows=recovered_rows,
+        guard_overrides_by_rule=dict(guard_overrides_by_rule),
+        unknown_safety_net_total=unknown_safety_net_total,
     )

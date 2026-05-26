@@ -1,0 +1,244 @@
+{
+  "name": "PT batch 150 audit (Phase 36J)",
+  "description": "Curated subset of the production audit batch — products that exposed Phase 36I taxonomy errors plus a few non-regression anchors. Each entry encodes the expected category and whether the row must end up in needs_review (typically true when a guard fires).",
+  "cases": [
+    {
+      "product_name": "Coulis Mangue",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "plant_core_demoted_preparation_or_simple_veg",
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Coulis Figue Bio",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "plant_core_demoted_preparation_or_simple_veg",
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Confiture Mangue Sucrée",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "plant_core_demoted_preparation_or_simple_veg",
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Épinards Jardinière",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "plant_core_demoted_preparation_or_simple_veg",
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Maïs Doux Huile d'Olive",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "plant_core_demoted_preparation_or_simple_veg",
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Velouté Tomate",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "plant_core_demoted_preparation_or_simple_veg",
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Gaspacho Potiron",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "plant_core_demoted_preparation_or_simple_veg",
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Mouliné Poireaux Pommes de Terre",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "plant_core_demoted_preparation_or_simple_veg",
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Thé Corsé",
+      "expected_pt_group": "out_of_scope",
+      "expected_review_required": true,
+      "expected_guard_rule": "beverage_out_of_scope",
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Thé Verveine Capsules",
+      "expected_pt_group": "out_of_scope",
+      "expected_review_required": true,
+      "expected_guard_rule": "beverage_out_of_scope",
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Thé Glacé Citron Vert",
+      "expected_pt_group": "out_of_scope",
+      "expected_review_required": true,
+      "expected_guard_rule": "beverage_out_of_scope",
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Café Noisette",
+      "expected_pt_group": "out_of_scope",
+      "expected_review_required": true,
+      "expected_guard_rule": "beverage_out_of_scope",
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Limonade Artisanale Orange",
+      "expected_pt_group": "out_of_scope",
+      "expected_review_required": true,
+      "expected_guard_rule": "beverage_out_of_scope",
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Limonade Artisanale Multifruits",
+      "expected_pt_group": "out_of_scope",
+      "expected_review_required": true,
+      "expected_guard_rule": "beverage_out_of_scope",
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Smoothie Pêche",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "fruit_drink_non_core",
+      "model_pt_group": "unknown"
+    },
+    {
+      "product_name": "Boisson Fruitée Fruits Rouges Pur Jus",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "fruit_drink_non_core",
+      "model_pt_group": "unknown"
+    },
+    {
+      "product_name": "Sablés Pépites Chocolat",
+      "expected_pt_group": "composite_products",
+      "expected_review_required": true,
+      "expected_guard_rule": "bakery_composite",
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Sablés Noisette",
+      "expected_pt_group": "composite_products",
+      "expected_review_required": true,
+      "expected_guard_rule": "bakery_composite",
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Croissants Maïs",
+      "expected_pt_group": "composite_products",
+      "expected_review_required": true,
+      "expected_guard_rule": "bakery_composite",
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Tablette Lait",
+      "expected_pt_group": "composite_products",
+      "expected_review_required": true,
+      "expected_guard_rule": "bakery_composite",
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Poêlée Saumon Légumes",
+      "expected_pt_group": "composite_products",
+      "expected_review_required": true,
+      "expected_guard_rule": "animal_prepared_meal_composite",
+      "model_pt_group": "animal_core"
+    },
+    {
+      "product_name": "Cassoulet Provençale",
+      "expected_pt_group": "composite_products",
+      "expected_review_required": true,
+      "expected_guard_rule": "animal_prepared_meal_composite",
+      "model_pt_group": "animal_core"
+    },
+    {
+      "product_name": "Wraps Complet",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": false,
+      "expected_guard_rule": null,
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Bouillon Champignons",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": false,
+      "expected_guard_rule": null,
+      "model_pt_group": "plant_based_non_core"
+    },
+    {
+      "product_name": "Levure Chimique",
+      "expected_pt_group": "out_of_scope",
+      "expected_review_required": false,
+      "expected_guard_rule": null,
+      "model_pt_group": "out_of_scope"
+    },
+    {
+      "product_name": "Miel Pomme",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "plant_core_demoted_preparation_or_simple_veg",
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Miel Orange",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": true,
+      "expected_guard_rule": "plant_core_demoted_preparation_or_simple_veg",
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Lentilles Vertes du Puy",
+      "expected_pt_group": "plant_based_core",
+      "expected_review_required": false,
+      "expected_guard_rule": null,
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Pois Chiches Cuits",
+      "expected_pt_group": "plant_based_core",
+      "expected_review_required": false,
+      "expected_guard_rule": null,
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Tofu Nature Bio",
+      "expected_pt_group": "plant_based_core",
+      "expected_review_required": false,
+      "expected_guard_rule": null,
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Steak Végétal Soja & Blé",
+      "expected_pt_group": "plant_based_core",
+      "expected_review_required": false,
+      "expected_guard_rule": null,
+      "model_pt_group": "plant_based_core"
+    },
+    {
+      "product_name": "Yaourt Nature 0% MG",
+      "expected_pt_group": "animal_core",
+      "expected_review_required": false,
+      "expected_guard_rule": null,
+      "model_pt_group": "animal_core"
+    },
+    {
+      "product_name": "Filets de Saumon Atlantique",
+      "expected_pt_group": "animal_core",
+      "expected_review_required": false,
+      "expected_guard_rule": null,
+      "model_pt_group": "animal_core"
+    },
+    {
+      "product_name": "Pommes Golden 1.5kg",
+      "expected_pt_group": "plant_based_non_core",
+      "expected_review_required": false,
+      "expected_guard_rule": null,
+      "model_pt_group": "plant_based_non_core"
+    }
+  ]
+}

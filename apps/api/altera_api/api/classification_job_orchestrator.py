@@ -592,6 +592,8 @@ def advance_classification_job(
         coverage_ms,
         update_ms=update_ms,
         batch_n=len(chunk_ids),
+        guard_overrides_by_rule=bundle.guard_overrides_by_rule,
+        unknown_safety_net_total=bundle.unknown_safety_net_total,
     )
     return updated
 
@@ -605,17 +607,34 @@ def _record_advance_timings(
     *,
     update_ms: float = 0.0,
     batch_n: int = 0,
+    guard_overrides_by_rule: dict[str, int] | None = None,
+    unknown_safety_net_total: int = 0,
 ) -> None:
     """Phase 35-perf — single ``classify.advance.timing`` log line per
     batch with per-stage breakdown. Operators reading Render logs can
     immediately distinguish "OpenAI is slow today" (provider_ms high)
-    from "Supabase is slow today" (db_write_ms / coverage_ms high)."""
+    from "Supabase is slow today" (db_write_ms / coverage_ms high).
+
+    Phase 36J — also surfaces Phase-36I guard firings per batch so the
+    operator can see which AI taxonomy errors the guards are catching.
+    The breakdown is a compact ``rule=count`` comma list (empty when
+    no guard fired); ``unknown_safety_net_total`` is the count of
+    readable-name → unknown rerouted to needs_review.
+    """
     import logging
 
+    overrides = guard_overrides_by_rule or {}
+    guard_breakdown = (
+        ",".join(f"{rule}={count}" for rule, count in sorted(overrides.items()))
+        or "none"
+    )
+    guard_total = sum(overrides.values())
     logging.getLogger("altera_api.classification_advance").info(
         "classify.advance.timing job_id=%s project=%s upload=%s "
         "batch_n=%d load_ms=%.1f provider_ms=%.1f db_write_ms=%.1f "
-        "coverage_ms=%.1f update_ms=%.1f total_ms=%.1f",
+        "coverage_ms=%.1f update_ms=%.1f total_ms=%.1f "
+        "guard_overrides_total=%d guard_overrides_by_rule=%s "
+        "unknown_safety_net_total=%d",
         job.id,
         job.project_id,
         job.upload_id,
@@ -626,6 +645,9 @@ def _record_advance_timings(
         coverage_ms,
         update_ms,
         load_ms + provider_ms + db_write_ms + coverage_ms + update_ms,
+        guard_total,
+        guard_breakdown,
+        unknown_safety_net_total,
     )
 
 
