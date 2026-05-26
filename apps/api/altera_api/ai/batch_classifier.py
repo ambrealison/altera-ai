@@ -1245,6 +1245,26 @@ def batch_classify(
                     # The guard already chose a category — skip the
                     # downstream unknown safety net entirely.
                     inferred_cat = classification.pt_group.value
+            elif methodology is Methodology.WWF:
+                # Phase WWF-D — deterministic guards for WWF.
+                from altera_api.ai.wwf_guards import apply_wwf_guards
+
+                wwf_override = apply_wwf_guards(
+                    p.product_name, classification
+                )
+                if wwf_override is not None:
+                    _maybe_sample(
+                        f"wwf_guard: rule={wwf_override.rule} "
+                        f"name={p.product_name!r}"
+                    )
+                    guard_overrides_by_rule[wwf_override.rule] = (
+                        guard_overrides_by_rule.get(
+                            wwf_override.rule, 0
+                        )
+                        + 1
+                    )
+                    classification = wwf_override.new_classification
+                    inferred_cat = classification.wwf_food_group.value
 
             # Phase 36H — unknown safety net (legacy path).
             # Reaches this branch only if:
