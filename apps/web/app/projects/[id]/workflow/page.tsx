@@ -32,6 +32,7 @@ import {
   type ClassificationJob,
   type ClassifySummary,
   CLASSIFICATION_JOB_TERMINAL_STATUSES,
+  type MethodologyClassificationCounts,
   type Methodology,
   type Run,
   type UploadResult,
@@ -731,6 +732,246 @@ function StepAIClassification({
           </p>
         )}
       </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Phase WWF-H — dual classification card panel for PT+WWF projects.
+// Renders one card per methodology so the user can run PT and WWF
+// classification independently, with separate Run/Resume CTAs and
+// per-methodology progress derived from
+// ``WorkflowStatus.classification_by_methodology``.
+// ---------------------------------------------------------------------------
+
+function MethodologyClassificationCard({
+  methodology,
+  counts,
+  currentJob,
+  busy,
+  error,
+  latestUpload,
+  onRun,
+  onResume,
+  onRetryFailed,
+  onOpenValidation,
+}: {
+  methodology: Methodology;
+  counts: MethodologyClassificationCounts | undefined;
+  currentJob: ClassificationJob | null;
+  busy: boolean;
+  error: string | null;
+  latestUpload: UploadResult | null;
+  onRun: () => void;
+  onResume: (jobId: string) => void;
+  onRetryFailed: () => void;
+  onOpenValidation: () => void;
+}) {
+  const isWwf = methodology === "wwf";
+  const title = isWwf
+    ? "Catégorisation WWF"
+    : "Catégorisation Protein Tracker";
+  const description = isWwf
+    ? "Classe les produits en groupes alimentaires WWF (FG1–FG7), sous-groupes et composites."
+    : "Classe les produits en groupes Protein Tracker (plant-based core, animal core, composite, etc.).";
+  const runLabel = isWwf
+    ? "Lancer la catégorisation WWF"
+    : "Lancer la catégorisation Protein Tracker";
+  const resumeLabelBase = isWwf
+    ? "Reprendre la catégorisation WWF"
+    : "Reprendre la catégorisation Protein Tracker";
+  const validationLabel = isWwf
+    ? "Voir la validation WWF"
+    : "Voir la validation Protein Tracker";
+
+  const total = counts?.total ?? 0;
+  const classified = counts?.classified ?? 0;
+  const pending = counts?.pending ?? 0;
+  const needsReview = counts?.needs_review ?? 0;
+  const status = counts?.status ?? "locked";
+  const pct = total > 0 ? Math.round((classified / total) * 100) : 0;
+
+  const isComplete = status === "complete";
+  const isRunning =
+    currentJob &&
+    (currentJob.status === "queued" || currentJob.status === "running");
+  const canResume = currentJob && isRunning;
+
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold">{title}</h3>
+          <p className="mt-1 text-xs text-gray-500">{description}</p>
+        </div>
+        <Pill
+          tone={
+            isComplete
+              ? "ok"
+              : isRunning
+              ? "warn"
+              : status === "locked"
+              ? "neutral"
+              : "warn"
+          }
+        >
+          {isComplete
+            ? "Terminée"
+            : isRunning
+            ? "En cours"
+            : status === "locked"
+            ? "Verrouillée"
+            : "À lancer"}
+        </Pill>
+      </div>
+
+      {total > 0 && (
+        <div className="mt-3 text-xs text-gray-600">
+          <div className="flex items-center justify-between">
+            <span>
+              {classified}/{total} catégorisé(s)
+              {needsReview > 0 && <> · {needsReview} en revue</>}
+              {pending > 0 && <> · {pending} en attente</>}
+            </span>
+            <span className="text-gray-400">{pct}%</span>
+          </div>
+          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+            <div
+              className="h-full bg-brand-500 transition-all"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {currentJob && (
+        <div className="mt-3">
+          <ClassificationJobProgress job={currentJob} />
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+          {error}
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {canResume ? (
+          <Button
+            onClick={() => onResume(currentJob!.job_id)}
+            disabled={busy}
+          >
+            {`${resumeLabelBase} (${currentJob!.processed_products}/${currentJob!.total_products})`}
+          </Button>
+        ) : currentJob && currentJob.status === "completed_with_errors" ? (
+          <Button onClick={onRetryFailed} disabled={busy}>
+            {`Réessayer ${currentJob.failed_product_count} échec(s)`}
+          </Button>
+        ) : (
+          <Button onClick={onRun} disabled={busy || !latestUpload}>
+            {busy ? "…" : runLabel}
+          </Button>
+        )}
+        {(classified > 0 || isComplete) && (
+          <Button variant="secondary" onClick={onOpenValidation}>
+            {validationLabel}
+          </Button>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function StepAIClassificationDual({
+  latestUpload,
+  ptCounts,
+  wwfCounts,
+  ptCurrentJob,
+  wwfCurrentJob,
+  busy,
+  ptError,
+  wwfError,
+  onRunPT,
+  onRunWWF,
+  onResumePT,
+  onResumeWWF,
+  onRetryFailedPT,
+  onRetryFailedWWF,
+  onOpenValidation,
+  onNext,
+}: {
+  latestUpload: UploadResult | null;
+  ptCounts: MethodologyClassificationCounts | undefined;
+  wwfCounts: MethodologyClassificationCounts | undefined;
+  ptCurrentJob: ClassificationJob | null;
+  wwfCurrentJob: ClassificationJob | null;
+  busy: boolean;
+  ptError: string | null;
+  wwfError: string | null;
+  onRunPT: () => void;
+  onRunWWF: () => void;
+  onResumePT: (jobId: string) => void;
+  onResumeWWF: (jobId: string) => void;
+  onRetryFailedPT: () => void;
+  onRetryFailedWWF: () => void;
+  onOpenValidation: (methodology: Methodology) => void;
+  onNext: () => void;
+}) {
+  const ptDone = ptCounts?.status === "complete";
+  const wwfDone = wwfCounts?.status === "complete";
+  // Allow continuing to the next step as soon as at least one of the
+  // two methodologies has finished — the user can come back to run
+  // the other one later. PT and WWF classification are independent,
+  // so blocking the wizard on both being done would be unhelpful.
+  const canContinue = ptDone || wwfDone;
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold">
+          Classification IA — Protein Tracker + WWF
+        </h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Ce projet a deux méthodologies activées. Chaque catégorisation
+          peut être lancée, reprise et validée indépendamment.
+        </p>
+        <p className="mt-1 text-xs text-gray-500">
+          {"Les champs commerciaux (volumes, ventes, prix, marges) ne sont jamais envoyés à l'IA."}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <MethodologyClassificationCard
+          methodology="protein_tracker"
+          counts={ptCounts}
+          currentJob={ptCurrentJob}
+          busy={busy}
+          error={ptError}
+          latestUpload={latestUpload}
+          onRun={onRunPT}
+          onResume={onResumePT}
+          onRetryFailed={onRetryFailedPT}
+          onOpenValidation={() => onOpenValidation("protein_tracker")}
+        />
+        <MethodologyClassificationCard
+          methodology="wwf"
+          counts={wwfCounts}
+          currentJob={wwfCurrentJob}
+          busy={busy}
+          error={wwfError}
+          latestUpload={latestUpload}
+          onRun={onRunWWF}
+          onResume={onResumeWWF}
+          onRetryFailed={onRetryFailedWWF}
+          onOpenValidation={() => onOpenValidation("wwf")}
+        />
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <Button onClick={onNext} variant={canContinue ? "primary" : "secondary"}>
+          Continuer vers Validation
+        </Button>
+      </div>
     </div>
   );
 }
@@ -1517,6 +1758,14 @@ export default function WorkflowWizardPage() {
   // current job state (see L below).
   const [currentJob, setCurrentJob] = useState<ClassificationJob | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  // Phase WWF-H — independent WWF job state for PT+WWF projects. The
+  // PT card uses ``currentJob``; the WWF card uses ``currentJobWwf``.
+  // Single-methodology projects keep using ``currentJob`` only.
+  const [currentJobWwf, setCurrentJobWwf] = useState<ClassificationJob | null>(
+    null,
+  );
+  const [jobErrorWwf, setJobErrorWwf] = useState<string | null>(null);
+  const [actionErrorWwf, setActionErrorWwf] = useState<string | null>(null);
 
   // ----------- data loading -----------
 
@@ -1561,11 +1810,20 @@ export default function WorkflowWizardPage() {
     status?.methodologies_enabled.includes("protein_tracker") ?? true;
   const wwfEnabled = status?.methodologies_enabled.includes("wwf") ?? false;
   const wwfOnly = wwfEnabled && !ptEnabled;
+  /** Phase WWF-H — true for PT+WWF projects; triggers the dual
+   *  classification panel on the AI step. */
+  const ptWwfMode = ptEnabled && wwfEnabled;
   /** Methodology to use for AI classification + calculation routes.
    *  WWF-only → wwf; otherwise prefer Protein Tracker (which is the
-   *  primary methodology in PT+WWF projects today; the PT+WWF UX
-   *  for running BOTH classifications inline remains a follow-up). */
+   *  primary methodology in PT+WWF projects too — WWF gets its own
+   *  CTA via the dual classification panel). */
   const primaryMethodology: Methodology = wwfOnly ? "wwf" : "protein_tracker";
+  /** Phase WWF-H — per-methodology counts straight from the backend.
+   *  Empty for PT-only / WWF-only projects' inverse methodology. */
+  const ptClassificationCounts =
+    status?.classification_by_methodology?.protein_tracker;
+  const wwfClassificationCounts =
+    status?.classification_by_methodology?.wwf;
 
   // Auto-select the active backend step when first loaded
   useEffect(() => {
@@ -1620,6 +1878,31 @@ export default function WorkflowWizardPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeIdx, aiStepIdx, latestUpload?.id, primaryMethodology]);
+
+  // Phase WWF-H — parallel auto-detect for the WWF classification job
+  // when the project is PT+WWF. The PT card uses ``currentJob``; the
+  // WWF card uses ``currentJobWwf``. We only probe in PT+WWF mode —
+  // single-methodology projects already covered by the block above.
+  useEffect(() => {
+    if (!ptWwfMode) return;
+    if (activeIdx !== aiStepIdx) return;
+    if (currentJobWwf) return;
+    if (!latestUpload || !status) return;
+    let cancelled = false;
+    void api
+      .getActiveClassificationJob(projectId, latestUpload.id, "wwf")
+      .then((job) => {
+        if (cancelled || !job) return;
+        setCurrentJobWwf(job);
+      })
+      .catch(() => {
+        // Silent — see PT block above.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIdx, aiStepIdx, latestUpload?.id, ptWwfMode]);
 
   async function runAction(fn: () => Promise<void>) {
     // Phase 34P — guard against duplicate invocation if the user clicks
@@ -1853,6 +2136,153 @@ export default function WorkflowWizardPage() {
       });
   }
 
+  // ---------------------------------------------------------------------
+  // Phase WWF-H — WWF-specific job handlers used by the dual
+  // classification panel on PT+WWF projects. Each is a thin variant of
+  // the PT handler that targets methodology="wwf" and pushes state
+  // into ``currentJobWwf`` instead of ``currentJob``.
+  // ---------------------------------------------------------------------
+
+  const pollJobWwf = useCallback(
+    async (jobId: string) => {
+      let consecutiveFailures = 0;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        try {
+          const updated = await api.advanceClassificationJob(projectId, jobId);
+          setCurrentJobWwf(updated);
+          setJobErrorWwf(null);
+          consecutiveFailures = 0;
+          if (CLASSIFICATION_JOB_TERMINAL_STATUSES.includes(updated.status)) {
+            await refresh();
+            return;
+          }
+        } catch {
+          consecutiveFailures += 1;
+          setJobErrorWwf(
+            "Connexion temporairement interrompue. Nouvelle tentative…",
+          );
+          if (consecutiveFailures >= 5) {
+            setJobErrorWwf(
+              "Connexion interrompue. Le traitement WWF est sauvegardé et peut être repris.",
+            );
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 3000));
+          continue;
+        }
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    },
+    [api, projectId, refresh],
+  );
+
+  function handleResumeClassifyWwf(jobId: string) {
+    if (busy) return;
+    setBusy(true);
+    setActionErrorWwf(null);
+    setJobErrorWwf(null);
+    api
+      .getClassificationJob(projectId, jobId)
+      .then(async (job) => {
+        setCurrentJobWwf(job);
+        if (!CLASSIFICATION_JOB_TERMINAL_STATUSES.includes(job.status)) {
+          await pollJobWwf(job.job_id);
+        }
+      })
+      .catch((e: Error) => {
+        setActionErrorWwf(
+          e.message ?? "Impossible de reprendre la catégorisation WWF.",
+        );
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  }
+
+  function handleClassifyWwf() {
+    if (!latestUpload || !status) return;
+    if (busy) return;
+    setBusy(true);
+    setActionErrorWwf(null);
+    setJobErrorWwf(null);
+    api
+      .createClassificationJob(projectId, latestUpload.id, {
+        methodology: "wwf",
+        overwrite: false,
+        only_missing_or_failed: true,
+      })
+      .then(async (job) => {
+        setCurrentJobWwf(job);
+        await pollJobWwf(job.job_id);
+      })
+      .catch((e: Error) => {
+        if (
+          e instanceof ApiError &&
+          typeof e.detail === "object" &&
+          e.detail !== null
+        ) {
+          const d = e.detail as {
+            message?: string;
+            error_code?: string;
+            job_id?: string;
+          };
+          if (d.error_code === "classification_job_active" && d.job_id) {
+            void handleResumeClassifyWwf(d.job_id);
+            return;
+          }
+          setActionErrorWwf(d.message ?? String(e));
+        } else if (e.message?.includes("Failed to fetch")) {
+          setActionErrorWwf(
+            "Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.",
+          );
+        } else {
+          setActionErrorWwf(
+            e.message ?? "Échec de la catégorisation WWF.",
+          );
+        }
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  }
+
+  function handleRetryFailedWwf() {
+    if (!currentJobWwf) return;
+    if (busy) return;
+    setBusy(true);
+    setActionErrorWwf(null);
+    setJobErrorWwf(null);
+    api
+      .retryFailedClassificationJob(projectId, currentJobWwf.job_id)
+      .then(async (job) => {
+        setCurrentJobWwf(job);
+        await pollJobWwf(job.job_id);
+      })
+      .catch((e: Error) => {
+        setActionErrorWwf(
+          e.message ?? "Échec lors du redémarrage de la catégorisation WWF.",
+        );
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  }
+
+  function handleOpenValidation(methodology: Methodology) {
+    // Phase WWF-H — methodology-specific validation navigation. We
+    // jump to the Validation step and pass the methodology hint via a
+    // query parameter so the ValidationTable can default to the right
+    // view if it supports filtering.
+    const target = visibleSteps.find((s) => s.id === "validation");
+    if (target) advanceTo(target.idx as WizardStepIdx);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("methodology", methodology);
+      window.history.replaceState({}, "", url.toString());
+    }
+  }
+
   function handleApplyNEVO() {
     void runAction(() =>
       api.applyNutritionReferences(projectId, { providers: ["nevo"] })
@@ -2031,7 +2461,27 @@ export default function WorkflowWizardPage() {
             onNext={advanceNext}
           />
         )}
-        {activeStepId === "ai_class" && (
+        {activeStepId === "ai_class" && ptWwfMode && (
+          <StepAIClassificationDual
+            latestUpload={latestUpload}
+            ptCounts={ptClassificationCounts}
+            wwfCounts={wwfClassificationCounts}
+            ptCurrentJob={currentJob}
+            wwfCurrentJob={currentJobWwf}
+            busy={busy}
+            ptError={actionError ?? jobError}
+            wwfError={actionErrorWwf ?? jobErrorWwf}
+            onRunPT={handleClassifyAI}
+            onRunWWF={handleClassifyWwf}
+            onResumePT={handleResumeClassify}
+            onResumeWWF={handleResumeClassifyWwf}
+            onRetryFailedPT={handleRetryFailed}
+            onRetryFailedWWF={handleRetryFailedWwf}
+            onOpenValidation={handleOpenValidation}
+            onNext={advanceNext}
+          />
+        )}
+        {activeStepId === "ai_class" && !ptWwfMode && (
           <StepAIClassification
             step={activeBackendStep}
             latestUpload={latestUpload}

@@ -71,6 +71,27 @@ class WorkflowStep:
 
 
 @dataclass(frozen=True)
+class MethodologyClassificationCounts:
+    """Phase WWF-H — per-methodology classification status.
+
+    Lets the PT+WWF wizard render two separate classification cards
+    with accurate per-methodology progress, instead of inferring
+    everything from the PT-shaped ``ai_classification`` step.
+
+    All fields are populated; absence of data is encoded as 0.
+    """
+
+    methodology: str       # "protein_tracker" | "wwf"
+    total: int             # products eligible for this methodology
+    classified: int        # products with a classification row
+    pending: int           # total - classified
+    needs_review: int      # in IN_QUEUE or REVIEWING for this methodology
+    unknown: int           # classified rows with food_group=unknown
+    failed: int = 0        # reserved for future "classification_failed" state
+    status: StepStatus = "locked"
+
+
+@dataclass(frozen=True)
 class WorkflowStatus:
     project_id: str
     methodologies_enabled: list[str]
@@ -80,6 +101,11 @@ class WorkflowStatus:
     steps: list[WorkflowStep]
     # Phase 34B alias — frontend wizard uses active_step
     active_step: str | None = None
+    # Phase WWF-H — backward-compatible per-methodology counts.
+    # Empty dict when neither methodology is enabled (defensive).
+    classification_by_methodology: dict[
+        str, MethodologyClassificationCounts
+    ] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +128,11 @@ class _Counts:
     pt_ciqual_records: int = 0
     pt_missing_nutrition: int = 0  # no retailer, no enrichment
     pt_eligible: int = 0           # classified + has usable nutrition
+    # Phase WWF-H — WWF parallel counts.
+    wwf_products: int = 0
+    wwf_classified: int = 0
+    wwf_unknown: int = 0           # classified but food_group = UNKNOWN
+    wwf_needs_review: int = 0      # in IN_QUEUE or REVIEWING for WWF
 
 
 def _gather_counts(store: StoreProtocol, project: Project) -> _Counts:
@@ -133,6 +164,9 @@ def _gather_counts(store: StoreProtocol, project: Project) -> _Counts:
     pt_enabled_for_project = (
         Methodology.PROTEIN_TRACKER in project.methodologies_enabled
     )
+    wwf_enabled_for_project = (
+        Methodology.WWF in project.methodologies_enabled
+    )
 
     review_items = {
         item.product_id: item
@@ -143,6 +177,20 @@ def _gather_counts(store: StoreProtocol, project: Project) -> _Counts:
             ),
         )
     }
+
+    # Phase WWF-H — separate review queue lookup for WWF when enabled.
+    # PT and WWF review queues are distinct (review items carry a
+    # methodology). We keep them in independent dicts so the per-
+    # methodology counters can attribute "in_review" correctly.
+    wwf_review_items: dict[UUID, object] = {}
+    if wwf_enabled_for_project:
+        wwf_review_items = {
+            item.product_id: item
+            for item in store.list_review_items_for_project(
+                project.id,
+                methodology=Methodology.WWF,
+            )
+        }
 
     # Phase 34Z — pre-fetch classifications + enrichment records for
     # every PT-eligible product in this project in two HTTP calls.
@@ -162,6 +210,20 @@ def _gather_counts(store: StoreProtocol, project: Project) -> _Counts:
     enrichment_by_product = (
         store.get_enrichment_records_bulk(pt_product_ids)
         if pt_product_ids
+        else {}
+    )
+
+    # Phase WWF-H — parallel WWF classification bulk fetch.
+    wwf_product_ids: list[UUID] = []
+    if wwf_enabled_for_project:
+        wwf_product_ids = [
+            p.id
+            for p in products
+            if Methodology.WWF in p.methodologies_enabled
+        ]
+    wwf_classifications = (
+        store.get_wwf_classifications_bulk(wwf_product_ids)
+        if wwf_product_ids
         else {}
     )
 
@@ -237,6 +299,29 @@ def _gather_counts(store: StoreProtocol, project: Project) -> _Counts:
                     counts.pt_eligible += 1
             else:
                 counts.pt_missing_nutrition += 1
+
+    # Phase WWF-H — second pass for WWF counts. We walk the same
+    # products list but only inspect WWF-eligible rows. Adds no new
+    # round-trips (the bulk classifications + review list were
+    # fetched above).
+    if wwf_enabled_for_project:
+        for product in products:
+            if Methodology.WWF not in product.methodologies_enabled:
+                continue
+            counts.wwf_products += 1
+            wwf_cls = wwf_classifications.get(product.id)
+            wwf_review = wwf_review_items.get(product.id)
+            wwf_review_open = (
+                wwf_review is not None
+                and getattr(wwf_review, "status", None)
+                in (ManualReviewStatus.IN_QUEUE, ManualReviewStatus.REVIEWING)
+            )
+            if wwf_cls is not None:
+                counts.wwf_classified += 1
+                if wwf_cls.wwf_food_group.value == "unknown":
+                    counts.wwf_unknown += 1
+                if wwf_review_open:
+                    counts.wwf_needs_review += 1
     return counts
 
 
@@ -700,6 +785,50 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
     }
     next_action = next_action_map.get(current)
 
+    # Phase WWF-H — per-methodology classification counts so the
+    # PT+WWF wizard can render two cards with accurate progress.
+    classification_by_methodology: dict[
+        str, MethodologyClassificationCounts
+    ] = {}
+    if Methodology.PROTEIN_TRACKER in project.methodologies_enabled:
+        pt_pending = max(0, counts.pt_products - counts.pt_classified)
+        if counts.pt_products == 0:
+            pt_status: StepStatus = "locked"
+        elif counts.pt_classified == counts.pt_products:
+            pt_status = "complete"
+        else:
+            pt_status = "needs_action"
+        classification_by_methodology["protein_tracker"] = (
+            MethodologyClassificationCounts(
+                methodology="protein_tracker",
+                total=counts.pt_products,
+                classified=counts.pt_classified,
+                pending=pt_pending,
+                needs_review=counts.pt_needs_review,
+                unknown=counts.pt_unknown,
+                status=pt_status,
+            )
+        )
+    if Methodology.WWF in project.methodologies_enabled:
+        wwf_pending = max(0, counts.wwf_products - counts.wwf_classified)
+        if counts.wwf_products == 0:
+            wwf_status: StepStatus = "locked"
+        elif counts.wwf_classified == counts.wwf_products:
+            wwf_status = "complete"
+        else:
+            wwf_status = "needs_action"
+        classification_by_methodology["wwf"] = (
+            MethodologyClassificationCounts(
+                methodology="wwf",
+                total=counts.wwf_products,
+                classified=counts.wwf_classified,
+                pending=wwf_pending,
+                needs_review=counts.wwf_needs_review,
+                unknown=counts.wwf_unknown,
+                status=wwf_status,
+            )
+        )
+
     return WorkflowStatus(
         project_id=str(project.id),
         methodologies_enabled=methodologies,
@@ -708,4 +837,5 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
         active_step=current,
         next_action=next_action,
         steps=steps,
+        classification_by_methodology=classification_by_methodology,
     )

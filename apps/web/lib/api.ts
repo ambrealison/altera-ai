@@ -136,6 +136,20 @@ export interface WorkflowNextAction {
   href: string | null;
 }
 
+/** Phase WWF-H — per-methodology classification status. The PT+WWF
+ *  wizard renders one card per methodology, each with its own
+ *  Run/Resume/Voir-validation CTAs and progress counts. */
+export interface MethodologyClassificationCounts {
+  methodology: "protein_tracker" | "wwf";
+  total: number;
+  classified: number;
+  pending: number;
+  needs_review: number;
+  unknown: number;
+  failed: number;
+  status: WorkflowStepStatus;
+}
+
 export interface WorkflowStatus {
   project_id: string;
   methodologies_enabled: string[];
@@ -144,6 +158,11 @@ export interface WorkflowStatus {
   active_step: string | null;  // Phase 34B alias
   next_action: WorkflowNextAction | null;
   steps: WorkflowStep[];
+  // Phase WWF-H — optional + backward-compatible. Empty / missing
+  // for projects with no methodology enabled (defensive).
+  classification_by_methodology?: Partial<
+    Record<"protein_tracker" | "wwf", MethodologyClassificationCounts>
+  >;
 }
 
 export interface ProductEnrichmentDetail {

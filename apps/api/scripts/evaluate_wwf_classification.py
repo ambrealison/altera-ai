@@ -465,9 +465,31 @@ def main() -> int:
             "review."
         ),
     )
+    parser.add_argument(
+        "--export-csv",
+        type=Path,
+        default=None,
+        help=(
+            "Phase WWF-H — path to a real classification export CSV. "
+            "When provided, the script builds an ad-hoc fixture from "
+            "the export (using each row's actual WWF fields as the "
+            "'expected' values) and reports the WWF guard agreement "
+            "rate against the live model output. Columns expected: "
+            "product_name, wwf_food_group, optionally fg1_subgroup, "
+            "fg2_subgroup, fg3_subgroup, fg5_grain_kind, fg7_kind, "
+            "wwf_is_composite, composite_step1_bucket."
+        ),
+    )
     args = parser.parse_args()
-    with args.fixture.open(encoding="utf-8") as f:
-        fixture = json.load(f)
+
+    # Phase WWF-H — real-classification-export mode. The export CSV
+    # path takes precedence over the static fixture so an operator
+    # can audit a live project without first writing a fixture.
+    if args.export_csv is not None:
+        fixture = _fixture_from_export_csv(args.export_csv)
+    else:
+        with args.fixture.open(encoding="utf-8") as f:
+            fixture = json.load(f)
     report = run_audit(fixture)
     if args.json:
         print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
@@ -478,6 +500,64 @@ def main() -> int:
             format_mismatches_csv(report), encoding="utf-8"
         )
     return 0 if report.strict_accuracy >= args.target else 1
+
+
+def _fixture_from_export_csv(path: Path) -> dict[str, Any]:
+    """Phase WWF-H — convert a real classifications-export CSV into the
+    audit-fixture shape expected by ``run_audit``.
+
+    Each row in the export becomes one "case" with its own actual
+    classification serving as the expected value. The guard agreement
+    rate is then a measure of "would the deterministic guards have
+    landed on the same answer the live AI returned?".
+    """
+    cases: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8-sig") as f:
+        reader = _csv.DictReader(f)
+        for row in reader:
+            name = (row.get("product_name") or "").strip()
+            food_group = (row.get("wwf_food_group") or "").strip()
+            if not name or not food_group:
+                continue
+            cases.append(
+                {
+                    "product_name": name,
+                    "expected_food_group": food_group,
+                    "expected_fg1_subgroup": (row.get("fg1_subgroup") or None)
+                    or None,
+                    "expected_fg2_subgroup": (row.get("fg2_subgroup") or None)
+                    or None,
+                    "expected_fg3_subgroup": (row.get("fg3_subgroup") or None)
+                    or None,
+                    "expected_fg5_grain_kind": (
+                        row.get("fg5_grain_kind") or None
+                    )
+                    or None,
+                    "expected_fg7_kind": (row.get("fg7_snack_kind") or None)
+                    or (row.get("fg7_kind") or None)
+                    or None,
+                    "expected_is_composite": _parse_bool(
+                        row.get("wwf_is_composite")
+                    ),
+                    "expected_composite_step1_bucket": (
+                        row.get("composite_step1_bucket") or None
+                    )
+                    or None,
+                }
+            )
+    return {
+        "name": f"WWF live export ({path.name})",
+        "cases": cases,
+    }
+
+
+def _parse_bool(v: Any) -> bool:
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return False
+    s = str(v).strip().lower()
+    return s in ("true", "1", "yes", "y", "t", "vrai", "oui")
 
 
 if __name__ == "__main__":

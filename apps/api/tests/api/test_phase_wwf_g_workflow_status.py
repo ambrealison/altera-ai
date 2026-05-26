@@ -146,6 +146,50 @@ class TestPTWWFWorkflowStatus:
             "wwf",
         }
 
+    def test_pt_wwf_classification_by_methodology_has_both_keys(
+        self, client: TestClient
+    ) -> None:
+        """Phase WWF-H — workflow-status now exposes per-methodology
+        classification counts so the PT+WWF wizard can render two
+        independent classification cards."""
+        pid = _create_project(
+            client, methodologies=["protein_tracker", "wwf"]
+        )
+        body = client.get(
+            f"/api/v1/projects/{pid}/workflow-status"
+        ).json()
+        assert "classification_by_methodology" in body
+        cbm = body["classification_by_methodology"]
+        assert "protein_tracker" in cbm
+        assert "wwf" in cbm
+        # Empty project: both have zero total/classified/pending.
+        for m in ("protein_tracker", "wwf"):
+            cm = cbm[m]
+            assert cm["total"] == 0
+            assert cm["classified"] == 0
+            assert cm["pending"] == 0
+            assert cm["status"] == "locked"
+
+    def test_wwf_only_classification_by_methodology_has_only_wwf(
+        self, client: TestClient
+    ) -> None:
+        pid = _create_project(client, methodologies=["wwf"])
+        body = client.get(
+            f"/api/v1/projects/{pid}/workflow-status"
+        ).json()
+        cbm = body["classification_by_methodology"]
+        assert list(cbm.keys()) == ["wwf"]
+
+    def test_pt_only_classification_by_methodology_has_only_pt(
+        self, client: TestClient
+    ) -> None:
+        pid = _create_project(client, methodologies=["protein_tracker"])
+        body = client.get(
+            f"/api/v1/projects/{pid}/workflow-status"
+        ).json()
+        cbm = body["classification_by_methodology"]
+        assert list(cbm.keys()) == ["protein_tracker"]
+
     def test_pt_wwf_steps_emitted_normally(self, client: TestClient) -> None:
         pid = _create_project(
             client, methodologies=["protein_tracker", "wwf"]

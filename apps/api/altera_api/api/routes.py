@@ -354,6 +354,19 @@ class WorkflowNextActionResponse(BaseModel):
     href: str | None = None
 
 
+class MethodologyClassificationCountsResponse(BaseModel):
+    """Phase WWF-H — per-methodology classification status."""
+
+    methodology: str
+    total: int
+    classified: int
+    pending: int
+    needs_review: int
+    unknown: int
+    failed: int = 0
+    status: str
+
+
 class WorkflowStatusResponse(BaseModel):
     project_id: str
     methodologies_enabled: list[str]
@@ -362,6 +375,10 @@ class WorkflowStatusResponse(BaseModel):
     active_step: str | None = None   # Phase 34B alias
     next_action: WorkflowNextActionResponse | None
     steps: list[WorkflowStepResponse]
+    # Phase WWF-H — backward-compatible per-methodology counts.
+    classification_by_methodology: dict[
+        str, MethodologyClassificationCountsResponse
+    ] = Field(default_factory=dict)
 
 
 @api_router.get(
@@ -450,6 +467,19 @@ def get_workflow_status_route(
             for s in status_obj.steps
         ],
         active_step=status_obj.active_step,
+        classification_by_methodology={
+            m: MethodologyClassificationCountsResponse(
+                methodology=c.methodology,
+                total=c.total,
+                classified=c.classified,
+                pending=c.pending,
+                needs_review=c.needs_review,
+                unknown=c.unknown,
+                failed=c.failed,
+                status=c.status,
+            )
+            for m, c in status_obj.classification_by_methodology.items()
+        },
     )
 
 
