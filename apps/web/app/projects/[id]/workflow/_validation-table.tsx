@@ -37,16 +37,50 @@ import { ApiError, createApi } from "@/lib/api";
 // backend adds a new subgroup before the frontend ships the label).
 
 const WWF_FOOD_GROUP_LABELS_FR: Record<string, string> = {
-  FG1: "FG1 · Protéines",
-  FG2: "FG2 · Lait & substituts",
+  FG1: "FG1 · Aliments protéiques",
+  FG2: "FG2 · Lait & alternatives",
   FG3: "FG3 · Matières grasses",
   FG4: "FG4 · Fruits & légumes",
   FG5: "FG5 · Céréales",
-  FG6: "FG6 · Tubercules",
-  FG7: "FG7 · Snacks",
+  FG6: "FG6 · Tubercules / féculents",
+  FG7: "FG7 · Snacks (sucre/sel/gras)",
   out_of_scope: "Hors périmètre",
   unknown: "Inconnu",
 };
+
+// Phase WWF-J — French labels for the WWF subgroups so the validation
+// table shows readable names instead of the raw enum value (the brief
+// section E explicitly lists this mapping).
+const WWF_SUBGROUP_LABELS_FR: Record<string, string> = {
+  // FG1
+  red_meat: "Viande rouge",
+  poultry: "Volaille",
+  processed_meats_alternatives: "Viandes transformées / alternatives",
+  seafood: "Poisson & fruits de mer",
+  eggs: "Œufs",
+  legumes: "Légumineuses",
+  nuts_seeds: "Noix & graines",
+  alternative_protein_sources: "Sources protéiques alternatives",
+  meat_egg_seafood_alternatives: "Alternatives viande/œuf/poisson",
+  // FG2
+  cheese: "Fromage",
+  other_dairy_animal: "Autres produits laitiers",
+  dairy_alternative_plant: "Alternatives végétales aux produits laitiers",
+  // FG3
+  plant_based_fat: "Matières grasses végétales",
+  animal_based_fat: "Matières grasses animales",
+  // FG5
+  whole_grain: "Céréales complètes",
+  refined_grain: "Céréales raffinées",
+  // FG7
+  plant_based_snack: "Snack végétal",
+  animal_based_snack: "Snack animal",
+};
+
+function wwfSubgroupLabel(v: string | null): string {
+  if (!v) return "—";
+  return WWF_SUBGROUP_LABELS_FR[v] ?? v;
+}
 
 const WWF_FOOD_GROUP_TONE: Record<string, "ok" | "warn" | "neutral" | "brand"> = {
   FG1: "brand",
@@ -61,10 +95,10 @@ const WWF_FOOD_GROUP_TONE: Record<string, "ok" | "warn" | "neutral" | "brand"> =
 };
 
 const WWF_BUCKET_LABELS_FR: Record<string, string> = {
-  meat_based: "Composite — viande",
-  seafood_based: "Composite — poisson",
-  vegetarian: "Composite — végétarien",
-  vegan: "Composite — végétalien",
+  meat_based: "À base de viande",
+  seafood_based: "À base de poisson/fruits de mer",
+  vegetarian: "Végétarien",
+  vegan: "Végane",
 };
 
 function wwfFoodGroupLabel(fg: string | null | undefined): string {
@@ -597,7 +631,7 @@ export function ValidationTable({
                         )}
                       </td>
                       <td className="py-2 pr-3 text-gray-600">
-                        {wwfSubgroupOf(row) ?? "—"}
+                        {wwfSubgroupLabel(wwfSubgroupOf(row))}
                       </td>
                       <td className="py-2 pr-3 text-gray-600">
                         {row.wwf_is_composite ? (

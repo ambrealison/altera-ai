@@ -901,7 +901,7 @@ def batch_classify(
         first_err: str,
         second_err: str,
     ) -> AIVerdict:
-        """Phase 36K2 — last-chance readable fallback.
+        """Phase 36K2 / WWF-J — last-chance readable fallback.
 
         Called from every site that would otherwise emit an
         ``AINeedsReviewParseFailed`` for a row. For PT methodology
@@ -910,8 +910,15 @@ def batch_classify(
         ``AINeedsReviewLowConfidence`` with that category at
         confidence 0.5 (below auto-accept) so the row lands in
         ``needs_review`` rather than as a final ``unknown`` /
-        ``failed``. Otherwise we keep the legacy parse-failed
-        behaviour.
+        ``failed``.
+
+        Phase WWF-J — the SAME path now runs for WWF too. Before
+        this fix, WWF rows with names like "Lentilles corail sèches"
+        ended up as ``unknown`` because (a) the food-term guard
+        routes ``unknown`` rows here when the name looks like food
+        and (b) only PT had a readable-fallback escape hatch. The
+        WWF readable fallback (``classify_wwf_readable_fallback``,
+        Phase WWF-D) exists; we now actually call it.
         """
         if (
             methodology is Methodology.PROTEIN_TRACKER
@@ -944,6 +951,63 @@ def batch_classify(
                     confidence=Decimal("0.5"),
                     ai_prompt_version=prompt_version,
                     ai_model="readable_fallback",
+                    updated_at=now,
+                )
+                return AINeedsReviewLowConfidence(
+                    classification=cls,
+                    raw_text="",
+                    threshold=threshold,
+                )
+        elif (
+            methodology is Methodology.WWF
+            and not _is_unusable_name(p.product_name)
+        ):
+            # Phase WWF-J — actually call the WWF readable fallback
+            # that's been sitting in wwf_guards.py since Phase WWF-D.
+            from altera_api.ai.wwf_guards import (
+                classify_wwf_readable_fallback,
+            )
+            from altera_api.domain.common import (
+                ClassificationSource,
+            )
+            from altera_api.domain.wwf import (
+                WWFProductClassification,
+            )
+
+            wwf_fallback = classify_wwf_readable_fallback(p.product_name)
+            if wwf_fallback is not None:
+                (
+                    fg,
+                    is_composite,
+                    fg1,
+                    fg2,
+                    fg3,
+                    fg5,
+                    fg7,
+                    bucket,
+                    fb_rule,
+                ) = wwf_fallback
+                _maybe_sample(
+                    f"wwf_readable_fallback_last_chance: rule={fb_rule} "
+                    f"name={p.product_name!r}"
+                )
+                guard_overrides_by_rule[fb_rule] = (
+                    guard_overrides_by_rule.get(fb_rule, 0) + 1
+                )
+                cls = WWFProductClassification(
+                    product_id=p.id,
+                    wwf_food_group=fg,
+                    wwf_is_composite=is_composite,
+                    fg1_subgroup=fg1,
+                    fg2_subgroup=fg2,
+                    fg3_subgroup=fg3,
+                    fg5_grain_kind=fg5,
+                    fg7_snack_kind=fg7,
+                    composite_step1_bucket=bucket,
+                    source=ClassificationSource.AI,
+                    confidence=Decimal("0.5"),
+                    ai_prompt_version=prompt_version,
+                    ai_model="wwf_readable_fallback",
                     updated_at=now,
                 )
                 return AINeedsReviewLowConfidence(
@@ -1172,6 +1236,43 @@ def batch_classify(
                     out.append(
                         AINeedsReviewLowConfidence(
                             classification=fallback_classification,
+                            raw_text=response.raw_text,
+                            threshold=threshold,
+                        )
+                    )
+                    continue
+
+            # Phase WWF-J — symmetric early readable-fallback for WWF
+            # ``unknown``. Before this branch, WWF rows with a model
+            # ``unknown`` on a readable name (e.g. "Lentilles corail
+            # sèches", "Pois chiches égouttés en bocal", "Tofu nature",
+            # "Boisson amande sans sucres") hit the food-term guard
+            # below and were routed to ``needs_review_parse_failed``
+            # — so they appeared as ``Inconnu`` in the validation
+            # table even though the WWF guard set in Phase WWF-D
+            # would have caught them. We now apply the guards (which
+            # are designed to fix exactly this) BEFORE the food-term
+            # guard short-circuits the row.
+            if methodology is Methodology.WWF and inferred_cat == "unknown":
+                from altera_api.ai.wwf_guards import apply_wwf_guards
+
+                wwf_override_early = apply_wwf_guards(
+                    p.product_name, classification
+                )
+                if wwf_override_early is not None:
+                    _maybe_sample(
+                        f"wwf_guard_early: rule={wwf_override_early.rule} "
+                        f"name={p.product_name!r}"
+                    )
+                    guard_overrides_by_rule[wwf_override_early.rule] = (
+                        guard_overrides_by_rule.get(
+                            wwf_override_early.rule, 0
+                        )
+                        + 1
+                    )
+                    out.append(
+                        AINeedsReviewLowConfidence(
+                            classification=wwf_override_early.new_classification,
                             raw_text=response.raw_text,
                             threshold=threshold,
                         )
