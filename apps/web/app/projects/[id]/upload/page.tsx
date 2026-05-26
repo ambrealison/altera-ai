@@ -524,21 +524,29 @@ export default function UploadPage() {
             )}
 
             {(hasMissingPt || hasMissingWwf) && (
-              <div className="mt-3 space-y-1">
+              <div className="mt-3 space-y-2">
                 {hasMissingPt && (
                   <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                    Champ{liveMissingPt.length === 1 ? "" : "s"} obligatoire
-                    {liveMissingPt.length === 1 ? "" : "s"} manquant
-                    {liveMissingPt.length === 1 ? "" : "s"} (Protein Tracker) :{" "}
-                    {liveMissingPt.map(labelFor).join(", ")}
+                    <div className="font-medium">
+                      Champs Protein Tracker requis encore manquants :{" "}
+                      {liveMissingPt.map(labelFor).join(", ")}.
+                    </div>
+                    <div className="mt-1 text-rose-600">
+                      Ces champs sont nécessaires pour calculer les volumes de
+                      protéines (totales, animales, végétales).
+                    </div>
                   </div>
                 )}
                 {hasMissingWwf && (
                   <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                    Champ{liveMissingWwf.length === 1 ? "" : "s"} obligatoire
-                    {liveMissingWwf.length === 1 ? "" : "s"} manquant
-                    {liveMissingWwf.length === 1 ? "" : "s"} (WWF) :{" "}
-                    {liveMissingWwf.map(labelFor).join(", ")}
+                    <div className="font-medium">
+                      Champs WWF requis encore manquants :{" "}
+                      {liveMissingWwf.map(labelFor).join(", ")}.
+                    </div>
+                    <div className="mt-1 text-rose-600">
+                      Ces champs sont nécessaires pour calculer les volumes WWF
+                      par groupe alimentaire.
+                    </div>
                   </div>
                 )}
               </div>

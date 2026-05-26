@@ -49,6 +49,8 @@ Exit code is non-zero when overall accuracy drops below ``--target``
 from __future__ import annotations
 
 import argparse
+import csv as _csv
+import io as _io
 import json
 import sys
 from collections import Counter
@@ -318,6 +320,59 @@ def run_audit(fixture: dict[str, Any]) -> WWFAuditReport:
     )
 
 
+def format_mismatches_csv(report: WWFAuditReport) -> str:
+    """Phase WWF-E — emit mismatches as CSV for tooling/spreadsheet
+    review. Columns mirror the WWF fixture schema."""
+    buf = _io.StringIO()
+    writer = _csv.writer(buf)
+    writer.writerow(
+        [
+            "product_name",
+            "expected_food_group",
+            "actual_food_group",
+            "expected_fg1",
+            "actual_fg1",
+            "expected_fg2",
+            "actual_fg2",
+            "expected_fg3",
+            "actual_fg3",
+            "expected_fg5",
+            "actual_fg5",
+            "expected_fg7",
+            "actual_fg7",
+            "expected_is_composite",
+            "actual_is_composite",
+            "expected_bucket",
+            "actual_bucket",
+            "rule",
+        ]
+    )
+    for m in report.mismatches:
+        writer.writerow(
+            [
+                m.product_name,
+                m.expected_food_group,
+                m.actual_food_group,
+                m.expected_fg1 or "",
+                m.actual_fg1 or "",
+                m.expected_fg2 or "",
+                m.actual_fg2 or "",
+                m.expected_fg3 or "",
+                m.actual_fg3 or "",
+                m.expected_fg5 or "",
+                m.actual_fg5 or "",
+                m.expected_fg7 or "",
+                m.actual_fg7 or "",
+                "true" if m.expected_is_composite else "false",
+                "true" if m.actual_is_composite else "false",
+                m.expected_bucket or "",
+                m.actual_bucket or "",
+                m.actual_rule or "",
+            ]
+        )
+    return buf.getvalue()
+
+
 def format_markdown(report: WWFAuditReport) -> str:
     lines: list[str] = []
     lines.append(f"# WWF classification audit — {report.fixture_name}")
@@ -400,6 +455,16 @@ def main() -> int:
             "non-zero when accuracy drops below this value."
         ),
     )
+    parser.add_argument(
+        "--mismatches-csv",
+        type=Path,
+        default=None,
+        help=(
+            "Phase WWF-E — write per-mismatch CSV to this path "
+            "(in addition to the main report). Useful for spreadsheet "
+            "review."
+        ),
+    )
     args = parser.parse_args()
     with args.fixture.open(encoding="utf-8") as f:
         fixture = json.load(f)
@@ -408,6 +473,10 @@ def main() -> int:
         print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
     else:
         print(format_markdown(report))
+    if args.mismatches_csv is not None:
+        args.mismatches_csv.write_text(
+            format_mismatches_csv(report), encoding="utf-8"
+        )
     return 0 if report.strict_accuracy >= args.target else 1
 
 

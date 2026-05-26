@@ -271,6 +271,10 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "pl",               # common abbreviation for private label
         "is_pl",
         "store_own_label",
+        # Phase WWF-E — extra French aliases per brief.
+        "marque_distributeur",
+        "marque_du_distributeur",
+        "marque_enseigne",
     ],
     "ean": [
         "EAN",
@@ -395,6 +399,16 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "nb_unites_vendues",
         "sold_units",
         "total_sold",
+        # Phase WWF-E — extra French + English aliases per brief.
+        "ventes_unites",
+        "ventes_unite",
+        "quantite_vendue",
+        "quantites_vendues",
+        "nombre_vendu",
+        "nb_vendu",
+        "volume_vendu",
+        "volume_ventes",
+        "items_solds",
     ],
     "retail_channel": [
         "channel",
@@ -406,6 +420,13 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "temperature_zone",
         "conservation",
         "storage_type",
+        # Phase WWF-E — extra French + English aliases per brief.
+        "canal",
+        "canal_de_vente",
+        "canal_de_distribution",
+        "rayon_canal",
+        "distribution_channel",
+        "sales_channel",
     ],
 }
 
