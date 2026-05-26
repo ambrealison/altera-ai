@@ -49,6 +49,11 @@ from altera_api.domain.common import Methodology
 #:     "Produit 123"). NEVER for non-food (which is out_of_scope).
 BATCH_CLASSIFIER_PROMPT_VERSION = "batch_classifier_v5"
 
+#: Phase WWF-A — separate WWF prompt version so bumping the WWF
+#: contract doesn't invalidate PT calibration samples (and
+#: vice-versa). The PT prompt above stays on ``batch_classifier_v5``.
+BATCH_WWF_PROMPT_VERSION = "batch_wwf_v2"
+
 #: Default batch size. Chosen so a typical batch fits comfortably under
 #: gpt-4o-mini's context and leaves >2k tokens for the response.
 #:
@@ -318,52 +323,185 @@ Rules:
 
 _WWF_SYSTEM = """\
 You classify grocery retailer food products into the WWF Planet-Based
-Diets food groups. Almost every row is food and should be IN-SCOPE.
-Choose the best food group; do not use out_of_scope / unknown as a
-fallback for uncertainty.
+Diets food groups. The unit of analysis is the product as sold by
+weight (not protein grams). Almost every row is food and should be
+IN-SCOPE.
 
 CRITICAL RULES:
-- Do not use `out_of_scope` unless the product is CLEARLY non-food,
-  alcohol, water, or pure flavouring (salt, spices).
-- Do not use `unknown` just because you are uncertain — pick the most
-  likely food group and lower `confidence` instead.
-- Composite multi-ingredient meals still pick the dominant group and
-  set `wwf_is_composite: true`.
+- Choose the best food group; do not use `out_of_scope` / `unknown`
+  as a fallback for uncertainty. Reserve `out_of_scope` for
+  methodology exclusions or items that are clearly non-food.
+- Whole products get a food group AND its required subgroup.
+- Composite (multi-ingredient ready-to-eat meals: pizza, lasagne,
+  sandwich, salade composée…) set `wwf_is_composite: true` AND
+  `wwf_composite_step1_bucket`. Processed bread / cheese / pasta
+  is NOT a composite — those are whole products in FG5 / FG2 /
+  FG5.
+- Do NOT apply Protein Tracker 50/50 plant/animal defaults — WWF
+  is not Protein Tracker.
 
-Allowed `wwf_food_group` values:
-- FG1 — Protein sources: meat, poultry, fish/seafood, eggs, nuts, \
-seeds, legumes, tofu, tempeh, plant-meat alternatives.
-- FG2 — Dairy and dairy alternatives (lait, fromage, yaourt, beurre, \
-plant milks/yoghurts).
-- FG3 — Fats and oils (huile, margarine).
-- FG4 — Fruits and vegetables.
-- FG5 — Grains and cereals (pain, pâtes, riz, céréales).
-- FG6 — Tubers and starchy foods (pommes de terre, patate douce).
-- FG7 — Snacks (chips, biscuits, chocolat, confiserie).
-- out_of_scope — ONLY clearly non-food, alcohol, water, pure \
-condiments. Rare.
-- unknown — ONLY unusable product names. Almost never.
+WWF food groups & required subgroups:
+
+- FG1 — Protein sources. Required `wwf_fg1_subgroup`:
+    * red_meat       — beef, pork, lamb, veal, goat, mutton, game.
+    * poultry        — chicken, turkey, duck, goose.
+    * processed_meats_alternatives — ham, bacon, salami, sausage,
+                      chorizo, jambon, lardons, jerky.
+    * seafood        — all fish (saumon, thon, sardines, cabillaud)
+                      and shellfish (crevettes, moules, huîtres).
+    * eggs           — whole eggs, liquid egg, omelette base.
+    * legumes        — lentilles, pois chiches, haricots, pois,
+                      mung beans, edamame, fava beans, lupin.
+                      Green/garden peas and broad beans ARE legumes.
+    * nuts_seeds     — amandes, noix, cajou, pistache, graines de
+                      chia/lin/tournesol/courge/sésame, tahini, nut
+                      butter, coconut flesh.
+    * alternative_protein_sources — tofu, tempeh, seitan,
+                      mycoprotein, pea/soy/wheat protein isolate.
+    * meat_egg_seafood_alternatives — plant-based burger / nuggets /
+                      sausage / mince / fish-alternative / egg
+                      alternative.
+
+- FG2 — Dairy and dairy alternatives. Required `wwf_fg2_kind`:
+    * dairy_animal           — milk, yoghurt, kefir, cream, cottage
+                              cheese, fromage, parmesan, mozzarella,
+                              buttermilk, evaporated milk, milkshake.
+                              ALSO required `wwf_fg2_dairy_class`:
+                              * cheese — any hard / soft / fresh /
+                                aged / blue / grilled cheese.
+                              * other  — milk / yoghurt / cream /
+                                quark / skyr / kefir.
+    * dairy_alternative_plant — oat / soy / almond / rice / coconut /
+                              hazelnut / hemp / pea milk; plant
+                              yoghurt; vegan cheese / cream / kefir.
+                              Coconut MILK is dairy_alternative_plant.
+                              Coconut FLESH is FG1 nuts_seeds.
+                              `wwf_fg2_dairy_class` MUST be null.
+
+- FG3 — Fats and oils. Required `wwf_fg3_kind`:
+    * plant_based_fat  — olive / sunflower / rapeseed / coconut /
+                        sesame / peanut / avocado oil, margarine,
+                        plant-based butter substitute.
+    * animal_based_fat — butter (salted/unsalted/clarified), ghee,
+                        lard, duck/goose fat, tallow.
+    BUTTER IS FG3 ANIMAL FAT — NOT FG2.
+
+- FG4 — Fruits and vegetables. No subgroup. Fresh / frozen / canned
+  / dried / fermented / marinated fruits and vegetables. Tomato
+  purée. Pears in syrup / rum / alcohol (primary ingredient is
+  fruit). Unsweetened applesauce. Sweetcorn / baby corn /
+  corn-on-the-cob (the immature corn). Beetroot / carrots /
+  radishes / parsnips (root vegetables that are NOT true tubers).
+  Mushrooms.
+
+- FG5 — Grains and cereals. Required `wwf_fg5_grain_kind`:
+    * whole_grain   — name contains "wholegrain", "complet",
+                      "intégral", "wholemeal", "brun", "brown",
+                      "multigrain". Oats and oatmeal default to
+                      whole_grain. Quinoa, bulgur, farro, spelt,
+                      barley default to whole_grain. Mature/dry
+                      corn (cornflakes / polenta / corn flour).
+    * refined_grain — white bread, regular pasta, white rice,
+                      cornflakes from refined corn, semolina. If no
+                      whole-grain signal, default to refined_grain.
+
+- FG6 — Tubers and starchy foods. No subgroup. Potatoes (russet,
+  white, purple), sweet potatoes, cassava, taro, yam, lotus root.
+  BUT fries / chips / wedges / Pommes Duchesse / unfilled
+  croquettes → FG7 (cooked with added fat/salt).
+
+- FG7 — Snacks high in added fats / salt / sugar. Required
+  `wwf_fg7_kind`:
+    * plant_based_snack  — chips/crisps, tortilla chips, corn chips,
+                          vegetable chips, pretzels, popcorn, fries,
+                          plant-based cookies/biscuits, sorbet, sweet
+                          spreads without dairy (jam, honey, agave
+                          syrup, maple syrup, marmalade), fruit
+                          compote WITH added sugar.
+    * animal_based_snack — chocolate with milk / butter / cream /
+                          honey / gelatine, ice cream, gelato, frozen
+                          yoghurt, custard, mousse, panna cotta,
+                          puddings, dulce de leche, sweetened
+                          nut-cocoa spread (e.g. Nutella), sweet
+                          pastries (croissant, pain au chocolat,
+                          brioche, doughnuts, muffins, cakes,
+                          pancakes, crêpes, waffles, baklava),
+                          marshmallows.
+
+- out_of_scope — methodology exclusions ONLY:
+    * Beverages other than dairy / dairy alternatives:
+      water, soda, juice, smoothies, alcohol, tea, coffee, cocoa
+      drink (including with milk powder).
+    * Condiments and sauces: ketchup, barbecue sauce, mustard,
+      mayonnaise, salad dressing, vinaigrette, vinegar, soy sauce.
+    * Herbs, spices, salt, flavourings, additives.
+    * Vitamins and supplements.
+    * Baby formula and baby purees.
+    * Stock cubes, broth, bouillon.
+    * Culinary ingredients: baking powder, natron, starch, locust
+      bean gum, gelatine sheets.
+    * Novel proteins: insects, cultured meats, precision
+      fermentation, microalgae.
+    * Non-food: detergents, hygiene products, paper, pet
+      accessories (litter / toys / leashes / poop bags).
+
+- unknown — reserved for unusable names (empty, "Produit",
+  placeholders). Almost never.
+
+Composite products (`wwf_is_composite=true`):
+Bucket priority (`wwf_composite_step1_bucket`):
+  1. Contains ANY meat → meat_based.
+  2. Contains fish/seafood and no meat → seafood_based.
+  3. Contains dairy and/or eggs but no meat/seafood → vegetarian.
+  4. Contains no meat, seafood, eggs, or dairy → vegan.
+
+Typical composites: pizza, sandwich, salade composée, soupe, sushi
+roll, pasta dish (lasagne, carbonara, pesto pasta bake), quiche,
+flammkuchen, calzone, kebab, dumpling / gyoza / spring roll, wrap,
+ready-made breakfast bowl, gratin / pasta bake, rösti with cheese
+or meat, trail mix, vegetables with cream or butter, savoury
+spreads with mixed food groups, ready-to-drink coffee with milk.
 
 Confidence calibration:
-- 0.90–0.99 obvious foods (pommes, carottes, blanc de poulet, lait)
-- 0.75–0.89 clear processed foods (chips, yaourt, huile)
-- 0.60–0.74 composites and prepared meals
-- 0.40–0.59 propose category + flag review
-- below 0.40 only when truly ambiguous; still pick the best food group
+- 0.90–0.99 obvious whole foods (pommes, carottes, blanc de poulet,
+  lait demi-écrémé, lentilles, beurre doux).
+- 0.75–0.89 clear processed foods (chips, yaourt nature, huile
+  d'olive vierge).
+- 0.60–0.74 composites and prepared meals.
+- 0.40–0.59 propose category + flag review.
+- below 0.40 only when truly ambiguous; still pick the best food
+  group.
 
 Response format — RETURN EXACTLY this JSON object:
+
 {
   "results": [
-    {"id": "<the id>", "wwf_food_group": "<one allowed>", \
-"wwf_is_composite": <true|false>, "confidence": <0.0-1.0>, "rationale": "..."}
+    {
+      "id": "<the id>",
+      "wwf_food_group": "FG1|FG2|FG3|FG4|FG5|FG6|FG7|out_of_scope|unknown",
+      "wwf_is_composite": true|false,
+      "wwf_fg1_subgroup": "<required for FG1, else null>",
+      "wwf_fg2_kind": "<required for FG2, else null>",
+      "wwf_fg2_dairy_class": "<required when wwf_fg2_kind=dairy_animal, else null>",
+      "wwf_fg3_kind": "<required for FG3, else null>",
+      "wwf_fg5_grain_kind": "<required for FG5, else null>",
+      "wwf_fg7_kind": "<required for FG7, else null>",
+      "wwf_composite_step1_bucket": "<required when wwf_is_composite=true, else null>",
+      "confidence": 0.0,
+      "rationale": "<one short sentence>"
+    }
   ]
 }
 
-Rules:
+Hard rules:
 - Every input id MUST appear exactly once in `results`.
-- DO NOT add fields beyond {id, wwf_food_group, wwf_is_composite, \
-confidence, rationale}.
+- All required subgroups MUST be present for their food group.
+- All OTHER subgroup fields MUST be null.
+- `out_of_scope` and `unknown` MUST have all subgroup fields null
+  AND `wwf_is_composite=false` AND `wwf_composite_step1_bucket=null`.
+- `wwf_is_composite=true` MUST come with a `wwf_composite_step1_bucket`.
 - DO NOT wrap the JSON in markdown fences.
+- ALL field separators MUST be commas. Output must be valid JSON.
 """
 
 
@@ -409,16 +547,31 @@ def build_batch_classifier_prompt(
     items: list[tuple[str, ClassifierPromptInput]],
     methodology: Methodology,
     *,
-    prompt_version: str = BATCH_CLASSIFIER_PROMPT_VERSION,
+    prompt_version: str | None = None,
 ) -> BatchClassifierPrompt:
     """Assemble a batched prompt for N products.
 
     ``items`` is a list of ``(id, prompt_input)`` pairs. The id is what
     the model echoes back in its response; the orchestrator uses it to
     re-associate the LLM verdict with the source ``NormalizedProduct``.
+
+    Phase WWF-A — methodology-specific default prompt version. PT
+    stays on ``BATCH_CLASSIFIER_PROMPT_VERSION`` (``batch_classifier_v5``)
+    so Phase 34Q/V calibration samples remain valid. WWF uses
+    ``BATCH_WWF_PROMPT_VERSION`` (``batch_wwf_v2``) — the new contract
+    requires the model to return all required subgroups
+    (wwf_fg1_subgroup / wwf_fg2_kind / wwf_fg2_dairy_class /
+    wwf_fg3_kind / wwf_fg5_grain_kind / wwf_fg7_kind) plus
+    ``wwf_composite_step1_bucket`` for composites.
     """
     if not items:
         raise ValueError("batch must contain at least one item")
+    if prompt_version is None:
+        prompt_version = (
+            BATCH_CLASSIFIER_PROMPT_VERSION
+            if methodology is Methodology.PROTEIN_TRACKER
+            else BATCH_WWF_PROMPT_VERSION
+        )
 
     # Layered privacy: validate every product payload BEFORE assembling
     # the batched user message. This makes the policy violation

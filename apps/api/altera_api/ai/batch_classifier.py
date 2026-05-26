@@ -416,6 +416,164 @@ def _normalize_wwf_category(raw: str) -> str | None:
     return _WWF_CATEGORY_ALIASES.get(slug)
 
 
+#: Phase WWF-A — tolerant aliases for the FG1 subgroup field. Accepts
+#: shorthand and adjacent terms so the model can be slightly off and
+#: the parser still produces a valid classification (rather than
+#: forcing the row to parse-failed).
+_WWF_FG1_SUBGROUP_ALIASES: dict[str, str] = {
+    "red_meat": "red_meat",
+    "redmeat": "red_meat",
+    "beef": "red_meat",
+    "pork": "red_meat",
+    "lamb": "red_meat",
+    "veal": "red_meat",
+    "goat": "red_meat",
+    "mutton": "red_meat",
+    "game": "red_meat",
+    "venison": "red_meat",
+    "poultry": "poultry",
+    "chicken": "poultry",
+    "turkey": "poultry",
+    "duck": "poultry",
+    "goose": "poultry",
+    "processed_meats_alternatives": "processed_meats_alternatives",
+    "processed_meats": "processed_meats_alternatives",
+    "processed_meat": "processed_meats_alternatives",
+    "ham": "processed_meats_alternatives",
+    "bacon": "processed_meats_alternatives",
+    "salami": "processed_meats_alternatives",
+    "sausage": "processed_meats_alternatives",
+    "sausages": "processed_meats_alternatives",
+    "charcuterie": "processed_meats_alternatives",
+    "seafood": "seafood",
+    "fish": "seafood",
+    "shellfish": "seafood",
+    "fish_shellfish": "seafood",
+    "fish_and_shellfish": "seafood",
+    "eggs": "eggs",
+    "egg": "eggs",
+    "nuts_seeds": "nuts_seeds",
+    "nuts_and_seeds": "nuts_seeds",
+    "nuts": "nuts_seeds",
+    "seeds": "nuts_seeds",
+    "legumes": "legumes",
+    "legume": "legumes",
+    "pulses": "legumes",
+    "lentils": "legumes",
+    "beans": "legumes",
+    "chickpeas": "legumes",
+    "alternative_protein_sources": "alternative_protein_sources",
+    "alternative_protein": "alternative_protein_sources",
+    "tofu": "alternative_protein_sources",
+    "tempeh": "alternative_protein_sources",
+    "seitan": "alternative_protein_sources",
+    "mycoprotein": "alternative_protein_sources",
+    "meat_egg_seafood_alternatives": "meat_egg_seafood_alternatives",
+    "meat_alternatives": "meat_egg_seafood_alternatives",
+    "meat_alternative": "meat_egg_seafood_alternatives",
+    "plant_meat": "meat_egg_seafood_alternatives",
+    "seafood_alternatives": "meat_egg_seafood_alternatives",
+    "seafood_alternative": "meat_egg_seafood_alternatives",
+    "egg_alternatives": "meat_egg_seafood_alternatives",
+    "egg_alternative": "meat_egg_seafood_alternatives",
+    "fish_alternative": "meat_egg_seafood_alternatives",
+}
+
+_WWF_FG2_KIND_ALIASES: dict[str, str] = {
+    "dairy_animal": "dairy_animal",
+    "dairy": "dairy_animal",
+    "animal_dairy": "dairy_animal",
+    "dairy_alternative_plant": "dairy_alternative_plant",
+    "dairy_alternative": "dairy_alternative_plant",
+    "dairy_alt": "dairy_alternative_plant",
+    "plant_dairy": "dairy_alternative_plant",
+    "plant_based_dairy": "dairy_alternative_plant",
+    "milk_alternative": "dairy_alternative_plant",
+    "milk_alternatives": "dairy_alternative_plant",
+}
+
+_WWF_FG2_DAIRY_CLASS_ALIASES: dict[str, str] = {
+    "cheese": "cheese",
+    "other": "other",
+    "milk": "other",
+    "yoghurt": "other",
+    "yogurt": "other",
+    "cream": "other",
+    "kefir": "other",
+}
+
+_WWF_FG3_KIND_ALIASES: dict[str, str] = {
+    "plant_based_fat": "plant_based_fat",
+    "plant_fat": "plant_based_fat",
+    "vegetable_fat": "plant_based_fat",
+    "vegetable_oil": "plant_based_fat",
+    "animal_based_fat": "animal_based_fat",
+    "animal_fat": "animal_based_fat",
+    "butter": "animal_based_fat",
+    "ghee": "animal_based_fat",
+    "lard": "animal_based_fat",
+}
+
+_WWF_FG5_GRAIN_KIND_ALIASES: dict[str, str] = {
+    "whole_grain": "whole_grain",
+    "wholegrain": "whole_grain",
+    "whole_wheat": "whole_grain",
+    "wholemeal": "whole_grain",
+    "brown": "whole_grain",
+    "integral": "whole_grain",
+    "complet": "whole_grain",
+    "multigrain": "whole_grain",
+    "refined_grain": "refined_grain",
+    "refined": "refined_grain",
+    "white": "refined_grain",
+    "standard": "refined_grain",
+}
+
+_WWF_FG7_KIND_ALIASES: dict[str, str] = {
+    "plant_based_snack": "plant_based_snack",
+    "plant_snack": "plant_based_snack",
+    "vegan_snack": "plant_based_snack",
+    "animal_based_snack": "animal_based_snack",
+    "animal_snack": "animal_based_snack",
+    "dairy_snack": "animal_based_snack",
+}
+
+_WWF_COMPOSITE_BUCKET_ALIASES: dict[str, str] = {
+    "meat_based": "meat_based",
+    "meat_composite": "meat_based",
+    "meatbased": "meat_based",
+    "meat": "meat_based",
+    "seafood_based": "seafood_based",
+    "seafood_composite": "seafood_based",
+    "seafoodbased": "seafood_based",
+    "fish_based": "seafood_based",
+    "fish": "seafood_based",
+    "vegetarian": "vegetarian",
+    "vegetarian_composite": "vegetarian",
+    "veggie": "vegetarian",
+    "vegan": "vegan",
+    "vegan_composite": "vegan",
+    "plant_composite": "vegan",
+    "plant_based": "vegan",
+}
+
+
+def _norm_subgroup(
+    raw: object, aliases: dict[str, str]
+) -> str | None:
+    """Phase WWF-A — best-effort normalisation of a subgroup string.
+
+    Returns ``None`` when the input is missing / null / not a string /
+    not in the alias map. Callers must check for None and decide
+    whether to reject the row or let the schema validator complain.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    return aliases.get(_slug(raw))
+
+
 # ---------------------------------------------------------------------------
 # Per-row parsing
 # ---------------------------------------------------------------------------
@@ -456,6 +614,17 @@ def _coerce_pt_result(
 def _coerce_wwf_result(
     raw_row: dict[str, object], methodology_value: str
 ) -> WWFClassifierResult:
+    """Phase WWF-A — full WWF contract.
+
+    The pre-Phase-WWF-A coercer dropped every subgroup field on the
+    floor and validated only ``wwf_food_group`` / ``wwf_is_composite``
+    / ``confidence`` / ``rationale``. ``WWFClassifierResult``'s
+    ``@model_validator``s then raised because FG1/FG2/FG3/FG5/FG7 all
+    require subgroup fields — every well-classified WWF row landed
+    in parse-failed. The coercer now reads + normalises all
+    subgroup fields the prompt explicitly asks for, so the schema
+    validators pass on a correct model response.
+    """
     wwf_food_group_raw = raw_row.get("wwf_food_group")
     confidence = raw_row.get("confidence")
     rationale = raw_row.get("rationale") or ""
@@ -467,15 +636,56 @@ def _coerce_wwf_result(
     wwf_food_group = _normalize_wwf_category(wwf_food_group_raw)
     if wwf_food_group is None:
         raise ValueError(f"unsupported wwf_food_group {wwf_food_group_raw!r}")
-    return WWFClassifierResult.model_validate(
-        {
-            "methodology": methodology_value,
-            "wwf_food_group": wwf_food_group,
-            "wwf_is_composite": is_composite,
-            "confidence": float(confidence),
-            "rationale": str(rationale)[:240],
-        }
+    payload: dict[str, object] = {
+        "methodology": methodology_value,
+        "wwf_food_group": wwf_food_group,
+        "wwf_is_composite": is_composite,
+        "confidence": float(confidence),
+        "rationale": str(rationale)[:240],
+    }
+    # Subgroups — only include the field if it has a value AND the
+    # food group needs it. The schema validators are strict about
+    # "subgroup_forbidden_for_other_food_group", so we don't pass
+    # null/empty fields through.
+    fg1_subgroup = _norm_subgroup(
+        raw_row.get("wwf_fg1_subgroup"), _WWF_FG1_SUBGROUP_ALIASES
     )
+    if fg1_subgroup is not None:
+        payload["wwf_fg1_subgroup"] = fg1_subgroup
+    fg2_kind = _norm_subgroup(
+        raw_row.get("wwf_fg2_kind"), _WWF_FG2_KIND_ALIASES
+    )
+    if fg2_kind is not None:
+        payload["wwf_fg2_kind"] = fg2_kind
+    fg2_dairy_class = _norm_subgroup(
+        raw_row.get("wwf_fg2_dairy_class"),
+        _WWF_FG2_DAIRY_CLASS_ALIASES,
+    )
+    if fg2_dairy_class is not None:
+        payload["wwf_fg2_dairy_class"] = fg2_dairy_class
+    fg3_kind = _norm_subgroup(
+        raw_row.get("wwf_fg3_kind"), _WWF_FG3_KIND_ALIASES
+    )
+    if fg3_kind is not None:
+        payload["wwf_fg3_kind"] = fg3_kind
+    fg5_grain_kind = _norm_subgroup(
+        raw_row.get("wwf_fg5_grain_kind"),
+        _WWF_FG5_GRAIN_KIND_ALIASES,
+    )
+    if fg5_grain_kind is not None:
+        payload["wwf_fg5_grain_kind"] = fg5_grain_kind
+    fg7_kind = _norm_subgroup(
+        raw_row.get("wwf_fg7_kind"), _WWF_FG7_KIND_ALIASES
+    )
+    if fg7_kind is not None:
+        payload["wwf_fg7_kind"] = fg7_kind
+    composite_bucket = _norm_subgroup(
+        raw_row.get("wwf_composite_step1_bucket"),
+        _WWF_COMPOSITE_BUCKET_ALIASES,
+    )
+    if composite_bucket is not None:
+        payload["wwf_composite_step1_bucket"] = composite_bucket
+    return WWFClassifierResult.model_validate(payload)
 
 
 # ---------------------------------------------------------------------------
