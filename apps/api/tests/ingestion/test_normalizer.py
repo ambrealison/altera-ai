@@ -78,6 +78,14 @@ def test_both_methodologies_happy_path(
 def test_wwf_missing_items_sold(
     upload_id: UUID, project_id: UUID, org_id: UUID, now: datetime
 ) -> None:
+    """Phase WWF-I-hotfix — for a WWF-only project, a row missing
+    ``items_sold`` produces a missing-field warning AND a row-level
+    ``no_methodology_satisfiable`` error (no methodology can be
+    applied), so the row is excluded with a structured explanation.
+
+    The CSV is NOT silently emptied (the regression that hit PT+WWF
+    projects); each broken row carries the precise reason.
+    """
     raw = _raw_full(upload_id).model_copy(update={"items_sold": None})
     product, errors, warnings = normalize_product(
         raw,
@@ -87,7 +95,11 @@ def test_wwf_missing_items_sold(
         now=now,
     )
     assert product is None
-    assert any(e.code == "missing_for_methodology" and e.field == "items_sold" for e in errors)
+    assert any(
+        w.code == "missing_for_methodology" and w.field == "items_sold"
+        for w in warnings
+    )
+    assert any(e.code == "no_methodology_satisfiable" for e in errors)
 
 
 def test_pt_missing_protein_pct_yields_warning(

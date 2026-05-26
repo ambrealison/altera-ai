@@ -449,8 +449,27 @@ export function InlineUpload({
 
             {preview.missing_required_pt.length > 0 && (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Champs Protein Tracker requis encore manquants :{" "}
-                {preview.missing_required_pt.join(", ")}
+                <div className="font-medium">
+                  Champs Protein Tracker requis encore manquants :{" "}
+                  {preview.missing_required_pt.join(", ")}
+                </div>
+                <div className="mt-1 text-amber-700">
+                  Sans ces champs, les lignes seront importées mais sans
+                  bloc Protein Tracker (avertissements par ligne).
+                </div>
+              </div>
+            )}
+            {preview.missing_required_wwf.length > 0 && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <div className="font-medium">
+                  Champs WWF requis encore manquants :{" "}
+                  {preview.missing_required_wwf.join(", ")}
+                </div>
+                <div className="mt-1 text-amber-700">
+                  Ces champs sont nécessaires pour calculer les volumes
+                  WWF par groupe alimentaire. Sans eux, les lignes
+                  seront importées mais sans bloc WWF.
+                </div>
               </div>
             )}
 

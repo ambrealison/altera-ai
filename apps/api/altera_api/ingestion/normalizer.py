@@ -23,12 +23,17 @@ from altera_api.domain.product import (
 from altera_api.domain.validation import ValidationError, ValidationWarning
 
 
-def _missing(row_number: int, field: str, methodology: Methodology) -> ValidationError:
-    return ValidationError(
+def _warning_missing_for(
+    row_number: int, field: str, methodology: Methodology
+) -> ValidationWarning:
+    return ValidationWarning(
         row_number=row_number,
         field=field,
         code="missing_for_methodology",
-        message=f"{field} is required when methodology={methodology.value} is enabled",
+        message=(
+            f"{field} is required for methodology={methodology.value}; "
+            f"row will be ingested without the {methodology.value} block"
+        ),
     )
 
 
@@ -43,8 +48,22 @@ def normalize_product(
 ) -> tuple[NormalizedProduct | None, tuple[ValidationError, ...], tuple[ValidationWarning, ...]]:
     """Build a ``NormalizedProduct`` from a ``RawProduct``.
 
-    Returns ``(product, errors)``. If errors is non-empty, ``product`` is
-    ``None`` — the row is excluded from the normalised set.
+    Phase WWF-I-hotfix — when ``methodologies_enabled`` contains both PT
+    and WWF and the row only has the data for one of them, the row is
+    still ingested with the SATISFIABLE subset (PT-only or WWF-only)
+    plus a warning explaining which methodology was dropped. Previously
+    a single missing WWF field would zero-out the entire upload for a
+    PT+WWF project — see ``tests/ingestion/
+    test_phase_wwf_i_hotfix_dual_methodology.py``.
+
+    The row still fails (returns ``None``) when:
+
+      * ``weight_per_item_kg`` is missing (PT and WWF both need it);
+      * neither PT nor WWF block can be built from the row's data;
+      * the underlying ``NormalizedProduct`` Pydantic constructor
+        rejects the row for any other reason.
+
+    Returns ``(product, errors, warnings)``.
     """
     errors: list[ValidationError] = []
     warnings: list[ValidationWarning] = []
@@ -62,22 +81,35 @@ def normalize_product(
     pt_fields: PTProductFields | None = None
     wwf_fields: WWFProductFields | None = None
 
-    if Methodology.PROTEIN_TRACKER in methodologies_enabled:
+    pt_eligible = Methodology.PROTEIN_TRACKER in methodologies_enabled
+    wwf_eligible = Methodology.WWF in methodologies_enabled
+
+    # ----- PT block (or PT downgrade) -----
+    if pt_eligible:
+        pt_missing: list[str] = []
         if raw.items_purchased is None:
-            errors.append(_missing(raw.row_number, "items_purchased", Methodology.PROTEIN_TRACKER))
-        if raw.protein_pct is None:
-            warnings.append(
-                ValidationWarning(
-                    row_number=raw.row_number,
-                    field="protein_pct",
-                    code="enrichment_needed",
-                    message=(
-                        "protein_pct is missing; product will be excluded from PT totals "
-                        "unless nutrition enrichment is applied"
-                    ),
+            pt_missing.append("items_purchased")
+        if pt_missing:
+            for field in pt_missing:
+                warnings.append(
+                    _warning_missing_for(
+                        raw.row_number, field, Methodology.PROTEIN_TRACKER
+                    )
                 )
-            )
-        if raw.items_purchased is not None:
+            pt_eligible = False  # downgrade — row stays in the upload
+        else:
+            if raw.protein_pct is None:
+                warnings.append(
+                    ValidationWarning(
+                        row_number=raw.row_number,
+                        field="protein_pct",
+                        code="enrichment_needed",
+                        message=(
+                            "protein_pct is missing; product will be excluded from PT totals "
+                            "unless nutrition enrichment is applied"
+                        ),
+                    )
+                )
             try:
                 pt_fields = PTProductFields(
                     items_purchased=raw.items_purchased,
@@ -97,28 +129,66 @@ def normalize_product(
                         )
                     )
 
-    if Methodology.WWF in methodologies_enabled:
+    # ----- WWF block (or WWF downgrade) -----
+    if wwf_eligible:
+        wwf_missing: list[str] = []
         if raw.items_sold is None:
-            errors.append(_missing(raw.row_number, "items_sold", Methodology.WWF))
+            wwf_missing.append("items_sold")
         if raw.retail_channel is None:
-            errors.append(_missing(raw.row_number, "retail_channel", Methodology.WWF))
+            wwf_missing.append("retail_channel")
         if raw.is_own_brand is None:
-            errors.append(_missing(raw.row_number, "is_own_brand", Methodology.WWF))
-        if (
-            raw.items_sold is not None
-            and raw.retail_channel is not None
-            and raw.is_own_brand is not None
-        ):
+            wwf_missing.append("is_own_brand")
+        if wwf_missing:
+            for field in wwf_missing:
+                warnings.append(
+                    _warning_missing_for(raw.row_number, field, Methodology.WWF)
+                )
+            wwf_eligible = False  # downgrade — row stays in the upload
+        else:
             wwf_fields = WWFProductFields(
                 items_sold=raw.items_sold,
                 retail_channel=raw.retail_channel,
                 is_own_brand=raw.is_own_brand,
             )
 
+    # If the project had at least one methodology enabled but the row
+    # can't satisfy ANY of them, the row is invalid — emit a structured
+    # error explaining what was missing rather than silently dropping
+    # the row with zero context.
+    project_had_methodology = (
+        Methodology.PROTEIN_TRACKER in methodologies_enabled
+        or Methodology.WWF in methodologies_enabled
+    )
+    if project_had_methodology and not pt_eligible and not wwf_eligible:
+        errors.append(
+            ValidationError(
+                row_number=raw.row_number,
+                field=None,
+                code="no_methodology_satisfiable",
+                message=(
+                    "row has no methodology block — PT required "
+                    "(items_purchased) and WWF required (items_sold, "
+                    "retail_channel, is_own_brand) are both missing"
+                ),
+            )
+        )
+
     if errors:
         return None, tuple(errors), tuple(warnings)
 
     assert raw.weight_per_item_kg is not None  # checked above
+
+    # Per-row methodologies_enabled is the SUBSET the row actually
+    # satisfies (Phase WWF-I-hotfix). A PT+WWF project that receives
+    # a row with only PT fields ingests the row as PT-only.
+    row_methodologies = frozenset(
+        m
+        for m, on in (
+            (Methodology.PROTEIN_TRACKER, pt_eligible),
+            (Methodology.WWF, wwf_eligible),
+        )
+        if on
+    )
 
     try:
         product = NormalizedProduct(
@@ -138,7 +208,7 @@ def normalize_product(
             language=raw.language,
             country=raw.country,
             weight_per_item_kg=raw.weight_per_item_kg,
-            methodologies_enabled=methodologies_enabled,
+            methodologies_enabled=row_methodologies,
             pt_fields=pt_fields,
             wwf_fields=wwf_fields,
             created_at=now,
