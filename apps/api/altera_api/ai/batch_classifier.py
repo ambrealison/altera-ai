@@ -869,6 +869,52 @@ def batch_classify(
                 now=now,
             )
 
+            inferred_cat = (
+                str(row.get("pt_group", "")) or str(row.get("wwf_food_group", ""))
+            )
+
+            # Phase 36K — readable-name fallback for PT ``unknown``.
+            # Runs BEFORE the food-term guard so a model ``unknown``
+            # on a readable name (e.g. "Sorbet Framboise",
+            # "Miel de Fleurs", "Cassoulet Provençale") gets a
+            # best-guess category instead of being routed straight to
+            # parse-failed by the food-term guard. The fallback only
+            # fires on PT + readable + unknown; everything else
+            # continues to the legacy guards below.
+            if (
+                methodology is Methodology.PROTEIN_TRACKER
+                and inferred_cat == "unknown"
+                and not _is_unusable_name(p.product_name)
+            ):
+                from altera_api.ai.pt_guards import (
+                    classify_readable_fallback,
+                )
+
+                fallback = classify_readable_fallback(p.product_name)
+                if fallback is not None:
+                    fallback_group, fallback_rule = fallback
+                    _maybe_sample(
+                        f"readable_fallback: rule={fallback_rule} "
+                        f"name={p.product_name!r}"
+                    )
+                    guard_overrides_by_rule[fallback_rule] = (
+                        guard_overrides_by_rule.get(fallback_rule, 0) + 1
+                    )
+                    fallback_classification = classification.model_copy(
+                        update={
+                            "pt_group": fallback_group,
+                            "confidence": Decimal("0.5"),
+                        }
+                    )
+                    out.append(
+                        AINeedsReviewLowConfidence(
+                            classification=fallback_classification,
+                            raw_text=response.raw_text,
+                            threshold=threshold,
+                        )
+                    )
+                    continue
+
             # Phase 34Q — food-term guard. If the model said
             # ``out_of_scope`` (or ``unknown``) but the product name
             # contains obvious food tokens ("poulet", "huile", "chips",
@@ -876,9 +922,11 @@ def batch_classify(
             # existing retry pass will re-run it at a smaller batch
             # with the same now-stricter prompt. If the retry still
             # comes back out_of_scope the verdict stands.
-            inferred_cat = (
-                str(row.get("pt_group", "")) or str(row.get("wwf_food_group", ""))
-            )
+            #
+            # Phase 36K — the readable-fallback branch above already
+            # caught most ``unknown`` cases on PT-tracked food-looking
+            # names; what remains here is mostly ``out_of_scope`` from
+            # the model on food-looking names.
             if (
                 inferred_cat in {"out_of_scope", "unknown"}
                 and _looks_like_food(p.product_name)
@@ -936,14 +984,13 @@ def batch_classify(
                     # downstream unknown safety net entirely.
                     inferred_cat = classification.pt_group.value
 
-            # Phase 36H — unknown safety net. By product rule, the
-            # ``unknown`` category is reserved for truly unusable
-            # product names (empty, "Divers", placeholder strings).
-            # If the model returns ``unknown`` on ANY readable name AND
-            # no Phase 36I guard reclassified it, we route to
-            # ``needs_review`` so a human can either accept the model's
-            # intent or pick a category — never leave a readable
-            # product as final ``unknown``.
+            # Phase 36H — unknown safety net (legacy path).
+            # Reaches this branch only if:
+            #   * Phase 36K readable-fallback returned None, OR
+            #   * methodology is WWF (not PT),
+            # AND the model still says ``unknown`` AND the name is
+            # readable. We route to ``AINeedsReviewParseFailed`` so
+            # the wizard surfaces the row in review.
             if (
                 inferred_cat == "unknown"
                 and not _is_unusable_name(p.product_name)

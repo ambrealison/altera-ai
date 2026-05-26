@@ -218,10 +218,15 @@ class TestBundleGuardCounters:
             enable_retry=False,
         )
         assert isinstance(bundle, BatchVerdictBundle)
+        # Phase 36K — model ``unknown`` on a "smoothie" name is now
+        # caught by the readable_fallback_fruit_drink rule (the
+        # Phase 36K early-fallback path) instead of the Phase 36I
+        # fruit_drink_non_core guard. Final category is identical;
+        # only the rule id changed.
         assert bundle.guard_overrides_by_rule == {
             "plant_core_demoted_preparation_or_simple_veg": 1,
             "beverage_out_of_scope": 1,
-            "fruit_drink_non_core": 1,
+            "readable_fallback_fruit_drink": 1,
             "bakery_composite": 1,
             "animal_prepared_meal_composite": 1,
         }
@@ -242,9 +247,10 @@ class TestBundleGuardCounters:
 
     def test_unknown_safety_net_counts_when_no_guard_applies(self) -> None:
         """A readable name that the model labels ``unknown`` but
-        which does NOT match any Phase 36I guard pattern (e.g.
-        "Levure Chimique") increments ``unknown_safety_net_total``
-        and routes to needs_review."""
+        which does NOT match any Phase 36I guard pattern AND no
+        Phase 36K readable-fallback rule fires (e.g. a brand-only
+        name like "Marque Bleue Sélection") increments
+        ``unknown_safety_net_total`` and routes to needs_review."""
 
         class _UnknownEverywhere(ClassifierProvider):
             @property
@@ -283,7 +289,11 @@ class TestBundleGuardCounters:
 
         provider = _UnknownEverywhere()
         products = [
-            _make_product("Levure Chimique", uuid4(), uuid4()),
+            # No food / non-food / beverage / bakery token AND no
+            # food-token substring (avoiding the food-guard branch).
+            # The readable fallback can't pick a category, so the
+            # legacy unknown_safety_net path fires.
+            _make_product("Promotion Premium", uuid4(), uuid4()),
         ]
         bundle = batch_classify(
             products,

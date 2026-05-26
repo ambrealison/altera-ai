@@ -391,17 +391,24 @@ class TestUnknownSafetyNetEndToEnd:
             enable_retry=False,
         )
         # None of these readable names should land as final unknown.
-        # They must all be needs_review (AINeedsReviewParseFailed).
+        # They must all be needs_review — either as
+        # AINeedsReviewParseFailed (legacy safety net) or as
+        # AINeedsReviewLowConfidence (Phase 36K readable fallback).
+        from altera_api.ai.classifier import AINeedsReviewLowConfidence
+
         for verdict in bundle.verdicts:
             assert isinstance(
-                verdict, AINeedsReviewParseFailed
+                verdict,
+                (AINeedsReviewParseFailed, AINeedsReviewLowConfidence),
             ), f"expected needs_review, got {type(verdict).__name__}"
-        # And the sample errors should mention the safety net.
+        # And the sample errors should mention the safety net OR
+        # the Phase 36K readable fallback rule.
         joined = "\n".join(bundle.sample_errors)
         assert (
             "unknown_safety_net" in joined
             or "unknown on readable" in joined
             or "food_guard_override" in joined
+            or "readable_fallback" in joined
         )
 
     def test_empty_name_can_still_land_unknown(self) -> None:

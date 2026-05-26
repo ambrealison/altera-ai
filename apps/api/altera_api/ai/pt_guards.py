@@ -496,6 +496,277 @@ _PREPARED_DISH_MARKERS: tuple[str, ...] = (
 
 
 # ---------------------------------------------------------------------------
+# Phase 36K — extended vocabularies for the readable-name fallback.
+# ---------------------------------------------------------------------------
+
+
+#: Non-food / household / hygiene / pet-food tokens. Any readable
+#: product name containing one of these is out_of_scope regardless of
+#: what the model said.
+_NON_FOOD_OOS_TOKENS: tuple[str, ...] = (
+    # Cleaning / household
+    "lessive",
+    "adoucissant",
+    "liquide vaisselle",
+    "nettoyant",
+    "javel",
+    "detartrant",
+    "desinfectant",
+    "eponge",
+    "eponges",
+    "sac poubelle",
+    "sacs poubelle",
+    "papier toilette",
+    "essuie-tout",
+    "essuie tout",
+    "film alimentaire",
+    "aluminium menager",
+    # Personal hygiene
+    "shampoing",
+    "shampooing",
+    "gel douche",
+    "savon",
+    "dentifrice",
+    "brosse a dents",
+    "deodorant",
+    "lingettes bebe",
+    "lingettes",
+    "couches",
+    "coton tige",
+    # Pet food / pet care
+    "croquettes chat",
+    "croquettes chien",
+    "patee chien",
+    "patee chat",
+    "litiere",
+    "litiere chat",
+    "petfood",
+    "pet food",
+    "aliment chat",
+    "aliment chien",
+    "friandise chien",
+    "friandise chat",
+)
+
+
+#: Honey / sugar / syrup / spread that the brief routes to
+#: out_of_scope (negligible protein contribution).
+_SWEETENER_OOS_TOKENS: tuple[str, ...] = (
+    "miel",
+    "sucre",
+    "sucre roux",
+    "sucre blanc",
+    "sucre glace",
+    "cassonade",
+    "stevia",
+    "edulcorant",
+    "sirop d'agave",
+    "sirop d agave",
+    "sirop d'erable",
+    "sirop d erable",
+)
+
+
+#: Sorbet — strictly water + fruit, no dairy → plant_based_non_core.
+_SORBET_TOKENS: tuple[str, ...] = (
+    "sorbet",
+    "sorbets",
+)
+
+
+#: Sweet spreads / fruit preparations → plant_based_non_core.
+_SWEET_SPREAD_NON_CORE_TOKENS: tuple[str, ...] = (
+    "confiture",
+    "confitures",
+    "marmelade",
+    "marmelades",
+    "compote",
+    "compotes",
+    "coulis",
+    "puree de fruit",
+    "purees de fruit",
+    "pate de fruit",
+    "pates de fruit",
+    "gelee de fruit",
+)
+
+
+#: Savory snacks that are plant-only by default → plant_based_non_core.
+#: ``_BAKERY_COMPOSITE_TOKENS`` covers SWEET bakery; this set covers
+#: SALTY snack food.
+_SAVORY_SNACK_NON_CORE_TOKENS: tuple[str, ...] = (
+    "chips",
+    "crackers",
+    "cracker",
+    "tuile",
+    "tuiles",
+    "pretzel",
+    "pretzels",
+    "pop corn",
+    "popcorn",
+    "biscuit aperitif",
+    "biscuits aperitif",
+)
+
+
+#: Dairy / egg / fish / meat tokens that, when present in a
+#: savory-snack name, override the snack guard to composite. E.g.
+#: "Crackers Fromage" → composite, "Chips Poulet" → composite.
+_DAIRY_EGG_ANIMAL_TOKENS: tuple[str, ...] = (
+    "fromage",
+    "emmental",
+    "cheddar",
+    "parmesan",
+    "feta",
+    "mozzarella",
+    "comte",
+    "comté",
+    "brie",
+    "camembert",
+    "chevre",
+    "chèvre",
+    "gruyere",
+    "gruyère",
+    "lait",
+    "creme",
+    "crème",
+    "beurre",
+    "oeuf",
+    "œuf",
+    "jambon",
+    "poulet",
+    "saumon",
+    "thon",
+    "lardon",
+    "lardons",
+    "bacon",
+    "bolognaise",
+    "carbonara",
+)
+
+
+#: Sauces and condiments that are plant-only → plant_based_non_core.
+_PLANT_CONDIMENT_TOKENS: tuple[str, ...] = (
+    "vinaigrette",
+    "vinaigre",
+    "moutarde",
+    "ketchup",
+    "harissa",
+    "tapenade",
+    "pesto",
+    "sauce tomate",
+    "sauce soja",
+    "sauce barbecue",
+    "sauce salade",
+    "huile aromatisee",
+    "huile aromatisée",
+)
+
+
+#: Plant ingredients used in cooking → plant_based_non_core.
+_CULINARY_INGREDIENT_NON_CORE_TOKENS: tuple[str, ...] = (
+    "farine",
+    "farines",
+    "chapelure",
+    "cacao",
+    "cacao poudre",
+    "cacao en poudre",
+    "levure boulangere",
+    "levure chimique",
+    "bicarbonate",
+    "fecule",
+    "fécule",
+    "maizena",
+    "maïzena",
+    "amidon",
+    "bouillon legumes",
+    "bouillon de legumes",
+    "bouillon champignon",
+    "bouillon champignons",
+    "bouillon vegetal",
+)
+
+
+#: Animal-source simple foods (no prepared-dish marker).
+#: When the model returns ``unknown`` on a name containing one of
+#: these AND no prepared-dish marker, we route to ``animal_core``.
+_ANIMAL_SIMPLE_TOKENS: tuple[str, ...] = (
+    "poulet",
+    "dinde",
+    "canard",
+    "boeuf",
+    "veau",
+    "porc",
+    "agneau",
+    "jambon",
+    "saumon",
+    "thon",
+    "cabillaud",
+    "sardine",
+    "sardines",
+    "maquereau",
+    "hareng",
+    "truite",
+    "merlu",
+    "crevette",
+    "crevettes",
+    "moule",
+    "moules",
+    "huitre",
+    "huitres",
+    "calamar",
+    "poulpe",
+    "homard",
+    "crabe",
+    "surimi",
+    "oeuf",
+    "oeufs",
+    "œuf",
+    "œufs",
+    "lait",
+    "yaourt",
+    "yaourts",
+    "fromage",
+    "beurre",
+    "creme fraiche",
+    "creme épaisse",
+    "creme epaisse",
+)
+
+
+#: Generic edible-food tokens we can fall back to as
+#: ``plant_based_non_core`` when no other family matches.
+_GENERIC_PLANT_FOOD_TOKENS: tuple[str, ...] = (
+    "riz",
+    "pates",
+    "pâtes",
+    "pasta",
+    "pain",
+    "baguette",
+    "tomate",
+    "tomates",
+    "carotte",
+    "carottes",
+    "courgette",
+    "brocoli",
+    "salade",
+    "pomme",
+    "pommes",
+    "poire",
+    "banane",
+    "fraise",
+    "fruit",
+    "fruits",
+    "legume",
+    "legumes",
+    "céréale",
+    "cereale",
+    "muesli",
+    "granola",
+)
+
+
+# ---------------------------------------------------------------------------
 # Result type
 # ---------------------------------------------------------------------------
 
@@ -634,6 +905,270 @@ def apply_pt_guards(
                     "routed to composite_products"
                 ),
             )
+
+    # Guard 5 — Phase 36K: non-food / household / pet-food strict
+    # out_of_scope. The model very occasionally mis-routes these to
+    # plant_based_non_core or unknown; the brief mandates
+    # out_of_scope.
+    if _contains_any_word(name, _NON_FOOD_OOS_TOKENS):
+        if pt_group is not ProteinTrackerGroup.OUT_OF_SCOPE:
+            return _override(
+                classification,
+                ProteinTrackerGroup.OUT_OF_SCOPE,
+                rule="non_food_out_of_scope",
+                detail=(
+                    "name contains household/hygiene/pet-food token; "
+                    "routed to out_of_scope"
+                ),
+            )
+
+    # Guard 6 — Phase 36K: sorbet → plant_based_non_core (water +
+    # fruit, no dairy). The bakery guard would otherwise drag it to
+    # composite via the broad sweet-bakery patterns.
+    if _contains_any_word(name, _SORBET_TOKENS):
+        if pt_group is not ProteinTrackerGroup.PLANT_BASED_NON_CORE:
+            return _override(
+                classification,
+                ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+                rule="sorbet_non_core",
+                detail=(
+                    "name contains sorbet token (water + fruit, "
+                    "no dairy); routed to plant_based_non_core"
+                ),
+            )
+
+    # Guard 7 — Phase 36K: savory snack (chips, crackers, biscuits
+    # apéritif, tuiles, pretzels…) → plant_based_non_core UNLESS the
+    # name carries an explicit dairy / egg / animal token. The brief
+    # singled out "Biscuits Apéritif Romarin" → non_core but
+    # "Crackers Fromage" / "Chips Poulet" → composite.
+    if _contains_any_word(name, _SAVORY_SNACK_NON_CORE_TOKENS):
+        has_animal_or_dairy = _contains_any_word(
+            name, _DAIRY_EGG_ANIMAL_TOKENS
+        )
+        if has_animal_or_dairy:
+            if pt_group is not ProteinTrackerGroup.COMPOSITE_PRODUCTS:
+                return _override(
+                    classification,
+                    ProteinTrackerGroup.COMPOSITE_PRODUCTS,
+                    rule="savory_snack_with_dairy_or_animal_composite",
+                    detail=(
+                        "savory snack name + dairy/egg/animal token "
+                        "→ composite_products"
+                    ),
+                )
+        else:
+            if pt_group not in {
+                ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+                ProteinTrackerGroup.PLANT_BASED_CORE,
+            }:
+                return _override(
+                    classification,
+                    ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+                    rule="savory_snack_non_core",
+                    detail=(
+                        "savory snack name (chips/crackers/biscuit-"
+                        "apéritif/tuiles…) with no dairy/animal "
+                        "token; routed to plant_based_non_core"
+                    ),
+                )
+
+    # Guard 8 — Phase 36K: plant condiments / sauces (vinaigrette,
+    # moutarde, ketchup, sauce tomate…) → plant_based_non_core.
+    # The model sometimes calls them composite (because they're
+    # "processed") or unknown.
+    if _contains_any_word(name, _PLANT_CONDIMENT_TOKENS):
+        if pt_group is not ProteinTrackerGroup.PLANT_BASED_NON_CORE:
+            # If the condiment also carries a dairy/animal token
+            # ("sauce béchamel", "sauce bolognaise"), keep the
+            # composite/animal verdict the model picked.
+            if not _contains_any_word(name, _DAIRY_EGG_ANIMAL_TOKENS):
+                return _override(
+                    classification,
+                    ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+                    rule="plant_condiment_non_core",
+                    detail=(
+                        "name is a plant condiment "
+                        "(vinaigrette/moutarde/ketchup/sauce tomate…); "
+                        "routed to plant_based_non_core"
+                    ),
+                )
+
+    # Guard 9 — Phase 36K: honey / sugar / syrup / sweetener →
+    # out_of_scope (negligible protein contribution per brief).
+    if _contains_any_word(name, _SWEETENER_OOS_TOKENS):
+        if pt_group is not ProteinTrackerGroup.OUT_OF_SCOPE:
+            return _override(
+                classification,
+                ProteinTrackerGroup.OUT_OF_SCOPE,
+                rule="sweetener_out_of_scope",
+                detail=(
+                    "name is a sweetener (miel/sucre/sirop/édulcorant); "
+                    "routed to out_of_scope"
+                ),
+            )
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Phase 36K — readable-name fallback.
+# ---------------------------------------------------------------------------
+
+
+def classify_readable_fallback(
+    product_name: str,
+) -> tuple[ProteinTrackerGroup, str] | None:
+    """Phase 36K — when the model returns ``unknown`` on a readable
+    name AND no :func:`apply_pt_guards` rule fires, this function
+    produces a best-guess category so the row lands in
+    ``needs_review`` with a usable starting point — never as a final
+    ``unknown`` or ``failed``.
+
+    The function is intentionally conservative: it only fires on
+    unambiguous family tokens. When nothing matches, it returns
+    ``None`` and the caller routes the row to the legacy
+    ``unknown_safety_net`` path.
+
+    Returns ``(pt_group, rule_id)``. Empty / corrupted / placeholder
+    names should already have been filtered upstream by
+    :func:`batch_classifier._is_unusable_name`; this function does
+    NOT need to re-check that — but it returns ``None`` if the
+    normalised name is empty.
+    """
+    name = _normalise(product_name)
+    if not name.strip():
+        return None
+
+    # 1. Non-food / household / pet-food → out_of_scope.
+    if _contains_any_word(name, _NON_FOOD_OOS_TOKENS):
+        return (
+            ProteinTrackerGroup.OUT_OF_SCOPE,
+            "readable_fallback_non_food",
+        )
+
+    # 2. Sweet spreads (compote/coulis/confiture) → non_core. MUST
+    # come before the sweetener guard so "Compote Pomme Sans Sucre"
+    # doesn't get caught by the "sucre" sweetener pattern.
+    if _contains_any_word(name, _SWEET_SPREAD_NON_CORE_TOKENS):
+        return (
+            ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+            "readable_fallback_sweet_spread",
+        )
+
+    # 3. Savory snack — runs BEFORE sweet bakery so "Biscuits
+    # Apéritif" (which contains "biscuit") doesn't get pulled into
+    # the bakery composite bucket. 3a: with dairy/animal token →
+    # composite; 3b: plain → non_core.
+    if _contains_any_word(name, _SAVORY_SNACK_NON_CORE_TOKENS):
+        if _contains_any_word(name, _DAIRY_EGG_ANIMAL_TOKENS):
+            return (
+                ProteinTrackerGroup.COMPOSITE_PRODUCTS,
+                "readable_fallback_savory_snack_composite",
+            )
+        return (
+            ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+            "readable_fallback_savory_snack",
+        )
+
+    # 4. Sweetener (miel/sucre/sirop) → out_of_scope. Runs AFTER the
+    # sweet-spread check so the "sucre" inside "Compote Pomme Sans
+    # Sucre" doesn't override the compote intent.
+    if _contains_any_word(name, _SWEETENER_OOS_TOKENS):
+        return (
+            ProteinTrackerGroup.OUT_OF_SCOPE,
+            "readable_fallback_sweetener",
+        )
+
+    # 5. Beverages — strict OOS list (tea/coffee/water/soda/alcohol).
+    if _contains_any_word(name, _BEVERAGE_OUT_OF_SCOPE_TOKENS):
+        return (
+            ProteinTrackerGroup.OUT_OF_SCOPE,
+            "readable_fallback_beverage_oos",
+        )
+
+    # 6. Fruit drinks → plant_based_non_core.
+    if _contains_any_word(name, _BEVERAGE_NON_CORE_TOKENS):
+        return (
+            ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+            "readable_fallback_fruit_drink",
+        )
+
+    # 7. Sweet bakery — composite (butter / milk / eggs likely).
+    if _contains_any_word(name, _BAKERY_COMPOSITE_TOKENS):
+        return (
+            ProteinTrackerGroup.COMPOSITE_PRODUCTS,
+            "readable_fallback_sweet_bakery",
+        )
+
+    # 8. Self-evident animal composite dishes.
+    if _contains_any_word(name, _SELF_EVIDENT_ANIMAL_COMPOSITES):
+        return (
+            ProteinTrackerGroup.COMPOSITE_PRODUCTS,
+            "readable_fallback_animal_composite",
+        )
+
+    # 9. Sorbet.
+    if _contains_any_word(name, _SORBET_TOKENS):
+        return (
+            ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+            "readable_fallback_sorbet",
+        )
+
+    # 11. Plant condiments (vinaigrette/moutarde/ketchup/sauce tomate).
+    if _contains_any_word(name, _PLANT_CONDIMENT_TOKENS):
+        return (
+            ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+            "readable_fallback_plant_condiment",
+        )
+
+    # 12. Culinary ingredients (farine/chapelure/levure/bouillon
+    # végétal) → non_core.
+    if _contains_any_word(name, _CULINARY_INGREDIENT_NON_CORE_TOKENS):
+        return (
+            ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+            "readable_fallback_culinary_ingredient",
+        )
+
+    # 13. Prepared dishes (animal explicit) → composite.
+    if _contains_any_word(name, _ANIMAL_TOKENS) and _contains_any_word(
+        name, _PREPARED_DISH_MARKERS
+    ):
+        return (
+            ProteinTrackerGroup.COMPOSITE_PRODUCTS,
+            "readable_fallback_animal_prepared_meal",
+        )
+
+    # 14. Plant-protein anchor → plant_based_core.
+    if _contains_any_word(name, _PLANT_CORE_TOKENS):
+        return (
+            ProteinTrackerGroup.PLANT_BASED_CORE,
+            "readable_fallback_plant_core",
+        )
+
+    # 15. Simple animal-source food → animal_core.
+    if _contains_any_word(name, _ANIMAL_SIMPLE_TOKENS):
+        return (
+            ProteinTrackerGroup.ANIMAL_CORE,
+            "readable_fallback_animal_simple",
+        )
+
+    # 16. Vegetable soup / velouté / gaspacho / mouliné → non_core
+    # (this is the no-dairy fallback; if dairy is present, the model
+    # would normally have picked composite already, and the guards
+    # don't catch this here because the model said ``unknown``).
+    if _contains_any_word(name, _NOT_PLANT_CORE_PATTERNS):
+        return (
+            ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+            "readable_fallback_vegetable_preparation",
+        )
+
+    # 17. Generic plant food name → non_core best guess.
+    if _contains_any_word(name, _GENERIC_PLANT_FOOD_TOKENS):
+        return (
+            ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+            "readable_fallback_generic_plant_food",
+        )
 
     return None
 
