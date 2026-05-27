@@ -788,14 +788,49 @@ function MethodologyClassificationCard({
   const classified = counts?.classified ?? 0;
   const pending = counts?.pending ?? 0;
   const needsReview = counts?.needs_review ?? 0;
+  const unknown = counts?.unknown ?? 0;
   const status = counts?.status ?? "locked";
   const pct = total > 0 ? Math.round((classified / total) * 100) : 0;
 
-  const isComplete = status === "complete";
+  // Phase WWF-Q — discriminate "Terminée" (clean) from "Terminée
+  // avec erreurs" (job finished but some rows are unknown / failed).
+  // The backend's ``counts.status = complete`` is true as soon as
+  // ``classified == total`` — it doesn't consider unknowns or job
+  // failed_product_count. So we also look at the live job state +
+  // unknown count.
   const isRunning =
     currentJob &&
     (currentJob.status === "queued" || currentJob.status === "running");
   const canResume = currentJob && isRunning;
+  const failedRows = currentJob?.failed_product_count ?? 0;
+  const jobErrored =
+    currentJob?.status === "completed_with_errors" ||
+    currentJob?.status === "failed";
+  const hasPartialFailures = unknown > 0 || failedRows > 0 || jobErrored;
+  const isCompleteClean =
+    status === "complete" && !isRunning && !hasPartialFailures;
+  const isCompleteWithErrors =
+    status === "complete" && !isRunning && hasPartialFailures;
+  const successCount = Math.max(0, classified - unknown);
+
+  let pillTone: "ok" | "warn" | "neutral" = "neutral";
+  let pillLabel = "À lancer";
+  if (isCompleteClean) {
+    pillTone = "ok";
+    pillLabel = "Terminée";
+  } else if (isCompleteWithErrors) {
+    pillTone = "warn";
+    pillLabel = "Terminée avec erreurs";
+  } else if (isRunning) {
+    pillTone = "warn";
+    pillLabel = "En cours";
+  } else if (status === "locked") {
+    pillTone = "neutral";
+    pillLabel = "Verrouillée";
+  } else {
+    pillTone = "warn";
+    pillLabel = "À lancer";
+  }
 
   return (
     <Card>
@@ -804,40 +839,34 @@ function MethodologyClassificationCard({
           <h3 className="text-base font-semibold">{title}</h3>
           <p className="mt-1 text-xs text-gray-500">{description}</p>
         </div>
-        <Pill
-          tone={
-            isComplete
-              ? "ok"
-              : isRunning
-              ? "warn"
-              : status === "locked"
-              ? "neutral"
-              : "warn"
-          }
-        >
-          {isComplete
-            ? "Terminée"
-            : isRunning
-            ? "En cours"
-            : status === "locked"
-            ? "Verrouillée"
-            : "À lancer"}
-        </Pill>
+        <Pill tone={pillTone}>{pillLabel}</Pill>
       </div>
 
       {total > 0 && (
         <div className="mt-3 text-xs text-gray-600">
           <div className="flex items-center justify-between">
             <span>
-              {classified}/{total} catégorisé(s)
-              {needsReview > 0 && <> · {needsReview} en revue</>}
-              {pending > 0 && <> · {pending} en attente</>}
+              {isCompleteWithErrors ? (
+                <>
+                  {successCount} réussies / {unknown + failedRows} échouées
+                  {needsReview > 0 && <> · {needsReview} en revue</>}
+                </>
+              ) : (
+                <>
+                  {classified}/{total} catégorisé(s)
+                  {needsReview > 0 && <> · {needsReview} en revue</>}
+                  {pending > 0 && <> · {pending} en attente</>}
+                </>
+              )}
             </span>
             <span className="text-gray-400">{pct}%</span>
           </div>
           <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
             <div
-              className="h-full bg-brand-500 transition-all"
+              className={
+                "h-full transition-all " +
+                (isCompleteWithErrors ? "bg-amber-500" : "bg-brand-500")
+              }
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -855,19 +884,29 @@ function MethodologyClassificationCard({
           <ClassificationJobProgress job={currentJob} />
         </div>
       )}
-      {/* Terminal state with errors: surface the failure banner only,
-          not the misleading "0 catégorisé" line from the last
-          response payload. */}
-      {currentJob &&
-        !isRunning &&
-        (currentJob.status === "completed_with_errors" ||
-          currentJob.status === "failed") && (
-          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            {currentJob.status === "completed_with_errors"
-              ? `Terminé avec erreurs · ${currentJob.failed_product_count} ligne(s) en échec.`
-              : `Échec · ${currentJob.error_message ?? "erreur inconnue"}.`}
-          </div>
-        )}
+      {/* Phase WWF-Q — Terminal state with errors banner. Fires when
+          (a) the job itself reported completed_with_errors / failed,
+          OR (b) the job reported completed but some rows landed as
+          ``unknown`` (the user's complaint: "100/100 catégorisé · 51
+          en échec" was displayed as a green 'Terminée'). */}
+      {!isRunning && hasPartialFailures && (
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {currentJob?.status === "failed"
+            ? `Échec · ${currentJob.error_message ?? "erreur inconnue"}.`
+            : (() => {
+                const failsTotal = unknown + failedRows;
+                return (
+                  <>
+                    Terminée avec erreurs · {failsTotal} ligne(s) en échec
+                    {failedRows > 0 &&
+                      unknown > 0 &&
+                      ` (${failedRows} échec(s) + ${unknown} inconnu(s))`}
+                    .
+                  </>
+                );
+              })()}
+        </div>
+      )}
 
       {error && (
         <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
@@ -892,7 +931,7 @@ function MethodologyClassificationCard({
             {busy ? "…" : runLabel}
           </Button>
         )}
-        {(classified > 0 || isComplete) && (
+        {(classified > 0 || isCompleteClean || isCompleteWithErrors) && (
           <Button variant="secondary" onClick={onOpenValidation}>
             {validationLabel}
           </Button>
@@ -908,7 +947,10 @@ function StepAIClassificationDual({
   wwfCounts,
   ptCurrentJob,
   wwfCurrentJob,
-  busy,
+  // Phase WWF-Q — split busy per methodology so the two jobs are
+  // fully independent.
+  busyPt,
+  busyWwf,
   ptError,
   wwfError,
   onRunPT,
@@ -926,7 +968,8 @@ function StepAIClassificationDual({
   wwfCounts: MethodologyClassificationCounts | undefined;
   ptCurrentJob: ClassificationJob | null;
   wwfCurrentJob: ClassificationJob | null;
-  busy: boolean;
+  busyPt: boolean;
+  busyWwf: boolean;
   ptError: string | null;
   wwfError: string | null;
   onRunPT: () => void;
@@ -969,7 +1012,11 @@ function StepAIClassificationDual({
     ? "Lancer la catégorisation WWF restante"
     : "Tout est terminé";
   const runBothDisabled = Boolean(
-    busy || !latestUpload || (!ptNeeds && !wwfNeeds) || anyRunning,
+    busyPt ||
+      busyWwf ||
+      !latestUpload ||
+      (!ptNeeds && !wwfNeeds) ||
+      anyRunning,
   );
   return (
     <div className="space-y-5">
@@ -1012,7 +1059,7 @@ function StepAIClassificationDual({
           methodology="protein_tracker"
           counts={ptCounts}
           currentJob={ptCurrentJob}
-          busy={busy}
+          busy={busyPt}
           error={ptError}
           latestUpload={latestUpload}
           onRun={onRunPT}
@@ -1024,7 +1071,7 @@ function StepAIClassificationDual({
           methodology="wwf"
           counts={wwfCounts}
           currentJob={wwfCurrentJob}
-          busy={busy}
+          busy={busyWwf}
           error={wwfError}
           latestUpload={latestUpload}
           onRun={onRunWWF}
@@ -1033,6 +1080,47 @@ function StepAIClassificationDual({
           onOpenValidation={() => onOpenValidation("wwf")}
         />
       </div>
+
+      {/* Phase WWF-Q — surface unresolved partial failures BEFORE the
+          "Continuer vers Validation" CTA so the operator can't
+          accidentally proceed thinking everything is clean. */}
+      {(() => {
+        const ptUnknown = ptCounts?.unknown ?? 0;
+        const wwfUnknown = wwfCounts?.unknown ?? 0;
+        const ptFailed = ptCurrentJob?.failed_product_count ?? 0;
+        const wwfFailed = wwfCurrentJob?.failed_product_count ?? 0;
+        const ptHasErrors =
+          ptCurrentJob?.status === "completed_with_errors" ||
+          ptCurrentJob?.status === "failed" ||
+          ptUnknown > 0 ||
+          ptFailed > 0;
+        const wwfHasErrors =
+          wwfCurrentJob?.status === "completed_with_errors" ||
+          wwfCurrentJob?.status === "failed" ||
+          wwfUnknown > 0 ||
+          wwfFailed > 0;
+        if (!ptHasErrors && !wwfHasErrors) return null;
+        return (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="font-medium">
+              {ptHasErrors && wwfHasErrors
+                ? "Les deux catégorisations ont des lignes en échec / inconnu."
+                : ptHasErrors
+                ? `La catégorisation Protein Tracker a ${
+                    ptUnknown + ptFailed
+                  } ligne(s) non résolue(s).`
+                : `La catégorisation WWF a ${
+                    wwfUnknown + wwfFailed
+                  } ligne(s) non résolue(s).`}
+            </div>
+            <div className="mt-1 text-amber-700">
+              Vous pouvez continuer vers la validation pour les corriger
+              manuellement, ou cliquer sur « Réessayer » pour relancer les
+              lignes en échec.
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="flex flex-wrap gap-3">
         <Button onClick={onNext} variant={canContinue ? "primary" : "secondary"}>
@@ -1819,6 +1907,15 @@ export default function WorkflowWizardPage() {
 
   // Per-step action state
   const [busy, setBusy] = useState(false);
+  // Phase WWF-Q — separate busy flags per methodology so PT and WWF
+  // classification jobs are fully independent. Before this fix the
+  // single ``busy`` flag was set/cleared by both handlers: when PT's
+  // pollJob finished and called setBusy(false), the UI re-enabled the
+  // WWF Run button mid-run, which the user perceived as WWF "stopping"
+  // even though its own poll loop was still alive. The shared flag
+  // also blocked WWF retry-failed while PT was still polling.
+  const [busyPt, setBusyPt] = useState(false);
+  const [busyWwf, setBusyWwf] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   // Phase 34C — store last classify and enrichment results for UI feedback
   const [lastClassifyResult, setLastClassifyResult] = useState<ClassifySummary | null>(null);
@@ -2108,8 +2205,10 @@ export default function WorkflowWizardPage() {
   //   - The 5-failures dead-end ("Reprendre la classification" button).
   //   - The 409 ``classification_job_active`` short-circuit.
   function handleResumeClassify(jobId: string) {
-    if (busy) return;
-    setBusy(true);
+    // Phase WWF-Q — PT-specific busy guard so resuming WWF in
+    // parallel doesn't trip on a PT poll loop still in flight.
+    if (busyPt) return;
+    setBusyPt(true);
     setActionError(null);
     setJobError(null);
     api
@@ -2124,17 +2223,17 @@ export default function WorkflowWizardPage() {
         setActionError(e.message ?? "Impossible de reprendre la classification.");
       })
       .finally(() => {
-        setBusy(false);
+        setBusyPt(false);
       });
   }
 
   function handleClassifyAI() {
     if (!latestUpload || !status) return;
-    if (busy) return; // defence-in-depth duplicate-click guard
+    if (busyPt) return; // Phase WWF-Q — PT-specific duplicate-click guard
     // Phase WWF-G — primary methodology is WWF for WWF-only projects,
     // PT otherwise (PT-only or PT+WWF).
     const methodology: Methodology = primaryMethodology;
-    setBusy(true);
+    setBusyPt(true);
     setActionError(null);
     setJobError(null);
     api
@@ -2186,14 +2285,14 @@ export default function WorkflowWizardPage() {
         }
       })
       .finally(() => {
-        setBusy(false);
+        setBusyPt(false);
       });
   }
 
   function handleRetryFailed() {
     if (!currentJob) return;
-    if (busy) return;
-    setBusy(true);
+    if (busyPt) return;
+    setBusyPt(true);
     setActionError(null);
     setJobError(null);
     api
@@ -2206,7 +2305,7 @@ export default function WorkflowWizardPage() {
         setActionError(e.message ?? "Échec lors du redémarrage de la classification IA.");
       })
       .finally(() => {
-        setBusy(false);
+        setBusyPt(false);
       });
   }
 
@@ -2252,8 +2351,10 @@ export default function WorkflowWizardPage() {
   );
 
   function handleResumeClassifyWwf(jobId: string) {
-    if (busy) return;
-    setBusy(true);
+    // Phase WWF-Q — WWF-specific busy guard so PT's poll loop can
+    // be in flight without blocking the WWF user actions.
+    if (busyWwf) return;
+    setBusyWwf(true);
     setActionErrorWwf(null);
     setJobErrorWwf(null);
     api
@@ -2270,14 +2371,14 @@ export default function WorkflowWizardPage() {
         );
       })
       .finally(() => {
-        setBusy(false);
+        setBusyWwf(false);
       });
   }
 
   function handleClassifyWwf() {
     if (!latestUpload || !status) return;
-    if (busy) return;
-    setBusy(true);
+    if (busyWwf) return; // Phase WWF-Q — WWF-specific guard
+    setBusyWwf(true);
     setActionErrorWwf(null);
     setJobErrorWwf(null);
     api
@@ -2317,14 +2418,14 @@ export default function WorkflowWizardPage() {
         }
       })
       .finally(() => {
-        setBusy(false);
+        setBusyWwf(false);
       });
   }
 
   function handleRetryFailedWwf() {
     if (!currentJobWwf) return;
-    if (busy) return;
-    setBusy(true);
+    if (busyWwf) return;
+    setBusyWwf(true);
     setActionErrorWwf(null);
     setJobErrorWwf(null);
     api
@@ -2339,7 +2440,7 @@ export default function WorkflowWizardPage() {
         );
       })
       .finally(() => {
-        setBusy(false);
+        setBusyWwf(false);
       });
   }
 
@@ -2351,7 +2452,8 @@ export default function WorkflowWizardPage() {
   // implicit concurrency limit — no extra OpenAI requests per row.
   function handleClassifyBoth() {
     if (!latestUpload || !status) return;
-    if (busy) return;
+    // Phase WWF-Q — each methodology owns its own busy guard; no
+    // shared check here. Each handler self-checks busyPt / busyWwf.
     const ptDone = ptClassificationCounts?.status === "complete";
     const wwfDone = wwfClassificationCounts?.status === "complete";
     if (!ptDone) handleClassifyAI();
@@ -2557,7 +2659,8 @@ export default function WorkflowWizardPage() {
             wwfCounts={wwfClassificationCounts}
             ptCurrentJob={currentJob}
             wwfCurrentJob={currentJobWwf}
-            busy={busy}
+            busyPt={busyPt}
+            busyWwf={busyWwf}
             ptError={actionError ?? jobError}
             wwfError={actionErrorWwf ?? jobErrorWwf}
             onRunPT={handleClassifyAI}
@@ -2580,7 +2683,10 @@ export default function WorkflowWizardPage() {
             lastClassifyResult={lastClassifyResult}
             currentJob={currentJob}
             jobError={jobError}
-            busy={busy}
+            // Phase WWF-Q — single-methodology mode forwards the
+            // methodology-specific busy flag (the dual-card mode is
+            // handled by the StepAIClassificationDual branch above).
+            busy={busyPt}
             error={actionError}
             onRun={handleClassifyAI}
             onResume={handleResumeClassify}
