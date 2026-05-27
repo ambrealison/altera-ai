@@ -69,7 +69,7 @@ if TYPE_CHECKING:
 MAX_BATCH_SIZE = 50
 
 
-def _default_batch_size() -> int:
+def _default_batch_size(methodology: Methodology | None = None) -> int:
     """Phase 35-perf — env-tunable default batch size.
 
     Bench on staging with real OpenAI calls determines the sweet spot
@@ -77,13 +77,33 @@ def _default_batch_size() -> int:
     to 25 — the historical safe value. Set
     ``ALTERA_AI_CLASSIFICATION_BATCH_SIZE=40`` (or 50, capped at
     ``MAX_BATCH_SIZE``) to validate larger batches without a redeploy.
+
+    Phase WWF-S — methodology-aware override. The WWF prompt is longer
+    and the result schema is more complex (subgroups + composite +
+    bucket per row) than the PT one, so a larger batch is more likely
+    to hit a provider timeout or schema crash mid-response and lose the
+    whole batch. WWF defaults to ``min(global, ALTERA_WWF_BATCH_SIZE,
+    25)`` and can be raised with
+    ``ALTERA_WWF_CLASSIFICATION_BATCH_SIZE=40`` once stable. PT default
+    is unchanged.
     """
     raw = os.environ.get("ALTERA_AI_CLASSIFICATION_BATCH_SIZE", "25")
     try:
-        v = int(raw)
+        global_default = int(raw)
     except ValueError:
-        return 25
-    return max(1, min(v, MAX_BATCH_SIZE))
+        global_default = 25
+    global_default = max(1, min(global_default, MAX_BATCH_SIZE))
+    if methodology is Methodology.WWF:
+        wwf_raw = os.environ.get(
+            "ALTERA_WWF_CLASSIFICATION_BATCH_SIZE", "25"
+        )
+        try:
+            wwf_cap = int(wwf_raw)
+        except ValueError:
+            wwf_cap = 25
+        wwf_cap = max(1, min(wwf_cap, MAX_BATCH_SIZE))
+        return min(global_default, wwf_cap)
+    return global_default
 
 
 def _eligible_product_ids(
@@ -207,7 +227,7 @@ def create_classification_job(
     import logging
 
     if batch_size is None:
-        batch_size = _default_batch_size()
+        batch_size = _default_batch_size(methodology)
     elif batch_size <= 0 or batch_size > MAX_BATCH_SIZE:
         batch_size = min(max(batch_size, 1), MAX_BATCH_SIZE)
     t_total = time.perf_counter()
@@ -263,6 +283,100 @@ def create_classification_job(
         batch_size,
     )
     return job
+
+
+def _readable_fallback_for_product(
+    product: NormalizedProduct,
+    methodology: Methodology,
+    now: datetime,
+):
+    """Phase WWF-S — last-chance deterministic fallback used when the
+    provider exception in ``_run_one_advance`` would otherwise hard-fail
+    every product in the batch.
+
+    Mirrors the in-batch fallback path (``_emit_failed_or_fallback`` in
+    ``batch_classifier.py``, Phase 36K2 / WWF-J): tries the readable-
+    name guards and, if a category falls out, returns a low-confidence
+    (0.5) ``ProteinTrackerProductClassification`` /
+    ``WWFProductClassification`` ready to upsert. The caller then
+    enqueues a ``LOW_CONFIDENCE`` review item so the analyst can
+    confirm or correct it.
+
+    Returns ``None`` when the name is unusable or no guard matches —
+    the caller hard-fails the row.
+    """
+    from altera_api.ai.batch_classifier import _is_unusable_name
+
+    if _is_unusable_name(product.product_name):
+        return None
+    if methodology is Methodology.PROTEIN_TRACKER:
+        from altera_api.ai.pt_guards import classify_readable_fallback
+        from altera_api.domain.common import ClassificationSource
+        from altera_api.domain.protein_tracker import (
+            ProteinTrackerProductClassification,
+        )
+
+        fb = classify_readable_fallback(product.product_name)
+        if fb is None:
+            return None
+        group, _rule = fb
+        return ProteinTrackerProductClassification(
+            product_id=product.id,
+            pt_group=group,
+            source=ClassificationSource.AI,
+            confidence=Decimal("0.5"),
+            ai_prompt_version="readable_fallback_provider_error",
+            ai_model="readable_fallback",
+            updated_at=now,
+        )
+    # WWF
+    from altera_api.ai.wwf_guards import classify_wwf_readable_fallback
+    from altera_api.domain.common import ClassificationSource
+    from altera_api.domain.wwf import (
+        WWFFG1Subgroup,
+        WWFFoodGroup,
+        WWFProductClassification,
+    )
+
+    fb = classify_wwf_readable_fallback(product.product_name)
+    if fb is None:
+        return None
+    (
+        fg,
+        is_composite,
+        fg1,
+        fg2,
+        fg3,
+        fg5,
+        fg7,
+        bucket,
+        _rule,
+    ) = fb
+    # Composite FG1 fallbacks return ``fg1=None`` (``_readable_composite``
+    # in wwf_guards.py) because the bucket carries the protein-source
+    # information. The domain validator still requires
+    # ``fg1_subgroup`` when ``wwf_food_group=FG1``, so we assign a
+    # neutral default (``ALTERNATIVE_PROTEIN_SOURCES``) for those
+    # rows — the row will be confidence 0.5 and route to review, so
+    # the analyst can correct the subgroup if needed.
+    if fg is WWFFoodGroup.FG1 and is_composite and fg1 is None:
+        fg1 = WWFFG1Subgroup.ALTERNATIVE_PROTEIN_SOURCES
+    return WWFProductClassification(
+        product_id=product.id,
+        wwf_food_group=fg,
+        wwf_is_composite=is_composite,
+        fg1_subgroup=fg1,
+        fg2_subgroup=fg2,
+        fg3_subgroup=fg3,
+        fg5_grain_kind=fg5,
+        fg7_snack_kind=fg7,
+        composite_step1_bucket=bucket,
+        source=ClassificationSource.AI,
+        confidence=Decimal("0.5"),
+        ai_prompt_version="readable_fallback_provider_error",
+        ai_model="readable_fallback",
+        updated_at=now,
+    )
 
 
 def _refresh_coverage_counters(
@@ -474,26 +588,74 @@ def advance_classification_job(
         provider_ms = (time.perf_counter() - t_provider) * 1000
     except Exception as exc:  # noqa: BLE001 — surface any provider crash
         provider_ms = (time.perf_counter() - t_provider) * 1000
-        # Provider blew up — record the error sample but DON'T fail
-        # the whole job. Mark these rows as failed and continue. The
-        # client can retry-failed later.
+        # Phase WWF-S — provider-level crash (HTTP timeout, JSON decode
+        # crash inside the classifier wrapper, OpenAI hiccup, etc.).
+        # Before this phase the orchestrator hard-failed every product
+        # in the batch with ``_queue_unknown_*`` even though the WWF /
+        # PT readable fallback would recover most rows. Symptom on the
+        # 100-product dataset: batch 1 succeeded (50/50), batch 2 hit
+        # one provider error, all 50 ended up as
+        # ``unknown + AI_PROVIDER_ERROR`` even though guards now have
+        # >95% coverage. We now run the deterministic readable fallback
+        # per product first; rows it recovers land in low-confidence
+        # review instead of unresolved-failed.
         sample = (
             *job.sample_errors,
             f"advance_provider_error: {type(exc).__name__}: {exc}",
         )[-10:]
-        failed_ids = chunk_ids
+        recovered = 0
         for p in products:
-            _queue_unknown_pt(
-                store, p, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
-            ) if job.methodology is Methodology.PROTEIN_TRACKER else _queue_unknown_wwf(
-                store, p, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+            verdict = _readable_fallback_for_product(
+                p, job.methodology, now
             )
+            if verdict is None:
+                # No readable fallback — fall back to unknown + queue.
+                failed_ids.append(p.id)
+                if job.methodology is Methodology.PROTEIN_TRACKER:
+                    _queue_unknown_pt(
+                        store,
+                        p,
+                        ManualReviewQueueReason.AI_PROVIDER_ERROR,
+                        now,
+                    )
+                else:
+                    _queue_unknown_wwf(
+                        store,
+                        p,
+                        ManualReviewQueueReason.AI_PROVIDER_ERROR,
+                        now,
+                    )
+            else:
+                recovered += 1
+                if job.methodology is Methodology.PROTEIN_TRACKER:
+                    store.upsert_pt_classification(verdict)
+                else:
+                    store.upsert_wwf_classification(verdict)
+                _enqueue_review_item(
+                    store,
+                    p.id,
+                    job.methodology,
+                    ManualReviewQueueReason.LOW_CONFIDENCE,
+                    now,
+                )
+        if recovered > 0:
+            sample = (
+                *sample,
+                (
+                    f"advance_provider_error_recovered: "
+                    f"recovered={recovered}/{len(chunk_ids)} via readable fallback"
+                ),
+            )[-10:]
         coverage, coverage_ms = _refresh_coverage_counters(store, job)
         _record_advance_timings(
             job, load_ms, provider_ms, 0.0, coverage_ms
         )
         new_status = (
-            ClassificationJobStatus.COMPLETED_WITH_ERRORS
+            (
+                ClassificationJobStatus.COMPLETED_WITH_ERRORS
+                if coverage["failed_total"] > 0
+                else ClassificationJobStatus.COMPLETED
+            )
             if not remaining
             else ClassificationJobStatus.RUNNING
         )
@@ -502,6 +664,7 @@ def advance_classification_job(
             pending_product_ids=remaining,
             processed_products=job.processed_products + len(chunk_ids),
             failed_product_ids=tuple({*job.failed_product_ids, *failed_ids}),
+            recovered_rows=job.recovered_rows + recovered,
             sample_errors=sample,
             completed_at=now if new_status.value.startswith("completed") else None,
             **coverage,
@@ -514,6 +677,7 @@ def advance_classification_job(
     # ``classify.advance.timing`` log so the route can attribute slow
     # batches to provider vs. db work.
     t_db = time.perf_counter()
+    extra_recovered = 0
     for p, verdict in zip(products, bundle.verdicts, strict=True):
         if isinstance(verdict, AIAccepted):
             if job.methodology is Methodology.PROTEIN_TRACKER:
@@ -534,6 +698,11 @@ def advance_classification_job(
                 now,
             )
         elif isinstance(verdict, AINeedsReviewParseFailed):
+            # Phase WWF-S — ``AINeedsReviewParseFailed`` arriving from
+            # ``ai_batch_classify`` means the in-batch
+            # ``_emit_failed_or_fallback`` already tried the readable
+            # fallback and returned None — there's nothing left to
+            # recover here.
             failed_ids.append(p.id)
             if job.methodology is Methodology.PROTEIN_TRACKER:
                 _queue_unknown_pt(
@@ -544,14 +713,45 @@ def advance_classification_job(
                     store, p, ManualReviewQueueReason.AI_PARSE_FAILED, now
                 )
         elif isinstance(verdict, AIProviderError):
-            failed_ids.append(p.id)
-            if job.methodology is Methodology.PROTEIN_TRACKER:
-                _queue_unknown_pt(
-                    store, p, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
-                )
+            # Phase WWF-S — provider crash for THIS row (ProviderError
+            # caught inside ``ai_batch_classify`` per-chunk). The in-
+            # batch code path doesn't try the readable fallback for
+            # ``AIProviderError`` verdicts (only for
+            # ``AINeedsReviewParseFailed`` ones), so we do it here.
+            # This is the same recovery path used by the orchestrator's
+            # ``except Exception`` branch above and matches the in-
+            # batch behaviour for parse failures.
+            recovered_cls = _readable_fallback_for_product(
+                p, job.methodology, now
+            )
+            if recovered_cls is None:
+                failed_ids.append(p.id)
+                if job.methodology is Methodology.PROTEIN_TRACKER:
+                    _queue_unknown_pt(
+                        store,
+                        p,
+                        ManualReviewQueueReason.AI_PROVIDER_ERROR,
+                        now,
+                    )
+                else:
+                    _queue_unknown_wwf(
+                        store,
+                        p,
+                        ManualReviewQueueReason.AI_PROVIDER_ERROR,
+                        now,
+                    )
             else:
-                _queue_unknown_wwf(
-                    store, p, ManualReviewQueueReason.AI_PROVIDER_ERROR, now
+                extra_recovered += 1
+                if job.methodology is Methodology.PROTEIN_TRACKER:
+                    store.upsert_pt_classification(recovered_cls)
+                else:
+                    store.upsert_wwf_classification(recovered_cls)
+                _enqueue_review_item(
+                    store,
+                    p.id,
+                    job.methodology,
+                    ManualReviewQueueReason.LOW_CONFIDENCE,
+                    now,
                 )
 
     db_write_ms = (time.perf_counter() - t_db) * 1000
@@ -577,7 +777,9 @@ def advance_classification_job(
         processed_products=next_processed,
         failed_product_ids=tuple({*job.failed_product_ids, *failed_ids}),
         retry_batches=job.retry_batches + bundle.retry_batches,
-        recovered_rows=job.recovered_rows + bundle.recovered_rows,
+        recovered_rows=(
+            job.recovered_rows + bundle.recovered_rows + extra_recovered
+        ),
         sample_errors=next_sample,
         completed_at=now if is_done else None,
         **coverage,
@@ -710,6 +912,17 @@ def retry_failed_in_classification_job(
         store.add_classification_job(empty)
         return empty
     now = datetime.now(UTC)
+    # Phase WWF-S — if the previous job lost a full batch (or more) to a
+    # batch-level failure, retrying at the same batch size is likely to
+    # repeat the same crash. Halve the batch size for the retry (with a
+    # floor of 10) so a flaky provider response can't keep eating the
+    # same 25-50 readable rows pass after pass.
+    next_batch_size = prev.batch_size
+    if (
+        prev.batch_size >= 2
+        and len(prev.failed_product_ids) >= prev.batch_size
+    ):
+        next_batch_size = max(10, prev.batch_size // 2)
     job = ClassificationJob(
         id=uuid4(),
         organisation_id=prev.organisation_id,
@@ -722,7 +935,7 @@ def retry_failed_in_classification_job(
         pending_product_ids=prev.failed_product_ids,
         overwrite=True,  # retry must rewrite the unknown rows
         only_missing_or_failed=False,
-        batch_size=prev.batch_size,
+        batch_size=next_batch_size,
         created_by=created_by,
         created_at=now,
     )
