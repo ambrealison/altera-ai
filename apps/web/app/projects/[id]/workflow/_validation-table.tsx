@@ -272,8 +272,13 @@ export function ValidationTable({
         setSubmittingId(null);
         return;
       }
-      const methodology: Methodology = "protein_tracker";
-      await api.submitDecision(projectId, row.product_id, methodology, {
+      // Phase WWF-N — the decision MUST target the active methodology
+      // view, not a hardcoded "protein_tracker". For WWF rows the
+      // decision goes through the WWF review queue / classifier.
+      const targetMethodology: Methodology = row.methodology
+        ? row.methodology
+        : methodologyView;
+      await api.submitDecision(projectId, row.product_id, targetMethodology, {
         decision,
         to_category: to,
       });

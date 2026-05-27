@@ -398,6 +398,10 @@ export interface ClassificationRow {
   wwf_composite_step1_bucket?: string | null;
   wwf_rule_id?: string | null;
   review_status: ManualReviewStatus | null;
+  // Phase WWF-N — methodology + WWF review state for the unified
+  // validation table.
+  methodology?: "protein_tracker" | "wwf" | null;
+  wwf_review_status?: ManualReviewStatus | null;
 }
 
 export interface ClassificationsResponse {
@@ -417,6 +421,9 @@ export interface ClassificationsFilters {
   product_search?: string;
   limit?: number;
   offset?: number;
+  // Phase WWF-N — unified validation table.
+  view?: "products" | "review";
+  methodology?: "protein_tracker" | "wwf";
 }
 
 // Phase 34L — nutrition validation table.
@@ -1385,6 +1392,9 @@ export function createApi(accessToken: string | null) {
         params.set("product_search", filters.product_search);
       if (filters.limit != null) params.set("limit", String(filters.limit));
       if (filters.offset != null) params.set("offset", String(filters.offset));
+      // Phase WWF-N — unified validation table query params.
+      if (filters.view) params.set("view", filters.view);
+      if (filters.methodology) params.set("methodology", filters.methodology);
       const q = params.size > 0 ? `?${params.toString()}` : "";
       return request<ClassificationsResponse>(
         `/api/v1/projects/${projectId}/classifications${q}`,

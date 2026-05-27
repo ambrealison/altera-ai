@@ -2062,6 +2062,14 @@ class ClassificationRow(BaseModel):
     # Review state
     review_status: str | None         # "in_queue" | "reviewing" | "accepted" |
                                       #  "changed" | "deferred" | null
+    # Phase WWF-N — which methodology this row's review/decision is
+    # about. ``None`` for legacy "all products" rows (one row per
+    # product). ``"protein_tracker"`` or ``"wwf"`` when the row was
+    # emitted by ``view=review`` (one row per ``(product, methodology)``
+    # review item).
+    methodology: str | None = None
+    # Phase WWF-N — WWF review state (separate from PT review_status).
+    wwf_review_status: str | None = None
 
 
 class ClassificationsResponse(BaseModel):
@@ -2090,6 +2098,9 @@ def list_classifications_route(
     max_confidence: float | None = None,
     review_status: ManualReviewStatus | None = None,
     product_search: str | None = None,
+    # Phase WWF-N — new view modes.
+    view: Literal["products", "review"] = "products",
+    methodology: Literal["protein_tracker", "wwf"] | None = None,
 ) -> ClassificationsResponse:
     """Paginated category validation table for the wizard.
 
@@ -2136,8 +2147,7 @@ def list_classifications_route(
     classifications_ms = (time.perf_counter() - t0) * 1000
 
     t0 = time.perf_counter()
-    # PT review queue only (the Step 5 validation table is the PT
-    # review surface). ``list_review_items_for_project`` already
+    # PT review queue. ``list_review_items_for_project`` already
     # chunks the IN() filter at 200 ids/URL — Phase 34Z-fix.
     review_items_pt = (
         {
@@ -2147,6 +2157,18 @@ def list_classifications_route(
             )
         }
         if pt_enabled
+        else {}
+    )
+    # Phase WWF-N — also fetch the WWF review queue so the unified
+    # validation table can render per-methodology review rows.
+    review_items_wwf = (
+        {
+            item.product_id: item
+            for item in store.list_review_items_for_project(
+                project.id, methodology=Methodology.WWF
+            )
+        }
+        if wwf_enabled
         else {}
     )
     review_ms = (time.perf_counter() - t0) * 1000
@@ -2168,6 +2190,7 @@ def list_classifications_route(
         pt = pt_map.get(product.id) if pt_enabled else None
         wwf = wwf_map.get(product.id) if wwf_enabled else None
         review_item = review_items_pt.get(product.id)
+        wwf_review_item = review_items_wwf.get(product.id)
         projections.append(
             {
                 "product": product,
@@ -2182,6 +2205,12 @@ def list_classifications_route(
                 "review_status": (
                     review_item.status.value
                     if review_item is not None
+                    else None
+                ),
+                # Phase WWF-N — methodology-specific WWF review state.
+                "wwf_review_status": (
+                    wwf_review_item.status.value
+                    if wwf_review_item is not None
                     else None
                 ),
             }
@@ -2228,9 +2257,40 @@ def list_classifications_route(
             )
     counts_ms = (time.perf_counter() - t0) * 1000
 
+    # Phase WWF-N — pivot into per-(product, methodology) rows when
+    # ``view=review``. A product with both PT and WWF in review
+    # produces TWO rows. ``methodology=protein_tracker|wwf`` further
+    # filters the result.
+    open_statuses = {
+        ManualReviewStatus.IN_QUEUE.value,
+        ManualReviewStatus.REVIEWING.value,
+    }
+    if view == "review":
+        review_projections: list[dict[str, Any]] = []
+        for proj in filtered:
+            if (
+                methodology in (None, "protein_tracker")
+                and proj["review_status"] in open_statuses
+            ):
+                review_projections.append({**proj, "_methodology": "protein_tracker"})
+            if (
+                methodology in (None, "wwf")
+                and proj["wwf_review_status"] in open_statuses
+            ):
+                review_projections.append({**proj, "_methodology": "wwf"})
+        page_source = review_projections
+    else:
+        # view=products — optionally filter to methodology-eligible rows.
+        if methodology == "protein_tracker":
+            page_source = [p for p in filtered if p["pt_group"] is not None]
+        elif methodology == "wwf":
+            page_source = [p for p in filtered if p["wwf"] is not None]
+        else:
+            page_source = filtered
+
     # Phase 36B — materialise Pydantic rows only for the page.
     t0 = time.perf_counter()
-    page_projections = filtered[
+    page_projections = page_source[
         pagination.offset : pagination.offset + pagination.limit
     ]
     items: list[ClassificationRow] = []
@@ -2299,6 +2359,11 @@ def list_classifications_route(
                     wwf.rule_id if wwf is not None else None
                 ),
                 review_status=proj["review_status"],
+                # Phase WWF-N — methodology + wwf_review_status so the
+                # frontend can render per-(product, methodology) review
+                # rows and accept/correct each methodology separately.
+                methodology=proj.get("_methodology"),
+                wwf_review_status=proj["wwf_review_status"],
             )
         )
     serialize_ms = (time.perf_counter() - t0) * 1000
@@ -2324,7 +2389,10 @@ def list_classifications_route(
     )
     return ClassificationsResponse(
         items=items,
-        total=len(filtered),
+        # Phase WWF-N — ``total`` reflects the page-source size so the
+        # frontend pagination matches the page-row count even in
+        # ``view=review`` mode (where a product can produce two rows).
+        total=len(page_source),
         counts_by_source=counts_by_source,
         counts_by_pt_group=counts_by_pt_group,
         pt_eligible_total=pt_eligible_total,
