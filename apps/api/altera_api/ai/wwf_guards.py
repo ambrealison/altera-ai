@@ -566,6 +566,9 @@ _WWF_FG1_SEAFOOD_TOKENS: tuple[str, ...] = (
     "pike",
     "sea bass",
     "sea bream",
+    # Phase WWF-M
+    "crayfish",
+    "crawfish",
 )
 
 
@@ -658,6 +661,12 @@ _WWF_FG1_LEGUME_TOKENS: tuple[str, ...] = (
     "moth beans",
     "horse gram",
     "bambara groundnut",
+    # Phase WWF-M — singular bean variants the CSV uses.
+    "navy bean",
+    "wax beans",
+    "wax bean",
+    "pinto bean",
+    "kidney bean",
 )
 
 
@@ -694,6 +703,55 @@ _WWF_FG1_NUTS_SEEDS_TOKENS: tuple[str, ...] = (
     "peanut butter",
     "coconut flesh",
     "chair de coco",
+    # Phase WWF-M — English plural / singular forms of common nuts &
+    # seeds from the WWF Category reference taxonomy.
+    "almond",
+    "almonds",
+    "brazilnut",
+    "brazilnuts",
+    "brazil nut",
+    "brazil nuts",
+    "cashew",
+    "cashews",
+    "chestnut",
+    "chestnuts",
+    "flaxseed",
+    "flaxseeds",
+    "flax seed",
+    "flax seeds",
+    "hazelnut",
+    "hazelnuts",
+    "hemp seed",
+    "hemp seeds",
+    "hempseed",
+    "hempseeds",
+    "linseed",
+    "linseeds",
+    "macadamia",
+    "macadamias",
+    "peanut",
+    "peanuts",
+    "pecan",
+    "pecans",
+    "pistachio",
+    "pistachios",
+    "pine nut",
+    "pine nuts",
+    "pinenut",
+    "pinenuts",
+    "poppy seed",
+    "poppy seeds",
+    "sunflower seed",
+    "sunflower seeds",
+    "walnut",
+    "walnuts",
+    "nigella seed",
+    "nigella seeds",
+    "pumpkin seed",
+    "pumpkin seeds",
+    "sesame seed",
+    "sesame seeds",
+    "coconut",
 )
 
 
@@ -728,6 +786,22 @@ _WWF_FG1_MEAT_ALT_TOKENS: tuple[str, ...] = (
     "plant-based fish",
     "egg alternative",
     "egg replacer",
+    # Phase WWF-M
+    "vegetable burger",
+    "vegetable sausage",
+    "vegetable nugget",
+    "vegetable nuggets",
+    "meat alternative",
+    "meat alternatives",
+    "meat substitute",
+    "meat substitutes",
+    "veggie burger",
+    "veggie burgers",
+    "veggie sausage",
+    "veggie sausages",
+    "soy-based",
+    "soya-based",
+    "soy protein-based",
 )
 
 
@@ -766,6 +840,14 @@ _WWF_FG2_CHEESE_TOKENS: tuple[str, ...] = (
     "cottage cheese",
     "cream cheese",
     "philadelphia",
+    # Phase WWF-M — common English / generic cheese descriptors.
+    "cheese",
+    "cheeses",
+    "aged cheese",
+    "hard cheese",
+    "soft cheese",
+    "fresh cheese",
+    "blue-veined cheese",
 )
 
 
@@ -777,6 +859,7 @@ _WWF_FG2_OTHER_DAIRY_TOKENS: tuple[str, ...] = (
     "yaourt",
     "yaourts",
     "yogurt",
+    "yoghurt",
     "kefir",
     "creme",
     "creme fraiche",
@@ -793,6 +876,29 @@ _WWF_FG2_OTHER_DAIRY_TOKENS: tuple[str, ...] = (
     "fromage frais",
     "sour cream",
     "cottage",
+    # Phase WWF-M — English vocabulary from the WWF Category
+    # reference taxonomy.
+    "milk",
+    "milks",
+    "cow's milk",
+    "cows milk",
+    "sheep's milk",
+    "sheeps milk",
+    "buffalo milk",
+    "goat's milk",
+    "goats milk",
+    "evaporated milk",
+    "condensed milk",
+    "powdered milk",
+    "milk powder",
+    "single cream",
+    "double cream",
+    "clotted cream",
+    "whipped cream",
+    "heavy cream",
+    "half-and-half",
+    "cream",
+    "coffee creamer",
 )
 
 
@@ -832,6 +938,24 @@ _WWF_FG2_PLANT_DAIRY_TOKENS: tuple[str, ...] = (
     "coconut milk",
     "plant cheese",
     "plant yogurt",
+    # Phase WWF-M
+    "plant-based",
+    "plant based",
+    "plant-based cheese",
+    "plant-based hard cheese",
+    "plant-based soft cheese",
+    "soy-based cheese",
+    "soya-based cheese",
+    "plant-based coffee creamer",
+    "plant-based coffee creamers",
+    "plant-based yoghurt",
+    "plant-based yogurt",
+    "vegan yogurt",
+    "vegan yoghurt",
+    "vegan butter",
+    "vegan cream",
+    "non-dairy",
+    "non dairy",
 )
 
 
@@ -882,6 +1006,30 @@ _WWF_FG3_PLANT_FAT_TOKENS: tuple[str, ...] = (
     "margarine vegetale",
     "plant butter",
     "vegan butter",
+    # Phase WWF-M — English oil vocabulary. Bare "oil" alone is
+    # ambiguous (engine oil!) but compound forms are safe.
+    "olive oil",
+    "sunflower oil",
+    "rapeseed oil",
+    "canola oil",
+    "coconut oil",
+    "sesame oil",
+    "peanut oil",
+    "groundnut oil",
+    "palm oil",
+    "avocado oil",
+    "grapeseed oil",
+    "flaxseed oil",
+    "hemp seed oil",
+    "hempseed oil",
+    "vegetable oil",
+    "soybean oil",
+    "soya oil",
+    "corn oil",
+    "safflower oil",
+    "walnut oil",
+    "almond oil",
+    "cooking oil",
 )
 
 
@@ -1089,6 +1237,65 @@ _WWF_FG4_TOKENS: tuple[str, ...] = (
     "watercress",
     "zucchini",
     "sweetcorn",
+    "sweet corn",
+    # Phase WWF-M — additional fruit / vegetable vocabulary from
+    # the WWF Category reference taxonomy (mismatch-CSV-driven).
+    "kumquat",
+    "kumquats",
+    "mandarin",
+    "mandarins",
+    "mangosteen",
+    "pommelo",
+    "pomelo",
+    "avocado",
+    "avocados",
+    "brussel sprouts",
+    "brussel sprout",
+    "brocolli",
+    "broccolis",
+    "chicory",
+    "cress",
+    "green beans",
+    "garden beans",
+    "haricot vert",
+    "haricots verts",
+    "leafy greens",
+    "leafy greans",
+    "kohlrabi",
+    "pumpkins",
+    "radicchio",
+    "romanesco",
+    "shallots",
+    "currants",
+    "currant",
+    "prunes",
+    "prune",
+    "sultanas",
+    "sultana",
+    "raisins",
+    "raisin",
+    "kimchi",
+    "sauerkraut",
+    "citrus segments",
+    "sugar snap peas",
+    "snow peas",
+    "stir fry vegetables",
+    "stir-fry vegetables",
+    "vegetable sticks",
+    "ocra",
+    "okra",
+    "pak choi",
+    "pak-choi",
+    "bok choy",
+    "frozen berries",
+    "frozen fruits",
+    "frozen vegetables",
+    "dried fruit",
+    "dried fruits",
+    "dried apricot",
+    "dried apricots",
+    "raisins secs",
+    "abricots secs",
 )
 
 
@@ -1175,14 +1382,22 @@ _WWF_FG6_TUBER_TOKENS: tuple[str, ...] = (
     "patate douce",
     "patates douces",
     "sweet potato",
+    "sweet potatoes",
     "potato",
     "potatoes",
     "cassava",
     "manioc",
     "taro",
     "yam",
+    "yams",
     "igname",
     "lotus root",
+    # Phase WWF-M
+    "jicama",
+    "jerusalem artichoke",
+    "topinambour",
+    "tapioca",
+    "yucca",
 )
 
 
@@ -1610,6 +1825,97 @@ def apply_wwf_guards(
             return _to_out_of_scope(
                 classification, rule="wwf_scope_exclusion_bouillon"
             )
+
+    # Phase WWF-M — FG3 animal-fat anchor MUST win over FG1 animal
+    # anchors when both fire. Examples:
+    #   "Duck fat"    → FG3 animal_fat (NOT FG1 poultry)
+    #   "Goose fat"   → FG3 animal_fat (NOT FG1 poultry)
+    #   "Tallow"      → FG3 animal_fat (the token is FG3-specific)
+    # We do the check before the FG1-priority guard below.
+    if _contains_any_word(name, _WWF_FG3_ANIMAL_FAT_TOKENS):
+        if (
+            food_group is not WWFFoodGroup.FG3
+            or classification.fg3_subgroup
+            is not WWFFG3Subgroup.ANIMAL_BASED_FAT
+        ):
+            return _to_fg3_animal_fat(
+                classification, rule="wwf_fg3_animal_fat"
+            )
+
+    # Phase WWF-M — FG2 dairy anchors win over FG1 red_meat for
+    # "<animal>'s milk" / "<animal>'s yogurt" / "<animal>'s cheese".
+    # The CSV ships "Cow's milk", "Sheep's milk", "Buffalo milk",
+    # "Goat's milk", "Goat cheese" — all of which contain an FG1
+    # animal token but are unambiguously FG2.
+    if _contains_any_phrase(
+        name,
+        (
+            "'s milk",
+            "s milk",
+            " milk",
+            "milk powder",
+            "powdered milk",
+            "evaporated milk",
+            "condensed milk",
+            "'s yogurt",
+            "'s yoghurt",
+            "'s cheese",
+            " cheese",
+        ),
+    ):
+        if _contains_any_word(name, _WWF_FG2_OTHER_DAIRY_TOKENS):
+            if (
+                food_group is not WWFFoodGroup.FG2
+                or classification.fg2_subgroup
+                is not WWFFG2Subgroup.OTHER_DAIRY_ANIMAL
+            ):
+                return _to_fg2_dairy_animal_other(
+                    classification, rule="wwf_fg2_dairy_anchor_priority"
+                )
+        if _contains_any_word(name, _WWF_FG2_CHEESE_TOKENS):
+            if (
+                food_group is not WWFFoodGroup.FG2
+                or classification.fg2_subgroup
+                is not WWFFG2Subgroup.CHEESE
+            ):
+                return _to_fg2_cheese(
+                    classification, rule="wwf_fg2_cheese_anchor_priority"
+                )
+
+    # Phase WWF-M — fruit/vegetable "salad" must win over the
+    # composite "salad" detection so "Green salad" and "Mixed fruit
+    # salads" land FG4 not FG1-composite.
+    if _contains_any_phrase(
+        name,
+        (
+            "green salad",
+            "mixed salad",
+            "garden salad",
+            "fruit salad",
+            "fruit salads",
+            "salade de fruits",
+            "salade verte",
+        ),
+    ):
+        if food_group is not WWFFoodGroup.FG4:
+            return _to_fg4(classification, rule="wwf_fg4_salad")
+
+    # Phase WWF-M — "Plant-based <X> alternative/substitute" should
+    # route by the X anchor when present (mince → FG1, butter → FG3
+    # plant fat, etc.). Only when the X is a dairy term does
+    # plant-based-cheese/yogurt/milk fire.
+    if _contains_any_phrase(name, ("plant-based mince", "plant based mince")):
+        return _to_fg1(
+            classification,
+            WWFFG1Subgroup.MEAT_EGG_SEAFOOD_ALTERNATIVES,
+            rule="wwf_plant_based_mince",
+        )
+    if _contains_any_phrase(
+        name, ("plant-based butter", "plant based butter", "vegan butter")
+    ):
+        return _to_fg3_plant_fat(
+            classification, rule="wwf_plant_based_butter"
+        )
 
     # Guard 5 — FG1 priority before FG3 plant fat. Names like
     # "Sardines à l'Huile" / "Thon à l'huile" contain "huile" but
