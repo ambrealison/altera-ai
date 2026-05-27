@@ -1,0 +1,693 @@
+{
+  "name": "Dataset 100-product (Phase WWF-Q2)",
+  "source": "dataset_100_source.csv",
+  "cases": [
+    {
+      "product_name": "Lentilles corail seches",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Pulses",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Pois chiches egouttes en bocal",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Pulses",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Haricots noirs en conserve egouttes",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Pulses",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Edamame decortique surgele",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Pulses/soy",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Tofu ferme nature",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Alternative proteins",
+      "expected_fg1_subgroup": "alternative_protein_sources"
+    },
+    {
+      "product_name": "Tempeh fume",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Alternative proteins",
+      "expected_fg1_subgroup": "alternative_protein_sources"
+    },
+    {
+      "product_name": "Seitan emince",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Alternative proteins",
+      "expected_fg1_subgroup": "alternative_protein_sources"
+    },
+    {
+      "product_name": "Falafels pois chiches",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Alternative proteins",
+      "expected_fg1_subgroup": "alternative_protein_sources"
+    },
+    {
+      "product_name": "Hummus tahini",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Pulses/nuts spreads",
+      "expected_fg1_subgroup": "alternative_protein_sources"
+    },
+    {
+      "product_name": "Beurre de cacahuete",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Nuts and seeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Amandes grillees",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Nuts and seeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Noix de cajou nature",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Nuts and seeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Graines de chia",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Nuts and seeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Melange quinoa boulgour",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "source_category": "Whole grains",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Steak vegetal pois et feves",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Meat alternatives",
+      "expected_fg1_subgroup": "meat_egg_seafood_alternatives"
+    },
+    {
+      "product_name": "Nuggets vegetaux soja",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Meat alternatives",
+      "expected_fg1_subgroup": "meat_egg_seafood_alternatives"
+    },
+    {
+      "product_name": "Filet vegetal facon poisson",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Seafood alternatives",
+      "expected_fg1_subgroup": "meat_egg_seafood_alternatives"
+    },
+    {
+      "product_name": "Boisson soja enrichie",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "source_category": "Milk alternatives",
+      "expected_fg2_subgroup": "dairy_alternative_plant"
+    },
+    {
+      "product_name": "Yaourt soja nature",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "source_category": "Yogurt alternatives",
+      "expected_fg2_subgroup": "dairy_alternative_plant"
+    },
+    {
+      "product_name": "Fromage vegetal noix de cajou",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "source_category": "Cheese alternatives",
+      "expected_fg2_subgroup": "dairy_alternative_plant"
+    },
+    {
+      "product_name": "Lait demi-ecreme",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "source_category": "Milk",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Yaourt grec nature",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "source_category": "Yogurt",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Emmental rape",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "source_category": "Cheese",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Cottage cheese",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "source_category": "Cheese",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Creme fraiche epaisse",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "source_category": "Cream",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Beurre doux",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "source_category": "Animal fats",
+      "expected_fg3_subgroup": "animal_based_fat"
+    },
+    {
+      "product_name": "Oeufs plein air x6",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Eggs",
+      "expected_fg1_subgroup": "eggs"
+    },
+    {
+      "product_name": "Blanc de poulet",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Poultry",
+      "expected_fg1_subgroup": "poultry"
+    },
+    {
+      "product_name": "Dinde rotie tranchee",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Poultry",
+      "expected_fg1_subgroup": "poultry"
+    },
+    {
+      "product_name": "Steak hache boeuf 5 pourcent",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Red meat",
+      "expected_fg1_subgroup": "red_meat"
+    },
+    {
+      "product_name": "Cote agneau",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Red meat",
+      "expected_fg1_subgroup": "red_meat"
+    },
+    {
+      "product_name": "Jambon cuit superieur",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Processed meat",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Saucisson sec pur porc",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Processed meat",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Filet de saumon",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Fish and shellfish",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Sardines a huile egouttees",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Fish and shellfish",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Crevettes decortiquees",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Fish and shellfish",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Moules cuites decoquillees",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Fish and shellfish",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Cabillaud pane",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "source_category": "Fish and shellfish",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Riz basmati",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "source_category": "Refined grains",
+      "expected_fg5_grain_kind": "refined_grain"
+    },
+    {
+      "product_name": "Pates spaghetti semoule ble",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "source_category": "Refined grains",
+      "expected_fg5_grain_kind": "refined_grain"
+    },
+    {
+      "product_name": "Pain complet tranches",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "source_category": "Whole grains",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Flocons avoine complets",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "source_category": "Whole grains",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Tortillas mais",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "source_category": "Refined grains",
+      "expected_fg5_grain_kind": "refined_grain"
+    },
+    {
+      "product_name": "Couscous complet",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "source_category": "Whole grains",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Sarrasin decortique",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "source_category": "Whole grains",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Muesli avoine fruits graines",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "source_category": "Whole grains",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Pommes de terre vapeur",
+      "expected_food_group": "FG6",
+      "expected_is_composite": false,
+      "source_category": "Potatoes"
+    },
+    {
+      "product_name": "Patates douces",
+      "expected_food_group": "FG6",
+      "expected_is_composite": false,
+      "source_category": "Sweet potatoes"
+    },
+    {
+      "product_name": "Manioc surgele",
+      "expected_food_group": "FG6",
+      "expected_is_composite": false,
+      "source_category": "Cassava"
+    },
+    {
+      "product_name": "Frites au four",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "source_category": "Potato products",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Carottes fraiches",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "source_category": "Fresh vegetables"
+    },
+    {
+      "product_name": "Epinards frais",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "source_category": "Fresh vegetables"
+    },
+    {
+      "product_name": "Brocoli surgele",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "source_category": "Frozen vegetables"
+    },
+    {
+      "product_name": "Ratatouille legumes",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "source_category": "Prepared vegetables"
+    },
+    {
+      "product_name": "Champignons bruns",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "source_category": "Fresh vegetables"
+    },
+    {
+      "product_name": "Avocat pret a murir",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "source_category": "Fresh fruit/vegetable"
+    },
+    {
+      "product_name": "Mangue fraiche",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "source_category": "Fresh fruit"
+    },
+    {
+      "product_name": "Fruits rouges surgeles",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "source_category": "Frozen fruit"
+    },
+    {
+      "product_name": "Abricots secs",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "source_category": "Dried fruit"
+    },
+    {
+      "product_name": "Tomates concassees",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "source_category": "Canned vegetables"
+    },
+    {
+      "product_name": "Huile olive vierge extra",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "source_category": "Plant oils",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Huile colza",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "source_category": "Plant oils",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Margarine vegetale",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "source_category": "Plant fats",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Saindoux",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "source_category": "Animal fats",
+      "expected_fg3_subgroup": "animal_based_fat"
+    },
+    {
+      "product_name": "Chips de lentilles",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "source_category": "Savoury snacks",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Chocolat noir noisettes",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "source_category": "Confectionery",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Biscuits sables beurre",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "source_category": "Baked goods",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Glace vanille creme",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "source_category": "Desserts",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Donuts chocolat",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "source_category": "Baked goods",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Barres granola miel amandes",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "source_category": "Snack bars",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Lasagne bolognaise",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "meat_based",
+      "source_category": "Prepared composite meal/snack - Meat-based"
+    },
+    {
+      "product_name": "Lasagne vegan aux legumes",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegan",
+      "source_category": "Prepared composite meal/snack - Vegan"
+    },
+    {
+      "product_name": "Curry poulet riz",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "meat_based",
+      "source_category": "Prepared composite meal/snack - Meat-based"
+    },
+    {
+      "product_name": "Curry pois chiches epinards",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegan",
+      "source_category": "Prepared composite meal/snack - Vegan"
+    },
+    {
+      "product_name": "Salade lentilles chevre",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegetarian",
+      "source_category": "Prepared composite meal/snack - Vegetarian"
+    },
+    {
+      "product_name": "Salade quinoa edamame",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegan",
+      "source_category": "Prepared composite meal/snack - Vegan"
+    },
+    {
+      "product_name": "Pizza jambon champignon",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "meat_based",
+      "source_category": "Prepared composite meal/snack - Meat-based"
+    },
+    {
+      "product_name": "Pizza legumes vegan",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegan",
+      "source_category": "Prepared composite meal/snack - Vegan"
+    },
+    {
+      "product_name": "Sandwich thon crudites",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "seafood_based",
+      "source_category": "Prepared composite meal/snack - Seafood-based"
+    },
+    {
+      "product_name": "Wrap falafel houmous",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegan",
+      "source_category": "Prepared composite meal/snack - Vegan"
+    },
+    {
+      "product_name": "Quiche lorraine",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "meat_based",
+      "source_category": "Prepared composite meal/snack - Meat-based"
+    },
+    {
+      "product_name": "Tarte epinards feta",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegetarian",
+      "source_category": "Prepared composite meal/snack - Vegetarian"
+    },
+    {
+      "product_name": "Soupe tomate creme",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegetarian",
+      "source_category": "Prepared composite meal/snack - Vegetarian"
+    },
+    {
+      "product_name": "Soupe lentilles coco",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegan",
+      "source_category": "Prepared composite meal/snack - Vegan"
+    },
+    {
+      "product_name": "Chili con carne",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "meat_based",
+      "source_category": "Prepared composite meal/snack - Meat-based"
+    },
+    {
+      "product_name": "Chili sin carne",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegan",
+      "source_category": "Prepared composite meal/snack - Vegan"
+    },
+    {
+      "product_name": "Paella fruits de mer",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "seafood_based",
+      "source_category": "Prepared composite meal/snack - Seafood-based"
+    },
+    {
+      "product_name": "Risotto champignons parmesan",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegetarian",
+      "source_category": "Prepared composite meal/snack - Vegetarian"
+    },
+    {
+      "product_name": "Burger boeuf pret a cuire",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "meat_based",
+      "source_category": "Prepared composite meal/snack - Meat-based"
+    },
+    {
+      "product_name": "Burger haricots noirs",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegan",
+      "source_category": "Prepared composite meal/snack - Vegan"
+    },
+    {
+      "product_name": "Sushis saumon avocat",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "seafood_based",
+      "source_category": "Prepared composite meal/snack - Seafood-based"
+    },
+    {
+      "product_name": "Bowl tofu riz legumes",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegan",
+      "source_category": "Prepared composite meal/snack - Vegan"
+    },
+    {
+      "product_name": "Gratin dauphinois",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegetarian",
+      "source_category": "Prepared composite meal/snack - Vegetarian"
+    },
+    {
+      "product_name": "Parmentier canard patate douce",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "meat_based",
+      "source_category": "Prepared composite meal/snack - Meat-based"
+    },
+    {
+      "product_name": "Nouilles oeuf crevettes",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "seafood_based",
+      "source_category": "Prepared composite meal/snack - Seafood-based"
+    },
+    {
+      "product_name": "Gnocchi sauce pesto",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegan",
+      "source_category": "Prepared composite meal/snack - Vegan"
+    },
+    {
+      "product_name": "Ravioli ricotta epinards",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegetarian",
+      "source_category": "Prepared composite meal/snack - Vegetarian"
+    },
+    {
+      "product_name": "Cake sale olives feta",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegetarian",
+      "source_category": "Prepared composite meal/snack - Vegetarian"
+    },
+    {
+      "product_name": "Porridge avoine lait",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegetarian",
+      "source_category": "Prepared composite meal/snack - Vegetarian"
+    },
+    {
+      "product_name": "Smoothie yaourt fruits rouges",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_composite_step1_bucket": "vegetarian",
+      "source_category": "Prepared composite meal/snack - Vegetarian"
+    }
+  ]
+}

@@ -806,12 +806,38 @@ function MethodologyClassificationCard({
   const jobErrored =
     currentJob?.status === "completed_with_errors" ||
     currentJob?.status === "failed";
-  const hasPartialFailures = unknown > 0 || failedRows > 0 || jobErrored;
+
+  // Phase WWF-Q2 — counter dedup. The bug report showed
+  // "49 réussies / 102 échouées" on a 100-row dataset because the
+  // previous formula did ``unknown + failedRows``, double-counting
+  // the same rows: a row stored as ``wwf_food_group=UNKNOWN`` IS
+  // the same row the job counted as ``failed_product_count``.
+  //
+  // The invariant we want is:
+  //
+  //   successCount + unresolvedCount == total
+  //
+  // where:
+  //   successCount   = rows with a real food group (FG1..FG7 or
+  //                    out_of_scope), i.e. classified-not-unknown.
+  //   unresolvedCount = everything else (unknown + parse-failed +
+  //                     not-yet-classified), derived from total so
+  //                     it can never exceed total.
+  //
+  // We pick max(...) to be defensive if the backend hasn't fully
+  // refreshed yet and ``unknown`` is briefly > 0 while
+  // ``classified`` still lags.
+  const successCount = Math.max(0, classified - unknown);
+  const unresolvedCount = Math.max(
+    0,
+    Math.min(total, total - successCount),
+  );
+  const hasPartialFailures =
+    unresolvedCount > 0 || failedRows > 0 || jobErrored;
   const isCompleteClean =
     status === "complete" && !isRunning && !hasPartialFailures;
   const isCompleteWithErrors =
     status === "complete" && !isRunning && hasPartialFailures;
-  const successCount = Math.max(0, classified - unknown);
 
   let pillTone: "ok" | "warn" | "neutral" = "neutral";
   let pillLabel = "À lancer";
@@ -848,7 +874,9 @@ function MethodologyClassificationCard({
             <span>
               {isCompleteWithErrors ? (
                 <>
-                  {successCount} réussies / {unknown + failedRows} échouées
+                  {/* Phase WWF-Q2 — deduplicated counters. success +
+                      unresolved == total, no overlap. */}
+                  {successCount} réussies / {unresolvedCount} à résoudre
                   {needsReview > 0 && <> · {needsReview} en revue</>}
                 </>
               ) : (
@@ -894,13 +922,16 @@ function MethodologyClassificationCard({
           {currentJob?.status === "failed"
             ? `Échec · ${currentJob.error_message ?? "erreur inconnue"}.`
             : (() => {
-                const failsTotal = unknown + failedRows;
+                // Phase WWF-Q2 — dedup: the same row can appear as
+                // both "failed" in the job and "unknown" in the
+                // stored classification (the readable fallback stores
+                // an unknown classification AND the job's count still
+                // ticks the failed counter). Don't add them; use the
+                // deduplicated unresolvedCount from the header.
                 return (
                   <>
-                    Terminée avec erreurs · {failsTotal} ligne(s) en échec
-                    {failedRows > 0 &&
-                      unknown > 0 &&
-                      ` (${failedRows} échec(s) + ${unknown} inconnu(s))`}
+                    Terminée avec erreurs · {unresolvedCount} ligne(s) à
+                    résoudre
                     .
                   </>
                 );
@@ -1083,35 +1114,48 @@ function StepAIClassificationDual({
 
       {/* Phase WWF-Q — surface unresolved partial failures BEFORE the
           "Continuer vers Validation" CTA so the operator can't
-          accidentally proceed thinking everything is clean. */}
+          accidentally proceed thinking everything is clean.
+
+          Phase WWF-Q2 — deduplicated counters. Computing
+          ``total - successCount`` (rather than ``unknown + failed``)
+          guarantees the displayed count never exceeds the project's
+          eligible products. */}
       {(() => {
+        const ptTotal = ptCounts?.total ?? 0;
+        const wwfTotal = wwfCounts?.total ?? 0;
         const ptUnknown = ptCounts?.unknown ?? 0;
         const wwfUnknown = wwfCounts?.unknown ?? 0;
+        const ptSuccess = Math.max(
+          0,
+          (ptCounts?.classified ?? 0) - ptUnknown,
+        );
+        const wwfSuccess = Math.max(
+          0,
+          (wwfCounts?.classified ?? 0) - wwfUnknown,
+        );
+        const ptUnresolved = Math.max(0, ptTotal - ptSuccess);
+        const wwfUnresolved = Math.max(0, wwfTotal - wwfSuccess);
         const ptFailed = ptCurrentJob?.failed_product_count ?? 0;
         const wwfFailed = wwfCurrentJob?.failed_product_count ?? 0;
         const ptHasErrors =
           ptCurrentJob?.status === "completed_with_errors" ||
           ptCurrentJob?.status === "failed" ||
-          ptUnknown > 0 ||
+          ptUnresolved > 0 ||
           ptFailed > 0;
         const wwfHasErrors =
           wwfCurrentJob?.status === "completed_with_errors" ||
           wwfCurrentJob?.status === "failed" ||
-          wwfUnknown > 0 ||
+          wwfUnresolved > 0 ||
           wwfFailed > 0;
         if (!ptHasErrors && !wwfHasErrors) return null;
         return (
           <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             <div className="font-medium">
               {ptHasErrors && wwfHasErrors
-                ? "Les deux catégorisations ont des lignes en échec / inconnu."
+                ? "Les deux catégorisations ont des lignes à résoudre."
                 : ptHasErrors
-                ? `La catégorisation Protein Tracker a ${
-                    ptUnknown + ptFailed
-                  } ligne(s) non résolue(s).`
-                : `La catégorisation WWF a ${
-                    wwfUnknown + wwfFailed
-                  } ligne(s) non résolue(s).`}
+                ? `La catégorisation Protein Tracker a ${ptUnresolved} ligne(s) à résoudre.`
+                : `La catégorisation WWF a ${wwfUnresolved} ligne(s) à résoudre.`}
             </div>
             <div className="mt-1 text-amber-700">
               Vous pouvez continuer vers la validation pour les corriger
