@@ -802,6 +802,21 @@ _WWF_FG1_MEAT_ALT_TOKENS: tuple[str, ...] = (
     "soy-based",
     "soya-based",
     "soy protein-based",
+    # Phase WWF-Q3 — "façon poisson" / "facon viande" / "façon X" is
+    # a French marketing convention for plant-based "fish-style" /
+    # "meat-style" alternatives.
+    "facon poisson",
+    "facon viande",
+    "facon volaille",
+    "facon thon",
+    "facon saumon",
+    "facon poulet",
+    "facon boeuf",
+    "facon canard",
+    "filet vegetal",
+    "filets vegetaux",
+    "saveur poisson",
+    "saveur viande",
 )
 
 
@@ -1287,9 +1302,27 @@ _WWF_FG4_TOKENS: tuple[str, ...] = (
     "pak choi",
     "pak-choi",
     "bok choy",
+    "berry",
+    "berries",
     "frozen berries",
     "frozen fruits",
     "frozen vegetables",
+    # Phase WWF-Q3 — additional French + English produce vocabulary
+    # surfaced by the operator's 100-product dataset.
+    "fruits rouges",
+    "red berries",
+    "mixed berries",
+    "fruits surgeles",
+    "fruits frais",
+    "legumes frais",
+    "legumes surgeles",
+    "legumes en conserve",
+    "avocat",
+    "ratatouille",
+    "ratatouille legumes",
+    "salade verte",
+    "salade composee",
+    "salade de fruits",
     "dried fruit",
     "dried fruits",
     "dried apricot",
@@ -1611,6 +1644,29 @@ _WWF_COMPOSITE_DISH_TOKENS: tuple[str, ...] = (
     # Vegetarian self-evident composites.
     "margherita",
     "a la creme",
+    # Phase WWF-Q3 — additional dish-shaped tokens surfaced by the
+    # operator's 100-product dataset. Each represents a multi-group
+    # ready meal whose name alone implies a composite.
+    "cake sale",
+    "cake salee",
+    "cake aux olives",
+    "cake olives",
+    "cake feta",
+    "tarte salee",
+    "tarte sale",
+    "tarte epinards",
+    "tarte poireaux",
+    "tarte fromage",
+    "tarte saumon",
+    "tarte poulet",
+    "porridge",
+    "smoothie yaourt",
+    "smoothie au yaourt",
+    "smoothie au yogurt",
+    "yoghurt smoothie",
+    "yogurt smoothie",
+    "gnocchi",
+    "gnocchis",
 )
 
 
@@ -1751,6 +1807,36 @@ def apply_wwf_guards(
             classification, rule="wwf_dairy_animal_beverage_fg2"
         )
 
+    # Phase WWF-Q3 — muesli / granola / porridge priority. MUST run
+    # before the composite-dish detection because "porridge" is also
+    # listed there (as a milk+grain composite); plain "Porridge avoine"
+    # is grain, not a composite. Also runs before FG1 detection so
+    # "Muesli avoine fruits graines" doesn't get caught by the
+    # nuts_seeds anchor ("graines"). Skipped when the name is actually
+    # a granola bar ("Barres granola miel amandes" → FG7 snack bar) or
+    # a milk-based porridge ready meal ("Porridge avoine lait" →
+    # composite vegetarian).
+    if _contains_any_word(name, ("muesli", "granola", "porridge")):
+        is_snack_bar = _contains_any_word(name, ("barre", "barres", "bar", "bars"))
+        is_milk_porridge = _contains_any_word(
+            name, ("porridge",)
+        ) and _contains_any_word(name, ("lait", "milk"))
+        is_sweetened = _contains_any_phrase(
+            name,
+            (
+                "muesli sucre",
+                "muesli sucree",
+                "granola sucre",
+                "granola sucree",
+            ),
+        )
+        if not (is_snack_bar or is_milk_porridge or is_sweetened):
+            return _to_fg5(
+                classification,
+                WWFFG5GrainKind.WHOLE_GRAIN,
+                rule="wwf_fg5_muesli_granola",
+            )
+
     # Guard 3 — composite dish detection. MUST run before
     # ingredient-specific guards so "Pizza Margherita" / "Lasagnes
     # Bolognaise" / "Cassoulet" / "Quiche Fromage" route to
@@ -1825,6 +1911,42 @@ def apply_wwf_guards(
             return _to_out_of_scope(
                 classification, rule="wwf_scope_exclusion_bouillon"
             )
+
+    # Phase WWF-Q3 — nut butter MUST win over FG3 animal-fat:
+    # "Beurre de cacahuète" / "Peanut butter" / "Almond butter" /
+    # "Cashew butter" are all FG1 nuts_seeds, not FG3 animal fat.
+    # The FG3 anchor below matches "beurre" by default which would
+    # misroute peanut butter to animal fat.
+    #
+    # We deliberately EXCLUDE "tahini" here because it's already in
+    # the FG1 nuts_seeds vocab AND "Hummus tahini" must reach the
+    # alt_protein rule (hummus token) — listing tahini in this
+    # priority block would short-circuit hummus to nuts_seeds.
+    if _contains_any_phrase(
+        name,
+        (
+            "peanut butter",
+            "beurre de cacahuete",
+            "beurre d'arachide",
+            "beurre d arachide",
+            "almond butter",
+            "beurre d'amande",
+            "beurre d amande",
+            "cashew butter",
+            "beurre de cajou",
+            "hazelnut butter",
+            "beurre de noisette",
+            "walnut butter",
+            "sunflower seed butter",
+            "nut butter",
+            "seed butter",
+        ),
+    ):
+        return _to_fg1(
+            classification,
+            WWFFG1Subgroup.NUTS_SEEDS,
+            rule="wwf_fg1_nut_butter_priority",
+        )
 
     # Phase WWF-M — FG3 animal-fat anchor MUST win over FG1 animal
     # anchors when both fire. Examples:
