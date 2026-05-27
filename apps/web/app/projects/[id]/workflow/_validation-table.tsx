@@ -31,6 +31,8 @@ import type {
 } from "@/lib/api";
 import { ApiError, createApi } from "@/lib/api";
 
+import { WwfCorrectionModal } from "./_wwf-correction-modal";
+
 // Phase WWF-I — French labels for the WWF subgroups + composite buckets
 // shown in the WWF validation view. Falls back to the raw enum value
 // when a label isn't defined (keeps the table readable even if the
@@ -227,6 +229,23 @@ export function ValidationTable({
     }
   }, [methodologyView]);
 
+  // Phase WWF-P — top-level view toggle. ``products`` is the default;
+  // ``review`` opens "À valider" — one row per (product, methodology)
+  // review item. URL param ``?view=review`` preselects the toggle.
+  const queryView = searchParams?.get("view") ?? null;
+  const initialTableView: "products" | "review" =
+    queryView === "review" ? "review" : "products";
+  const [tableView, setTableView] =
+    useState<"products" | "review">(initialTableView);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("view") !== tableView) {
+      url.searchParams.set("view", tableView);
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [tableView]);
+
   const [filters, setFilters] = useState<ClassificationsFilters>({});
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<ClassificationsResponse | null>(null);
@@ -236,6 +255,10 @@ export function ValidationTable({
   const [overrides, setOverrides] = useState<
     Record<string, ProteinTrackerGroup>
   >({});
+  // Phase WWF-P — WWF correction modal state.
+  const [wwfModalRow, setWwfModalRow] = useState<ClassificationRow | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -244,6 +267,17 @@ export function ValidationTable({
         ...filters,
         limit: PAGE_SIZE,
         offset,
+        // Phase WWF-P — wire view + methodology filters into the
+        // /classifications request.
+        view: tableView,
+        methodology:
+          // In review mode, the methodologyView toggle filters the
+          // review queue (PT / WWF). In products mode we don't apply
+          // the toggle as a server-side filter — the user uses it to
+          // swap the in-table column layout.
+          tableView === "review" && ptEnabled && wwfEnabled
+            ? methodologyView
+            : undefined,
       });
       setData(r);
     } catch (e) {
@@ -251,7 +285,16 @@ export function ValidationTable({
         e instanceof Error ? e.message : "Échec du chargement du tableau.",
       );
     }
-  }, [api, projectId, filters, offset]);
+  }, [
+    api,
+    projectId,
+    filters,
+    offset,
+    tableView,
+    methodologyView,
+    ptEnabled,
+    wwfEnabled,
+  ]);
 
   useEffect(() => {
     void load();
@@ -338,6 +381,49 @@ export function ValidationTable({
 
   return (
     <Card>
+      {/* Phase WWF-P — top-level view toggle. Switches between
+          "Tous les produits" (one row per product, both methodology
+          summaries when available) and "À valider" (one row per
+          ``(product, methodology)`` review item — a product needing
+          review for both methodologies appears twice). */}
+      <div className="mb-3 flex items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          Vue :
+        </span>
+        <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              setTableView("products");
+              setOffset(0);
+            }}
+            className={
+              "rounded px-2 py-0.5 text-xs font-medium transition " +
+              (tableView === "products"
+                ? "bg-brand-600 text-white"
+                : "text-gray-600 hover:bg-gray-50")
+            }
+          >
+            Tous les produits
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTableView("review");
+              setOffset(0);
+            }}
+            className={
+              "rounded px-2 py-0.5 text-xs font-medium transition " +
+              (tableView === "review"
+                ? "bg-brand-600 text-white"
+                : "text-gray-600 hover:bg-gray-50")
+            }
+          >
+            À valider
+          </button>
+        </div>
+      </div>
+
       {/* Phase WWF-I — methodology selector (only visible on PT+WWF
           projects). Single-methodology projects skip the toggle. */}
       {canToggle && (
@@ -602,13 +688,32 @@ export function ValidationTable({
               const inQueue = row.review_status === "in_queue";
               const chosen = overrides[row.product_id];
               return (
-                <tr key={row.product_id} className="align-top">
+                <tr
+                  key={`${row.product_id}-${row.methodology ?? "all"}`}
+                  className="align-top"
+                >
                   <td className="py-2 pr-3">
                     <div className="font-medium text-gray-800">
                       {row.product_name}
                     </div>
                     {row.brand && (
                       <div className="text-gray-500">{row.brand}</div>
+                    )}
+                    {/* Phase WWF-P — methodology badge in review mode
+                        so the user sees which methodology this row is
+                        about (same product can appear twice). */}
+                    {row.methodology && (
+                      <div className="mt-1">
+                        <Pill
+                          tone={
+                            row.methodology === "wwf" ? "warn" : "brand"
+                          }
+                        >
+                          {row.methodology === "wwf"
+                            ? "WWF"
+                            : "Protein Tracker"}
+                        </Pill>
+                      </div>
                     )}
                   </td>
                   <td className="py-2 pr-3 text-gray-600">
@@ -698,14 +803,31 @@ export function ValidationTable({
                   </td>
                   <td className="py-2">
                     {isWwfView ? (
-                      /* Phase WWF-I — WWF validation is read-only for
-                         now. Manual WWF correction UI would need
-                         multi-field editors (food group + subgroup +
-                         composite + bucket) and is deferred. The user
-                         can still inspect every classification. */
-                      <span className="text-xs text-gray-400">
-                        Lecture seule
-                      </span>
+                      /* Phase WWF-P — WWF rows are now editable.
+                         "Corriger" opens the WWF correction modal
+                         (food group + subgroup + composite + bucket).
+                         The accept button confirms the current WWF
+                         classification. */
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          onClick={() => setWwfModalRow(row)}
+                          disabled={busy}
+                        >
+                          Corriger
+                        </Button>
+                        {(row.wwf_review_status === "in_queue" ||
+                          row.review_status === "in_queue") &&
+                          row.wwf_food_group && (
+                            <Button
+                              variant="secondary"
+                              onClick={() => void submit(row, "accepted")}
+                              disabled={busy}
+                            >
+                              {busy ? "…" : "✓"}
+                            </Button>
+                          )}
+                      </div>
                     ) : (
                       <div className="flex flex-wrap items-center gap-1">
                         <select
@@ -777,6 +899,39 @@ export function ValidationTable({
           </Button>
         </div>
       </div>
+
+      {/* Phase WWF-P — WWF correction modal. Opens on "Corriger"
+          for WWF rows. Submits the full WWF payload via
+          submitDecision with the explicit ``wwf`` field
+          (Phase WWF-O backend). */}
+      {wwfModalRow && (
+        <WwfCorrectionModal
+          row={wwfModalRow}
+          onClose={() => setWwfModalRow(null)}
+          onSubmit={async (payload) => {
+            try {
+              await api.submitDecision(
+                projectId,
+                wwfModalRow.product_id,
+                "wwf",
+                {
+                  decision: "changed",
+                  wwf: payload,
+                  reason: "Correction manuelle",
+                },
+              );
+              await load();
+              await onChanged?.();
+            } catch (e) {
+              if (e instanceof ApiError && typeof e.detail === "object" && e.detail) {
+                const d = e.detail as { message?: string; detail?: string };
+                throw new Error(d.message ?? d.detail ?? String(e));
+              }
+              throw e;
+            }
+          }}
+        />
+      )}
     </Card>
   );
 }
