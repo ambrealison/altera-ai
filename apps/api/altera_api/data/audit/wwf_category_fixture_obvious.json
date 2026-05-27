@@ -1,0 +1,3119 @@
+{
+  "name": "WWF Category — obvious subgroup-confident (Phase WWF-L)",
+  "source": "WWF Category - Feuille 1.csv",
+  "cases": [
+    {
+      "product_name": "Beef",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 2,
+      "source_food_item": "Beef",
+      "expected_fg1_subgroup": "red_meat"
+    },
+    {
+      "product_name": "Goat",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 3,
+      "source_food_item": "Goat",
+      "expected_fg1_subgroup": "red_meat"
+    },
+    {
+      "product_name": "Lamb",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 4,
+      "source_food_item": "Lamb",
+      "expected_fg1_subgroup": "red_meat"
+    },
+    {
+      "product_name": "Pork",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 5,
+      "source_food_item": "Pork",
+      "expected_fg1_subgroup": "red_meat"
+    },
+    {
+      "product_name": "Chicken",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 6,
+      "source_food_item": "Chicken",
+      "expected_fg1_subgroup": "poultry"
+    },
+    {
+      "product_name": "Duck",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 8,
+      "source_food_item": "Duck",
+      "expected_fg1_subgroup": "poultry"
+    },
+    {
+      "product_name": "Goose",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 9,
+      "source_food_item": "Goose",
+      "expected_fg1_subgroup": "poultry"
+    },
+    {
+      "product_name": "Turkey",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 10,
+      "source_food_item": "Turkey",
+      "expected_fg1_subgroup": "poultry"
+    },
+    {
+      "product_name": "Partridge",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 12,
+      "source_food_item": "Partridge",
+      "expected_fg1_subgroup": "poultry"
+    },
+    {
+      "product_name": "Pheasant",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 13,
+      "source_food_item": "Pheasant",
+      "expected_fg1_subgroup": "poultry"
+    },
+    {
+      "product_name": "Quail",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 14,
+      "source_food_item": "Quail",
+      "expected_fg1_subgroup": "poultry"
+    },
+    {
+      "product_name": "Rabbit",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 15,
+      "source_food_item": "Rabbit",
+      "expected_fg1_subgroup": "red_meat"
+    },
+    {
+      "product_name": "Venison",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 16,
+      "source_food_item": "Venison",
+      "expected_fg1_subgroup": "red_meat"
+    },
+    {
+      "product_name": "Wild Boar",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 17,
+      "source_food_item": "Wild Boar",
+      "expected_fg1_subgroup": "red_meat"
+    },
+    {
+      "product_name": "Bacon",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 18,
+      "source_food_item": "Bacon",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Meat jerky (e.g. Beef jerky)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 19,
+      "source_food_item": "Meat jerky (e.g. Beef jerky)",
+      "expected_fg1_subgroup": "red_meat"
+    },
+    {
+      "product_name": "Corned Beef",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 21,
+      "source_food_item": "Corned Beef",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Ham",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 23,
+      "source_food_item": "Ham",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Prosciutto",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 29,
+      "source_food_item": "Prosciutto",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Sausages (e.g. Bratwurst, Choirzo, Frankfurters, Mettwurst, Saucisson Sec, black pudding / blood sausage)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 30,
+      "source_food_item": "Sausages (e.g. Bratwurst, Choirzo, Frankfurters, Mettwurst, Saucisson Sec, black pudding / blood sausage)",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Salami and other continental meats",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 31,
+      "source_food_item": "Salami and other continental meats",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Smoked meats",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 32,
+      "source_food_item": "Smoked meats",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Spam",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 33,
+      "source_food_item": "Spam",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Eggs (Whole and liquid)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 34,
+      "source_food_item": "Eggs (Whole and liquid)",
+      "expected_fg1_subgroup": "eggs"
+    },
+    {
+      "product_name": "Fresh water and salt water fish (e.g. basa, cod, hering, mackerel, sardines, salmon, seabass, snapper, tuna, trout, anchovy, sardines)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 36,
+      "source_food_item": "Fresh water and salt water fish (e.g. basa, cod, hering, mackerel, sardines, salmon, seabass, snapper, tuna, trout, anchovy, sardines)",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Crab",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 38,
+      "source_food_item": "Crab",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Lobster",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 39,
+      "source_food_item": "Lobster",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Prawns",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 40,
+      "source_food_item": "Prawns",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Shrimp",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 41,
+      "source_food_item": "Shrimp",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Cuttlefish",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 42,
+      "source_food_item": "Cuttlefish",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Mussels",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 44,
+      "source_food_item": "Mussels",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Oysters",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 45,
+      "source_food_item": "Oysters",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Octopus",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 46,
+      "source_food_item": "Octopus",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Squid",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 47,
+      "source_food_item": "Squid",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Canned fish in oil, brine, spring water or sauce (e.g. canned tuna or crab, octopus or squid in vinegar)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 48,
+      "source_food_item": "Canned fish in oil, brine, spring water or sauce (e.g. canned tuna or crab, octopus or squid in vinegar)",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Seafood in tins (e.g. mackerel or herring in tins)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 49,
+      "source_food_item": "Seafood in tins (e.g. mackerel or herring in tins)",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Caviar / processed fish roe",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 50,
+      "source_food_item": "Caviar / processed fish roe",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Fermented Seafood",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 51,
+      "source_food_item": "Fermented Seafood",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Marinated fish or seafood",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 53,
+      "source_food_item": "Marinated fish or seafood",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Seafood Mousse and Pates",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 54,
+      "source_food_item": "Seafood Mousse and Pates",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Seafood paste (e.g. shrimp or crab)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 55,
+      "source_food_item": "Seafood paste (e.g. shrimp or crab)",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Smoked and cured fish (e.g. salmon or mackerel)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 56,
+      "source_food_item": "Smoked and cured fish (e.g. salmon or mackerel)",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Salt Cod",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 58,
+      "source_food_item": "Salt Cod",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Tempura King Prawns",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 59,
+      "source_food_item": "Tempura King Prawns",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Breaded Calamari",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 60,
+      "source_food_item": "Breaded Calamari",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Aduki beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 62,
+      "source_food_item": "Aduki beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Black-eyed beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 63,
+      "source_food_item": "Black-eyed beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Black turtle beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 64,
+      "source_food_item": "Black turtle beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Broad beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 65,
+      "source_food_item": "Broad beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Okara",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 66,
+      "source_food_item": "Okara",
+      "expected_fg1_subgroup": "alternative_protein_sources"
+    },
+    {
+      "product_name": "Borlotti beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 67,
+      "source_food_item": "Borlotti beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Butter beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 68,
+      "source_food_item": "Butter beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Cannellini beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 69,
+      "source_food_item": "Cannellini beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Chickpeas",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 70,
+      "source_food_item": "Chickpeas",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Dried and split peas",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 71,
+      "source_food_item": "Dried and split peas",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Fava beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 72,
+      "source_food_item": "Fava beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Flageolet beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 73,
+      "source_food_item": "Flageolet beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Haricot beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 75,
+      "source_food_item": "Haricot beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Kidney beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 76,
+      "source_food_item": "Kidney beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Green lentils",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 77,
+      "source_food_item": "Green lentils",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Red lentils",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 78,
+      "source_food_item": "Red lentils",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Coconut (flesh)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 79,
+      "source_food_item": "Coconut (flesh)",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Yellow lentils",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 80,
+      "source_food_item": "Yellow lentils",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Mung beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 82,
+      "source_food_item": "Mung beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Navy bean",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 83,
+      "source_food_item": "Navy bean",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Pinto beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 84,
+      "source_food_item": "Pinto beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Soya/edamame beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 85,
+      "source_food_item": "Soya/edamame beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Wax beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 86,
+      "source_food_item": "Wax beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Almonds",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 88,
+      "source_food_item": "Almonds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Brazilnuts",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 89,
+      "source_food_item": "Brazilnuts",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Cashews",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 90,
+      "source_food_item": "Cashews",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Chestnuts",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 91,
+      "source_food_item": "Chestnuts",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Chia seeds",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 92,
+      "source_food_item": "Chia seeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Flaxseeds",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 93,
+      "source_food_item": "Flaxseeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Hazelnuts",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 94,
+      "source_food_item": "Hazelnuts",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Hemp seeds",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 95,
+      "source_food_item": "Hemp seeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Linseeds",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 96,
+      "source_food_item": "Linseeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Macadamias",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 97,
+      "source_food_item": "Macadamias",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Nigella seeds",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 98,
+      "source_food_item": "Nigella seeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Nut butters (e.g. peanut butter)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 99,
+      "source_food_item": "Nut butters (e.g. peanut butter)",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Peanuts",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 100,
+      "source_food_item": "Peanuts",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Pecans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 101,
+      "source_food_item": "Pecans",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Pistachio",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 102,
+      "source_food_item": "Pistachio",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Pine nuts",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 103,
+      "source_food_item": "Pine nuts",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Poppy seeds",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 104,
+      "source_food_item": "Poppy seeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Pumpkin seeds",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 105,
+      "source_food_item": "Pumpkin seeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Sesame seeds",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 106,
+      "source_food_item": "Sesame seeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Seed pastes (e.g. tahini)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 107,
+      "source_food_item": "Seed pastes (e.g. tahini)",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Sunflower seeds",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 108,
+      "source_food_item": "Sunflower seeds",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Walnuts",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 109,
+      "source_food_item": "Walnuts",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Falafel",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 110,
+      "source_food_item": "Falafel",
+      "expected_fg1_subgroup": "alternative_protein_sources"
+    },
+    {
+      "product_name": "Houmous (including flavoured varieties)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 111,
+      "source_food_item": "Houmous (including flavoured varieties)",
+      "expected_fg1_subgroup": "alternative_protein_sources"
+    },
+    {
+      "product_name": "Tofu",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 113,
+      "source_food_item": "Tofu",
+      "expected_fg1_subgroup": "alternative_protein_sources"
+    },
+    {
+      "product_name": "Tempeh",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 114,
+      "source_food_item": "Tempeh",
+      "expected_fg1_subgroup": "alternative_protein_sources"
+    },
+    {
+      "product_name": "Seitan",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 115,
+      "source_food_item": "Seitan",
+      "expected_fg1_subgroup": "alternative_protein_sources"
+    },
+    {
+      "product_name": "Plant-based alternative protein products (e.g. mycoprotein, pea protein-based, soy protein-based, wheat protein-based)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 116,
+      "source_food_item": "Plant-based alternative protein products (e.g. mycoprotein, pea protein-based, soy protein-based, wheat protein-based)",
+      "expected_fg1_subgroup": "meat_egg_seafood_alternatives"
+    },
+    {
+      "product_name": "Vegetable burger",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 117,
+      "source_food_item": "Vegetable burger",
+      "expected_fg1_subgroup": "meat_egg_seafood_alternatives"
+    },
+    {
+      "product_name": "Vegetable Sausage",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 118,
+      "source_food_item": "Vegetable Sausage",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Egg alternative products",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 119,
+      "source_food_item": "Egg alternative products",
+      "expected_fg1_subgroup": "eggs"
+    },
+    {
+      "product_name": "Meat alternative products",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 120,
+      "source_food_item": "Meat alternative products",
+      "expected_fg1_subgroup": "meat_egg_seafood_alternatives"
+    },
+    {
+      "product_name": "Fish & Seafood alternative products",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 121,
+      "source_food_item": "Fish & Seafood alternative products",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Pasta made from legumes (e.g. chickpeas, lentils, peas)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 122,
+      "source_food_item": "Pasta made from legumes (e.g. chickpeas, lentils, peas)",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Veal",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 123,
+      "source_food_item": "Veal",
+      "expected_fg1_subgroup": "red_meat"
+    },
+    {
+      "product_name": "Turkey bacon",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 127,
+      "source_food_item": "Turkey bacon",
+      "expected_fg1_subgroup": "processed_meats_alternatives"
+    },
+    {
+      "product_name": "Scallops",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 128,
+      "source_food_item": "Scallops",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Crayfish",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 132,
+      "source_food_item": "Crayfish",
+      "expected_fg1_subgroup": "seafood"
+    },
+    {
+      "product_name": "Lupin beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 134,
+      "source_food_item": "Lupin beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Urad beans",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 136,
+      "source_food_item": "Urad beans",
+      "expected_fg1_subgroup": "legumes"
+    },
+    {
+      "product_name": "Bambara groundnut",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 137,
+      "source_food_item": "Bambara groundnut",
+      "expected_fg1_subgroup": "nuts_seeds"
+    },
+    {
+      "product_name": "Plant-based mince",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 139,
+      "source_food_item": "Plant-based mince",
+      "expected_fg1_subgroup": "meat_egg_seafood_alternatives"
+    },
+    {
+      "product_name": "Buttermilk",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 140,
+      "source_food_item": "Buttermilk",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Hard cheese (e.g. parmesan, gouda)",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 141,
+      "source_food_item": "Hard cheese (e.g. parmesan, gouda)",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Soft cheese (e.g. brie, camembert)",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 142,
+      "source_food_item": "Soft cheese (e.g. brie, camembert)",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Fresh cheese (e.g. mozzarella, ricotta, buffala, burrata)",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 143,
+      "source_food_item": "Fresh cheese (e.g. mozzarella, ricotta, buffala, burrata)",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Aged cheese",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 144,
+      "source_food_item": "Aged cheese",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Blue cheese",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 145,
+      "source_food_item": "Blue cheese",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Cottage Cheese",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 146,
+      "source_food_item": "Cottage Cheese",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Grilled cheese (e.g. halloumi)",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 147,
+      "source_food_item": "Grilled cheese (e.g. halloumi)",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Single cream",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 148,
+      "source_food_item": "Single cream",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Double cream",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 149,
+      "source_food_item": "Double cream",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Clotted cream",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 150,
+      "source_food_item": "Clotted cream",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Crème fraiche",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 151,
+      "source_food_item": "Crème fraiche",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Dairy-based Dips and Sauces (e.g. Tzatziki, nacho cheese sauce)",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 153,
+      "source_food_item": "Dairy-based Dips and Sauces (e.g. Tzatziki, nacho cheese sauce)",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Evaporated Milk",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 154,
+      "source_food_item": "Evaporated Milk",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Cow's milk",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 155,
+      "source_food_item": "Cow's milk",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Goat's milk",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 156,
+      "source_food_item": "Goat's milk",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Sheep's milk",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 157,
+      "source_food_item": "Sheep's milk",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Buffalo milk",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 158,
+      "source_food_item": "Buffalo milk",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Milkshakes",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 159,
+      "source_food_item": "Milkshakes",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Sour cream",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 164,
+      "source_food_item": "Sour cream",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Yogurt (including flavoured varieties)",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 165,
+      "source_food_item": "Yogurt (including flavoured varieties)",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Kefir (or other fermented milk products)",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 166,
+      "source_food_item": "Kefir (or other fermented milk products)",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Coffee creamer",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 167,
+      "source_food_item": "Coffee creamer",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Plant-based hard cheese",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 168,
+      "source_food_item": "Plant-based hard cheese",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Plant-based soft cheese",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 169,
+      "source_food_item": "Plant-based soft cheese",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Soy-based cheese",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 170,
+      "source_food_item": "Soy-based cheese",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Starch-based cheese subsitutes",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 171,
+      "source_food_item": "Starch-based cheese subsitutes",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Plant-based milk alternatives (e.g. almond, oat, coconut, cashew, hazelnut, hemp, pea, rice, potato etc.)",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 172,
+      "source_food_item": "Plant-based milk alternatives (e.g. almond, oat, coconut, cashew, hazelnut, hemp, pea, rice, potato etc.)",
+      "expected_fg2_subgroup": "dairy_alternative_plant"
+    },
+    {
+      "product_name": "Plant-based yoghurt alternatives incl. flavoured varieties (e.g. soy, coconut, almond, oat, cashew, pistaccio, lupine etc.)",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 174,
+      "source_food_item": "Plant-based yoghurt alternatives incl. flavoured varieties (e.g. soy, coconut, almond, oat, cashew, pistaccio, lupine etc.)",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Plant-based kefir",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 175,
+      "source_food_item": "Plant-based kefir",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Plant-based coffee creamers",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 176,
+      "source_food_item": "Plant-based coffee creamers",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Vegan cream cheese spreads",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 177,
+      "source_food_item": "Vegan cream cheese spreads",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Vegan Cream and Crème fraiche (with flavourings)",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 178,
+      "source_food_item": "Vegan Cream and Crème fraiche (with flavourings)",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Vegan Sour cream",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 179,
+      "source_food_item": "Vegan Sour cream",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Skyr",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 180,
+      "source_food_item": "Skyr",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Quark",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 181,
+      "source_food_item": "Quark",
+      "expected_fg2_subgroup": "other_dairy_animal"
+    },
+    {
+      "product_name": "Mozzarella Sticks or other breaded cheeses",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 182,
+      "source_food_item": "Mozzarella Sticks or other breaded cheeses",
+      "expected_fg2_subgroup": "cheese"
+    },
+    {
+      "product_name": "Butter (salted, unsalted, calrified)",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 183,
+      "source_food_item": "Butter (salted, unsalted, calrified)",
+      "expected_fg3_subgroup": "animal_based_fat"
+    },
+    {
+      "product_name": "Blends of animal fats and oils",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 184,
+      "source_food_item": "Blends of animal fats and oils",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Duck fat",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 185,
+      "source_food_item": "Duck fat",
+      "expected_fg3_subgroup": "animal_based_fat"
+    },
+    {
+      "product_name": "Ghee",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 186,
+      "source_food_item": "Ghee",
+      "expected_fg3_subgroup": "animal_based_fat"
+    },
+    {
+      "product_name": "Goose fat",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 187,
+      "source_food_item": "Goose fat",
+      "expected_fg3_subgroup": "animal_based_fat"
+    },
+    {
+      "product_name": "Lard",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 188,
+      "source_food_item": "Lard",
+      "expected_fg3_subgroup": "animal_based_fat"
+    },
+    {
+      "product_name": "Tallow",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 189,
+      "source_food_item": "Tallow",
+      "expected_fg3_subgroup": "animal_based_fat"
+    },
+    {
+      "product_name": "Avocado oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 190,
+      "source_food_item": "Avocado oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Coconut oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 191,
+      "source_food_item": "Coconut oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Grapeseed oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 192,
+      "source_food_item": "Grapeseed oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Flaxseed oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 193,
+      "source_food_item": "Flaxseed oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Hemp seed oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 194,
+      "source_food_item": "Hemp seed oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Olive oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 195,
+      "source_food_item": "Olive oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Palm oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 196,
+      "source_food_item": "Palm oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Peanut oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 197,
+      "source_food_item": "Peanut oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Sesame oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 198,
+      "source_food_item": "Sesame oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Canola oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 199,
+      "source_food_item": "Canola oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Sunflower oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 200,
+      "source_food_item": "Sunflower oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Rapeseed oil",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 201,
+      "source_food_item": "Rapeseed oil",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Margarine (regular and low-fat)",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 202,
+      "source_food_item": "Margarine (regular and low-fat)",
+      "expected_fg3_subgroup": "plant_based_fat"
+    },
+    {
+      "product_name": "Plant-based butter substitutes (e.g. soy-based, almond-based)",
+      "expected_food_group": "FG3",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 203,
+      "source_food_item": "Plant-based butter substitutes (e.g. soy-based, almond-based)",
+      "expected_fg3_subgroup": "animal_based_fat"
+    },
+    {
+      "product_name": "Apple",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 204,
+      "source_food_item": "Apple"
+    },
+    {
+      "product_name": "Apricots",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 205,
+      "source_food_item": "Apricots"
+    },
+    {
+      "product_name": "Banana",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 206,
+      "source_food_item": "Banana"
+    },
+    {
+      "product_name": "Blackberries",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 207,
+      "source_food_item": "Blackberries"
+    },
+    {
+      "product_name": "Blueberry",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 208,
+      "source_food_item": "Blueberry"
+    },
+    {
+      "product_name": "Cherry",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 209,
+      "source_food_item": "Cherry"
+    },
+    {
+      "product_name": "Clementine",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 210,
+      "source_food_item": "Clementine"
+    },
+    {
+      "product_name": "Cranberry",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 211,
+      "source_food_item": "Cranberry"
+    },
+    {
+      "product_name": "Dates",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 212,
+      "source_food_item": "Dates"
+    },
+    {
+      "product_name": "Dragon Fruit",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 213,
+      "source_food_item": "Dragon Fruit"
+    },
+    {
+      "product_name": "Fresh Olives",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 214,
+      "source_food_item": "Fresh Olives"
+    },
+    {
+      "product_name": "Frozen berries and fruits",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 215,
+      "source_food_item": "Frozen berries and fruits"
+    },
+    {
+      "product_name": "Figs",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 216,
+      "source_food_item": "Figs"
+    },
+    {
+      "product_name": "Grapefruit",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 217,
+      "source_food_item": "Grapefruit"
+    },
+    {
+      "product_name": "Guava",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 218,
+      "source_food_item": "Guava"
+    },
+    {
+      "product_name": "Grape",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 219,
+      "source_food_item": "Grape"
+    },
+    {
+      "product_name": "Kiwi",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 220,
+      "source_food_item": "Kiwi"
+    },
+    {
+      "product_name": "Kumquat",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 221,
+      "source_food_item": "Kumquat"
+    },
+    {
+      "product_name": "Lychee",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 222,
+      "source_food_item": "Lychee"
+    },
+    {
+      "product_name": "Lemons",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 223,
+      "source_food_item": "Lemons"
+    },
+    {
+      "product_name": "Limes",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 224,
+      "source_food_item": "Limes"
+    },
+    {
+      "product_name": "Mandarin",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 225,
+      "source_food_item": "Mandarin"
+    },
+    {
+      "product_name": "Mangosteen",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 226,
+      "source_food_item": "Mangosteen"
+    },
+    {
+      "product_name": "Mango",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 227,
+      "source_food_item": "Mango"
+    },
+    {
+      "product_name": "Melon",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 228,
+      "source_food_item": "Melon"
+    },
+    {
+      "product_name": "Nectarine",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 229,
+      "source_food_item": "Nectarine"
+    },
+    {
+      "product_name": "Orange",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 230,
+      "source_food_item": "Orange"
+    },
+    {
+      "product_name": "Papaya",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 231,
+      "source_food_item": "Papaya"
+    },
+    {
+      "product_name": "Pineapple",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 232,
+      "source_food_item": "Pineapple"
+    },
+    {
+      "product_name": "Pomegranate",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 233,
+      "source_food_item": "Pomegranate"
+    },
+    {
+      "product_name": "Pear",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 234,
+      "source_food_item": "Pear"
+    },
+    {
+      "product_name": "Peach",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 235,
+      "source_food_item": "Peach"
+    },
+    {
+      "product_name": "Pommelo",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 236,
+      "source_food_item": "Pommelo"
+    },
+    {
+      "product_name": "Passion fruit",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 237,
+      "source_food_item": "Passion fruit"
+    },
+    {
+      "product_name": "Plum",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 238,
+      "source_food_item": "Plum"
+    },
+    {
+      "product_name": "Raspberry",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 239,
+      "source_food_item": "Raspberry"
+    },
+    {
+      "product_name": "Rhubarb",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 240,
+      "source_food_item": "Rhubarb"
+    },
+    {
+      "product_name": "Strawberry",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 241,
+      "source_food_item": "Strawberry"
+    },
+    {
+      "product_name": "Watermelon",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 242,
+      "source_food_item": "Watermelon"
+    },
+    {
+      "product_name": "Asparagus",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 243,
+      "source_food_item": "Asparagus"
+    },
+    {
+      "product_name": "Artichokes",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 244,
+      "source_food_item": "Artichokes"
+    },
+    {
+      "product_name": "Aubergine",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 245,
+      "source_food_item": "Aubergine"
+    },
+    {
+      "product_name": "Avocado",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 246,
+      "source_food_item": "Avocado"
+    },
+    {
+      "product_name": "Brussel Sprouts",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 247,
+      "source_food_item": "Brussel Sprouts"
+    },
+    {
+      "product_name": "Corn-on-the-cob",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 248,
+      "source_food_item": "Corn-on-the-cob"
+    },
+    {
+      "product_name": "Sweet corn",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 249,
+      "source_food_item": "Sweet corn"
+    },
+    {
+      "product_name": "Baby corn",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 250,
+      "source_food_item": "Baby corn"
+    },
+    {
+      "product_name": "Brocolli",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 251,
+      "source_food_item": "Brocolli"
+    },
+    {
+      "product_name": "Cabbage",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 252,
+      "source_food_item": "Cabbage"
+    },
+    {
+      "product_name": "Cauliflower",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 253,
+      "source_food_item": "Cauliflower"
+    },
+    {
+      "product_name": "Carrots",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 254,
+      "source_food_item": "Carrots"
+    },
+    {
+      "product_name": "Celery",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 255,
+      "source_food_item": "Celery"
+    },
+    {
+      "product_name": "Chicory",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 256,
+      "source_food_item": "Chicory"
+    },
+    {
+      "product_name": "Cress",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 257,
+      "source_food_item": "Cress"
+    },
+    {
+      "product_name": "Courgette",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 258,
+      "source_food_item": "Courgette"
+    },
+    {
+      "product_name": "Cucumber",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 259,
+      "source_food_item": "Cucumber"
+    },
+    {
+      "product_name": "Fennel",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 260,
+      "source_food_item": "Fennel"
+    },
+    {
+      "product_name": "Frozen vegetables (e.g. green / garden peas, sweetcorn, onions, brussel sprouts, brocolli)",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 261,
+      "source_food_item": "Frozen vegetables (e.g. green / garden peas, sweetcorn, onions, brussel sprouts, brocolli)"
+    },
+    {
+      "product_name": "Green / garden beans",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 262,
+      "source_food_item": "Green / garden beans"
+    },
+    {
+      "product_name": "Green onions",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 263,
+      "source_food_item": "Green onions"
+    },
+    {
+      "product_name": "Leafy greans",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 264,
+      "source_food_item": "Leafy greans"
+    },
+    {
+      "product_name": "Leeks",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 265,
+      "source_food_item": "Leeks"
+    },
+    {
+      "product_name": "Lettuce",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 266,
+      "source_food_item": "Lettuce"
+    },
+    {
+      "product_name": "Kale",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 267,
+      "source_food_item": "Kale"
+    },
+    {
+      "product_name": "Kohlrabi",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 268,
+      "source_food_item": "Kohlrabi"
+    },
+    {
+      "product_name": "Mushrooms (e.g. porcini, champignon, shiitake, oyster, morels, chantarelles etc.)",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 269,
+      "source_food_item": "Mushrooms (e.g. porcini, champignon, shiitake, oyster, morels, chantarelles etc.)"
+    },
+    {
+      "product_name": "Okra",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 270,
+      "source_food_item": "Okra"
+    },
+    {
+      "product_name": "Onions",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 271,
+      "source_food_item": "Onions"
+    },
+    {
+      "product_name": "Pumpkins",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 272,
+      "source_food_item": "Pumpkins"
+    },
+    {
+      "product_name": "Pepper",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 273,
+      "source_food_item": "Pepper"
+    },
+    {
+      "product_name": "Radicchio",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 274,
+      "source_food_item": "Radicchio"
+    },
+    {
+      "product_name": "Radish",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 275,
+      "source_food_item": "Radish"
+    },
+    {
+      "product_name": "Romanesco",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 276,
+      "source_food_item": "Romanesco"
+    },
+    {
+      "product_name": "Parsnips",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 277,
+      "source_food_item": "Parsnips"
+    },
+    {
+      "product_name": "Shallots",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 278,
+      "source_food_item": "Shallots"
+    },
+    {
+      "product_name": "Spinach",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 279,
+      "source_food_item": "Spinach"
+    },
+    {
+      "product_name": "Tomatoes",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 280,
+      "source_food_item": "Tomatoes"
+    },
+    {
+      "product_name": "Zucchini",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 281,
+      "source_food_item": "Zucchini"
+    },
+    {
+      "product_name": "Canned vegetables (e.g. sweetcorn, artichoke, aspargus, tomatoes etc.)",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 282,
+      "source_food_item": "Canned vegetables (e.g. sweetcorn, artichoke, aspargus, tomatoes etc.)"
+    },
+    {
+      "product_name": "Vegetables in oil, vinegar, alcohol or mixed marinades (e.g. tomatoes, zuchini, artichoke, aubergine, cucumber, mushrooms etc.)",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 283,
+      "source_food_item": "Vegetables in oil, vinegar, alcohol or mixed marinades (e.g. tomatoes, zuchini, artichoke, aubergine, cucumber, mushrooms etc.)"
+    },
+    {
+      "product_name": "Marinated vegetables (e.g. olives, peppers etc.)",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 284,
+      "source_food_item": "Marinated vegetables (e.g. olives, peppers etc.)"
+    },
+    {
+      "product_name": "Canned fruits (e.g. peaches, pears, pineapple, lychees, fruit cocktails etc.)",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 285,
+      "source_food_item": "Canned fruits (e.g. peaches, pears, pineapple, lychees, fruit cocktails etc.)"
+    },
+    {
+      "product_name": "Fruits in alcohol (e.g. plums, pears, raspberries, peaches, apricots, cherries etc.)",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 286,
+      "source_food_item": "Fruits in alcohol (e.g. plums, pears, raspberries, peaches, apricots, cherries etc.)"
+    },
+    {
+      "product_name": "Tomato puree, sauce and passata",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 287,
+      "source_food_item": "Tomato puree, sauce and passata"
+    },
+    {
+      "product_name": "Currants",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 288,
+      "source_food_item": "Currants"
+    },
+    {
+      "product_name": "Dried fruits and berries (e.g. apricots, cranberries, mango, banana)",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 289,
+      "source_food_item": "Dried fruits and berries (e.g. apricots, cranberries, mango, banana)"
+    },
+    {
+      "product_name": "Dried vegetables (e.g. kale, carrots, pepper, tomatoes, mushrooms etc.)",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 290,
+      "source_food_item": "Dried vegetables (e.g. kale, carrots, pepper, tomatoes, mushrooms etc.)"
+    },
+    {
+      "product_name": "Prunes",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 291,
+      "source_food_item": "Prunes"
+    },
+    {
+      "product_name": "Sultanas",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 292,
+      "source_food_item": "Sultanas"
+    },
+    {
+      "product_name": "Fermented Vegetables (e.g. cucumbers, gherkins, carrots, turnips, rutabaga, cabbage, garlic etc.)",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 293,
+      "source_food_item": "Fermented Vegetables (e.g. cucumbers, gherkins, carrots, turnips, rutabaga, cabbage, garlic etc.)"
+    },
+    {
+      "product_name": "Kimchi",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 294,
+      "source_food_item": "Kimchi"
+    },
+    {
+      "product_name": "Sauerkraut",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 295,
+      "source_food_item": "Sauerkraut"
+    },
+    {
+      "product_name": "Citrus segments",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 296,
+      "source_food_item": "Citrus segments"
+    },
+    {
+      "product_name": "Mixed fruit salads",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 297,
+      "source_food_item": "Mixed fruit salads"
+    },
+    {
+      "product_name": "Green salad",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 298,
+      "source_food_item": "Green salad"
+    },
+    {
+      "product_name": "Sugar snap peas",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 299,
+      "source_food_item": "Sugar snap peas"
+    },
+    {
+      "product_name": "Stir fry vegetables mixes",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 300,
+      "source_food_item": "Stir fry vegetables mixes"
+    },
+    {
+      "product_name": "Vegetable sticks",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 301,
+      "source_food_item": "Vegetable sticks"
+    },
+    {
+      "product_name": "Beetroot",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 302,
+      "source_food_item": "Beetroot"
+    },
+    {
+      "product_name": "Ocra",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 303,
+      "source_food_item": "Ocra"
+    },
+    {
+      "product_name": "Pak choi",
+      "expected_food_group": "FG4",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 304,
+      "source_food_item": "Pak choi"
+    },
+    {
+      "product_name": "Barley (hulled or whole barley)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 305,
+      "source_food_item": "Barley (hulled or whole barley)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Bulgur",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 306,
+      "source_food_item": "Bulgur",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Couscous (incl. wholegrain)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 307,
+      "source_food_item": "Couscous (incl. wholegrain)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Farro",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 308,
+      "source_food_item": "Farro",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Flour and associated products (incl. wholegrain)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 309,
+      "source_food_item": "Flour and associated products (incl. wholegrain)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Millet Pasta (e.g. spaghetti, penne incl. wholegrain)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 310,
+      "source_food_item": "Millet Pasta (e.g. spaghetti, penne incl. wholegrain)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Oats (rolled oats, steel-cut oats)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 311,
+      "source_food_item": "Oats (rolled oats, steel-cut oats)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Rice (brown, wild, jasmine, basmati, sushi, bacl, red etc.)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 312,
+      "source_food_item": "Rice (brown, wild, jasmine, basmati, sushi, bacl, red etc.)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Quinoa",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 313,
+      "source_food_item": "Quinoa",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Rye berries (whole rye kernels)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 314,
+      "source_food_item": "Rye berries (whole rye kernels)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Spelt (whole spelt grains)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 315,
+      "source_food_item": "Spelt (whole spelt grains)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Whole wheat",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 317,
+      "source_food_item": "Whole wheat",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Muesli (made with whole rolled oats and other whole grains)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 319,
+      "source_food_item": "Muesli (made with whole rolled oats and other whole grains)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Oatmeal",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 320,
+      "source_food_item": "Oatmeal",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Breads (e.g. plait, ciabatta, foccaccia, baguette, naan, pita, soudough bread, bagels incl. wholegrain)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 322,
+      "source_food_item": "Breads (e.g. plait, ciabatta, foccaccia, baguette, naan, pita, soudough bread, bagels incl. wholegrain)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Buns (e.g. hamburger buns, hot dog buns incl. wholegrain)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 323,
+      "source_food_item": "Buns (e.g. hamburger buns, hot dog buns incl. wholegrain)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Sliced bread (incl. wholegrain)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 325,
+      "source_food_item": "Sliced bread (incl. wholegrain)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Crackers (e.g. multigrain, rice, wheat, corn etc.)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 326,
+      "source_food_item": "Crackers (e.g. multigrain, rice, wheat, corn etc.)",
+      "expected_fg5_grain_kind": "refined_grain"
+    },
+    {
+      "product_name": "Rice cakes without coatings",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 327,
+      "source_food_item": "Rice cakes without coatings",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Wholemeal Pasta",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 328,
+      "source_food_item": "Wholemeal Pasta",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Noodles (e.g. udon, rice, soba, vermicelli, glass etc.)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 329,
+      "source_food_item": "Noodles (e.g. udon, rice, soba, vermicelli, glass etc.)",
+      "expected_fg5_grain_kind": "refined_grain"
+    },
+    {
+      "product_name": "Tortillas",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 330,
+      "source_food_item": "Tortillas",
+      "expected_fg5_grain_kind": "refined_grain"
+    },
+    {
+      "product_name": "Polenta",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 332,
+      "source_food_item": "Polenta",
+      "expected_fg5_grain_kind": "refined_grain"
+    },
+    {
+      "product_name": "Cornflakes",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 335,
+      "source_food_item": "Cornflakes",
+      "expected_fg5_grain_kind": "refined_grain"
+    },
+    {
+      "product_name": "Pizza bases or dough (incl. wholegrain)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 337,
+      "source_food_item": "Pizza bases or dough (incl. wholegrain)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Amaranth",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 340,
+      "source_food_item": "Amaranth",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Pasta dough (incl. wholegrain) without egg",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 342,
+      "source_food_item": "Pasta dough (incl. wholegrain) without egg",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Pizza dough (incl. wholegrain)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 343,
+      "source_food_item": "Pizza dough (incl. wholegrain)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Pasta dough (incl. wholegrain)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 344,
+      "source_food_item": "Pasta dough (incl. wholegrain)",
+      "expected_fg5_grain_kind": "whole_grain"
+    },
+    {
+      "product_name": "Cassava",
+      "expected_food_group": "FG6",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 345,
+      "source_food_item": "Cassava"
+    },
+    {
+      "product_name": "Potatoes (e.g. russet potatoes, purple potatoes, white potatoes)",
+      "expected_food_group": "FG6",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 346,
+      "source_food_item": "Potatoes (e.g. russet potatoes, purple potatoes, white potatoes)"
+    },
+    {
+      "product_name": "Sweet potatoes",
+      "expected_food_group": "FG6",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 347,
+      "source_food_item": "Sweet potatoes"
+    },
+    {
+      "product_name": "Lotus root",
+      "expected_food_group": "FG6",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 348,
+      "source_food_item": "Lotus root"
+    },
+    {
+      "product_name": "Taro",
+      "expected_food_group": "FG6",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 349,
+      "source_food_item": "Taro"
+    },
+    {
+      "product_name": "Yams",
+      "expected_food_group": "FG6",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 350,
+      "source_food_item": "Yams"
+    },
+    {
+      "product_name": "Marshmallows",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 363,
+      "source_food_item": "Marshmallows",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Cakes (e.g. sponge cake, chocolate cake, pound cake, unbaked cake e.g. cheesecake)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 369,
+      "source_food_item": "Cakes (e.g. sponge cake, chocolate cake, pound cake, unbaked cake e.g. cheesecake)",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Cupcakes",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 370,
+      "source_food_item": "Cupcakes",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Doughnuts",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 371,
+      "source_food_item": "Doughnuts",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Muffins",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 372,
+      "source_food_item": "Muffins",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Pastries (cinnamon rolls, cardamom bun, brioche, pain au chocolat, strudel, croissant, éclair, baklava, cannoli, pies)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 373,
+      "source_food_item": "Pastries (cinnamon rolls, cardamom bun, brioche, pain au chocolat, strudel, croissant, éclair, baklava, cannoli, pies)",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Pancakes",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 374,
+      "source_food_item": "Pancakes",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Muffins",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 376,
+      "source_food_item": "Muffins",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Waffles",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 377,
+      "source_food_item": "Waffles",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Rice cakes with coatings",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 384,
+      "source_food_item": "Rice cakes with coatings",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Ice cream (all flavors)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 389,
+      "source_food_item": "Ice cream (all flavors)",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Gelato",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 391,
+      "source_food_item": "Gelato",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Frozen yogurt",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 392,
+      "source_food_item": "Frozen yogurt",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Ice cream sandwiches and cakes",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 393,
+      "source_food_item": "Ice cream sandwiches and cakes",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Honey",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 400,
+      "source_food_item": "Honey",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Dulce de leche / caramel spread",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 407,
+      "source_food_item": "Dulce de leche / caramel spread",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Mousse",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 410,
+      "source_food_item": "Mousse",
+      "expected_fg7_kind": "animal_based_snack"
+    },
+    {
+      "product_name": "Panna Cotta",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "exact",
+      "source_row_index": 412,
+      "source_food_item": "Panna Cotta",
+      "expected_fg7_kind": "animal_based_snack"
+    }
+  ]
+}

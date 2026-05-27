@@ -1,0 +1,973 @@
+{
+  "name": "WWF Category — ambiguous subgroup (Phase WWF-L)",
+  "source": "WWF Category - Feuille 1.csv",
+  "cases": [
+    {
+      "product_name": "Snails",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 7,
+      "source_food_item": "Snails"
+    },
+    {
+      "product_name": "Hare",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 11,
+      "source_food_item": "Hare"
+    },
+    {
+      "product_name": "Burger Patty",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 20,
+      "source_food_item": "Burger Patty"
+    },
+    {
+      "product_name": "Gammon",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 22,
+      "source_food_item": "Gammon"
+    },
+    {
+      "product_name": "Jamon Iberico",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 24,
+      "source_food_item": "Jamon Iberico"
+    },
+    {
+      "product_name": "Koftas",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 25,
+      "source_food_item": "Koftas"
+    },
+    {
+      "product_name": "Leberkase",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 26,
+      "source_food_item": "Leberkase"
+    },
+    {
+      "product_name": "Mortadella",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 27,
+      "source_food_item": "Mortadella"
+    },
+    {
+      "product_name": "Patè",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 28,
+      "source_food_item": "Patè"
+    },
+    {
+      "product_name": "Gelatine (sheets, leaves, blocks)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 35,
+      "source_food_item": "Gelatine (sheets, leaves, blocks)"
+    },
+    {
+      "product_name": "Barnacles",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 37,
+      "source_food_item": "Barnacles"
+    },
+    {
+      "product_name": "Clams",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 43,
+      "source_food_item": "Clams"
+    },
+    {
+      "product_name": "Surstromming",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 52,
+      "source_food_item": "Surstromming"
+    },
+    {
+      "product_name": "Gravadlax",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 57,
+      "source_food_item": "Gravadlax"
+    },
+    {
+      "product_name": "Scampi",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 61,
+      "source_food_item": "Scampi"
+    },
+    {
+      "product_name": "Green/garden peas",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 74,
+      "source_food_item": "Green/garden peas"
+    },
+    {
+      "product_name": "Marrowfat/mushy peas",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 81,
+      "source_food_item": "Marrowfat/mushy peas"
+    },
+    {
+      "product_name": "Soya",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 112,
+      "source_food_item": "Soya"
+    },
+    {
+      "product_name": "Mutton",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 124,
+      "source_food_item": "Mutton"
+    },
+    {
+      "product_name": "Ostrich",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 125,
+      "source_food_item": "Ostrich"
+    },
+    {
+      "product_name": "Moose",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 126,
+      "source_food_item": "Moose"
+    },
+    {
+      "product_name": "Razor clams",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 129,
+      "source_food_item": "Razor clams"
+    },
+    {
+      "product_name": "Whelks",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 130,
+      "source_food_item": "Whelks"
+    },
+    {
+      "product_name": "Periwinkles",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 131,
+      "source_food_item": "Periwinkles"
+    },
+    {
+      "product_name": "Kippers",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 133,
+      "source_food_item": "Kippers"
+    },
+    {
+      "product_name": "Cowpeas",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 135,
+      "source_food_item": "Cowpeas"
+    },
+    {
+      "product_name": "Jackfruit",
+      "expected_food_group": "FG1",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 138,
+      "source_food_item": "Jackfruit"
+    },
+    {
+      "product_name": "Curd (including flavoured and seasoned varieties)",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 152,
+      "source_food_item": "Curd (including flavoured and seasoned varieties)"
+    },
+    {
+      "product_name": "Protein drink",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 160,
+      "source_food_item": "Protein drink"
+    },
+    {
+      "product_name": "Protein powders",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "animal-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 161,
+      "source_food_item": "Protein powders"
+    },
+    {
+      "product_name": "Plant-Based protein powders",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 162,
+      "source_food_item": "Plant-Based protein powders"
+    },
+    {
+      "product_name": "Plant-based protein drinks",
+      "expected_food_group": "FG2",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 173,
+      "source_food_item": "Plant-based protein drinks"
+    },
+    {
+      "product_name": "Wheat berries",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 316,
+      "source_food_item": "Wheat berries"
+    },
+    {
+      "product_name": "Whole bran flakes",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 318,
+      "source_food_item": "Whole bran flakes"
+    },
+    {
+      "product_name": "Wheat flakes",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 321,
+      "source_food_item": "Wheat flakes"
+    },
+    {
+      "product_name": "Multi-grain bread",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 324,
+      "source_food_item": "Multi-grain bread"
+    },
+    {
+      "product_name": "Corn flour",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 331,
+      "source_food_item": "Corn flour"
+    },
+    {
+      "product_name": "Semolina",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 333,
+      "source_food_item": "Semolina"
+    },
+    {
+      "product_name": "Bran flakes",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 334,
+      "source_food_item": "Bran flakes"
+    },
+    {
+      "product_name": "Cereals made from refined corn rice or wheat with no added sugar (Granola, Rice Cereal, wheat flakes)",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 336,
+      "source_food_item": "Cereals made from refined corn rice or wheat with no added sugar (Granola, Rice Cereal, wheat flakes)"
+    },
+    {
+      "product_name": "Sorghum",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 338,
+      "source_food_item": "Sorghum"
+    },
+    {
+      "product_name": "Teff",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 339,
+      "source_food_item": "Teff"
+    },
+    {
+      "product_name": "Fonio",
+      "expected_food_group": "FG5",
+      "expected_is_composite": false,
+      "expected_source": "plant-based",
+      "confidence_of_label": "ambiguous",
+      "source_row_index": 341,
+      "source_food_item": "Fonio"
+    },
+    {
+      "product_name": "Chocolate",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 351,
+      "source_food_item": "Chocolate",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Chocolate bars",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 352,
+      "source_food_item": "Chocolate bars",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Chocolate truffles, pralines",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 353,
+      "source_food_item": "Chocolate truffles, pralines",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Bonbons",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 354,
+      "source_food_item": "Bonbons",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Sweets (hard, soft)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 355,
+      "source_food_item": "Sweets (hard, soft)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Gummibears",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 356,
+      "source_food_item": "Gummibears",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Toffees",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 357,
+      "source_food_item": "Toffees",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Lollipops",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 358,
+      "source_food_item": "Lollipops",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Gums and jellies",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 359,
+      "source_food_item": "Gums and jellies",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Licorice",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 360,
+      "source_food_item": "Licorice",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Chocolate-coated nuts and fruits",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 361,
+      "source_food_item": "Chocolate-coated nuts and fruits",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Coated nuts",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 362,
+      "source_food_item": "Coated nuts",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Nougat",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 364,
+      "source_food_item": "Nougat",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Fruit and caramel chews",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 365,
+      "source_food_item": "Fruit and caramel chews",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Marzipan",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 366,
+      "source_food_item": "Marzipan",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Gingerbread",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 367,
+      "source_food_item": "Gingerbread",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Sweet biscuits (cookies)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 368,
+      "source_food_item": "Sweet biscuits (cookies)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Crépes",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 375,
+      "source_food_item": "Crépes",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Potato chips (crisps)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 378,
+      "source_food_item": "Potato chips (crisps)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Corn chips",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 379,
+      "source_food_item": "Corn chips",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Tortilla chips",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 380,
+      "source_food_item": "Tortilla chips",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Vegetable chips (e.g. beetroot, carrots, pumpkin)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 381,
+      "source_food_item": "Vegetable chips (e.g. beetroot, carrots, pumpkin)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Pretzels",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 382,
+      "source_food_item": "Pretzels",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Popcorn (salted, sweet, buttered)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 383,
+      "source_food_item": "Popcorn (salted, sweet, buttered)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Snack mixes / apéro mixes without nuts (e.g. crackers and pretzels)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 385,
+      "source_food_item": "Snack mixes / apéro mixes without nuts (e.g. crackers and pretzels)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Snack sticks",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 386,
+      "source_food_item": "Snack sticks",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "French Fries and potatoe wedges",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 387,
+      "source_food_item": "French Fries and potatoe wedges",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Fried potatoe sides (e.g. Pommes Duchesse, Pommes Noisette, unfilled croquettes)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 388,
+      "source_food_item": "Fried potatoe sides (e.g. Pommes Duchesse, Pommes Noisette, unfilled croquettes)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Sorbet",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 390,
+      "source_food_item": "Sorbet",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Ice pops",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 394,
+      "source_food_item": "Ice pops",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Mochi",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 395,
+      "source_food_item": "Mochi",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Sweet pies / tartlets (e.g. apple tart, pecan pie)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 396,
+      "source_food_item": "Sweet pies / tartlets (e.g. apple tart, pecan pie)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Jam",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 397,
+      "source_food_item": "Jam",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Jelly",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 398,
+      "source_food_item": "Jelly",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Sweetened nut-cocoa spread",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 399,
+      "source_food_item": "Sweetened nut-cocoa spread",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Maple syrup",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 401,
+      "source_food_item": "Maple syrup",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Agave Syrup",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 402,
+      "source_food_item": "Agave Syrup",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Preserves",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 403,
+      "source_food_item": "Preserves",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Fruit compotes with sugar (e.g. apple, pear etc.)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 404,
+      "source_food_item": "Fruit compotes with sugar (e.g. apple, pear etc.)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Fruit sauce with added sugars (e.g. berries, passion fruit, mango)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 405,
+      "source_food_item": "Fruit sauce with added sugars (e.g. berries, passion fruit, mango)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Fruit curd with added sugar (e.g. lemon, orange, lime, mango, strawberry)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 406,
+      "source_food_item": "Fruit curd with added sugar (e.g. lemon, orange, lime, mango, strawberry)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Puddings (e.g. chocolate pudding, fondant, vanilla pudding, bread & butter pudding)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 408,
+      "source_food_item": "Puddings (e.g. chocolate pudding, fondant, vanilla pudding, bread & butter pudding)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Custards",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 409,
+      "source_food_item": "Custards",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Tarts (e.g. lemon tart, chocolate tart, fruit tart)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 411,
+      "source_food_item": "Tarts (e.g. lemon tart, chocolate tart, fruit tart)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Dessert pots (e.g. jelly pots)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 413,
+      "source_food_item": "Dessert pots (e.g. jelly pots)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Meringue",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 414,
+      "source_food_item": "Meringue",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Breakfast bars (e.g. oat bars, nut bars, fruit bars)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 415,
+      "source_food_item": "Breakfast bars (e.g. oat bars, nut bars, fruit bars)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Granola bars",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 416,
+      "source_food_item": "Granola bars",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Protein bars",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 417,
+      "source_food_item": "Protein bars",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Icing, Frosting and Glaze (e.g. chocolate glaze or sugar icing)",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 418,
+      "source_food_item": "Icing, Frosting and Glaze (e.g. chocolate glaze or sugar icing)",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Muesli with added sugar",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 419,
+      "source_food_item": "Muesli with added sugar",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Cereal with added sugar",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 420,
+      "source_food_item": "Cereal with added sugar",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Sugar",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 421,
+      "source_food_item": "Sugar",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Brownies",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 422,
+      "source_food_item": "Brownies",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Nachos",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 423,
+      "source_food_item": "Nachos",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Rösti classic",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 424,
+      "source_food_item": "Rösti classic",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Puff pastry",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 425,
+      "source_food_item": "Puff pastry",
+      "expected_fg7_kind": "plant_based_snack"
+    },
+    {
+      "product_name": "Short pastry or shortcrust",
+      "expected_food_group": "FG7",
+      "expected_is_composite": false,
+      "expected_source": "animal-based or plant-based",
+      "confidence_of_label": "partial",
+      "source_row_index": 426,
+      "source_food_item": "Short pastry or shortcrust",
+      "expected_fg7_kind": "plant_based_snack"
+    }
+  ]
+}

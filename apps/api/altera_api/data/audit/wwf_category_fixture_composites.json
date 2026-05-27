@@ -1,0 +1,364 @@
+{
+  "name": "WWF Category — composites (Phase WWF-L)",
+  "source": "WWF Category - Feuille 1.csv",
+  "cases": [
+    {
+      "product_name": "Pizza (e.g. salami, pepperoni, hawai, BBQ, prosciutto, anchovies, scampi, frutti di mare, marinara, napoli, margherita, verdura, ortolana, funghi, pesto, vegan varieties)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 427,
+      "source_food_item": "Pizza (e.g. salami, pepperoni, hawai, BBQ, prosciutto, anchovies, scampi, frutti di mare, marinara, napoli, margherita, verdura, ortolana, funghi, pesto, vegan varieties)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Sandwich (e.g. ham, roast beef, pastrami, salami, salmon, tona, shrimp, carprese, cheese, egg, oriental, grilled vegetables, hummus)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 428,
+      "source_food_item": "Sandwich (e.g. ham, roast beef, pastrami, salami, salmon, tona, shrimp, carprese, cheese, egg, oriental, grilled vegetables, hummus)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Salad (BBQ chicken, eeasar salad, chicken cousous, tuna, salad nicoise, with tofu or vegan cheese, with nuts and seeds, bulgur, greek salad, coleslaw, potato salad)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 429,
+      "source_food_item": "Salad (BBQ chicken, eeasar salad, chicken cousous, tuna, salad nicoise, with tofu or vegan cheese, with nuts and seeds, bulgur, greek salad, coleslaw, potato salad)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Soup (e.g. chicken, chicken noodle, bouillabaisse, vegetable, with added cream or cheese)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 430,
+      "source_food_item": "Soup (e.g. chicken, chicken noodle, bouillabaisse, vegetable, with added cream or cheese)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Sushi roll or gimbap (e.g. with beef, salmon, cream cheese, avocado, mango)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 431,
+      "source_food_item": "Sushi roll or gimbap (e.g. with beef, salmon, cream cheese, avocado, mango)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Pasta dishes (e.g. beef lasagna, tortellini filled with meat, spaghetti carbonara or bolognese, tuna pasta bake, ravioli filled with salmon, pesto pasta bake, mac and cheese, penne arrabiata)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 432,
+      "source_food_item": "Pasta dishes (e.g. beef lasagna, tortellini filled with meat, spaghetti carbonara or bolognese, tuna pasta bake, ravioli filled with salmon, pesto pasta bake, mac and cheese, penne arrabiata)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "(Tex-)Mex food items (e.g. quesadilla, burrito, enchilada, taco)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "partial",
+      "source_row_index": 433,
+      "source_food_item": "(Tex-)Mex food items (e.g. quesadilla, burrito, enchilada, taco)",
+      "expected_composite_step1_bucket": "vegan",
+      "bucket_ambiguous": true
+    },
+    {
+      "product_name": "Mediterannean food items (e.g. börek, spinach & cheese pastry swirl)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 434,
+      "source_food_item": "Mediterannean food items (e.g. börek, spinach & cheese pastry swirl)",
+      "expected_composite_step1_bucket": "vegetarian"
+    },
+    {
+      "product_name": "Rice dishes (e.g. chicken curry with rice, chicken katsu curry with rice, frozen paella seafood, kimchi rice bowl, mushroom risotto (with cheese)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 435,
+      "source_food_item": "Rice dishes (e.g. chicken curry with rice, chicken katsu curry with rice, frozen paella seafood, kimchi rice bowl, mushroom risotto (with cheese)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Various bowls (e.g. poke bowl, beef burrito bowl, couscous bowl with chickpeas, chicken fried rice bowl, falafel bowl with hummus, chicken fajita bowl)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 436,
+      "source_food_item": "Various bowls (e.g. poke bowl, beef burrito bowl, couscous bowl with chickpeas, chicken fried rice bowl, falafel bowl with hummus, chicken fajita bowl)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Wraps (e.g. chicken, beef, salmon, tuna, shrimp, falafel, caprese, soy chunks, mediterranean vegetables, plant-based alternatives)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 437,
+      "source_food_item": "Wraps (e.g. chicken, beef, salmon, tuna, shrimp, falafel, caprese, soy chunks, mediterranean vegetables, plant-based alternatives)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Ready-made breakfast items (e.g. bircher muesli, chia pudding, Greek yogurt & berry bowl, milk rice pudding, porridge, semolina pudding)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 438,
+      "source_food_item": "Ready-made breakfast items (e.g. bircher muesli, chia pudding, Greek yogurt & berry bowl, milk rice pudding, porridge, semolina pudding)",
+      "expected_composite_step1_bucket": "vegetarian"
+    },
+    {
+      "product_name": "Pie (e.g. fish pie, chicken pot pie)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 439,
+      "source_food_item": "Pie (e.g. fish pie, chicken pot pie)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Meat-based dishes (e.g. beef chow mein, beef stew, butter chicken, chicken korma, pork schnitzel with potato salad)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 440,
+      "source_food_item": "Meat-based dishes (e.g. beef chow mein, beef stew, butter chicken, chicken korma, pork schnitzel with potato salad)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Vegetarian or vegan dishes (e.g. dahl, tofu curry, paneer tikka masala, stuffed peppers with rice and beans)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "partial",
+      "source_row_index": 441,
+      "source_food_item": "Vegetarian or vegan dishes (e.g. dahl, tofu curry, paneer tikka masala, stuffed peppers with rice and beans)",
+      "expected_composite_step1_bucket": "vegan",
+      "bucket_ambiguous": true
+    },
+    {
+      "product_name": "Calzone",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "partial",
+      "source_row_index": 442,
+      "source_food_item": "Calzone",
+      "expected_composite_step1_bucket": "vegan",
+      "bucket_ambiguous": true
+    },
+    {
+      "product_name": "Quiche (e.g. ham and cheese, salom, chicken and mushroom, spinach and feta, broccoli and cheddar, vegetables)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 443,
+      "source_food_item": "Quiche (e.g. ham and cheese, salom, chicken and mushroom, spinach and feta, broccoli and cheddar, vegetables)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Flammkuchen (e.g. classic, seafood, vegetarian varieties, vegan varieties)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 444,
+      "source_food_item": "Flammkuchen (e.g. classic, seafood, vegetarian varieties, vegan varieties)",
+      "expected_composite_step1_bucket": "seafood_based"
+    },
+    {
+      "product_name": "Filled or unfilled gnocchi",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "partial",
+      "source_row_index": 445,
+      "source_food_item": "Filled or unfilled gnocchi",
+      "expected_composite_step1_bucket": "vegan",
+      "bucket_ambiguous": true
+    },
+    {
+      "product_name": "Kebab",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "partial",
+      "source_row_index": 446,
+      "source_food_item": "Kebab",
+      "expected_composite_step1_bucket": "vegan",
+      "bucket_ambiguous": true
+    },
+    {
+      "product_name": "Filled savoury foods (e.g. dumplings, gyoza, spring rolls, steak bake, sausage roll)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 447,
+      "source_food_item": "Filled savoury foods (e.g. dumplings, gyoza, spring rolls, steak bake, sausage roll)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Vegetables with added cream or butter (e.g. cream spinach or buttered vegetables)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 448,
+      "source_food_item": "Vegetables with added cream or butter (e.g. cream spinach or buttered vegetables)",
+      "expected_composite_step1_bucket": "vegetarian"
+    },
+    {
+      "product_name": "Potatoe gratin or pasta bake",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "partial",
+      "source_row_index": 449,
+      "source_food_item": "Potatoe gratin or pasta bake",
+      "expected_composite_step1_bucket": "vegan",
+      "bucket_ambiguous": true
+    },
+    {
+      "product_name": "Rösti with added cheese or meat",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 450,
+      "source_food_item": "Rösti with added cheese or meat",
+      "expected_composite_step1_bucket": "vegetarian"
+    },
+    {
+      "product_name": "Filled croquettes (e.g. croquettes with cheese or meats)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 451,
+      "source_food_item": "Filled croquettes (e.g. croquettes with cheese or meats)",
+      "expected_composite_step1_bucket": "vegetarian"
+    },
+    {
+      "product_name": "Trail mix (seeds & nuts or roasted legumes mixed with dried fruit, chocolate, savoury or sweet covered nuts and fruit)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "partial",
+      "source_row_index": 452,
+      "source_food_item": "Trail mix (seeds & nuts or roasted legumes mixed with dried fruit, chocolate, savoury or sweet covered nuts and fruit)",
+      "expected_composite_step1_bucket": "vegan",
+      "bucket_ambiguous": true
+    },
+    {
+      "product_name": "Blended / hybrid meat products (e.g. minced meat, sausages or burger patties with added plant protein --> beef and lentil)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 453,
+      "source_food_item": "Blended / hybrid meat products (e.g. minced meat, sausages or burger patties with added plant protein --> beef and lentil)",
+      "expected_composite_step1_bucket": "meat_based"
+    },
+    {
+      "product_name": "Blended / hybrid milk products (e.g. dairy mixed with milk alternatives, dairy cream cheese with added seeds or pulses)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 454,
+      "source_food_item": "Blended / hybrid milk products (e.g. dairy mixed with milk alternatives, dairy cream cheese with added seeds or pulses)",
+      "expected_composite_step1_bucket": "vegetarian"
+    },
+    {
+      "product_name": "Blended / hybrid fat products (e.g. butter with margarine)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "partial",
+      "source_row_index": 455,
+      "source_food_item": "Blended / hybrid fat products (e.g. butter with margarine)",
+      "expected_composite_step1_bucket": "vegan",
+      "bucket_ambiguous": true
+    },
+    {
+      "product_name": "Savoury spreads with ingredients from different food groups (e.g. Potatoe Kas / Spread, tomatoe chickpea spred, butter or margerine with added egg or meat)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 456,
+      "source_food_item": "Savoury spreads with ingredients from different food groups (e.g. Potatoe Kas / Spread, tomatoe chickpea spred, butter or margerine with added egg or meat)",
+      "expected_composite_step1_bucket": "vegetarian"
+    },
+    {
+      "product_name": "Pasta with egg (e.g. Spätzle, Hörnli with egg)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 457,
+      "source_food_item": "Pasta with egg (e.g. Spätzle, Hörnli with egg)",
+      "expected_composite_step1_bucket": "vegetarian"
+    },
+    {
+      "product_name": "Pasta dough with egg",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 458,
+      "source_food_item": "Pasta dough with egg",
+      "expected_composite_step1_bucket": "vegetarian"
+    },
+    {
+      "product_name": "Peppers stuffed with cream cheese",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 459,
+      "source_food_item": "Peppers stuffed with cream cheese",
+      "expected_composite_step1_bucket": "vegetarian"
+    },
+    {
+      "product_name": "Ready-to-drink coffee beverages (milk-based)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 460,
+      "source_food_item": "Ready-to-drink coffee beverages (milk-based)",
+      "expected_composite_step1_bucket": "vegetarian"
+    },
+    {
+      "product_name": "Ready-to-drink cocoa beverages (milk-based)",
+      "expected_food_group": "FG1",
+      "expected_is_composite": true,
+      "expected_source": "composite",
+      "confidence_of_label": "exact",
+      "source_row_index": 461,
+      "source_food_item": "Ready-to-drink cocoa beverages (milk-based)",
+      "expected_composite_step1_bucket": "vegetarian"
+    }
+  ]
+}
