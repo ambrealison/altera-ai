@@ -1560,33 +1560,67 @@ function StepCalculation({
           </p>
         )}
         <ul className="mt-2 space-y-1.5">
-          {[
-            {
-              label: "Fichier importé",
-              ok: (preflight?.total_products ?? 0) > 0,
-            },
-            {
-              label: "Classification terminée",
-              ok:
-                preflight !== null &&
-                preflight.classified_products === preflight.total_products,
-            },
-            {
-              label: "Validation manuelle complète",
-              ok: isReady || !isBlocked,
-            },
-            {
-              label: "Données nutritionnelles disponibles",
-              ok: readyRows > 0,
-            },
-          ].map((c) => (
-            <li key={c.label} className="flex items-center gap-2 text-sm">
-              <span className={c.ok ? "text-emerald-600" : "text-rose-500"}>
-                {c.ok ? "✓" : "✗"}
-              </span>
-              <span className={c.ok ? "text-gray-700" : "text-gray-500"}>{c.label}</span>
-            </li>
-          ))}
+          {(() => {
+            // Phase Hotfix-Validation — manual review is no longer a
+            // hard prerequisite. The checklist now distinguishes three
+            // marker types:
+            //   * "ok" (✓ emerald) — requirement met.
+            //   * "warn" (◷ amber) — non-blocking review backlog.
+            //   * "missing" (✗ rose) — true blocker; calc disabled.
+            type Marker = "ok" | "warn" | "missing";
+            const reviewOnly = step.counts.review_only ?? 0;
+            const items: { label: string; marker: Marker }[] = [
+              {
+                label: "Fichier importé",
+                marker:
+                  (preflight?.total_products ?? 0) > 0 ? "ok" : "missing",
+              },
+              {
+                label: "Classification terminée",
+                marker:
+                  preflight !== null &&
+                  preflight.classified_products === preflight.total_products
+                    ? "ok"
+                    : "missing",
+              },
+              {
+                label:
+                  reviewOnly > 0
+                    ? `Validation manuelle — ${reviewOnly} à vérifier (non bloquant)`
+                    : "Validation manuelle complète",
+                marker: reviewOnly > 0 ? "warn" : "ok",
+              },
+              {
+                label: "Données nutritionnelles disponibles",
+                marker: readyRows > 0 ? "ok" : "missing",
+              },
+            ];
+            return items.map((c) => {
+              const iconColor =
+                c.marker === "ok"
+                  ? "text-emerald-600"
+                  : c.marker === "warn"
+                    ? "text-amber-600"
+                    : "text-rose-500";
+              const labelColor =
+                c.marker === "ok"
+                  ? "text-gray-700"
+                  : c.marker === "warn"
+                    ? "text-amber-800"
+                    : "text-gray-500";
+              const icon =
+                c.marker === "ok" ? "✓" : c.marker === "warn" ? "◷" : "✗";
+              return (
+                <li
+                  key={c.label}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <span className={iconColor}>{icon}</span>
+                  <span className={labelColor}>{c.label}</span>
+                </li>
+              );
+            });
+          })()}
         </ul>
 
         {isBlocked && (() => {

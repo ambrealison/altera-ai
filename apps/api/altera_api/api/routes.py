@@ -2518,33 +2518,42 @@ def _nutrition_row_fields(
         else None
     )
 
-    protein_rec = next(
-        (
-            r for r in records
-            if r.nutrient == "protein_pct"
+    # Phase Hotfix-Validation — when multiple ENRICHED records exist
+    # for the same nutrient (NEVO matched first, then user overrode
+    # manually), the read path must prefer the manual override.
+    # Previous behaviour picked the FIRST record from the underlying
+    # list, which is insertion-order in both InMemoryStore and the
+    # un-ordered Postgres query — manual overrides were silently
+    # ignored on reload. We now sort by source priority
+    # (MANUAL_ALTERA > NEVO > CIQUAL > anything else), then by
+    # ``created_at`` desc as a tiebreaker.
+    def _record_priority(r: Any) -> tuple[int, datetime]:
+        # Lower priority number wins.
+        source_rank = {
+            _NES.MANUAL_ALTERA: 0,
+            _NES.NEVO: 1,
+            _NES.CIQUAL: 2,
+        }.get(r.source, 3)
+        # ``created_at`` is a datetime; we sort descending so newest
+        # wins within the same source bucket.
+        return (source_rank, -r.created_at.timestamp())
+
+    def _pick(nutrient: str) -> Any | None:
+        candidates = [
+            r
+            for r in records
+            if r.nutrient == nutrient
             and r.status is _NSt.ENRICHED
             and r.enriched_value is not None
-        ),
-        None,
-    )
-    plant_rec = next(
-        (
-            r for r in records
-            if r.nutrient == "plant_protein_pct"
-            and r.status is _NSt.ENRICHED
-            and r.enriched_value is not None
-        ),
-        None,
-    )
-    animal_rec = next(
-        (
-            r for r in records
-            if r.nutrient == "animal_protein_pct"
-            and r.status is _NSt.ENRICHED
-            and r.enriched_value is not None
-        ),
-        None,
-    )
+        ]
+        if not candidates:
+            return None
+        candidates.sort(key=_record_priority)
+        return candidates[0]
+
+    protein_rec = _pick("protein_pct")
+    plant_rec = _pick("plant_protein_pct")
+    animal_rec = _pick("animal_protein_pct")
 
     # Decide source / status. Retailer-provided values are always
     # preferred over enrichment.

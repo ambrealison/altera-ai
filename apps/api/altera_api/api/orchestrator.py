@@ -1137,15 +1137,33 @@ def submit_decision(
         elif decision == "changed":
             if to_category is None:
                 raise ValueError("to_category required for decision=changed")
-            outcome = change_pt_item(
-                claimed,
-                current=current,
-                to_group=ProteinTrackerGroup(to_category),
-                reviewer_user_id=reviewer_user_id,
-                reason=reason,
-                now=now,
-            )
-            store.upsert_pt_classification(outcome.pt_classification)  # type: ignore[arg-type]
+            # Phase Hotfix-Validation — "Corriger" with the same PT
+            # group as the current one is treated as an accept (the
+            # reviewer is confirming the existing category). Without
+            # this fallback ``change_pt_item`` raises
+            # ``IllegalTransitionError`` and the row stays in queue.
+            if (
+                current is not None
+                and current.pt_group is ProteinTrackerGroup(to_category)
+            ):
+                outcome = accept_pt_item(
+                    claimed,
+                    current=current,
+                    reviewer_user_id=reviewer_user_id,
+                    reason=reason,
+                    now=now,
+                )
+                store.upsert_pt_classification(outcome.pt_classification)  # type: ignore[arg-type]
+            else:
+                outcome = change_pt_item(
+                    claimed,
+                    current=current,
+                    to_group=ProteinTrackerGroup(to_category),
+                    reviewer_user_id=reviewer_user_id,
+                    reason=reason,
+                    now=now,
+                )
+                store.upsert_pt_classification(outcome.pt_classification)  # type: ignore[arg-type]
         else:
             outcome = defer_item(claimed, reviewer_user_id=reviewer_user_id, reason=reason, now=now)
     else:
@@ -1172,15 +1190,33 @@ def submit_decision(
                 raise ValueError(
                     "to_category or wwf payload required for decision=changed"
                 )
-            outcome = change_wwf_item(
-                claimed,
-                current=current_w,
-                target=target,
-                reviewer_user_id=reviewer_user_id,
-                reason=reason,
-                now=now,
-            )
-            store.upsert_wwf_classification(outcome.wwf_classification)  # type: ignore[arg-type]
+            # Phase Hotfix-Validation — same-target "Corriger" is an
+            # accept (the reviewer is confirming the existing WWF
+            # classification end-to-end). Falls through to
+            # ``change_wwf_item`` otherwise.
+            from altera_api.review.workflow import _wwf_categories_equal
+
+            if current_w is not None and _wwf_categories_equal(
+                current_w, target
+            ):
+                outcome = accept_wwf_item(
+                    claimed,
+                    current=current_w,
+                    reviewer_user_id=reviewer_user_id,
+                    reason=reason,
+                    now=now,
+                )
+                store.upsert_wwf_classification(outcome.wwf_classification)  # type: ignore[arg-type]
+            else:
+                outcome = change_wwf_item(
+                    claimed,
+                    current=current_w,
+                    target=target,
+                    reviewer_user_id=reviewer_user_id,
+                    reason=reason,
+                    now=now,
+                )
+                store.upsert_wwf_classification(outcome.wwf_classification)  # type: ignore[arg-type]
         else:
             outcome = defer_item(claimed, reviewer_user_id=reviewer_user_id, reason=reason, now=now)
 
