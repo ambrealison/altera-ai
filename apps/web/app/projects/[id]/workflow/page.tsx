@@ -844,11 +844,30 @@ function MethodologyClassificationCard({
         </div>
       )}
 
-      {currentJob && (
+      {/* Phase WWF-K — show the inner job progress box ONLY while
+          the job is active. Once the job is terminal, the header
+          counts above (driven by classification_by_methodology) are
+          the source of truth — the stale per-batch counters in the
+          job response are confusing (they showed "0 catégorisé · 0
+          accepté · 0 à vérifier" alongside "100/100" in the header). */}
+      {currentJob && isRunning && (
         <div className="mt-3">
           <ClassificationJobProgress job={currentJob} />
         </div>
       )}
+      {/* Terminal state with errors: surface the failure banner only,
+          not the misleading "0 catégorisé" line from the last
+          response payload. */}
+      {currentJob &&
+        !isRunning &&
+        (currentJob.status === "completed_with_errors" ||
+          currentJob.status === "failed") && (
+          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            {currentJob.status === "completed_with_errors"
+              ? `Terminé avec erreurs · ${currentJob.failed_product_count} ligne(s) en échec.`
+              : `Échec · ${currentJob.error_message ?? "erreur inconnue"}.`}
+          </div>
+        )}
 
       {error && (
         <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
@@ -894,6 +913,7 @@ function StepAIClassificationDual({
   wwfError,
   onRunPT,
   onRunWWF,
+  onRunBoth,
   onResumePT,
   onResumeWWF,
   onRetryFailedPT,
@@ -911,6 +931,8 @@ function StepAIClassificationDual({
   wwfError: string | null;
   onRunPT: () => void;
   onRunWWF: () => void;
+  /** Phase WWF-K — one-click "Lancer les deux catégorisations". */
+  onRunBoth: () => void;
   onResumePT: (jobId: string) => void;
   onResumeWWF: (jobId: string) => void;
   onRetryFailedPT: () => void;
@@ -925,6 +947,30 @@ function StepAIClassificationDual({
   // the other one later. PT and WWF classification are independent,
   // so blocking the wizard on both being done would be unhelpful.
   const canContinue = ptDone || wwfDone;
+
+  // Phase WWF-K — one-click "lancer les deux". The button label
+  // adapts to which methodologies still need running.
+  const ptRunning =
+    ptCurrentJob &&
+    (ptCurrentJob.status === "queued" || ptCurrentJob.status === "running");
+  const wwfRunning =
+    wwfCurrentJob &&
+    (wwfCurrentJob.status === "queued" || wwfCurrentJob.status === "running");
+  const anyRunning = ptRunning || wwfRunning;
+  const neitherStarted = !ptCurrentJob && !wwfCurrentJob;
+  const ptNeeds = !ptDone;
+  const wwfNeeds = !wwfDone;
+  const bothNeed = ptNeeds && wwfNeeds;
+  const runBothLabel = bothNeed
+    ? "Lancer les deux catégorisations"
+    : ptNeeds
+    ? "Lancer la catégorisation Protein Tracker restante"
+    : wwfNeeds
+    ? "Lancer la catégorisation WWF restante"
+    : "Tout est terminé";
+  const runBothDisabled = Boolean(
+    busy || !latestUpload || (!ptNeeds && !wwfNeeds) || anyRunning,
+  );
   return (
     <div className="space-y-5">
       <div>
@@ -932,13 +978,34 @@ function StepAIClassificationDual({
           Classification IA — Protein Tracker + WWF
         </h2>
         <p className="mt-1 text-sm text-gray-600">
-          Ce projet a deux méthodologies activées. Chaque catégorisation
-          peut être lancée, reprise et validée indépendamment.
+          Ce projet a deux méthodologies activées. Vous pouvez lancer
+          les deux catégorisations en un clic, ou les piloter
+          indépendamment via les cartes ci-dessous.
         </p>
         <p className="mt-1 text-xs text-gray-500">
           {"Les champs commerciaux (volumes, ventes, prix, marges) ne sont jamais envoyés à l'IA."}
         </p>
       </div>
+
+      {/* Phase WWF-K — primary one-click CTA for PT+WWF. Per-
+          methodology cards below remain available for advanced use
+          (resume, retry-failed, open validation). */}
+      {(neitherStarted || bothNeed || ptNeeds || wwfNeeds) && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={onRunBoth} disabled={runBothDisabled}>
+            {runBothLabel}
+          </Button>
+          <span className="text-xs text-gray-500">
+            {bothNeed
+              ? "Lance les deux jobs en parallèle. Vous pouvez fermer cette page — chaque job est sauvegardé et reprenable."
+              : ptNeeds
+              ? "WWF est terminée. Cliquez pour lancer Protein Tracker."
+              : wwfNeeds
+              ? "Protein Tracker est terminée. Cliquez pour lancer WWF."
+              : ""}
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <MethodologyClassificationCard
@@ -2276,6 +2343,21 @@ export default function WorkflowWizardPage() {
       });
   }
 
+  // Phase WWF-K — one-click "lancer les deux catégorisations" for
+  // PT+WWF projects. The orchestrator fires PT and WWF in parallel:
+  // each has its own state (currentJob vs currentJobWwf), its own
+  // poll loop, and its own error slot, so the two jobs progress
+  // independently. The browser's two HTTP connections are the
+  // implicit concurrency limit — no extra OpenAI requests per row.
+  function handleClassifyBoth() {
+    if (!latestUpload || !status) return;
+    if (busy) return;
+    const ptDone = ptClassificationCounts?.status === "complete";
+    const wwfDone = wwfClassificationCounts?.status === "complete";
+    if (!ptDone) handleClassifyAI();
+    if (!wwfDone) handleClassifyWwf();
+  }
+
   function handleOpenValidation(methodology: Methodology) {
     // Phase WWF-H — methodology-specific validation navigation. We
     // jump to the Validation step and pass the methodology hint via a
@@ -2480,6 +2562,7 @@ export default function WorkflowWizardPage() {
             wwfError={actionErrorWwf ?? jobErrorWwf}
             onRunPT={handleClassifyAI}
             onRunWWF={handleClassifyWwf}
+            onRunBoth={handleClassifyBoth}
             onResumePT={handleResumeClassify}
             onResumeWWF={handleResumeClassifyWwf}
             onRetryFailedPT={handleRetryFailed}

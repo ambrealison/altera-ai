@@ -853,17 +853,42 @@ UNKNOWN_RATE_TRIGGER = 0.10
 REVIEW_RATE_TRIGGER = 0.40
 
 
+#: Phase 34Q — PT auto-accept at confidence >= 0.70. Rows below 0.70
+#: still get a category; they're routed to review with the AI's
+#: best-guess so the user sees what was proposed.
+PT_REVIEW_THRESHOLD: Decimal = Decimal("0.7")
+
+#: Phase WWF-K — WWF auto-accept at confidence >= 0.80. The user
+#: report on the 100-product dataset showed that PT-level (0.70)
+#: auto-acceptance was too permissive for WWF: incorrect categories
+#: were being auto-accepted at 100% confidence, so the operator saw
+#: "100/100 catégorisé(s) · 0 en revue" while the underlying data
+#: was wrong. WWF's review band is now wider (anything <0.80 →
+#: review) so the operator sees and can correct borderline rows.
+#: Guard-overridden rows are already clamped to <=0.69 by
+#: ``wwf_guards._GUARD_CONFIDENCE_CEILING``, so they remain routed
+#: to review regardless of this threshold.
+WWF_REVIEW_THRESHOLD: Decimal = Decimal("0.8")
+
+
+def _default_threshold(methodology: Methodology) -> Decimal:
+    """Phase WWF-K — methodology-specific auto-accept thresholds."""
+    if methodology is Methodology.WWF:
+        return WWF_REVIEW_THRESHOLD
+    return PT_REVIEW_THRESHOLD
+
+
 def batch_classify(
     products: list[NormalizedProduct],
     provider: ClassifierProvider,
     methodology: Methodology,
     *,
     now: datetime,
-    # Phase 34Q — auto-accept at confidence >= 0.70 (was 0.80). Lower
-    # threshold = more "accepted" products, fewer "needs review". Rows
-    # below 0.70 still get a category; they're routed to review with
-    # their proposed pt_group so the user sees the AI's best guess.
-    threshold: Decimal = Decimal("0.7"),
+    # Phase WWF-K — when the caller doesn't supply an explicit
+    # ``threshold``, pick the methodology default: 0.70 for PT
+    # (Phase 34Q calibration), 0.80 for WWF (Phase WWF-K — be more
+    # conservative to surface borderline WWF rows for review).
+    threshold: Decimal | None = None,
     batch_size: int = DEFAULT_BATCH_SIZE,
     prompt_version: str = BATCH_CLASSIFIER_PROMPT_VERSION,
     retry_batch_size: int = RETRY_BATCH_SIZE,
@@ -882,6 +907,10 @@ def batch_classify(
     in the batch are marked parse_failed and the diagnostic includes
     the first 500 chars of the bad response.
     """
+    # Phase WWF-K — resolve the methodology default when the caller
+    # didn't pass an explicit ``threshold``.
+    if threshold is None:
+        threshold = _default_threshold(methodology)
     out: list[AIVerdict] = []
     batch_count = 0
     parse_failures = 0
