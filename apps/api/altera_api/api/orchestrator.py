@@ -51,6 +51,7 @@ from altera_api.domain.review import (
 from altera_api.domain.upload import Upload, UploadStatus
 from altera_api.domain.validation import ValidationReport
 from altera_api.domain.wwf import (
+    WWFCompositeStep1Bucket,
     WWFFG1Subgroup,
     WWFFG2Subgroup,
     WWFFG3Subgroup,
@@ -1081,6 +1082,12 @@ def submit_decision(
     reviewer_user_id: UUID,
     to_category: str | None = None,
     reason: str | None = None,
+    # Phase WWF-O — explicit WWF correction payload. When supplied,
+    # ``wwf_target`` supersedes the legacy ``to_category`` path so the
+    # reviewer can pin every WWF field (food group + subgroup +
+    # composite + bucket) without ``_build_wwf_target`` picking safe
+    # defaults.
+    wwf_target: WWFProductClassification | None = None,
 ) -> ReviewItemView:
     item = store.get_review_item(product_id, methodology)
     if item is None:
@@ -1154,9 +1161,17 @@ def submit_decision(
             )
             store.upsert_wwf_classification(outcome.wwf_classification)  # type: ignore[arg-type]
         elif decision == "changed":
-            if to_category is None:
-                raise ValueError("to_category required for decision=changed")
-            target = _build_wwf_target(product_id, to_category, now=now)
+            # Phase WWF-O — prefer the explicit reviewer payload when
+            # supplied. Falls back to the legacy ``to_category`` path
+            # so existing single-field corrections keep working.
+            if wwf_target is not None:
+                target = wwf_target
+            elif to_category is not None:
+                target = _build_wwf_target(product_id, to_category, now=now)
+            else:
+                raise ValueError(
+                    "to_category or wwf payload required for decision=changed"
+                )
             outcome = change_wwf_item(
                 claimed,
                 current=current_w,
@@ -1683,11 +1698,77 @@ def _build_wwf_target(
         product_id=product_id,
         wwf_food_group=fg,
         wwf_is_composite=False,
-        source=ClassificationSource.MANUAL_REVIEW,
+        # Phase WWF-O — use AI source on the bare target; the
+        # downstream ``change_wwf_item`` model_copy stamps the
+        # reviewer_user_id + flips source to MANUAL_REVIEW.
+        source=ClassificationSource.AI,
+        ai_prompt_version="manual-correction-legacy",
+        ai_model="manual-correction-legacy",
         confidence=Decimal("1"),
         updated_at=now,
         **defaults[fg],
     )
+
+
+def build_wwf_target_explicit(
+    product_id: UUID,
+    *,
+    wwf_food_group: str,
+    wwf_is_composite: bool = False,
+    fg1_subgroup: str | None = None,
+    fg2_subgroup: str | None = None,
+    fg3_subgroup: str | None = None,
+    fg5_grain_kind: str | None = None,
+    fg7_snack_kind: str | None = None,
+    composite_step1_bucket: str | None = None,
+    confidence: Decimal | None = None,
+    now: datetime,
+) -> WWFProductClassification:
+    """Phase WWF-O — explicit WWF classification target from a manual
+    correction payload.
+
+    Unlike the legacy ``_build_wwf_target`` (which picks safe-default
+    subgroups so the cross-field validator accepts the row), this
+    builder lets the reviewer pin every field. Domain invariants are
+    enforced by the ``WWFProductClassification`` Pydantic validators —
+    a malformed combination raises ``ValueError`` which the route
+    surfaces as a 400.
+    """
+    fg = WWFFoodGroup(wwf_food_group)
+    kwargs: dict = {
+        "product_id": product_id,
+        "wwf_food_group": fg,
+        "wwf_is_composite": wwf_is_composite,
+        # Phase WWF-O — use AI source on the bare target. The
+        # downstream ``change_wwf_item`` model_copy stamps the
+        # reviewer_user_id + flips source to MANUAL_REVIEW before
+        # persistence, so the WWFProductClassification validator
+        # (which requires reviewer_user_id when
+        # source=manual_review) is happy at that point. Constructing
+        # the target with MANUAL_REVIEW directly fails because we
+        # don't yet have the reviewer's user id at this layer.
+        "source": ClassificationSource.AI,
+        "confidence": confidence if confidence is not None else Decimal("1"),
+        "updated_at": now,
+        # Required when source=AI.
+        "ai_prompt_version": "manual-correction",
+        "ai_model": "manual-correction",
+    }
+    if fg1_subgroup is not None:
+        kwargs["fg1_subgroup"] = WWFFG1Subgroup(fg1_subgroup)
+    if fg2_subgroup is not None:
+        kwargs["fg2_subgroup"] = WWFFG2Subgroup(fg2_subgroup)
+    if fg3_subgroup is not None:
+        kwargs["fg3_subgroup"] = WWFFG3Subgroup(fg3_subgroup)
+    if fg5_grain_kind is not None:
+        kwargs["fg5_grain_kind"] = WWFFG5GrainKind(fg5_grain_kind)
+    if fg7_snack_kind is not None:
+        kwargs["fg7_snack_kind"] = WWFFG7SnackKind(fg7_snack_kind)
+    if composite_step1_bucket is not None:
+        kwargs["composite_step1_bucket"] = WWFCompositeStep1Bucket(
+            composite_step1_bucket
+        )
+    return WWFProductClassification(**kwargs)
 
 
 # ---------------------------------------------------------------------------

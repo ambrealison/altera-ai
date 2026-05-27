@@ -1934,10 +1934,34 @@ class ReviewItemResponse(BaseModel):
     # revenue, margin, supplier terms — all commercial fields.
 
 
+class WWFCorrectionPayload(BaseModel):
+    """Phase WWF-O — explicit WWF correction payload.
+
+    Lets the reviewer pin every WWF field directly instead of relying
+    on the orchestrator's safe-default fallback (``_build_wwf_target``).
+    Domain invariants are enforced by ``WWFProductClassification``'s
+    Pydantic validators when the route assembles the target; a
+    malformed combination yields a 400.
+    """
+
+    wwf_food_group: str
+    wwf_is_composite: bool = False
+    fg1_subgroup: str | None = None
+    fg2_subgroup: str | None = None
+    fg3_subgroup: str | None = None
+    fg5_grain_kind: str | None = None
+    fg7_snack_kind: str | None = None
+    composite_step1_bucket: str | None = None
+    confidence: float | None = None
+
+
 class DecisionRequest(BaseModel):
     decision: Literal["accepted", "changed", "deferred"]
     to_category: str | None = None
     reason: str | None = None
+    # Phase WWF-O — explicit WWF correction. Takes precedence over
+    # ``to_category`` when supplied (methodology must be wwf).
+    wwf: WWFCorrectionPayload | None = None
 
 
 def _review_response(v: object) -> ReviewItemResponse:
@@ -3084,6 +3108,44 @@ def submit_decision_route(
     if not auth.can_review:
         raise_forbidden("only Altera staff can submit review decisions")
     user_id = auth.user_id
+    # Phase WWF-O — when the caller supplies an explicit WWF payload,
+    # build the target classification here so the orchestrator gets a
+    # ready-to-store record (with full subgroup + bucket pinned).
+    wwf_target = None
+    if body.wwf is not None:
+        if methodology is not Methodology.WWF:
+            raise HTTPException(
+                status_code=400,
+                detail="wwf payload only valid for methodology=wwf",
+            )
+        from datetime import UTC
+        from datetime import datetime as _dt
+        from decimal import Decimal as _Decimal
+
+        from pydantic import ValidationError as _PydanticValidationError
+
+        from altera_api.api.orchestrator import build_wwf_target_explicit
+
+        try:
+            wwf_target = build_wwf_target_explicit(
+                product_id,
+                wwf_food_group=body.wwf.wwf_food_group,
+                wwf_is_composite=body.wwf.wwf_is_composite,
+                fg1_subgroup=body.wwf.fg1_subgroup,
+                fg2_subgroup=body.wwf.fg2_subgroup,
+                fg3_subgroup=body.wwf.fg3_subgroup,
+                fg5_grain_kind=body.wwf.fg5_grain_kind,
+                fg7_snack_kind=body.wwf.fg7_snack_kind,
+                composite_step1_bucket=body.wwf.composite_step1_bucket,
+                confidence=(
+                    _Decimal(str(body.wwf.confidence))
+                    if body.wwf.confidence is not None
+                    else None
+                ),
+                now=_dt.now(UTC),
+            )
+        except (ValueError, _PydanticValidationError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
         view = submit_decision(
             store,
@@ -3093,6 +3155,7 @@ def submit_decision_route(
             reviewer_user_id=user_id,
             to_category=body.to_category,
             reason=body.reason,
+            wwf_target=wwf_target,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

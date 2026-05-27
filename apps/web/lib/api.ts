@@ -426,6 +426,52 @@ export interface ClassificationsFilters {
   methodology?: "protein_tracker" | "wwf";
 }
 
+/** Phase WWF-O — explicit WWF manual-correction payload. Lets the
+ *  reviewer pin every WWF field directly instead of relying on the
+ *  backend's safe-default fallback. Domain invariants are enforced
+ *  server-side (FG1 requires fg1_subgroup, composite requires
+ *  composite_step1_bucket, etc.); a malformed combination yields a
+ *  400 with a clear error message. */
+export interface WWFCorrectionPayload {
+  wwf_food_group:
+    | "FG1"
+    | "FG2"
+    | "FG3"
+    | "FG4"
+    | "FG5"
+    | "FG6"
+    | "FG7"
+    | "out_of_scope"
+    | "unknown";
+  wwf_is_composite?: boolean;
+  fg1_subgroup?:
+    | "red_meat"
+    | "poultry"
+    | "processed_meats_alternatives"
+    | "seafood"
+    | "eggs"
+    | "legumes"
+    | "nuts_seeds"
+    | "alternative_protein_sources"
+    | "meat_egg_seafood_alternatives"
+    | null;
+  fg2_subgroup?:
+    | "cheese"
+    | "other_dairy_animal"
+    | "dairy_alternative_plant"
+    | null;
+  fg3_subgroup?: "plant_based_fat" | "animal_based_fat" | null;
+  fg5_grain_kind?: "whole_grain" | "refined_grain" | null;
+  fg7_snack_kind?: "plant_based_snack" | "animal_based_snack" | null;
+  composite_step1_bucket?:
+    | "meat_based"
+    | "seafood_based"
+    | "vegetarian"
+    | "vegan"
+    | null;
+  confidence?: number;
+}
+
 // Phase 34L — nutrition validation table.
 export interface NutritionValidationRow {
   product_id: string;
@@ -1450,7 +1496,15 @@ export function createApi(accessToken: string | null) {
       projectId: string,
       productId: string,
       methodology: Methodology,
-      body: { decision: DecisionType; to_category?: string; reason?: string },
+      body: {
+        decision: DecisionType;
+        to_category?: string;
+        reason?: string;
+        // Phase WWF-O — explicit WWF correction payload. When supplied
+        // (methodology must be wwf), backend pins every field instead
+        // of falling back to ``_build_wwf_target`` safe defaults.
+        wwf?: WWFCorrectionPayload;
+      },
     ) =>
       request<ReviewItem>(
         `/api/v1/projects/${projectId}/review/${productId}/${methodology}/decision`,
