@@ -410,6 +410,13 @@ export interface ClassificationsResponse {
   counts_by_source: Record<string, number>;
   counts_by_pt_group: Record<string, number>;
   pt_eligible_total: number;
+  // Phase WWF-R — global review-queue totals (open ``in_queue`` +
+  // ``reviewing`` items) per methodology. Used by the product-mode
+  // side-by-side table to render the top "Total à valider" banner.
+  // Optional for backward compatibility with older backends; default
+  // to 0 client-side when missing.
+  pt_review_total?: number;
+  wwf_review_total?: number;
 }
 
 export interface ClassificationsFilters {

@@ -2106,6 +2106,14 @@ class ClassificationsResponse(BaseModel):
     counts_by_source: dict[str, int]
     counts_by_pt_group: dict[str, int]
     pt_eligible_total: int            # products with PT methodology enabled
+    # Phase WWF-R — global review-queue totals (open statuses
+    # ``in_queue`` + ``reviewing``) per methodology. Computed from the
+    # review queues already fetched above, so no extra DB round-trip.
+    # The product-mode side-by-side table uses these for the top
+    # "Total à valider" banner; the values match the row count of
+    # ``view=review`` with the matching methodology filter.
+    pt_review_total: int = 0
+    wwf_review_total: int = 0
 
 
 @api_router.get(
@@ -2411,6 +2419,21 @@ def list_classifications_route(
         len(items),
         len(filtered),
     )
+    # Phase WWF-R — global review-queue totals so the product-mode
+    # side-by-side table can show "PT à vérifier: X · WWF à vérifier:
+    # Y" without an extra round-trip. Counts the open statuses
+    # (``in_queue`` + ``reviewing``) across the project's queues we
+    # already fetched above.
+    pt_review_total = sum(
+        1
+        for item in review_items_pt.values()
+        if item.status.value in open_statuses
+    )
+    wwf_review_total = sum(
+        1
+        for item in review_items_wwf.values()
+        if item.status.value in open_statuses
+    )
     return ClassificationsResponse(
         items=items,
         # Phase WWF-N — ``total`` reflects the page-source size so the
@@ -2420,6 +2443,8 @@ def list_classifications_route(
         counts_by_source=counts_by_source,
         counts_by_pt_group=counts_by_pt_group,
         pt_eligible_total=pt_eligible_total,
+        pt_review_total=pt_review_total,
+        wwf_review_total=wwf_review_total,
     )
 
 
