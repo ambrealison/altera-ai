@@ -2336,6 +2336,13 @@ def classify_wwf_readable_fallback(
             "wwf_readable_fallback_fg2_other_dairy"
         )
 
+    # Phase PT-WWF-S2 — FG4 fruit & veg readable fallback. MUST run
+    # before FG1 detection so "Carottes" / "Champignons" / "Tomates"
+    # don't accidentally match an FG1 protein token. The FG4 token
+    # list is the same one used by ``apply_wwf_guards``.
+    if _contains_any_word(name, _WWF_FG4_TOKENS):
+        return _readable_fg4("wwf_readable_fallback_fg4_fruits_veg")
+
     # 11. FG1 protein sources.
     fg1 = _detect_fg1(name)
     if fg1 is not None:
@@ -2713,6 +2720,24 @@ def _readable_fg3(subgroup: WWFFG3Subgroup, rule: str) -> tuple:
         None,
         None,
         subgroup,
+        None,
+        None,
+        None,
+        rule,
+    )
+
+
+def _readable_fg4(rule: str) -> tuple:
+    """Phase PT-WWF-S2 — readable FG4 fallback so plain fruit/veg
+    names (``Carottes``, ``Tomates``, ``Mangue``, ``Champignons``…)
+    no longer fall through to terminal-failed when the provider
+    crashes."""
+    return (
+        WWFFoodGroup.FG4,
+        False,
+        None,
+        None,
+        None,
         None,
         None,
         None,

@@ -223,12 +223,18 @@ class TestBundleGuardCounters:
         # Phase 36K early-fallback path) instead of the Phase 36I
         # fruit_drink_non_core guard. Final category is identical;
         # only the rule id changed.
+        # Phase PT-WWF-S2 — "Tofu Nature Bio" was a "no guard" probe
+        # before; the new ``plant_non_core_promoted_plant_core`` guard
+        # now fires on it (a name with a central plant-protein anchor
+        # is promoted to plant_based_core). The other 5 guards still
+        # fire on their original probes.
         assert bundle.guard_overrides_by_rule == {
             "plant_core_demoted_preparation_or_simple_veg": 1,
             "beverage_out_of_scope": 1,
             "readable_fallback_fruit_drink": 1,
             "bakery_composite": 1,
             "animal_prepared_meal_composite": 1,
+            "plant_non_core_promoted_plant_core": 1,
         }
         # No unknown-safety-net firings here (the smoothie's
         # unknown is consumed by the fruit_drink_non_core guard

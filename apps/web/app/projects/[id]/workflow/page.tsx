@@ -839,11 +839,23 @@ function MethodologyClassificationCard({
   const isCompleteWithErrors =
     status === "complete" && !isRunning && hasPartialFailures;
 
+  // Phase PT-WWF-S2 — split the "complete" pill into three states so
+  // a job with manual-review rows is no longer labelled as an error.
+  //  - "Terminée"            : all rows classified + accepted (no
+  //                            review queue).
+  //  - "Terminée · à valider": all rows classified, some in review.
+  //  - "Terminée avec erreurs": at least one row is unresolved
+  //                              (unknown / failed / job errored).
   let pillTone: "ok" | "warn" | "neutral" = "neutral";
   let pillLabel = "À lancer";
   if (isCompleteClean) {
-    pillTone = "ok";
-    pillLabel = "Terminée";
+    if (needsReview > 0) {
+      pillTone = "warn";
+      pillLabel = "Terminée · à valider";
+    } else {
+      pillTone = "ok";
+      pillLabel = "Terminée";
+    }
   } else if (isCompleteWithErrors) {
     pillTone = "warn";
     pillLabel = "Terminée avec erreurs";

@@ -275,7 +275,12 @@ class TestBatchClassifyOrchestrator:
         # ``poulet`` → animal_core 0.93 first, but a prepared-dish
         # marker ``salade`` triggers the guard). The accepted floor
         # therefore drops to 8 in this synthetic fixture.
-        assert len(accepted) >= 8
+        # Phase PT-WWF-S2 — "Steak Végétal Soja & Blé" (model →
+        # plant_based_non_core) now triggers the new
+        # ``plant_non_core_promoted_plant_core`` guard ("steak
+        # vegetal" is a plant_core anchor); that row moves to
+        # needs_review too, dropping the accepted floor to 7.
+        assert len(accepted) >= 7
         assert bundle.provider_errors == 0
         # Spot-check categories.
         by_id = {

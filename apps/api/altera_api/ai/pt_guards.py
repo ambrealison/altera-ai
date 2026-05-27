@@ -272,6 +272,20 @@ _PLANT_CORE_TOKENS: tuple[str, ...] = (
     "emince vegetal",
     "emince vegetale",
     "viande vegetale",
+    # Phase PT-WWF-S2 — explicit plant-protein dishes that the model
+    # frequently mis-routes to ``composite_products`` because of their
+    # multi-ingredient name.
+    "falafel",
+    "falafels",
+    "houmous",
+    "hummus",
+    # "Chili sin carne" / "Chili sans viande" are vegan chilis whose
+    # primary protein is beans (haricots) even when the bean token
+    # isn't explicitly listed in the product name.
+    "chili sin carne",
+    "chili sans viande",
+    "chili vegan",
+    "chili vegetal",
 )
 
 
@@ -998,6 +1012,105 @@ def apply_pt_guards(
                     "marker, or is a self-evident animal composite "
                     "(cassoulet/lasagne bolognaise/blanquette…); "
                     "routed to composite_products"
+                ),
+            )
+
+    # Phase PT-WWF-S2 — petfood guards (5a/5b) own a distinct
+    # vocabulary; the new Guard 4b/4c rules below must NOT pre-empt
+    # the petfood routing for "Croquettes Chien Tofu" et al.
+    _is_petfood = _contains_any_word(
+        name, _PETFOOD_IN_SCOPE_TOKENS
+    ) or _contains_any_word(name, _PET_ACCESSORY_OOS_TOKENS)
+
+    # Guard 4b — Phase PT-WWF-S2: vegan composite demotion.
+    # The Protein Tracker rule says "composite" = animal protein +
+    # plant protein. A multi-ingredient PLANT-ONLY dish is NOT
+    # composite. The model frequently mis-routes names like
+    # "Wrap falafel houmous", "Soupe lentilles coco",
+    # "Chili sin carne", "Burger haricots noirs",
+    # "Bowl tofu riz légumes", "Pizza légumes vegan" to composite_products.
+    #
+    # Rule: if the model said ``composite_products`` but the name has
+    # a strong plant-protein anchor AND no animal token, demote to
+    # ``plant_based_core``. If the name has neither animal NOR plant-
+    # protein anchor (e.g. "Pizza légumes vegan" — no central
+    # protein) demote to ``plant_based_non_core`` instead.
+    if pt_group is ProteinTrackerGroup.COMPOSITE_PRODUCTS and not _is_petfood:
+        has_animal = _contains_any_word(name, _ANIMAL_TOKENS) or _contains_any_word(
+            name, _SELF_EVIDENT_ANIMAL_COMPOSITES
+        )
+        has_dairy_egg = _contains_any_word(name, _DAIRY_EGG_ANIMAL_TOKENS)
+        if not has_animal and not has_dairy_egg:
+            # Explicit "vegan" / "végétal" / "végé" cue confirms the
+            # absence of animal protein.
+            explicitly_vegan = _contains_any_word(
+                name,
+                (
+                    "vegan",
+                    "vegane",
+                    "vegetal",
+                    "vegetale",
+                    "vegetalien",
+                    "vegetalienne",
+                    "vegetarien",
+                    "vegetarienne",
+                    "veggie",
+                    "plant based",
+                    "plant-based",
+                    "sin carne",
+                ),
+            )
+            has_plant_protein = _contains_any_word(name, _PLANT_CORE_TOKENS)
+            if has_plant_protein:
+                return _override(
+                    classification,
+                    ProteinTrackerGroup.PLANT_BASED_CORE,
+                    rule="composite_vegan_demoted_plant_core",
+                    detail=(
+                        "name has a plant-protein anchor (legume/tofu/"
+                        "falafel/houmous/edamame/etc.) and no animal "
+                        "token; demoted from composite_products to "
+                        "plant_based_core"
+                    ),
+                )
+            if explicitly_vegan:
+                return _override(
+                    classification,
+                    ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+                    rule="composite_vegan_demoted_plant_non_core",
+                    detail=(
+                        "name carries an explicit vegan/plant cue and "
+                        "no animal token but no central plant-protein "
+                        "anchor; demoted from composite_products to "
+                        "plant_based_non_core"
+                    ),
+                )
+
+    # Guard 4c — Phase PT-WWF-S2: plant-core promotion. The model
+    # sometimes routes plant-protein-rich dishes to
+    # ``plant_based_non_core`` ("Curry pois chiches épinards",
+    # "Salade quinoa edamame") because of the side ingredients.
+    # Promote to plant_based_core when a central legume/tofu/seitan/
+    # tempeh/falafel/houmous/edamame anchor is present and no animal
+    # tokens are.
+    if pt_group is ProteinTrackerGroup.PLANT_BASED_NON_CORE and not _is_petfood:
+        has_animal = _contains_any_word(name, _ANIMAL_TOKENS) or _contains_any_word(
+            name, _SELF_EVIDENT_ANIMAL_COMPOSITES
+        )
+        has_dairy_egg = _contains_any_word(name, _DAIRY_EGG_ANIMAL_TOKENS)
+        if (
+            not has_animal
+            and not has_dairy_egg
+            and _contains_any_word(name, _PLANT_CORE_TOKENS)
+        ):
+            return _override(
+                classification,
+                ProteinTrackerGroup.PLANT_BASED_CORE,
+                rule="plant_non_core_promoted_plant_core",
+                detail=(
+                    "name has a central plant-protein anchor and no "
+                    "animal token; promoted from plant_based_non_core "
+                    "to plant_based_core"
                 ),
             )
 
