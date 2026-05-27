@@ -446,9 +446,11 @@ class TestWorkflowBlockerCategories:
 
     def test_classification_blocker_codes_are_known(self) -> None:
         # Codes the frontend groups under "Catégorisation incomplète".
+        # Phase UX-Validation-S — ``review_pending`` removed from
+        # blocker set (it's now a non-blocking warning via the
+        # ``review_only`` count on the calculation step).
         classification_codes = {
             "classification_required",
-            "review_pending",
             "no_eligible_products",
         }
         # Codes grouped under "Données protéiques manquantes".

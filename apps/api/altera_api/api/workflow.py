@@ -624,15 +624,12 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
                 next_action="classify",
             )
         )
-    if counts.pt_needs_review > 0:
-        blocking.append(
-            BlockingReason(
-                code="review_pending",
-                label="Produits en attente de validation manuelle",
-                count=counts.pt_needs_review,
-                next_action="open_review_queue",
-            )
-        )
+    # Phase UX-Validation-S — ``review_pending`` is no longer a
+    # blocking reason. A product with an AI/deterministic classification
+    # AND an open review item is still usable for calculation; the
+    # manual review is a recommended audit step, not a prerequisite.
+    # The count is still surfaced (see ``calc_counts['review_only']``
+    # below) so the frontend can show an amber non-blocking warning.
     if pt_total > 0 and pt_needs_nutrition > 0:
         blocking.append(
             BlockingReason(
@@ -664,7 +661,14 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
             key="calculation",
             label="Calcul du ratio",
             status=calc_status,
-            counts={"eligible_rows": counts.pt_eligible},
+            counts={
+                "eligible_rows": counts.pt_eligible,
+                # Phase UX-Validation-S — surface the review backlog as
+                # a non-blocking warning so the calculation step can
+                # show "X produits encore à vérifier" without disabling
+                # the launch button.
+                "review_only": counts.pt_needs_review,
+            },
             blocking_reasons=blocking,
             accessible=calc_status not in ("locked",),
             editable=False,

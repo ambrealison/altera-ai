@@ -477,110 +477,20 @@ export function ValidationTable({
   const wwfReviewTotal = data.wwf_review_total ?? 0;
   const totalReview = ptReviewTotal + wwfReviewTotal;
 
+  // Phase UX-Validation-S — confidence button state derived from the
+  // current min/max filter values. The min/max number inputs are no
+  // longer rendered; the four buttons are the only entry point.
+  const confidencePreset: "low" | "mid" | "high" | "all" = (() => {
+    const lo = filters.min_confidence;
+    const hi = filters.max_confidence;
+    if (lo == null && hi != null && hi <= 0.6) return "low";
+    if (lo != null && hi != null && lo >= 0.6 && hi <= 0.8) return "mid";
+    if (lo != null && lo >= 0.8 && hi == null) return "high";
+    return "all";
+  })();
+
   return (
     <Card>
-      {/* Phase WWF-P — top-level view toggle. */}
-      <div className="mb-3 flex items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
-          Vue :
-        </span>
-        <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5">
-          <button
-            type="button"
-            onClick={() => {
-              setTableView("products");
-              setOffset(0);
-            }}
-            className={
-              "rounded px-2 py-0.5 text-xs font-medium transition " +
-              (tableView === "products"
-                ? "bg-brand-600 text-white"
-                : "text-gray-600 hover:bg-gray-50")
-            }
-          >
-            Tous les produits
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setTableView("review");
-              setOffset(0);
-            }}
-            className={
-              "rounded px-2 py-0.5 text-xs font-medium transition " +
-              (tableView === "review"
-                ? "bg-brand-600 text-white"
-                : "text-gray-600 hover:bg-gray-50")
-            }
-          >
-            À valider
-            {totalReview > 0 && (
-              <span
-                className={
-                  "ml-1 inline-flex items-center justify-center rounded-full px-1.5 text-[10px] font-semibold " +
-                  (tableView === "review"
-                    ? "bg-white/20 text-white"
-                    : "bg-amber-100 text-amber-700")
-                }
-              >
-                {totalReview}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Phase WWF-R — methodology selector now offers "Toutes" so
-          PT+WWF projects can stay in side-by-side mode. PT-only /
-          WWF-only projects skip the toggle. */}
-      {canToggle && (
-        <div className="mb-3 flex items-center gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
-            Méthodologie :
-          </span>
-          <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5">
-            {isProductsView && (
-              <button
-                type="button"
-                onClick={() => setMethodologyView("all")}
-                className={
-                  "rounded px-2 py-0.5 text-xs font-medium transition " +
-                  (methodologyView === "all"
-                    ? "bg-brand-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50")
-                }
-              >
-                Toutes
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setMethodologyView("protein_tracker")}
-              className={
-                "rounded px-2 py-0.5 text-xs font-medium transition " +
-                (methodologyView === "protein_tracker"
-                  ? "bg-brand-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50")
-              }
-            >
-              Protein Tracker
-            </button>
-            <button
-              type="button"
-              onClick={() => setMethodologyView("wwf")}
-              className={
-                "rounded px-2 py-0.5 text-xs font-medium transition " +
-                (methodologyView === "wwf"
-                  ? "bg-brand-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50")
-              }
-            >
-              WWF
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Title + subtitle */}
       <div className="mb-2">
         <h3 className="text-sm font-semibold text-gray-800">
@@ -631,14 +541,108 @@ export function ValidationTable({
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
+      {/* Phase UX-Validation-S — single consolidated filter bar.
+          View · Méthodologie · Recherche · Source · Catégorie ·
+          Statut · Confiance (boutons préréglés). On smaller screens
+          the bar wraps to a second row. The legacy min/max
+          confidence number inputs are removed. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        {/* View toggle */}
+        <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              setTableView("products");
+              setOffset(0);
+            }}
+            className={
+              "rounded px-2 py-0.5 font-medium transition " +
+              (tableView === "products"
+                ? "bg-brand-600 text-white"
+                : "text-gray-600 hover:bg-gray-50")
+            }
+          >
+            Tous
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTableView("review");
+              setOffset(0);
+            }}
+            className={
+              "rounded px-2 py-0.5 font-medium transition " +
+              (tableView === "review"
+                ? "bg-brand-600 text-white"
+                : "text-gray-600 hover:bg-gray-50")
+            }
+          >
+            À valider
+            {totalReview > 0 && (
+              <span
+                className={
+                  "ml-1 inline-flex items-center justify-center rounded-full px-1.5 text-[10px] font-semibold " +
+                  (tableView === "review"
+                    ? "bg-white/20 text-white"
+                    : "bg-amber-100 text-amber-700")
+                }
+              >
+                {totalReview}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Methodology toggle (only on PT+WWF projects) */}
+        {canToggle && (
+          <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5">
+            {isProductsView && (
+              <button
+                type="button"
+                onClick={() => setMethodologyView("all")}
+                className={
+                  "rounded px-2 py-0.5 font-medium transition " +
+                  (methodologyView === "all"
+                    ? "bg-brand-600 text-white"
+                    : "text-gray-600 hover:bg-gray-50")
+                }
+              >
+                Toutes
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setMethodologyView("protein_tracker")}
+              className={
+                "rounded px-2 py-0.5 font-medium transition " +
+                (methodologyView === "protein_tracker"
+                  ? "bg-brand-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50")
+              }
+            >
+              PT
+            </button>
+            <button
+              type="button"
+              onClick={() => setMethodologyView("wwf")}
+              className={
+                "rounded px-2 py-0.5 font-medium transition " +
+                (methodologyView === "wwf"
+                  ? "bg-brand-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50")
+              }
+            >
+              WWF
+            </button>
+          </div>
+        )}
+
         <input
           type="text"
           placeholder="Rechercher (nom / marque)"
           value={filters.product_search ?? ""}
           onChange={(e) => patchFilter({ product_search: e.target.value })}
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+          className="w-48 rounded border border-gray-300 bg-white px-2 py-1 text-gray-800 focus:border-brand-500 focus:outline-none"
         />
         <select
           value={filters.source ?? ""}
@@ -649,7 +653,7 @@ export function ValidationTable({
                 | undefined,
             })
           }
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+          className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-800 focus:border-brand-500 focus:outline-none"
         >
           <option value="">Toutes sources</option>
           <option value="deterministic">Déterministe</option>
@@ -657,24 +661,26 @@ export function ValidationTable({
           <option value="manual_review">Manuel</option>
           <option value="unknown">Non classé</option>
         </select>
-        <select
-          value={filters.pt_group ?? ""}
-          onChange={(e) =>
-            patchFilter({
-              pt_group: (e.target.value || undefined) as
-                | ProteinTrackerGroup
-                | undefined,
-            })
-          }
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
-        >
-          <option value="">Toutes catégories PT</option>
-          {PT_GROUP_OPTIONS.map((g) => (
-            <option key={g} value={g}>
-              {PT_GROUP_LABELS_FR[g]}
-            </option>
-          ))}
-        </select>
+        {ptEnabled && (
+          <select
+            value={filters.pt_group ?? ""}
+            onChange={(e) =>
+              patchFilter({
+                pt_group: (e.target.value || undefined) as
+                  | ProteinTrackerGroup
+                  | undefined,
+              })
+            }
+            className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-800 focus:border-brand-500 focus:outline-none"
+          >
+            <option value="">Toutes catégories PT</option>
+            {PT_GROUP_OPTIONS.map((g) => (
+              <option key={g} value={g}>
+                {PT_GROUP_LABELS_FR[g]}
+              </option>
+            ))}
+          </select>
+        )}
         <select
           value={filters.review_status ?? ""}
           onChange={(e) =>
@@ -684,93 +690,76 @@ export function ValidationTable({
                 | undefined,
             })
           }
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+          className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-800 focus:border-brand-500 focus:outline-none"
         >
-          <option value="">Tous statuts review</option>
-          <option value="in_queue">En attente</option>
-          <option value="accepted">Acceptée</option>
-          <option value="changed">Modifiée</option>
-          <option value="deferred">Différée</option>
+          <option value="">Tous statuts</option>
+          <option value="in_queue">À vérifier</option>
+          <option value="accepted">Accepté</option>
+          <option value="changed">Modifié</option>
+          <option value="deferred">Différé</option>
         </select>
-      </div>
 
-      {/* Phase 34I — confidence range filter. */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-        <span>Confiance :</span>
-        <label className="flex items-center gap-1">
-          min
-          <input
-            type="number"
-            min={0}
-            max={1}
-            step={0.05}
-            value={filters.min_confidence ?? ""}
-            onChange={(e) =>
-              patchFilter({
-                min_confidence:
-                  e.target.value === ""
-                    ? undefined
-                    : Number(e.target.value),
-              })
-            }
-            className="w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
-          />
-        </label>
-        <label className="flex items-center gap-1">
-          max
-          <input
-            type="number"
-            min={0}
-            max={1}
-            step={0.05}
-            value={filters.max_confidence ?? ""}
-            onChange={(e) =>
-              patchFilter({
-                max_confidence:
-                  e.target.value === ""
-                    ? undefined
-                    : Number(e.target.value),
-              })
-            }
-            className="w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
-          />
-        </label>
+        {/* Confidence preset buttons (Phase UX-Validation-S — replaces
+            the old min/max number inputs). */}
         <span className="text-gray-400">·</span>
         <button
           type="button"
           onClick={() =>
             patchFilter({ min_confidence: undefined, max_confidence: 0.6 })
           }
-          className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-rose-700 hover:bg-rose-100"
+          className={
+            "rounded border px-1.5 py-0.5 transition " +
+            (confidencePreset === "low"
+              ? "border-rose-400 bg-rose-100 text-rose-800"
+              : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100")
+          }
         >
-          &lt; 0.60 (à examiner)
+          &lt; 0.60
         </button>
         <button
           type="button"
           onClick={() =>
             patchFilter({ min_confidence: 0.6, max_confidence: 0.8 })
           }
-          className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-amber-700 hover:bg-amber-100"
+          className={
+            "rounded border px-1.5 py-0.5 transition " +
+            (confidencePreset === "mid"
+              ? "border-amber-400 bg-amber-100 text-amber-800"
+              : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100")
+          }
         >
-          0.60–0.80 (à vérifier)
+          0.60–0.80
         </button>
         <button
           type="button"
           onClick={() =>
             patchFilter({ min_confidence: 0.8, max_confidence: undefined })
           }
-          className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-emerald-700 hover:bg-emerald-100"
+          className={
+            "rounded border px-1.5 py-0.5 transition " +
+            (confidencePreset === "high"
+              ? "border-emerald-400 bg-emerald-100 text-emerald-800"
+              : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100")
+          }
         >
-          ≥ 0.80 (auto-accept)
+          ≥ 0.80
         </button>
         <button
           type="button"
           onClick={() =>
-            patchFilter({ min_confidence: undefined, max_confidence: undefined })
+            patchFilter({
+              min_confidence: undefined,
+              max_confidence: undefined,
+            })
           }
-          className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600 hover:bg-gray-50"
+          className={
+            "rounded border px-1.5 py-0.5 transition " +
+            (confidencePreset === "all"
+              ? "border-gray-400 bg-gray-100 text-gray-800"
+              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
+          }
         >
-          Tous les produits
+          Tous
         </button>
       </div>
 

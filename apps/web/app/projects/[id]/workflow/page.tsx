@@ -42,7 +42,6 @@ import {
 
 // Phase 34E — fully inline upload + manual review inside the wizard.
 import { InlineUpload } from "./_inline-upload";
-import { InlineReview } from "./_inline-review";
 // Phase 34F — inline category validation table.
 import { ValidationTable } from "./_validation-table";
 // Phase 34L — inline nutrition validation table.
@@ -1242,35 +1241,26 @@ function StepValidation({
         onChanged={onResolved}
       />
 
-      {/* Pending-only one-click review list, shown only while there
-          are unresolved manual-review items. The table above already
-          lets users override anything; this is the fast-path for the
-          subset that explicitly needs a human decision. */}
-      {!isNotNeeded && pending > 0 && (
-        <InlineReview
-          projectId={projectId}
-          accessToken={accessToken}
-          methodology={methodology}
-          onResolved={onResolved}
-        />
-      )}
-
+      {/* Phase UX-Validation-S — the legacy "InlineReview" lower
+          panel + extra Card has been removed. Validation now happens
+          exclusively from the ``ValidationTable`` above; review-only
+          state is no longer a calculation blocker so we simply move
+          on. */}
       <Card>
-        {isNotNeeded || pending === 0 ? (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-            Aucun produit en attente de validation manuelle.
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-gray-600">
+            {isNotNeeded || pending === 0 ? (
+              <span className="text-emerald-700">
+                Aucun produit en attente de validation manuelle.
+              </span>
+            ) : (
+              <span>
+                {pending} produit(s) à vérifier — la validation manuelle
+                est recommandée mais non bloquante.
+              </span>
+            )}
           </div>
-        ) : (
-          <>
-            <CountRow counts={step.counts} />
-            <BlockerList step={step} />
-          </>
-        )}
-        <div className="mt-3 flex flex-wrap gap-3">
-          <Button
-            variant={isNotNeeded || pending === 0 ? "primary" : "secondary"}
-            onClick={onNext}
-          >
+          <Button variant="primary" onClick={onNext}>
             {wwfOnly ? "Continuer vers Calcul WWF" : "Continuer vers NEVO"}
           </Button>
         </div>
@@ -1603,9 +1593,12 @@ function StepCalculation({
           // Phase 34D — split blockers into two semantic panels so the
           // user understands whether they need to fix categorisation
           // or nutrition. Both groups can be present simultaneously.
+          // Phase UX-Validation-S — ``review_pending`` is no longer
+          // a blocker (the backend emits it only as a non-blocking
+          // ``review_only`` count on the step). The amber warning
+          // below renders that count separately.
           const CLASSIF_CODES = new Set([
             "classification_required",
-            "review_pending",
             "no_eligible_products",
           ]);
           const NUTRITION_CODES = new Set(["nutrition_required"]);
@@ -1696,6 +1689,31 @@ function StepCalculation({
         {error && (
           <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
             {error}
+          </div>
+        )}
+
+        {/* Phase UX-Validation-S — non-blocking "review backlog"
+            notice. ``review_only`` is the count of products with an
+            AI/deterministic classification still queued for human
+            review. It does NOT block the calculation, but the analyst
+            should know the backlog exists. */}
+        {(step.counts.review_only ?? 0) > 0 && (
+          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <p className="font-medium">
+              {step.counts.review_only} produit(s) encore à vérifier
+            </p>
+            <p className="mt-1 text-xs">
+              Le calcul peut être lancé avec les catégories actuelles.
+              Les corrections manuelles affineront le résultat lors du
+              prochain calcul.{" "}
+              <button
+                type="button"
+                onClick={() => goToStepById(BLOCKER_STEP_ID["review_pending"] ?? -1)}
+                className="text-brand-700 hover:underline"
+              >
+                Voir les produits à vérifier →
+              </button>
+            </p>
           </div>
         )}
 
@@ -2628,7 +2646,10 @@ export default function WorkflowWizardPage() {
   } as WorkflowStep);
 
   return (
-    <div className="mx-auto max-w-4xl">
+    // Phase UX-Validation-S — widened container so the validation
+    // table (PT + WWF side-by-side columns) can use the available
+    // page width instead of being cramped inside a 4xl card.
+    <div className="mx-auto w-full max-w-7xl px-4">
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
         <div>

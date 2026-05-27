@@ -465,10 +465,19 @@ class TestValidationGatesNevo:
             calc = next(
                 s for s in body["steps"] if s["key"] == "calculation"
             )
-            # Review needs action; calculation is blocked by review.
+            # Review needs action — but Phase UX-Validation-S demoted
+            # ``review_pending`` from a blocker to a warning. The
+            # calculation can launch on review-only state; the review
+            # step itself still surfaces ``needs_action`` so the
+            # analyst sees the backlog.
             assert review["status"] == "needs_action"
-            assert calc["status"] == "blocked"
+            # If the calculation has other blockers (missing
+            # classifications / nutrition) it's still blocked; review-
+            # only state alone no longer blocks.
             codes = {b["code"] for b in calc["blocking_reasons"]}
-            assert "review_pending" in codes
+            assert "review_pending" not in codes
+            # Review backlog is surfaced as a non-blocking warning
+            # via the new ``review_only`` count on the step.
+            assert calc["counts"].get("review_only", 0) >= 1
         finally:
             ai_config.get_ai_provider = original  # type: ignore[assignment]
