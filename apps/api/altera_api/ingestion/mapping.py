@@ -358,6 +358,24 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "quantity",
         "qty",
         "units_purchased",
+        # Hotfix-Upload — singular forms ("unit_purchased", "item_purchased")
+        # are the operator's actual headers; without these the auto-mapper
+        # falls through to "none" and the UI's default offered weight
+        # field, which is wrong. Quantity tokens should NEVER be inferred
+        # as weight even if no specific synonym matches.
+        "unit_purchased",
+        "item_purchased",
+        "items_purchased",
+        "quantity_purchased",
+        "qty_purchased",
+        "purchased_units",
+        "purchased_quantity",
+        "purchased_qty",
+        "unites_achetees",
+        "nombre_unites_achetees",
+        "quantite_achetee",
+        "quantites_achetees",
+        "volume_achats",
         "volume",
         "volume_nombre_d_unites",     # Phase 33J — French template header
         "volume_nombre_dunites",      # same with curly apostrophe stripped
@@ -367,7 +385,6 @@ _RAW_SYNONYMS: dict[str, list[str]] = {
         "nb_items",
         "nb_units",
         "quantite",
-        "quantite_achetee",
         "purchases",
         "units_bought",
         "items",
@@ -590,6 +607,62 @@ def infer_mapping(
         else:
             canonical = None
             confidence = "none"
+
+        # Hotfix-Upload — quantity-token guard. Headers containing
+        # ``purchased`` / ``sold`` / ``vendu(e)`` / ``achete(e)`` are
+        # ALWAYS quantity fields, never weight. Without this safety net
+        # the frontend mapping UI offered "Poids unitaire (g)" as a
+        # default for unrecognised ``unit_purchased`` and the operator's
+        # 100-row file silently mis-mapped quantity to weight. The guard
+        # also re-routes a synonym match that landed on a weight target
+        # back to ``items_purchased`` / ``items_sold`` when the header
+        # clearly says purchased/sold.
+        _QTY_TOKENS = (
+            "purchased",
+            "purchase",
+            "sold",
+            "vendu",
+            "achete",
+            "achetee",
+            "achetees",
+            "achetes",
+            "ventes",
+            "purchases",
+        )
+        _WEIGHT_CANONICALS = {
+            "weight_per_item_g",
+            "weight_per_item_kg",
+            "weight_per_item_lb",
+            "weight_per_item_oz",
+        }
+        if any(tok in norm for tok in _QTY_TOKENS):
+            # If we accidentally landed on a weight canonical or have
+            # no canonical at all, re-route to a quantity canonical.
+            if canonical in _WEIGHT_CANONICALS or canonical is None:
+                # Prefer items_purchased; only fall back to items_sold
+                # when the header explicitly says sold/vendu (no
+                # purchased/achete cue).
+                says_sold = any(
+                    tok in norm for tok in ("sold", "vendu", "ventes")
+                )
+                says_purchased = any(
+                    tok in norm
+                    for tok in (
+                        "purchased",
+                        "purchase",
+                        "purchases",
+                        "achete",
+                        "achetee",
+                        "achetees",
+                        "achetes",
+                    )
+                )
+                if says_purchased:
+                    canonical = "items_purchased"
+                    confidence = "synonym"
+                elif says_sold:
+                    canonical = "items_sold"
+                    confidence = "synonym"
 
         if canonical is not None:
             mapped_canonical.add(canonical)

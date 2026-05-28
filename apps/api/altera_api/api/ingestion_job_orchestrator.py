@@ -193,17 +193,53 @@ def advance_ingestion_job(
         store.add_products_bulk(products)
         inserted = len(products)
     except Exception as exc:  # noqa: BLE001
-        # One chunk failed. Capture a sample but don't terminate —
-        # the wizard can retry advance. If the same chunk keeps
-        # failing the user gets a clear sample_errors entry instead
-        # of a 500.
+        # Hotfix-Upload — one chunk failed. Previously the orchestrator
+        # set sample_errors + bumped errors_total but did NOT trim
+        # ``pending_payload``. On each retry the same failing chunk was
+        # processed again, so a 100-row file with a missing required
+        # field surfaced as "0 produits insérés / 7800 erreur(s)" (78
+        # advance retries × 100 rows). We now move past the failed
+        # chunk so a single permanent error counts each row once and
+        # the job reaches a terminal status promptly.
         sample = (*job.sample_errors, f"chunk_error: {type(exc).__name__}: {exc}")[
             -20:
         ]
+        # If the very first advance fails — i.e. nothing has been
+        # inserted yet AND the failure happened on the head of the
+        # pending payload — surface it as a terminal FAILED job with
+        # a clear error_code. This stops the wizard from polling
+        # forever on a structurally broken upload (e.g. required
+        # field unmapped).
+        is_first_chunk_total_failure = (
+            job.processed_rows == 0
+            and job.inserted_products == 0
+            and not remaining
+        )
+        new_status = (
+            IngestionJobStatus.FAILED
+            if is_first_chunk_total_failure
+            else IngestionJobStatus.RUNNING
+        )
         updated = job.with_progress(
-            status=IngestionJobStatus.RUNNING,
+            status=new_status,
+            pending_payload=remaining,  # trim, don't retry same chunk
+            processed_rows=job.processed_rows + len(chunk_rows),
+            next_row_offset=job.next_row_offset + len(chunk_rows),
             sample_errors=sample,
             errors_total=job.errors_total + len(chunk_rows),
+            error_code=(
+                "chunk_validation_failed"
+                if new_status is IngestionJobStatus.FAILED
+                else job.error_code
+            ),
+            error_message=(
+                f"{type(exc).__name__}: {exc}"[:240]
+                if new_status is IngestionJobStatus.FAILED
+                else job.error_message
+            ),
+            completed_at=(
+                now if new_status is IngestionJobStatus.FAILED else None
+            ),
         )
         store.update_ingestion_job(updated)
         return updated
