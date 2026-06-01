@@ -1,0 +1,27 @@
+{
+  "name": "NEVO should-abstain (Quality-V2-A)",
+  "cases": [
+    {
+      "id": "nva-1",
+      "product_name": "Plat mystere maison",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": null,
+      "forbidden_matches": [],
+      "should_match": false,
+      "should_auto_accept": false,
+      "notes": "too vague — must abstain"
+    },
+    {
+      "id": "nva-2",
+      "product_name": "Produit promo XYZ",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": null,
+      "forbidden_matches": [],
+      "should_match": false,
+      "should_auto_accept": false,
+      "notes": "unusable name — abstain"
+    }
+  ]
+}

@@ -1,0 +1,225 @@
+{
+  "name": "WWF eval dataset (Quality-V2-A)",
+  "methodology": "wwf",
+  "cases": [
+    {
+      "id": "wwf-1",
+      "product_name": "Carottes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-2",
+      "product_name": "Epinards",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-3",
+      "product_name": "Brocoli",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-4",
+      "product_name": "Champignons",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-5",
+      "product_name": "Mangue",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-6",
+      "product_name": "Tomates",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-7",
+      "product_name": "Curry poulet riz",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "meat_based"
+      }
+    },
+    {
+      "id": "wwf-8",
+      "product_name": "Curry pois chiches epinards",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "vegan"
+      }
+    },
+    {
+      "id": "wwf-9",
+      "product_name": "Quiche lorraine",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "meat_based"
+      }
+    },
+    {
+      "id": "wwf-10",
+      "product_name": "Chili con carne",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "meat_based"
+      }
+    },
+    {
+      "id": "wwf-11",
+      "product_name": "Sushis saumon avocat",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "seafood_based"
+      }
+    },
+    {
+      "id": "wwf-12",
+      "product_name": "Bowl tofu riz legumes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "vegan"
+      }
+    },
+    {
+      "id": "wwf-13",
+      "product_name": "Sardines a l'huile",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "oil is packing, not the food",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false,
+        "fg1_subgroup": "seafood"
+      }
+    },
+    {
+      "id": "wwf-14",
+      "product_name": "Biscuits sables beurre",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "not FG3 fat",
+      "expected_wwf": {
+        "wwf_food_group": "FG7",
+        "wwf_is_composite": false,
+        "fg7_snack_kind": "animal_based_snack"
+      }
+    },
+    {
+      "id": "wwf-15",
+      "product_name": "Fromage vegetal noix de cajou",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false,
+        "fg2_subgroup": "dairy_alternative_plant"
+      }
+    }
+  ]
+}

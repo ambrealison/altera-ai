@@ -1,0 +1,103 @@
+{
+  "name": "NEVO simple exact (Quality-V2-A)",
+  "cases": [
+    {
+      "id": "nv-1",
+      "product_name": "Lait demi-ecreme",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-LAIT",
+        "food_name_en": "Milk semi-skimmed"
+      },
+      "forbidden_matches": [],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": ""
+    },
+    {
+      "id": "nv-2",
+      "product_name": "Beurre doux",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-BEURRE",
+        "food_name_en": "Butter"
+      },
+      "forbidden_matches": [],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": ""
+    },
+    {
+      "id": "nv-3",
+      "product_name": "Tofu nature",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-TOFU",
+        "food_name_en": "Tofu"
+      },
+      "forbidden_matches": [],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": ""
+    },
+    {
+      "id": "nv-4",
+      "product_name": "Pois chiches cuits",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-PC",
+        "food_name_en": "Chickpeas cooked"
+      },
+      "forbidden_matches": [],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": ""
+    },
+    {
+      "id": "nv-5",
+      "product_name": "Lentilles vertes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-LENT",
+        "food_name_en": "Lentils green"
+      },
+      "forbidden_matches": [],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": ""
+    },
+    {
+      "id": "nv-6",
+      "product_name": "Pates",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-PASTA",
+        "food_name_en": "Pasta"
+      },
+      "forbidden_matches": [],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": ""
+    },
+    {
+      "id": "nv-7",
+      "product_name": "Muesli",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-MUESLI",
+        "food_name_en": "Muesli"
+      },
+      "forbidden_matches": [],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": ""
+    }
+  ]
+}

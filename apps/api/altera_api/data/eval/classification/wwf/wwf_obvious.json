@@ -1,0 +1,90 @@
+{
+  "name": "WWF obvious (Quality-V2-A)",
+  "methodology": "wwf",
+  "cases": [
+    {
+      "id": "wwf-1",
+      "product_name": "Carottes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-2",
+      "product_name": "Epinards",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-3",
+      "product_name": "Brocoli",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-4",
+      "product_name": "Champignons",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-5",
+      "product_name": "Mangue",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-6",
+      "product_name": "Tomates",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    }
+  ]
+}

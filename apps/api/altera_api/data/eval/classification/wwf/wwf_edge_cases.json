@@ -1,0 +1,51 @@
+{
+  "name": "WWF edge cases (Quality-V2-A)",
+  "methodology": "wwf",
+  "cases": [
+    {
+      "id": "wwf-13",
+      "product_name": "Sardines a l'huile",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "oil is packing, not the food",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false,
+        "fg1_subgroup": "seafood"
+      }
+    },
+    {
+      "id": "wwf-14",
+      "product_name": "Biscuits sables beurre",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "not FG3 fat",
+      "expected_wwf": {
+        "wwf_food_group": "FG7",
+        "wwf_is_composite": false,
+        "fg7_snack_kind": "animal_based_snack"
+      }
+    },
+    {
+      "id": "wwf-15",
+      "product_name": "Fromage vegetal noix de cajou",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false,
+        "fg2_subgroup": "dairy_alternative_plant"
+      }
+    }
+  ]
+}

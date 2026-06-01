@@ -1,0 +1,33 @@
+{
+  "name": "NEVO french products (Quality-V2-A)",
+  "cases": [
+    {
+      "id": "nvf-1",
+      "product_name": "Beurre de cacahuete",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-PB",
+        "food_name_en": "Peanut butter"
+      },
+      "forbidden_matches": [],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": "head=beurre cacahuete"
+    },
+    {
+      "id": "nvf-2",
+      "product_name": "Lasagnes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-LAS",
+        "food_name_en": "Lasagne"
+      },
+      "forbidden_matches": [],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": "prepared dish head"
+    }
+  ]
+}

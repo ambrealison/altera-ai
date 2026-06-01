@@ -1,0 +1,39 @@
+{
+  "name": "NEVO composite traps (Quality-V2-A)",
+  "cases": [
+    {
+      "id": "nvc-1",
+      "product_name": "Ratatouille a l'huile d'olive",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-RATA",
+        "food_name_en": "Ratatouille"
+      },
+      "forbidden_matches": [
+        "Oil olive",
+        "Olive oil"
+      ],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": "must match ratatouille head, not olive oil"
+    },
+    {
+      "id": "nvc-2",
+      "product_name": "Ratatouille ail & persil",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-RATA",
+        "food_name_en": "Ratatouille"
+      },
+      "forbidden_matches": [
+        "Garlic raw",
+        "Parsley"
+      ],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": "must not match garlic/parsley"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "name": "NEVO secondary-ingredient traps (Quality-V2-A)",
+  "cases": [
+    {
+      "id": "nvs-1",
+      "product_name": "Pates sauce tomate",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-PASTA",
+        "food_name_en": "Pasta"
+      },
+      "forbidden_matches": [
+        "Tomato sauce",
+        "Tomato"
+      ],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": "head is pasta, tomato is secondary"
+    },
+    {
+      "id": "nvs-2",
+      "product_name": "Tofu sauce soja",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "expected_match": {
+        "nevo_code": "NEVO-TOFU",
+        "food_name_en": "Tofu"
+      },
+      "forbidden_matches": [
+        "Soy sauce"
+      ],
+      "should_match": true,
+      "should_auto_accept": true,
+      "notes": "head is tofu"
+    }
+  ]
+}

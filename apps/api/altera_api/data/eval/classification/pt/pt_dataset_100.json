@@ -1,0 +1,188 @@
+{
+  "name": "PT eval dataset (Quality-V2-A)",
+  "methodology": "protein_tracker",
+  "cases": [
+    {
+      "id": "pt-1",
+      "product_name": "Wrap falafel houmous",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "central plant protein, no animal",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-2",
+      "product_name": "Soupe lentilles coco",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-3",
+      "product_name": "Chili sin carne",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-4",
+      "product_name": "Burger haricots noirs",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-5",
+      "product_name": "Bowl tofu riz legumes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-6",
+      "product_name": "Curry pois chiches epinards",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-7",
+      "product_name": "Salade quinoa edamame",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-8",
+      "product_name": "Pizza legumes vegan",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "vegan, no central protein",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-9",
+      "product_name": "Pizza jambon",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": false,
+      "notes": "animal + dough",
+      "expected_pt": {
+        "pt_group": "composite_products"
+      }
+    },
+    {
+      "id": "pt-10",
+      "product_name": "Muesli avoine fruits graines",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-11",
+      "product_name": "Chips",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-12",
+      "product_name": "Chocolat",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-13",
+      "product_name": "Granola",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-14",
+      "product_name": "Lasagne vegan",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    }
+  ]
+}

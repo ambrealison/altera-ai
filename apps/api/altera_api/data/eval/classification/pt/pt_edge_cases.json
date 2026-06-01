@@ -1,0 +1,45 @@
+{
+  "name": "PT edge cases (Quality-V2-A)",
+  "methodology": "protein_tracker",
+  "cases": [
+    {
+      "id": "pte-1",
+      "product_name": "Steak vegetal soja & ble",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pte-2",
+      "product_name": "Lasagne bolognaise",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": false,
+      "notes": "meat + pasta",
+      "expected_pt": {
+        "pt_group": "composite_products"
+      }
+    },
+    {
+      "id": "pte-3",
+      "product_name": "Croquettes chien tofu",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "petfood + plant protein",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    }
+  ]
+}
