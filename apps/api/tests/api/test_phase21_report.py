@@ -7,7 +7,8 @@ Tests:
 - report includes approval status and approval metadata
 - report includes manual review summary when items exist
 - report does not include forbidden commercial fields
-- client cannot see draft/under_review/rejected report (403)
+- client CAN see its own org's draft/under_review/rejected report (200)
+  (Phase Product-UX-D — self-service guided workflow)
 - client can see approved/delivered report (200)
 - Altera can preview draft report (200)
 - cross-organisation access blocked (404)
@@ -556,28 +557,35 @@ class TestReportPermissions:
         assert r.status_code == 200
         assert r.json()["meta"]["approval_status"] == "under_review"
 
-    def test_client_blocked_on_draft(self):
+    # Phase Product-UX-D — the self-service guided workflow shows the full
+    # report inline immediately after a calculation. A project's own
+    # organisation may therefore view its own report at any approval status
+    # (access is still org-scoped by get_project; cross-org is 404 below).
+    def test_client_can_see_own_draft_report(self):
         store, _, client_org, _, client_user, pt_project, _, pt_run, _ = _setup()
         auth = _auth(client_user, client_org)
         with _client(store, auth) as c:
             r = c.get(f"/api/v1/projects/{pt_project.id}/runs/{pt_run.id}/report")
-        assert r.status_code == 403
+        assert r.status_code == 200
+        assert r.json()["meta"]["approval_status"] == "draft"
 
-    def test_client_blocked_on_under_review(self):
+    def test_client_can_see_own_under_review_report(self):
         store, _, client_org, altera_user, client_user, pt_project, _, pt_run, _ = _setup()
         _export(store, run_id=pt_run.id, org_id=client_org.id, status="under_review")
         auth = _auth(client_user, client_org)
         with _client(store, auth) as c:
             r = c.get(f"/api/v1/projects/{pt_project.id}/runs/{pt_run.id}/report")
-        assert r.status_code == 403
+        assert r.status_code == 200
+        assert r.json()["meta"]["approval_status"] == "under_review"
 
-    def test_client_blocked_on_rejected(self):
+    def test_client_can_see_own_rejected_report(self):
         store, _, client_org, altera_user, client_user, pt_project, _, pt_run, _ = _setup()
         _export(store, run_id=pt_run.id, org_id=client_org.id, status="rejected")
         auth = _auth(client_user, client_org)
         with _client(store, auth) as c:
             r = c.get(f"/api/v1/projects/{pt_project.id}/runs/{pt_run.id}/report")
-        assert r.status_code == 403
+        assert r.status_code == 200
+        assert r.json()["meta"]["approval_status"] == "rejected"
 
     def test_client_can_see_approved_report(self):
         store, _, client_org, altera_user, client_user, pt_project, _, pt_run, _ = _setup()

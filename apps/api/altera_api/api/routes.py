@@ -4179,22 +4179,32 @@ def get_report_route(
 ) -> ReportDocument:
     """Return a structured ReportDocument for a run.
 
-    Altera users: always accessible regardless of approval status.
-    Client users: 403 if no approved or delivered export exists.
+    Access is already organisation-scoped by ``get_project`` (a client
+    can only reach projects in their own organisation; everything else
+    is a 404). Within that scope the run's own organisation may always
+    view its report — including the draft produced immediately after a
+    guided calculation, before any Altera approval. This makes the
+    self-service guided workflow show the full report inline rather than
+    falling back to a compact summary (Phase Product-UX-D).
+
+    The approval lifecycle is preserved as metadata: ``meta.approval_status``
+    still reflects draft / under_review / approved / delivered, and the
+    ``is_altera`` flag still governs recommendation visibility (clients
+    see only proposed/accepted recommendations). No commercial fields
+    are ever exposed in the report.
     """
     record = store.get_run(run_id)
     if record is None or record.project_id != project.id:
         raise HTTPException(status_code=404, detail="run not found")
 
     exports = store.get_exports_for_run(run_id)
-
-    if auth.is_altera_internal:
-        export = max(exports, key=lambda e: e.created_at) if exports else None
-    else:
-        visible = [e for e in exports if e.approval_status in _CLIENT_VISIBLE_STATUSES]
-        if not visible:
-            raise_forbidden("report is not yet approved for client access")
-        export = max(visible, key=lambda e: e.created_at)
+    # Prefer the latest client-visible (approved/delivered) export so the
+    # report carries the most authoritative approval metadata; otherwise
+    # fall back to the latest export of any status, or None for a brand
+    # new run with no export yet (draft).
+    visible = [e for e in exports if e.approval_status in _CLIENT_VISIBLE_STATUSES]
+    pool = visible or exports
+    export = max(pool, key=lambda e: e.created_at) if pool else None
 
     return build_report_document(store, record, project, export, is_altera=auth.is_altera_internal)
 

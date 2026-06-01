@@ -343,7 +343,7 @@ function StepMethodology({
   const METHOD_DESC: Record<string, string> = {
     protein_tracker:
       "Calcule le ratio protéines végétales / protéines totales à partir des données d'achat et de nutrition.",
-    wwf: "Calcule la répartition des achats alimentaires selon les groupes PHD du WWF (FG1–FG7). Requiert le poids unitaire et le volume des ventes.",
+    wwf: "Step 1 (niveau produit) : classe les achats alimentaires selon les groupes PHD du WWF (FG1–FG7) et affecte les produits composés à leur poids total dans les buckets meat-based, seafood-based, vegetarian ou vegan. Requiert le poids unitaire et le volume des ventes. Le Step 2 ingrédient-level (recettes marque propre) n'est pas encore activé.",
   };
 
   return (
@@ -1873,235 +1873,161 @@ function StepReport({
   accessToken,
   step,
   latestRun,
+  isAltera,
 }: {
   projectId: string;
   accessToken: string | null;
   step: WorkflowStep;
   latestRun: Run | null;
+  isAltera: boolean;
 }) {
   const hasRun = step.status === "complete" && latestRun !== null;
 
-  // Phase Product-UX-B — fetch the full ReportDocument so the guided
+  // Phase Product-UX-B/D — fetch the full ReportDocument so the guided
   // result step shows the beautiful report inline (no forced click-out
-  // to /runs/:id). Best-effort: on failure we fall back to the inline
-  // summary below.
+  // to /runs/:id). We track explicit loading/error states so we never
+  // silently degrade to the old compact summary when the full report
+  // should be available (Phase Product-UX-D).
   const reportApi = useMemo(() => createApi(accessToken), [accessToken]);
   const [report, setReport] = useState<ReportDocument | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
     let active = true;
     if (!latestRun) {
       setReport(null);
+      setReportLoading(false);
+      setReportError(false);
       return;
     }
+    setReportLoading(true);
+    setReportError(false);
     reportApi
       .getReport(projectId, latestRun.id)
       .then((d) => {
-        if (active) setReport(d);
+        if (!active) return;
+        setReport(d);
+        setReportLoading(false);
       })
-      .catch(() => {
-        if (active) setReport(null);
+      .catch((err) => {
+        if (!active) return;
+        // Surface, don't swallow: log the backend error and show an
+        // actionable message rather than the old compact summary.
+        console.error("Failed to load guided report", err);
+        setReport(null);
+        setReportError(true);
+        setReportLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [reportApi, projectId, latestRun]);
+  }, [reportApi, projectId, latestRun, reloadKey]);
 
-  const summary = latestRun?.summary as Record<string, unknown> | undefined;
-  const plantRatio = summary?.plant_protein_ratio as number | undefined;
-  const plantPct = plantRatio != null ? `${(plantRatio * 100).toFixed(1)} %` : null;
-  // Phase 34D — surface plant_kg / animal_kg / counts inline so the user
-  // does not need to leave the wizard for the headline numbers.
-  const totalKg = summary?.total_protein_kg as number | undefined;
-  const plantKg = summary?.plant_protein_kg as number | undefined;
-  const animalKg = summary?.animal_protein_kg as number | undefined;
-  const rowsIncluded = summary?.rows_included as number | undefined;
-  const rowsExcluded = summary?.rows_excluded as number | undefined;
-  const fmtKg = (n: number | undefined) =>
-    n == null ? "—" : `${n.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} kg`;
-  const animalPct =
-    plantRatio != null ? `${((1 - plantRatio) * 100).toFixed(1)} %` : null;
-
-  // Phase 34K — coverage block. The backend's create_run decorates
-  // the summary with a `coverage` object when the run was Protein
-  // Tracker. Older runs predate this and may not have it.
-  const coverage = summary?.coverage as
-    | {
-        total_products_start?: number;
-        eligible_products_total?: number;
-        products_included_in_calculation?: number;
-        products_excluded_missing_nutrition?: number;
-        product_coverage_pct?: number;
-        volume_total_start?: string;
-        volume_included_in_calculation?: string;
-        volume_coverage_pct?: number;
-        is_partial?: boolean;
-      }
-    | undefined;
-  const productPct = coverage?.product_coverage_pct;
-  const volumePct = coverage?.volume_coverage_pct;
-  // Severity threshold: <50% high, 50–80% medium, >=80% normal.
-  const coverageTone: "normal" | "medium" | "high" =
-    productPct == null
-      ? "normal"
-      : productPct < 50
-        ? "high"
-        : productPct < 80
-          ? "medium"
-          : "normal";
-
-  // Phase Product-UX-B — when the full report is available, render it
-  // inline as the main user-facing result; the technical detail page
-  // becomes a secondary link below.
-  if (hasRun && report) {
+  // No successful run yet — invite the user back to the calculation step.
+  if (!hasRun) {
     return (
       <div className="space-y-5">
-        <RunReport doc={report} />
-        <div className="flex flex-wrap gap-3">
-          <Link href={`/projects/${projectId}/runs/${latestRun!.id}`}>
-            <Button variant="ghost">Voir le détail technique →</Button>
-          </Link>
+        <div>
+          <h2 className="text-xl font-semibold">Résultat / rapport</h2>
+          <p className="mt-1 text-sm text-ink-muted">
+            Le rapport complet s’affiche ici après un calcul réussi.
+          </p>
         </div>
-        <p className="text-xs text-ink-soft">
-          Le détail technique regroupe les exports CSV/JSON/Markdown et
-          l’historique d’approbation.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-semibold">Résultat / rapport</h2>
-        <p className="mt-1 text-sm text-ink-muted">
-          Dernier calcul réussi et exports disponibles.
-        </p>
-        <p className="mt-1 text-xs text-ink-soft">
-          {"L'IA a aidé à sélectionner certaines références, mais n'a pas généré de valeurs"}
-          nutritionnelles.
-        </p>
-      </div>
-
-      {!hasRun ? (
         <Card>
           <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-ink-muted">
             {"Aucun calcul effectué. Revenez à l'étape Calcul pour lancer un premier calcul."}
           </div>
         </Card>
-      ) : (
-        <Card>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-forest-700">
-                Calcul du {new Date(latestRun.started_at).toLocaleDateString("fr-FR")}
-              </p>
-              <p className="mt-0.5 text-xs text-ink-soft">
-                {latestRun.rows_count} ligne(s) traitée(s) ·{" "}
-                {latestRun.methodology.replace("_", " ")}
-              </p>
-            </div>
-            {plantPct && (
-              <div className="text-right">
-                <p className="text-xs text-ink-soft">Ratio végétal</p>
-                <p className="text-2xl font-bold text-brand-600">{plantPct}</p>
-              </div>
-            )}
-          </div>
+      </div>
+    );
+  }
 
-          {/* Phase 34K — coverage disclosure. Always shown when the
-              run carries coverage metrics; styled red below 50%,
-              amber at 50–80%, neutral above 80%. */}
-          {coverage && coverage.is_partial && (
-            <div
-              className={
-                "mt-4 rounded-md border px-3 py-2 text-sm " +
-                (coverageTone === "high"
-                  ? "border-danger-100 bg-danger-50 text-danger-700"
-                  : coverageTone === "medium"
-                    ? "border-warn-100 bg-warn-50 text-warn-700"
-                    : "border-gray-200 bg-gray-50 text-forest-700")
-              }
-            >
-              <p className="font-medium">
-                Calcul partiel — couverture {productPct?.toFixed(1)} %
-              </p>
-              <p className="mt-1 text-xs">
-                Le Protein Ratio a été calculé sur{" "}
-                <span className="font-semibold">
-                  {coverage.products_included_in_calculation}
-                </span>{" "}
-                des{" "}
-                <span className="font-semibold">
-                  {coverage.total_products_start}
-                </span>{" "}
-                produits initiaux ({productPct?.toFixed(1)} %)
-                {volumePct != null && (
-                  <>
-                    , représentant{" "}
-                    <span className="font-semibold">
-                      {volumePct.toFixed(1)} %
-                    </span>{" "}
-                    du volume total
-                  </>
-                )}
-                .{" "}
-                {coverage.products_excluded_missing_nutrition} produit(s)
-                exclus pour donnée protéique manquante.
-              </p>
-            </div>
-          )}
-
-          {/* Phase 34D — headline numbers inline so the wizard is self-sufficient */}
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2">
-              <p className="text-xs text-brand-700">Protéines végétales</p>
-              <p className="mt-0.5 text-sm font-semibold text-brand-700">
-                {fmtKg(plantKg)}
-              </p>
-              {plantPct && (
-                <p className="text-xs text-brand-600">{plantPct}</p>
-              )}
-            </div>
-            <div className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2">
-              <p className="text-xs text-warn-700">Protéines animales</p>
-              <p className="mt-0.5 text-sm font-semibold text-warn-700">
-                {fmtKg(animalKg)}
-              </p>
-              {animalPct && (
-                <p className="text-xs text-warn-600">{animalPct}</p>
-              )}
-            </div>
-            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-              <p className="text-xs text-ink-muted">Protéines totales</p>
-              <p className="mt-0.5 text-sm font-semibold text-forest-900">
-                {fmtKg(totalKg)}
-              </p>
-            </div>
-            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-              <p className="text-xs text-ink-muted">Lignes</p>
-              <p className="mt-0.5 text-sm font-semibold text-forest-900">
-                {rowsIncluded ?? latestRun.rows_count ?? "—"}
-                {rowsExcluded != null && rowsExcluded > 0 && (
-                  <span className="ml-1 text-xs font-normal text-ink-soft">
-                    (+{rowsExcluded} exclues)
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link href={`/projects/${projectId}/runs/${latestRun.id}`}>
-              <Button variant="ghost">Voir le détail technique →</Button>
+  // Phase Product-UX-D — the full guided report is the ONLY user-facing
+  // result. We render it as soon as it loads; while it loads we show a
+  // skeleton; if it truly fails we show an actionable error (never a
+  // silent fall-back to a compact summary).
+  if (report) {
+    return (
+      <div className="space-y-5">
+        <RunReport doc={report} />
+        {/* The technical/export detail page is an admin/debug surface;
+            keep it out of the normal client flow. */}
+        {isAltera && (
+          <div className="border-t border-gray-100 pt-3">
+            <Link href={`/projects/${projectId}/runs/${latestRun!.id}`}>
+              <Button variant="ghost" className="text-xs">
+                Détail technique (admin) →
+              </Button>
             </Link>
+            <p className="mt-1 text-xs text-ink-soft">
+              Exports CSV/JSON/Markdown et historique d’approbation.
+            </p>
           </div>
+        )}
+      </div>
+    );
+  }
 
-          <p className="mt-3 text-xs text-ink-soft">
-            Le détail technique (admin/debug) regroupe les exports CSV/JSON/Markdown
-            et l’historique d’approbation.
-          </p>
+  if (reportError) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h2 className="text-xl font-semibold">Résultat / rapport</h2>
+        </div>
+        <Card>
+          <div className="rounded-xl border border-danger-100 bg-danger-50 px-4 py-3 text-sm text-danger-700">
+            <p className="font-medium">
+              Le rapport complet n’a pas pu être chargé.
+            </p>
+            <p className="mt-1 text-xs">
+              Une erreur est survenue lors de la génération du rapport pour ce
+              calcul. Réessayez dans un instant ; si le problème persiste,
+              relancez un calcul depuis l’étape Calcul.
+            </p>
+          </div>
+          <div className="mt-4">
+            <Button variant="secondary" onClick={() => setReloadKey((k) => k + 1)}>
+              Réessayer
+            </Button>
+          </div>
         </Card>
-      )}
+      </div>
+    );
+  }
+
+  // Loading — beautiful skeleton while the report is fetched.
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold">Résultat / rapport</h2>
+        <p className="mt-1 text-sm text-ink-muted">
+          Préparation de votre rapport…
+        </p>
+      </div>
+      <div className="overflow-hidden rounded-3xl bg-forest-hero p-6 shadow-card">
+        <div className="h-3 w-24 animate-pulse rounded-full bg-white/20" />
+        <div className="mt-3 h-6 w-2/3 animate-pulse rounded-lg bg-white/25" />
+        <div className="mt-2 h-3 w-1/2 animate-pulse rounded-full bg-white/15" />
+      </div>
+      <Card>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-16 animate-pulse rounded-2xl bg-line-soft/60 ring-1 ring-line"
+            />
+          ))}
+        </div>
+        <div className="mt-5 space-y-2">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-3 w-full animate-pulse rounded-full bg-line-soft/60"
+            />
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }
@@ -2114,7 +2040,7 @@ export default function WorkflowWizardPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const projectId = params.id;
-  const { accessToken } = useAuth();
+  const { accessToken, isAltera } = useAuth();
   const api = useMemo(() => createApi(accessToken), [accessToken]);
 
   const [status, setStatus] = useState<WorkflowStatus | null>(null);
@@ -3003,6 +2929,7 @@ export default function WorkflowWizardPage() {
             accessToken={accessToken}
             step={activeBackendStep}
             latestRun={latestRun}
+            isAltera={isAltera}
           />
         )}
       </div>

@@ -6,7 +6,8 @@ Verifies:
 - Client cannot create manual enrichment (gets 403)
 - Client cannot create or run scenarios (gets 403)
 - Altera analyst can access any org's project (200)
-- Draft/under-review export is hidden from clients (403 on report)
+- A client can view its OWN org's draft report (Phase Product-UX-D
+  self-service); cross-org access is still 404
 - Review queue returns paginated Page envelope
 - Jobs list returns paginated Page envelope
 """
@@ -239,24 +240,41 @@ class TestExportApprovalPermissions:
 
 
 class TestDraftExportVisibility:
-    def test_client_cannot_read_draft_report(
-        self, client: TestClient, store: InMemoryStore
+    def test_client_can_read_own_draft_report(
+        self, store: InMemoryStore
     ) -> None:
-        """Report endpoint returns 403 when export is still draft."""
+        """Phase Product-UX-D — the self-service guided workflow shows the
+        full report inline immediately after a calculation. A project's own
+        organisation may view its own draft report (access is org-scoped by
+        get_project; cross-org is a 404). So the permission gate must NOT
+        return 403 here.
+
+        Uses raise_server_exceptions=False because the seeded run has an
+        empty summary_payload, so build_report_document throws a 500 after
+        the gate — but the gate itself must pass.
+        """
+        from altera_api.api.store_factory import get_store
+
         client_org = _make_org(store, name="RetailCo", org_type=OrganisationType.GMS_CLIENT)
         user = _make_user(store, org=client_org, role=ClientRole.CLIENT_OWNER)
         ctx = _auth_ctx(user, client_org)
         project_id, run_id = _seed_project_and_run(store, client_org)
         _seed_export(store, run_id, client_org.id, ReportApprovalStatus.DRAFT)
 
+        app.dependency_overrides[get_store] = lambda: store
         app.dependency_overrides[authed_user] = lambda: ctx
         try:
-            resp = client.get(f"/api/v1/projects/{project_id}/runs/{run_id}/report")
+            with TestClient(app, raise_server_exceptions=False) as http:
+                resp = http.get(f"/api/v1/projects/{project_id}/runs/{run_id}/report")
         finally:
             app.dependency_overrides.pop(authed_user, None)
+            app.dependency_overrides.pop(get_store, None)
 
-        assert resp.status_code == 403
-        assert resp.json()["detail"]["error_code"] == "forbidden"
+        # The permission gate passed — a 403 "forbidden" would be the bug.
+        assert not (
+            resp.status_code == 403
+            and resp.json().get("detail", {}).get("error_code") == "forbidden"
+        )
 
     def test_client_can_read_approved_report(
         self, store: InMemoryStore

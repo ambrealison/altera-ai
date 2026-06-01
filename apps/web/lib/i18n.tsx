@@ -119,6 +119,23 @@ const DICT: Record<string, { fr: string; en: string }> = {
     fr: "Utilisez ces templates pour éviter les erreurs de mapping. Gardez la première ligne d'en-têtes et un encodage UTF-8.",
     en: "Use these templates to avoid mapping errors. Keep the header row and UTF-8 encoding.",
   },
+  // Phase Product-UX-D — clarify WWF scope and NEVO's role.
+  "templates.wwfScope.title": {
+    fr: "Méthodologie WWF — Step 1 (niveau produit)",
+    en: "WWF methodology — Step 1 (product-level)",
+  },
+  "templates.wwfScope.body": {
+    fr: "Les produits composés sont comptés à leur poids total et classés dans les buckets meat-based, seafood-based, vegetarian ou vegan, puis cartographiés sur les groupes FG1–FG7. Le Step 2 ingrédient-level (décomposition par recette pour les produits marque propre) n'est pas encore activé : il nécessite des données de recette détaillées.",
+    en: "Composite products are counted using their whole product weight and assigned to meat-based, seafood-based, vegetarian or vegan buckets, then mapped onto food groups FG1–FG7. Step 2 ingredient-level reporting (recipe decomposition for own-brand composites) is not enabled yet; it requires detailed recipe data.",
+  },
+  "templates.nevoNote.title": {
+    fr: "À propos de NEVO",
+    en: "About NEVO",
+  },
+  "templates.nevoNote.body": {
+    fr: "NEVO sert à l'enrichissement nutritionnel / protéines (surtout pour Protein Tracker). Il fournit une composition alimentaire de référence, pas les poids d'ingrédients de recette des enseignes — il ne peut donc pas produire à lui seul un Step 2 WWF ingrédient-level.",
+    en: "NEVO is used for nutrition/protein enrichment (mainly for Protein Tracker). It provides reference food composition, not retailer recipe-level ingredient weights — so it cannot on its own produce WWF Step 2 ingredient-level breakdowns.",
+  },
   // Language switch
   "lang.fr": { fr: "FR", en: "FR" },
   "lang.en": { fr: "EN", en: "EN" },

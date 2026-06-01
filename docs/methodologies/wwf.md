@@ -10,6 +10,12 @@ source PDF is a bug.
 > **Implementation version covered:** `wwf` v1.0.0 — tracks the 2024
 > retailer methodology.
 
+> **Current scope:** the app implements **Step 1 product-level**
+> classification and reporting (including composite whole-weight buckets
+> and FG1–FG7 mapping). **Step 2 ingredient-level** decomposition of
+> own-brand composites is **not** implemented yet. See
+> [`wwf-step1-step2-current-scope.md`](./wwf-step1-step2-current-scope.md).
+
 ## What the WWF methodology measures
 
 WWF measures **sales of food products by weight (tonnes)**, mapped to

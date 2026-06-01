@@ -18,6 +18,7 @@ import {
   type ScenarioResultResponse,
   type WWFReportSection,
 } from "@/lib/api";
+import { formatKg, formatPct } from "@/lib/format";
 
 const STATUS_TONE: Record<string, "neutral" | "warn" | "ok" | "error" | "brand"> = {
   draft: "neutral",
@@ -484,10 +485,10 @@ function PTSection({ section: s }: { section: PTReportSection }) {
           subtitle={`Methodology v${s.methodology_version} · ${s.methodology_source_edition}`}
         />
         <div className="mt-4 grid grid-cols-2 gap-6 sm:grid-cols-4">
-          <Stat label="Plant protein (kg)" value={s.plant_protein_kg} />
-          <Stat label="Animal protein (kg)" value={s.animal_protein_kg} />
-          <Stat label="Plant share %" value={s.plant_share_pct ?? "—"} />
-          <Stat label="Animal share %" value={s.animal_share_pct ?? "—"} />
+          <Stat label="Plant protein" value={formatKg(s.plant_protein_kg)} />
+          <Stat label="Animal protein" value={formatKg(s.animal_protein_kg)} />
+          <Stat label="Plant share" value={s.plant_share_pct != null ? formatPct(s.plant_share_pct) : "—"} />
+          <Stat label="Animal share" value={s.animal_share_pct != null ? formatPct(s.animal_share_pct) : "—"} />
         </div>
         <div className="mt-4 text-xs text-ink-soft">{s.composite_note}</div>
       </Card>
@@ -507,8 +508,8 @@ function PTSection({ section: s }: { section: PTReportSection }) {
               <tr key={g.pt_group}>
                 <td className="py-2 font-medium">{g.pt_group.replace(/_/g, " ")}</td>
                 <td className="py-2 text-right">{g.item_count}</td>
-                <td className="py-2 text-right">{g.volume_kg}</td>
-                <td className="py-2 text-right">{g.protein_kg}</td>
+                <td className="py-2 text-right">{formatKg(g.volume_kg)}</td>
+                <td className="py-2 text-right">{formatKg(g.protein_kg)}</td>
               </tr>
             ))}
           </tbody>
@@ -536,9 +537,9 @@ function WWFSection({ section: s }: { section: WWFReportSection }) {
           subtitle={`Methodology v${s.methodology_version} · ${s.methodology_source_edition}`}
         />
         <div className="mt-4 grid grid-cols-2 gap-6 sm:grid-cols-3">
-          <Stat label="Total in-scope (kg)" value={s.total_in_scope_weight_kg} />
-          <Stat label="Whole-diet plant (kg)" value={s.whole_diet_plant_weight_kg} />
-          <Stat label="Whole-diet animal (kg)" value={s.whole_diet_animal_weight_kg} />
+          <Stat label="Total in-scope" value={formatKg(s.total_in_scope_weight_kg)} />
+          <Stat label="Whole-diet plant" value={formatKg(s.whole_diet_plant_weight_kg)} />
+          <Stat label="Whole-diet animal" value={formatKg(s.whole_diet_animal_weight_kg)} />
         </div>
       </Card>
       <Card>
@@ -556,9 +557,9 @@ function WWFSection({ section: s }: { section: WWFReportSection }) {
             {s.per_food_group.map((g) => (
               <tr key={g.food_group}>
                 <td className="py-2 font-medium">{g.food_group}</td>
-                <td className="py-2 text-right">{g.weight_kg}</td>
-                <td className="py-2 text-right">{g.share_pct}</td>
-                <td className="py-2 text-right">{g.phd_reference_share_pct ?? "—"}</td>
+                <td className="py-2 text-right">{formatKg(g.weight_kg)}</td>
+                <td className="py-2 text-right">{formatPct(g.share_pct)}</td>
+                <td className="py-2 text-right">{g.phd_reference_share_pct != null ? formatPct(g.phd_reference_share_pct) : "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -567,11 +568,11 @@ function WWFSection({ section: s }: { section: WWFReportSection }) {
       <Card>
         <CardHeader title="Composites (Step 1)" />
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-5 text-sm">
-          <Stat label="Meat-based (kg)" value={s.composites_meat_based_kg} />
-          <Stat label="Seafood-based (kg)" value={s.composites_seafood_based_kg} />
-          <Stat label="Vegetarian (kg)" value={s.composites_vegetarian_kg} />
-          <Stat label="Vegan (kg)" value={s.composites_vegan_kg} />
-          <Stat label="Total (kg)" value={s.composites_total_weight_kg} />
+          <Stat label="Meat-based" value={formatKg(s.composites_meat_based_kg)} />
+          <Stat label="Seafood-based" value={formatKg(s.composites_seafood_based_kg)} />
+          <Stat label="Vegetarian" value={formatKg(s.composites_vegetarian_kg)} />
+          <Stat label="Vegan" value={formatKg(s.composites_vegan_kg)} />
+          <Stat label="Total" value={formatKg(s.composites_total_weight_kg)} />
         </div>
       </Card>
       <Card>

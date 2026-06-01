@@ -314,6 +314,15 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
       <h3 className="text-base font-semibold text-forest-900">
         🥕 WWF Planet-Based Diets
       </h3>
+      {/* Phase Product-UX-D — be explicit about the methodology scope. */}
+      <div className="mt-2 rounded-xl bg-mint-50/60 px-3 py-2 text-xs leading-relaxed text-forest-700 ring-1 ring-brand-100">
+        <span className="font-semibold">Méthodologie WWF — Step 1 :</span>{" "}
+        classification au niveau produit. Les produits composés sont comptés à
+        leur poids total et affectés aux buckets <em>meat-based</em>,{" "}
+        <em>seafood-based</em>, <em>vegetarian</em> ou <em>vegan</em>. Le Step 2
+        (décomposition ingrédient par ingrédient des produits marque propre)
+        n’est pas encore activé : il nécessite des données de recette détaillées.
+      </div>
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Kpi label="Volume in-scope" value={formatKg(wwf.total_in_scope_weight_kg)} tone="brand" />
         <Kpi label="Composites" value={formatKg(wwf.composites_total_weight_kg)} />

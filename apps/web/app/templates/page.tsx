@@ -155,6 +155,22 @@ export default function TemplatesPage() {
             {t("templates.tip.body")}
           </p>
         </Card>
+        <Card>
+          <h3 className="text-sm font-semibold text-forest-900">
+            🥕 {t("templates.wwfScope.title")}
+          </h3>
+          <p className="mt-1 text-sm text-ink-muted">
+            {t("templates.wwfScope.body")}
+          </p>
+        </Card>
+        <Card>
+          <h3 className="text-sm font-semibold text-forest-900">
+            🧪 {t("templates.nevoNote.title")}
+          </h3>
+          <p className="mt-1 text-sm text-ink-muted">
+            {t("templates.nevoNote.body")}
+          </p>
+        </Card>
       </div>
     </div>
   );
