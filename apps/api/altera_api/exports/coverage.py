@@ -40,6 +40,10 @@ from altera_api.domain.protein_tracker import ProteinTrackerCalculationSummary
 from altera_api.domain.report import CoverageSection
 from altera_api.domain.wwf import WWFCalculationSummary
 from altera_api.exports.common import format_decimal
+from altera_api.exports.summary_payload import (
+    parse_pt_summary_payload,
+    parse_wwf_summary_payload,
+)
 
 _ZERO = Decimal("0")
 _HUNDRED = Decimal("100")
@@ -629,11 +633,11 @@ def build_coverage_section(
     # Caveats (methodology-specific + enrichment disclosure)
     # ------------------------------------------------------------------ #
     if is_pt:
-        s_pt = ProteinTrackerCalculationSummary.model_validate(run.summary_payload)
+        s_pt = parse_pt_summary_payload(run.summary_payload)
         caveats = _pt_caveats(s_pt, products_with_missing_protein or 0)
         caveats = caveats + _enrichment_caveats(store, project.id, pt_summary=s_pt)
     else:
-        s_wwf = WWFCalculationSummary.model_validate(run.summary_payload)
+        s_wwf = parse_wwf_summary_payload(run.summary_payload)
         caveats = _wwf_caveats(s_wwf)
         caveats = caveats + _wwf_step2_caveats(
             store, project.id, products_in_run=products_in_run

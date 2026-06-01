@@ -77,6 +77,10 @@ from altera_api.domain.scenario import (
     ScenarioStatus,
 )
 from altera_api.exports.report import build_report_document
+from altera_api.exports.summary_payload import (
+    parse_pt_summary_payload,
+    parse_wwf_summary_payload,
+)
 from altera_api.ingestion.validators import validate_upload
 from altera_api.jobs.dependencies import get_worker
 from altera_api.jobs.runner import WorkerBackend
@@ -4315,9 +4319,7 @@ def generate_recommendations_route(
     from altera_api.domain.common import Methodology as _M
 
     if record.methodology is _M.PROTEIN_TRACKER:
-        from altera_api.domain.protein_tracker import ProteinTrackerCalculationSummary
-
-        s_pt = ProteinTrackerCalculationSummary.model_validate(record.summary_payload)
+        s_pt = parse_pt_summary_payload(record.summary_payload)
         ephemeral = _gen(
             _M.PROTEIN_TRACKER,
             pt_summary=s_pt,
@@ -4328,9 +4330,7 @@ def generate_recommendations_route(
             products_with_missing_protein=coverage.products_with_missing_protein,
         )
     else:
-        from altera_api.domain.wwf import WWFCalculationSummary
-
-        s_wwf = WWFCalculationSummary.model_validate(record.summary_payload)
+        s_wwf = parse_wwf_summary_payload(record.summary_payload)
         step2_map = store.get_wwf_ingredients_by_project(project.id)
         wwf_step2_applied = len(step2_map)
         product_ids_in_run = {row["product_id"] for row in record.rows_payload if row.get("product_id")}
@@ -4816,11 +4816,10 @@ def run_scenario_route(
     if run is None:
         raise HTTPException(status_code=404, detail="base run not found")
 
-    from altera_api.domain.protein_tracker import ProteinTrackerCalculationSummary
     from altera_api.scenarios.pt_projection import project_pt_scenario
 
     try:
-        base_summary = ProteinTrackerCalculationSummary.model_validate(run.summary_payload)
+        base_summary = parse_pt_summary_payload(run.summary_payload)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Cannot parse base run summary: {exc}") from exc
 

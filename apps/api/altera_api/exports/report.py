@@ -11,8 +11,10 @@ store.
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from altera_api.api.state import ExportRecord, PersistedRecommendation, RunRecord
@@ -38,8 +40,55 @@ from altera_api.domain.wwf import WWFCalculationSummary
 from altera_api.exports.common import format_decimal
 from altera_api.exports.contributors import pt_contributors, wwf_contributors
 from altera_api.exports.coverage import build_coverage_section
+from altera_api.exports.summary_payload import (
+    parse_pt_summary_payload,
+    parse_wwf_summary_payload,
+)
 from altera_api.persistence.protocol import StoreProtocol
 from altera_api.recommendations.engine import generate_recommendations
+
+_LOG = logging.getLogger("altera_api.report")
+
+
+def _payload_keys(payload: Any) -> list[str]:
+    """First-level keys of a payload, for structured error logging."""
+    if isinstance(payload, dict):
+        return sorted(payload.keys())
+    return [type(payload).__name__]
+
+
+def _parse_pt_summary(run: RunRecord) -> ProteinTrackerCalculationSummary:
+    """Parse a PT summary payload; log structured context if it fails."""
+    try:
+        return parse_pt_summary_payload(run.summary_payload)
+    except Exception as exc:  # pragma: no cover - logged then re-raised
+        _LOG.error(
+            "Failed to parse PT summary payload",
+            extra={
+                "run_id": str(run.id),
+                "methodology": run.methodology.value,
+                "exc_type": type(exc).__name__,
+                "payload_keys": _payload_keys(run.summary_payload),
+            },
+        )
+        raise
+
+
+def _parse_wwf_summary(run: RunRecord) -> WWFCalculationSummary:
+    """Parse a WWF summary payload; log structured context if it fails."""
+    try:
+        return parse_wwf_summary_payload(run.summary_payload)
+    except Exception as exc:  # pragma: no cover - logged then re-raised
+        _LOG.error(
+            "Failed to parse WWF summary payload",
+            extra={
+                "run_id": str(run.id),
+                "methodology": run.methodology.value,
+                "exc_type": type(exc).__name__,
+                "payload_keys": _payload_keys(run.summary_payload),
+            },
+        )
+        raise
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -90,7 +139,7 @@ def _review_summary(items: list[ManualReviewItem]) -> ReviewSummary:
 
 
 def _pt_section(run: RunRecord, store: StoreProtocol, project: Project) -> PTReportSection:
-    s = ProteinTrackerCalculationSummary.model_validate(run.summary_payload)
+    s = _parse_pt_summary(run)
     sources = _classification_sources(store, run)
 
     if s.rows_with_per_product_split > 0:
@@ -150,7 +199,7 @@ def _pt_section(run: RunRecord, store: StoreProtocol, project: Project) -> PTRep
 
 
 def _wwf_section(run: RunRecord, store: StoreProtocol, project: Project) -> WWFReportSection:
-    s = WWFCalculationSummary.model_validate(run.summary_payload)
+    s = _parse_wwf_summary(run)
     sources = _classification_sources(store, run)
 
     wwf_positive, wwf_watchout = wwf_contributors(
@@ -283,13 +332,13 @@ def build_report_document(
     if run.methodology is Methodology.PROTEIN_TRACKER:
         pt = _pt_section(run, store, project)
         wwf = None
-        s_pt = ProteinTrackerCalculationSummary.model_validate(run.summary_payload)
+        s_pt = _parse_pt_summary(run)
         exec_summary = _pt_executive_summary(s_pt, status, project.name)
         reporting_period = s_pt.reporting_period_label
     else:
         pt = None
         wwf = _wwf_section(run, store, project)
-        s_wwf = WWFCalculationSummary.model_validate(run.summary_payload)
+        s_wwf = _parse_wwf_summary(run)
         exec_summary = _wwf_executive_summary(s_wwf, status, project.name)
         reporting_period = s_wwf.reporting_period_label
 
@@ -325,7 +374,7 @@ def build_report_document(
     elif is_altera:
         # Ephemeral engine fallback for Altera preview before any generate call.
         if run.methodology is Methodology.PROTEIN_TRACKER:
-            s_pt_for_recs = ProteinTrackerCalculationSummary.model_validate(run.summary_payload)
+            s_pt_for_recs = _parse_pt_summary(run)
             recs = generate_recommendations(
                 Methodology.PROTEIN_TRACKER,
                 pt_summary=s_pt_for_recs,
@@ -336,7 +385,7 @@ def build_report_document(
                 products_with_missing_protein=coverage.products_with_missing_protein,
             )
         else:
-            s_wwf_for_recs = WWFCalculationSummary.model_validate(run.summary_payload)
+            s_wwf_for_recs = _parse_wwf_summary(run)
             step2_map = store.get_wwf_ingredients_by_project(project.id)
             wwf_step2_applied = len(step2_map)
             product_ids_in_run = {
