@@ -36,6 +36,7 @@ from altera_api.domain.report import (
 from altera_api.domain.review import ManualReviewItem, ManualReviewStatus
 from altera_api.domain.wwf import WWFCalculationSummary
 from altera_api.exports.common import format_decimal
+from altera_api.exports.contributors import pt_contributors, wwf_contributors
 from altera_api.exports.coverage import build_coverage_section
 from altera_api.persistence.protocol import StoreProtocol
 from altera_api.recommendations.engine import generate_recommendations
@@ -103,6 +104,10 @@ def _pt_section(run: RunRecord, store: StoreProtocol, project: Project) -> PTRep
             "The 50/50 default protein split was applied to all composite products."
         )
 
+    pt_positive, pt_watchout = pt_contributors(
+        run.rows_payload, store.list_products_for_project(project.id)
+    )
+
     by_group = {a.pt_group: a for a in s.per_group}
     groups = [
         PTGroupData(
@@ -139,12 +144,18 @@ def _pt_section(run: RunRecord, store: StoreProtocol, project: Project) -> PTRep
         rows_protein_source_reference_db=s.rows_protein_source_reference_db,
         classification_sources=sources,
         pt_validation_status=project.pt_validation_status.value,
+        top_positive_contributors=pt_positive,
+        top_watchout_contributors=pt_watchout,
     )
 
 
-def _wwf_section(run: RunRecord, store: StoreProtocol) -> WWFReportSection:
+def _wwf_section(run: RunRecord, store: StoreProtocol, project: Project) -> WWFReportSection:
     s = WWFCalculationSummary.model_validate(run.summary_payload)
     sources = _classification_sources(store, run)
+
+    wwf_positive, wwf_watchout = wwf_contributors(
+        run.rows_payload, store.list_products_for_project(project.id)
+    )
 
     per_food_group = [
         WWFFoodGroupData(
@@ -178,6 +189,8 @@ def _wwf_section(run: RunRecord, store: StoreProtocol) -> WWFReportSection:
         out_of_scope_count=s.out_of_scope_count,
         unknown_count=s.unknown_count,
         classification_sources=sources,
+        top_positive_contributors=wwf_positive,
+        top_watchout_contributors=wwf_watchout,
     )
 
 
@@ -275,7 +288,7 @@ def build_report_document(
         reporting_period = s_pt.reporting_period_label
     else:
         pt = None
-        wwf = _wwf_section(run, store)
+        wwf = _wwf_section(run, store, project)
         s_wwf = WWFCalculationSummary.model_validate(run.summary_payload)
         exec_summary = _wwf_executive_summary(s_wwf, status, project.name)
         reporting_period = s_wwf.reporting_period_label

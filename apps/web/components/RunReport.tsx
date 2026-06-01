@@ -87,6 +87,92 @@ function Kpi({
 }
 
 // ---------------------------------------------------------------------------
+// Top-N product contributors (Phase Product-UX-C)
+// ---------------------------------------------------------------------------
+type ContributorItem = {
+  id: string;
+  name: string;
+  category: string | null;
+  value: string;
+  rationale: string;
+};
+
+function ContributorList({
+  title,
+  emoji,
+  tone,
+  items,
+  emptyText,
+}: {
+  title: string;
+  emoji: string;
+  tone: "brand" | "warn";
+  items: ContributorItem[];
+  emptyText: string;
+}) {
+  const rankCls =
+    tone === "warn"
+      ? "bg-warn-100 text-warn-700"
+      : "bg-mint-100 text-forest-700";
+  const ring = tone === "warn" ? "ring-warn-100" : "ring-brand-100";
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
+        {emoji} {title}
+      </p>
+      {items.length === 0 ? (
+        <p className="mt-2 rounded-xl bg-line-soft/40 px-3 py-2 text-xs text-ink-muted">
+          {emptyText}
+        </p>
+      ) : (
+        <ol className="mt-2 space-y-1.5">
+          {items.map((it, i) => (
+            <li
+              key={it.id}
+              className={`flex items-center gap-3 rounded-xl bg-white px-3 py-2 ring-1 ${ring}`}
+            >
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${rankCls}`}
+              >
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-forest-900">
+                  {it.name}
+                </p>
+                <p className="truncate text-[11px] text-ink-soft">
+                  {it.rationale}
+                  {it.category ? ` · ${it.category}` : ""}
+                </p>
+              </div>
+              <span className="shrink-0 text-sm font-semibold text-forest-900">
+                {it.value}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+const CONTRIBUTORS_UNAVAILABLE =
+  "Les contributions produit ne sont pas disponibles pour ce calcul.";
+
+function ContributorsUnavailable() {
+  return (
+    <div className="mt-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
+        🏅 Top produits
+      </p>
+      <p className="mt-2 rounded-xl bg-line-soft/40 px-3 py-2 text-xs text-ink-muted">
+        {CONTRIBUTORS_UNAVAILABLE}
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Protein Tracker section
 // ---------------------------------------------------------------------------
 function PtSection({ pt }: { pt: PTReportSection }) {
@@ -96,6 +182,9 @@ function PtSection({ pt }: { pt: PTReportSection }) {
     (a, b) => (Number(b.protein_kg) || 0) - (Number(a.protein_kg) || 0),
   );
   const topPlant = sortedGroups.find((g) => g.pt_group === "plant_based_core");
+  const ptPositive = pt.top_positive_contributors ?? [];
+  const ptWatchout = pt.top_watchout_contributors ?? [];
+  const ptHasContributors = ptPositive.length > 0 || ptWatchout.length > 0;
 
   return (
     <Card>
@@ -166,6 +255,40 @@ function PtSection({ pt }: { pt: PTReportSection }) {
           des protéines totales.
         </div>
       )}
+
+      {/* Top product contributors (Phase Product-UX-C) */}
+      {ptHasContributors ? (
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <ContributorList
+            title="Top produits qui améliorent le ratio"
+            emoji="🌱"
+            tone="brand"
+            emptyText="Aucun produit végétal identifié pour ce calcul."
+            items={ptPositive.map((c) => ({
+              id: c.product_id,
+              name: c.product_name,
+              category: c.retailer_category,
+              value: formatKg(c.plant_protein_kg),
+              rationale: c.rationale,
+            }))}
+          />
+          <ContributorList
+            title="Top produits à surveiller"
+            emoji="🐄"
+            tone="warn"
+            emptyText="Aucun produit animal identifié pour ce calcul."
+            items={ptWatchout.map((c) => ({
+              id: c.product_id,
+              name: c.product_name,
+              category: c.retailer_category,
+              value: formatKg(c.animal_protein_kg),
+              rationale: c.rationale,
+            }))}
+          />
+        </div>
+      ) : (
+        <ContributorsUnavailable />
+      )}
     </Card>
   );
 }
@@ -182,6 +305,9 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
     { key: "veg", label: "Végétarien", emoji: "🧀", kg: wwf.composites_vegetarian_kg },
     { key: "vegan", label: "Végane", emoji: "🌱", kg: wwf.composites_vegan_kg },
   ];
+  const wwfPositive = wwf.top_positive_contributors ?? [];
+  const wwfWatchout = wwf.top_watchout_contributors ?? [];
+  const wwfHasContributors = wwfPositive.length > 0 || wwfWatchout.length > 0;
 
   return (
     <Card>
@@ -285,6 +411,40 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
             })}
           </div>
         </div>
+      )}
+
+      {/* Top product contributors (Phase Product-UX-C) */}
+      {wwfHasContributors ? (
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <ContributorList
+            title="Top produits alignés"
+            emoji="✅"
+            tone="brand"
+            emptyText="Aucun produit aligné identifié pour ce calcul."
+            items={wwfPositive.map((c) => ({
+              id: c.product_id,
+              name: c.product_name,
+              category: c.retailer_category,
+              value: formatKg(c.weight_kg),
+              rationale: c.rationale,
+            }))}
+          />
+          <ContributorList
+            title="Top produits à surveiller"
+            emoji="⚠️"
+            tone="warn"
+            emptyText="Aucun produit à surveiller identifié pour ce calcul."
+            items={wwfWatchout.map((c) => ({
+              id: c.product_id,
+              name: c.product_name,
+              category: c.retailer_category,
+              value: formatKg(c.weight_kg),
+              rationale: c.rationale,
+            }))}
+          />
+        </div>
+      ) : (
+        <ContributorsUnavailable />
       )}
     </Card>
   );

@@ -744,6 +744,29 @@ export interface PTGroupData {
   protein_kg: string;
 }
 
+// Phase Product-UX-C — Top-N product contributors (optional; empty for
+// older runs or when line-level data is unavailable).
+export interface PTProductContributor {
+  product_id: string;
+  product_name: string;
+  retailer_category: string | null;
+  pt_group: string;
+  plant_protein_kg: string;
+  animal_protein_kg: string;
+  total_protein_kg: string;
+  rationale: string;
+}
+
+export interface WWFProductContributor {
+  product_id: string;
+  product_name: string;
+  retailer_category: string | null;
+  wwf_group: string;
+  wwf_bucket: string | null;
+  weight_kg: string;
+  rationale: string;
+}
+
 export interface PTReportSection {
   methodology_version: string;
   methodology_source_edition: string;
@@ -764,6 +787,8 @@ export interface PTReportSection {
   rows_protein_source_reference_db: number;
   classification_sources: ClassificationSources;
   pt_validation_status: string;
+  top_positive_contributors?: PTProductContributor[];
+  top_watchout_contributors?: PTProductContributor[];
 }
 
 export interface WWFFoodGroupData {
@@ -791,6 +816,8 @@ export interface WWFReportSection {
   out_of_scope_count: number;
   unknown_count: number;
   classification_sources: ClassificationSources;
+  top_positive_contributors?: WWFProductContributor[];
+  top_watchout_contributors?: WWFProductContributor[];
 }
 
 export interface ReportMeta {

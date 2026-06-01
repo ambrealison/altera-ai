@@ -49,6 +49,25 @@ class PTGroupData(BaseModel):
     protein_kg: str
 
 
+class PTProductContributor(BaseModel):
+    """Phase Product-UX-C — a single product's protein contribution.
+
+    Derived from the run's stored per-product rows; used to surface the
+    Top-N products that most improve (positive) or most hurt (watch-out)
+    the plant-protein ratio. All-string numerics keep the report's
+    no-float-on-the-wire convention.
+    """
+
+    product_id: str
+    product_name: str
+    retailer_category: str | None
+    pt_group: str
+    plant_protein_kg: str
+    animal_protein_kg: str
+    total_protein_kg: str
+    rationale: str
+
+
 class PTReportSection(BaseModel):
     """Protein Tracker methodology section of the report."""
 
@@ -75,6 +94,10 @@ class PTReportSection(BaseModel):
     # Classification provenance
     classification_sources: ClassificationSources
     pt_validation_status: str
+    # Phase Product-UX-C — Top-N product contributors (optional; empty
+    # for older runs or when line-level data is unavailable).
+    top_positive_contributors: list[PTProductContributor] = []
+    top_watchout_contributors: list[PTProductContributor] = []
 
 
 class WWFFoodGroupData(BaseModel):
@@ -84,6 +107,21 @@ class WWFFoodGroupData(BaseModel):
     weight_kg: str
     share_pct: str
     phd_reference_share_pct: str | None
+
+
+class WWFProductContributor(BaseModel):
+    """Phase Product-UX-C — a single product's WWF weight contribution.
+
+    Used to surface the Top-N products aligned with target groups
+    (positive) or in watch-out groups/buckets (watch-out)."""
+
+    product_id: str
+    product_name: str
+    retailer_category: str | None
+    wwf_group: str
+    wwf_bucket: str | None
+    weight_kg: str
+    rationale: str
 
 
 class WWFReportSection(BaseModel):
@@ -112,6 +150,9 @@ class WWFReportSection(BaseModel):
     unknown_count: int
     # Classification provenance
     classification_sources: ClassificationSources
+    # Phase Product-UX-C — Top-N product contributors (optional).
+    top_positive_contributors: list[WWFProductContributor] = []
+    top_watchout_contributors: list[WWFProductContributor] = []
 
 
 class ReportMeta(BaseModel):
