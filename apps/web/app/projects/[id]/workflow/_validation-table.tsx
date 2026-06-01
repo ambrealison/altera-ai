@@ -29,7 +29,7 @@ import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-import { Button, Card, Pill } from "@/components/ui";
+import { Button, Card, Pill, Segmented, Skeleton } from "@/components/ui";
 import type {
   ClassificationRow,
   ClassificationsFilters,
@@ -440,7 +440,7 @@ export function ValidationTable({
   if (loadError) {
     return (
       <Card>
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+        <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
           {loadError}
         </div>
       </Card>
@@ -449,7 +449,11 @@ export function ValidationTable({
   if (!data) {
     return (
       <Card>
-        <p className="text-sm text-gray-500">Chargement du tableau…</p>
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-1/3" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
       </Card>
     );
   }
@@ -492,15 +496,15 @@ export function ValidationTable({
   return (
     <Card>
       {/* Title + subtitle */}
-      <div className="mb-2">
-        <h3 className="text-sm font-semibold text-gray-800">
+      <div className="mb-3">
+        <h3 className="text-base font-semibold text-forest-900">
           {isProductsView
             ? "Validation des produits"
             : isReviewWwfView
               ? "Validation WWF"
               : "Validation Protein Tracker"}
         </h3>
-        <p className="mt-0.5 text-xs text-gray-500">
+        <p className="mt-0.5 text-xs text-ink-muted">
           {isProductsView
             ? "Vue d'ensemble des classifications Protein Tracker et WWF — actions indépendantes par méthodologie."
             : isReviewWwfView
@@ -513,7 +517,7 @@ export function ValidationTable({
           the analyst can size the validation backlog without paging
           through the queue. */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="text-gray-600">
+        <span className="font-medium text-forest-700">
           {data.total} produit(s) affiché(s)
         </span>
         {ptEnabled && (
@@ -541,100 +545,58 @@ export function ValidationTable({
         ))}
       </div>
 
-      {/* Phase UX-Validation-S — single consolidated filter bar.
-          View · Méthodologie · Recherche · Source · Catégorie ·
-          Statut · Confiance (boutons préréglés). On smaller screens
-          the bar wraps to a second row. The legacy min/max
-          confidence number inputs are removed. */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+      {/* Phase Design-A — premium consolidated filter bar. View ·
+          Méthodologie · Recherche · Source · Catégorie · Statut ·
+          Confiance (segmented controls + preset buttons). Wraps on
+          small screens. */}
+      <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-mint-50/50 p-2 text-xs">
         {/* View toggle */}
-        <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5">
-          <button
-            type="button"
-            onClick={() => {
-              setTableView("products");
-              setOffset(0);
-            }}
-            className={
-              "rounded px-2 py-0.5 font-medium transition " +
-              (tableView === "products"
-                ? "bg-brand-600 text-white"
-                : "text-gray-600 hover:bg-gray-50")
-            }
-          >
-            Tous
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setTableView("review");
-              setOffset(0);
-            }}
-            className={
-              "rounded px-2 py-0.5 font-medium transition " +
-              (tableView === "review"
-                ? "bg-brand-600 text-white"
-                : "text-gray-600 hover:bg-gray-50")
-            }
-          >
-            À valider
-            {totalReview > 0 && (
-              <span
-                className={
-                  "ml-1 inline-flex items-center justify-center rounded-full px-1.5 text-[10px] font-semibold " +
-                  (tableView === "review"
-                    ? "bg-white/20 text-white"
-                    : "bg-amber-100 text-amber-700")
-                }
-              >
-                {totalReview}
-              </span>
-            )}
-          </button>
-        </div>
+        <Segmented
+          size="sm"
+          value={tableView}
+          onChange={(v) => {
+            setTableView(v);
+            setOffset(0);
+          }}
+          options={[
+            { value: "products", label: "Tous" },
+            {
+              value: "review",
+              label: (
+                <span className="inline-flex items-center gap-1">
+                  À valider
+                  {totalReview > 0 && (
+                    <span
+                      className={
+                        "inline-flex items-center justify-center rounded-full px-1.5 text-[10px] font-semibold " +
+                        (tableView === "review"
+                          ? "bg-white/25 text-white"
+                          : "bg-warn-100 text-warn-700")
+                      }
+                    >
+                      {totalReview}
+                    </span>
+                  )}
+                </span>
+              ),
+            },
+          ]}
+        />
 
         {/* Methodology toggle (only on PT+WWF projects) */}
         {canToggle && (
-          <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5">
-            {isProductsView && (
-              <button
-                type="button"
-                onClick={() => setMethodologyView("all")}
-                className={
-                  "rounded px-2 py-0.5 font-medium transition " +
-                  (methodologyView === "all"
-                    ? "bg-brand-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50")
-                }
-              >
-                Toutes
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setMethodologyView("protein_tracker")}
-              className={
-                "rounded px-2 py-0.5 font-medium transition " +
-                (methodologyView === "protein_tracker"
-                  ? "bg-brand-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50")
-              }
-            >
-              PT
-            </button>
-            <button
-              type="button"
-              onClick={() => setMethodologyView("wwf")}
-              className={
-                "rounded px-2 py-0.5 font-medium transition " +
-                (methodologyView === "wwf"
-                  ? "bg-brand-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50")
-              }
-            >
-              WWF
-            </button>
-          </div>
+          <Segmented
+            size="sm"
+            value={methodologyView}
+            onChange={(v) => setMethodologyView(v)}
+            options={[
+              ...(isProductsView
+                ? [{ value: "all" as const, label: "Toutes" }]
+                : []),
+              { value: "protein_tracker" as const, label: "PT" },
+              { value: "wwf" as const, label: "WWF" },
+            ]}
+          />
         )}
 
         <input
@@ -642,7 +604,7 @@ export function ValidationTable({
           placeholder="Rechercher (nom / marque)"
           value={filters.product_search ?? ""}
           onChange={(e) => patchFilter({ product_search: e.target.value })}
-          className="w-48 rounded border border-gray-300 bg-white px-2 py-1 text-gray-800 focus:border-brand-500 focus:outline-none"
+          className="w-48 rounded-xl border border-line bg-white px-3 py-1.5 text-gray-800 shadow-soft transition-colors focus:border-brand-400 focus:outline-none"
         />
         <select
           value={filters.source ?? ""}
@@ -653,7 +615,7 @@ export function ValidationTable({
                 | undefined,
             })
           }
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-800 focus:border-brand-500 focus:outline-none"
+          className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-gray-800 shadow-soft transition-colors focus:border-brand-400 focus:outline-none"
         >
           <option value="">Toutes sources</option>
           <option value="deterministic">Déterministe</option>
@@ -671,7 +633,7 @@ export function ValidationTable({
                   | undefined,
               })
             }
-            className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-800 focus:border-brand-500 focus:outline-none"
+            className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-gray-800 shadow-soft transition-colors focus:border-brand-400 focus:outline-none"
           >
             <option value="">Toutes catégories PT</option>
             {PT_GROUP_OPTIONS.map((g) => (
@@ -690,7 +652,7 @@ export function ValidationTable({
                 | undefined,
             })
           }
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-800 focus:border-brand-500 focus:outline-none"
+          className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-gray-800 shadow-soft transition-colors focus:border-brand-400 focus:outline-none"
         >
           <option value="">Tous statuts</option>
           <option value="in_queue">À vérifier</option>
@@ -699,19 +661,18 @@ export function ValidationTable({
           <option value="deferred">Différé</option>
         </select>
 
-        {/* Confidence preset buttons (Phase UX-Validation-S — replaces
-            the old min/max number inputs). */}
-        <span className="text-gray-400">·</span>
+        {/* Confidence preset buttons. */}
+        <span className="mx-0.5 h-5 w-px bg-line" />
         <button
           type="button"
           onClick={() =>
             patchFilter({ min_confidence: undefined, max_confidence: 0.6 })
           }
           className={
-            "rounded border px-1.5 py-0.5 transition " +
+            "rounded-lg border px-2 py-1 font-medium transition " +
             (confidencePreset === "low"
-              ? "border-rose-400 bg-rose-100 text-rose-800"
-              : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100")
+              ? "border-danger-400 bg-danger-100 text-danger-700"
+              : "border-danger-100 bg-danger-50 text-danger-700 hover:bg-danger-100")
           }
         >
           &lt; 0.60
@@ -722,10 +683,10 @@ export function ValidationTable({
             patchFilter({ min_confidence: 0.6, max_confidence: 0.8 })
           }
           className={
-            "rounded border px-1.5 py-0.5 transition " +
+            "rounded-lg border px-2 py-1 font-medium transition " +
             (confidencePreset === "mid"
-              ? "border-amber-400 bg-amber-100 text-amber-800"
-              : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100")
+              ? "border-warn-400 bg-warn-100 text-warn-700"
+              : "border-warn-100 bg-warn-50 text-warn-700 hover:bg-warn-100")
           }
         >
           0.60–0.80
@@ -736,10 +697,10 @@ export function ValidationTable({
             patchFilter({ min_confidence: 0.8, max_confidence: undefined })
           }
           className={
-            "rounded border px-1.5 py-0.5 transition " +
+            "rounded-lg border px-2 py-1 font-medium transition " +
             (confidencePreset === "high"
-              ? "border-emerald-400 bg-emerald-100 text-emerald-800"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100")
+              ? "border-brand-400 bg-mint-100 text-brand-700"
+              : "border-brand-100 bg-mint-50 text-brand-700 hover:bg-mint-100")
           }
         >
           ≥ 0.80
@@ -753,10 +714,10 @@ export function ValidationTable({
             })
           }
           className={
-            "rounded border px-1.5 py-0.5 transition " +
+            "rounded-lg border px-2 py-1 font-medium transition " +
             (confidencePreset === "all"
-              ? "border-gray-400 bg-gray-100 text-gray-800"
-              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50")
+              ? "border-ink-soft bg-line-soft text-forest-700"
+              : "border-line bg-white text-ink-muted hover:bg-mint-50")
           }
         >
           Tous
@@ -764,18 +725,18 @@ export function ValidationTable({
       </div>
 
       {submitError && (
-        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+        <div className="mt-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
           {submitError}
         </div>
       )}
 
       {/* Table */}
-      <div className="mt-3 overflow-x-auto">
+      <div className="scroll-soft mt-4 overflow-x-auto rounded-2xl border border-line">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-gray-500 uppercase tracking-wider">
-              <th className="py-2 pr-3 font-medium">Produit</th>
-              <th className="py-2 pr-3 font-medium">Catégorie retailer</th>
+            <tr className="border-b border-line bg-mint-50/70 text-left text-[11px] uppercase tracking-wider text-ink-soft">
+              <th className="py-2.5 pl-4 pr-3 font-semibold">Produit</th>
+              <th className="py-2.5 pr-3 font-semibold">Catégorie retailer</th>
               {isProductsView ? (
                 <>
                   {showPtColumns && (
@@ -844,7 +805,7 @@ export function ValidationTable({
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-line-soft">
             {data.items.length === 0 && (
               <tr>
                 <td
@@ -859,9 +820,15 @@ export function ValidationTable({
                           ? 8
                           : 7
                   }
-                  className="py-4 text-center text-gray-500"
+                  className="px-4 py-10 text-center"
                 >
-                  Aucun produit ne correspond aux filtres.
+                  <div className="text-sm font-medium text-forest-700">
+                    Aucun produit ne correspond aux filtres
+                  </div>
+                  <div className="mt-1 text-xs text-ink-muted">
+                    Ajustez la recherche, la source ou la confiance pour
+                    élargir les résultats.
+                  </div>
                 </td>
               </tr>
             )}
@@ -875,9 +842,9 @@ export function ValidationTable({
       </div>
 
       {/* Pagination */}
-      <div className="mt-3 flex items-center justify-between text-xs text-gray-600">
+      <div className="mt-3 flex items-center justify-between text-xs text-ink-muted">
         <span>
-          Page {pageIdx + 1} / {pageCount}
+          Page <span className="font-semibold text-forest-700">{pageIdx + 1}</span> / {pageCount}
         </span>
         <div className="flex items-center gap-1">
           <Button
@@ -954,15 +921,18 @@ export function ValidationTable({
     const busyAcceptWwf =
       submittingKey === `${row.product_id}:wwf:accepted`;
     return (
-      <tr key={row.product_id} className="align-top">
-        <td className="py-2 pr-3">
-          <div className="font-medium text-gray-800">{row.product_name}</div>
-          {row.brand && <div className="text-gray-500">{row.brand}</div>}
+      <tr
+        key={row.product_id}
+        className="align-top transition-colors hover:bg-mint-50/50"
+      >
+        <td className="py-2.5 pl-4 pr-3">
+          <div className="font-medium text-forest-900">{row.product_name}</div>
+          {row.brand && <div className="text-ink-soft">{row.brand}</div>}
         </td>
-        <td className="py-2 pr-3 text-gray-600">
+        <td className="py-2.5 pr-3 text-ink-muted">
           {row.retailer_category ?? "—"}
           {row.retailer_subcategory && (
-            <div className="text-gray-400">{row.retailer_subcategory}</div>
+            <div className="text-ink-soft">{row.retailer_subcategory}</div>
           )}
         </td>
         {showPtColumns && (
@@ -1123,18 +1093,18 @@ export function ValidationTable({
     return (
       <tr
         key={`${row.product_id}-${row.methodology ?? "all"}`}
-        className="align-top"
+        className="align-top transition-colors hover:bg-mint-50/50"
       >
-        <td className="py-2 pr-3">
-          <div className="font-medium text-gray-800">{row.product_name}</div>
-          {row.brand && <div className="text-gray-500">{row.brand}</div>}
+        <td className="py-2.5 pl-4 pr-3">
+          <div className="font-medium text-forest-900">{row.product_name}</div>
+          {row.brand && <div className="text-ink-soft">{row.brand}</div>}
           <div className="mt-1">
             <Pill tone={isWwfRow ? "warn" : "brand"}>
               {isWwfRow ? "WWF" : "Protein Tracker"}
             </Pill>
           </div>
         </td>
-        <td className="py-2 pr-3 text-gray-600">
+        <td className="py-2.5 pr-3 text-ink-muted">
           {row.retailer_category ?? "—"}
           {row.retailer_subcategory && (
             <div className="text-gray-400">{row.retailer_subcategory}</div>

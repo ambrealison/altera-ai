@@ -33,14 +33,21 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-      <p className="mt-1 text-sm text-gray-600">
-        Welcome to Altera AI. Create a project, upload retailer data, classify,
-        and run the methodology calculation.
-      </p>
+      <div className="overflow-hidden rounded-3xl bg-forest-hero p-7 shadow-card">
+        <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-mint-100 ring-1 ring-white/20">
+          Tableau de bord
+        </span>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+          Bienvenue sur Altera AI
+        </h1>
+        <p className="mt-1 max-w-xl text-sm text-mint-100/90">
+          Créez un projet, importez les données retailer, classez vos
+          produits et calculez les ratios de transition alimentaire.
+        </p>
+      </div>
 
       {error && (
-        <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <div className="mt-4 rounded-xl border border-danger-100 bg-danger-50 px-4 py-3 text-sm text-danger-700">
           {error}
         </div>
       )}
@@ -81,7 +88,7 @@ export default function DashboardPage() {
             }
           />
           {projects === null ? (
-            <div className="mt-4 text-sm text-gray-500">Loading…</div>
+            <div className="mt-4 text-sm text-ink-muted">Chargement…</div>
           ) : projects.length === 0 ? (
             <div className="mt-4">
               <EmptyState
@@ -95,13 +102,16 @@ export default function DashboardPage() {
               />
             </div>
           ) : (
-            <ul className="mt-4 divide-y divide-gray-100">
+            <ul className="mt-4 divide-y divide-line-soft">
               {projects.slice(0, 5).map((p) => (
-                <li key={p.id} className="flex items-center justify-between py-3">
+                <li
+                  key={p.id}
+                  className="-mx-2 flex items-center justify-between rounded-xl px-2 py-3 transition-colors hover:bg-mint-50/60"
+                >
                   <div>
                     <Link
                       href={`/projects/${p.id}`}
-                      className="text-sm font-medium text-brand-700 hover:underline"
+                      className="text-sm font-semibold text-forest-900 hover:text-brand-700"
                     >
                       {p.name}
                     </Link>
@@ -109,13 +119,13 @@ export default function DashboardPage() {
                       {p.methodologies_enabled.map((m) => (
                         <Pill key={m} tone="brand">{m}</Pill>
                       ))}
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-ink-muted">
                         {p.reporting_period_label}
                       </span>
                     </div>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {p.upload_count} uploads · {p.review_queue_count} in review · {p.run_count} runs
+                  <div className="text-xs text-ink-muted">
+                    {p.upload_count} imports · {p.review_queue_count} en revue · {p.run_count} calculs
                   </div>
                 </li>
               ))}

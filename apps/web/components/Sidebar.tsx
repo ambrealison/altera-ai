@@ -25,13 +25,13 @@ export function Sidebar() {
   const nav = isAltera ? [...BASE_NAV, ...ALTERA_NAV] : BASE_NAV;
 
   return (
-    <aside className="hidden w-56 shrink-0 border-r border-gray-200 bg-white md:block">
-      <div className="px-4 py-5">
-        <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+    <aside className="hidden w-60 shrink-0 border-r border-line/70 bg-white/60 backdrop-blur-md md:flex md:flex-col">
+      <div className="px-5 py-5">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
           Workspace
         </div>
       </div>
-      <nav className="flex flex-col gap-0.5 px-2 pb-4">
+      <nav className="flex flex-1 flex-col gap-1 px-3 pb-4">
         {nav.map((item) => {
           const active =
             item.href === "/"
@@ -42,19 +42,31 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={
-                "rounded-md px-3 py-2 text-sm transition-colors " +
+                "group flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-all duration-150 " +
                 (active
-                  ? "bg-brand-50 font-medium text-brand-700"
-                  : "text-gray-700 hover:bg-gray-100")
+                  ? "bg-mint-100 font-semibold text-brand-700 shadow-soft ring-1 ring-brand-200"
+                  : "text-forest-700 hover:bg-mint-50")
               }
             >
+              <span
+                className={
+                  "h-1.5 w-1.5 rounded-full transition-colors " +
+                  (active
+                    ? "bg-brand-500"
+                    : "bg-line group-hover:bg-brand-300")
+                }
+              />
               {item.label}
             </Link>
           );
         })}
       </nav>
-      <div className="border-t border-gray-100 px-4 py-3 text-xs text-gray-500">
-        Upload, classify, review, and run live inside a project.
+      <div className="m-3 rounded-2xl bg-lime-soft p-4 text-xs leading-relaxed text-forest-700 ring-1 ring-brand-100">
+        <span className="font-semibold text-forest-900">Parcours guidé</span>
+        <p className="mt-1 text-ink-muted">
+          Importez, classez, validez et calculez vos ratios directement
+          dans un projet.
+        </p>
       </div>
     </aside>
   );

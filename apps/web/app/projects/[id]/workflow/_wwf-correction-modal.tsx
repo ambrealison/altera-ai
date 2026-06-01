@@ -195,27 +195,27 @@ export function WwfCorrectionModal({
     <div
       role="dialog"
       aria-label="Corriger la classification WWF"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-forest-900/40 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-lg bg-white shadow-xl"
+        className="w-full max-w-lg animate-scale-in overflow-hidden rounded-2xl border border-line bg-white shadow-card-hover"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="border-b border-gray-200 px-4 py-3">
-          <h3 className="text-base font-semibold text-gray-800">
+        <div className="border-b border-line-soft bg-mint-50/60 px-5 py-4">
+          <h3 className="text-base font-semibold text-forest-900">
             Corriger la classification WWF
           </h3>
-          <p className="mt-0.5 text-xs text-gray-500">
+          <p className="mt-0.5 text-xs text-ink-muted">
             {row.product_name}
             {row.brand ? ` · ${row.brand}` : ""}
           </p>
         </div>
 
-        <div className="space-y-3 px-4 py-3">
+        <div className="space-y-3 px-5 py-4">
           {/* Food group */}
           <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+            <label className="block text-[11px] font-medium uppercase tracking-wide text-ink-soft">
               Groupe alimentaire
             </label>
             <select
@@ -223,7 +223,7 @@ export function WwfCorrectionModal({
               onChange={(e) =>
                 patch({ food_group: e.target.value as FoodGroup })
               }
-              className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm focus:border-brand-500 focus:outline-none"
+              className="mt-1 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm focus:border-brand-400 focus:outline-none"
             >
               {FOOD_GROUP_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -278,13 +278,14 @@ export function WwfCorrectionModal({
           {/* Composite */}
           {!isSystemState && (
             <div>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
+              <label className="flex items-center gap-2 rounded-xl border border-line bg-mint-50/50 px-3 py-2 text-sm text-forest-700">
                 <input
                   type="checkbox"
                   checked={state.is_composite}
                   onChange={(e) =>
                     patch({ is_composite: e.target.checked })
                   }
+                  className="accent-brand-600"
                 />
                 Produit composite
               </label>
@@ -302,18 +303,18 @@ export function WwfCorrectionModal({
           )}
 
           {validationError && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
               {validationError}
             </div>
           )}
           {error && (
-            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+            <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-xs text-danger-700">
               {error}
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-4 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-line-soft bg-mint-50/40 px-5 py-3">
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             Annuler
           </Button>
@@ -342,13 +343,13 @@ function ConditionalSelect({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+      <label className="block text-[11px] font-medium uppercase tracking-wide text-ink-soft">
         {label}
       </label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm focus:border-brand-500 focus:outline-none"
+        className="mt-1 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm focus:border-brand-400 focus:outline-none"
       >
         <option value="">— Choisir —</option>
         {options.map((o) => (

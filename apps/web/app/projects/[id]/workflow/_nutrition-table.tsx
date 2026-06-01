@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Button, Card, Pill } from "@/components/ui";
+import { Button, Card, Pill, Skeleton } from "@/components/ui";
 import type {
   NutritionValidationRow,
   NutritionValidationsResponse,
@@ -164,7 +164,7 @@ export function NutritionTable({
   if (loadError) {
     return (
       <Card>
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+        <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
           {loadError}
         </div>
       </Card>
@@ -173,7 +173,11 @@ export function NutritionTable({
   if (!data) {
     return (
       <Card>
-        <p className="text-sm text-gray-500">Chargement de la table…</p>
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-1/3" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-56 w-full" />
+        </div>
       </Card>
     );
   }
@@ -184,8 +188,8 @@ export function NutritionTable({
   return (
     <Card>
       {/* Aggregate counters */}
-      <div className="flex flex-wrap gap-2 text-xs">
-        <span className="text-gray-600">{data.total} produit(s)</span>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-medium text-forest-700">{data.total} produit(s)</span>
         {Object.entries(data.counts_by_status).map(([k, v]) => (
           <Pill
             key={k}
@@ -203,7 +207,7 @@ export function NutritionTable({
       </div>
 
       {/* Filters */}
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-2 rounded-2xl border border-line bg-mint-50/50 p-2 sm:grid-cols-3">
         <input
           type="text"
           placeholder="Rechercher (nom de produit)"
@@ -212,7 +216,7 @@ export function NutritionTable({
             setOffset(0);
             setFilters((p) => ({ ...p, product_search: e.target.value || undefined }));
           }}
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+          className="rounded-xl border border-line bg-white px-3 py-1.5 text-xs text-gray-800 shadow-soft focus:border-brand-400 focus:outline-none"
         />
         <select
           value={filters.status ?? ""}
@@ -223,7 +227,7 @@ export function NutritionTable({
               status: (e.target.value || undefined) as typeof filters.status,
             }));
           }}
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+          className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-xs text-gray-800 shadow-soft focus:border-brand-400 focus:outline-none"
         >
           <option value="">Tous statuts</option>
           <option value="ready">Prêt</option>
@@ -239,7 +243,7 @@ export function NutritionTable({
               source: (e.target.value || undefined) as typeof filters.source,
             }));
           }}
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+          className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-xs text-gray-800 shadow-soft focus:border-brand-400 focus:outline-none"
         >
           <option value="">Toutes sources</option>
           <option value="retailer_csv">CSV retailer</option>
@@ -250,41 +254,46 @@ export function NutritionTable({
       </div>
 
       {/* Table */}
-      <div className="mt-3 overflow-x-auto">
+      <div className="scroll-soft mt-4 overflow-x-auto rounded-2xl border border-line">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-gray-500 uppercase tracking-wider">
-              <th className="py-2 pr-3 font-medium">Produit</th>
-              <th className="py-2 pr-3 font-medium">PT</th>
-              <th className="py-2 pr-3 font-medium">Protéine</th>
-              <th className="py-2 pr-3 font-medium">Végétal</th>
-              <th className="py-2 pr-3 font-medium">Animal</th>
-              <th className="py-2 pr-3 font-medium">Source</th>
-              <th className="py-2 pr-3 font-medium">Statut</th>
-              <th className="py-2 font-medium">Action</th>
+            <tr className="border-b border-line bg-mint-50/70 text-left text-[11px] uppercase tracking-wider text-ink-soft">
+              <th className="py-2.5 pl-4 pr-3 font-semibold">Produit</th>
+              <th className="py-2.5 pr-3 font-semibold">PT</th>
+              <th className="py-2.5 pr-3 font-semibold">Protéine</th>
+              <th className="py-2.5 pr-3 font-semibold">Végétal</th>
+              <th className="py-2.5 pr-3 font-semibold">Animal</th>
+              <th className="py-2.5 pr-3 font-semibold">Source</th>
+              <th className="py-2.5 pr-3 font-semibold">Statut</th>
+              <th className="py-2.5 pr-3 font-semibold">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-line-soft">
             {data.items.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-4 text-center text-gray-500">
-                  Aucun produit ne correspond aux filtres.
+                <td colSpan={8} className="px-4 py-10 text-center">
+                  <div className="text-sm font-medium text-forest-700">
+                    Aucun produit ne correspond aux filtres
+                  </div>
                 </td>
               </tr>
             )}
             {data.items.map((row) => {
               const isEditing = editing === row.product_id;
               return (
-                <tr key={row.product_id} className="align-top">
-                  <td className="py-2 pr-3 font-medium text-gray-800">
+                <tr
+                  key={row.product_id}
+                  className="align-top transition-colors hover:bg-mint-50/50"
+                >
+                  <td className="py-2.5 pl-4 pr-3 font-medium text-forest-900">
                     {row.product_name}
                     {row.reason && (
-                      <div className="mt-0.5 text-xs text-gray-500">
+                      <div className="mt-0.5 text-xs text-ink-soft">
                         {row.reason}
                       </div>
                     )}
                   </td>
-                  <td className="py-2 pr-3 text-gray-600">
+                  <td className="py-2.5 pr-3 text-ink-muted">
                     {row.pt_group ?? "—"}
                   </td>
                   {isEditing ? (
@@ -302,7 +311,7 @@ export function NutritionTable({
                               protein_pct: e.target.value,
                             }))
                           }
-                          className="w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-xs"
+                          className="w-16 rounded-lg border border-line bg-white px-2 py-1 text-xs focus:border-brand-400 focus:outline-none"
                         />
                       </td>
                       <td className="py-2 pr-3">
@@ -318,7 +327,7 @@ export function NutritionTable({
                               plant_protein_pct: e.target.value,
                             }))
                           }
-                          className="w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-xs"
+                          className="w-16 rounded-lg border border-line bg-white px-2 py-1 text-xs focus:border-brand-400 focus:outline-none"
                         />
                       </td>
                       <td className="py-2 pr-3">
@@ -334,27 +343,27 @@ export function NutritionTable({
                               animal_protein_pct: e.target.value,
                             }))
                           }
-                          className="w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-xs"
+                          className="w-16 rounded-lg border border-line bg-white px-2 py-1 text-xs focus:border-brand-400 focus:outline-none"
                         />
                       </td>
                     </>
                   ) : (
                     <>
-                      <td className="py-2 pr-3 text-gray-700">
+                      <td className="py-2.5 pr-3 font-medium text-forest-700">
                         {row.protein_pct ?? "—"}
                       </td>
-                      <td className="py-2 pr-3 text-gray-700">
+                      <td className="py-2.5 pr-3 text-ink-muted">
                         {row.plant_protein_pct ?? "—"}
                       </td>
-                      <td className="py-2 pr-3 text-gray-700">
+                      <td className="py-2.5 pr-3 text-ink-muted">
                         {row.animal_protein_pct ?? "—"}
                       </td>
                     </>
                   )}
-                  <td className="py-2 pr-3 text-gray-600">
+                  <td className="py-2.5 pr-3 text-ink-muted">
                     {SOURCE_LABELS_FR[row.source] ?? row.source}
                   </td>
-                  <td className="py-2 pr-3">
+                  <td className="py-2.5 pr-3">
                     <Pill tone={STATUS_TONES[row.status] ?? "neutral"}>
                       {STATUS_LABELS_FR[row.status] ?? row.status}
                     </Pill>
@@ -391,15 +400,15 @@ export function NutritionTable({
       </div>
 
       {submitError && (
-        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+        <div className="mt-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
           {submitError}
         </div>
       )}
 
       {/* Pagination */}
-      <div className="mt-3 flex items-center justify-between text-xs text-gray-600">
+      <div className="mt-3 flex items-center justify-between text-xs text-ink-muted">
         <span>
-          Page {pageIdx + 1} / {pageCount}
+          Page <span className="font-semibold text-forest-700">{pageIdx + 1}</span> / {pageCount}
         </span>
         <div className="flex items-center gap-1">
           <Button

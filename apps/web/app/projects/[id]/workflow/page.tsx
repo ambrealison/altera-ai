@@ -153,23 +153,23 @@ function StepChip({
   const isComplete = status === "complete" || status === "not_needed";
   const isBlocked = status === "blocked";
 
-  let circleClass = "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ";
+  let circleClass = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all duration-150 ";
   if (isActive) {
-    circleClass += "bg-brand-600 text-white ring-2 ring-brand-300";
+    circleClass += "bg-brand-600 text-white shadow-soft ring-4 ring-brand-100";
   } else if (isComplete) {
-    circleClass += "bg-emerald-500 text-white";
+    circleClass += "bg-brand-500 text-white";
   } else if (isBlocked) {
-    circleClass += "bg-rose-100 text-rose-700";
+    circleClass += "bg-danger-50 text-danger-700 ring-1 ring-danger-100";
   } else if (accessible) {
-    circleClass += "bg-gray-100 text-gray-600";
+    circleClass += "bg-white text-ink-muted ring-1 ring-line";
   } else {
-    circleClass += "bg-gray-50 text-gray-400";
+    circleClass += "bg-line-soft text-ink-soft";
   }
 
   const inner = isComplete && !isActive ? "✓" : String(wizardStep.idx + 1);
 
-  const labelClass = `mt-1 text-center text-[11px] leading-tight ${
-    isActive ? "font-semibold text-brand-700" : accessible ? "text-gray-600" : "text-gray-400"
+  const labelClass = `mt-1.5 text-center text-[11px] leading-tight ${
+    isActive ? "font-semibold text-brand-700" : accessible ? "text-forest-700" : "text-ink-soft"
   }`;
 
   const container = (
@@ -209,7 +209,10 @@ function BlockerList({ step }: { step: WorkflowStep }) {
   return (
     <ul className="mt-3 space-y-1.5">
       {step.blocking_reasons.map((r) => (
-        <li key={r.code} className="flex items-start gap-2 text-sm text-rose-700">
+        <li
+          key={r.code}
+          className="flex items-start gap-2 rounded-lg bg-danger-50 px-3 py-1.5 text-sm text-danger-700 ring-1 ring-danger-100"
+        >
           <span className="mt-0.5 shrink-0">▸</span>
           <span>
             {r.label}
@@ -245,13 +248,16 @@ function CountRow({ counts }: { counts: Record<string, number> }) {
   const entries = Object.entries(counts).filter(([, v]) => v > 0);
   if (!entries.length) return null;
   return (
-    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
+    <div className="mt-3 flex flex-wrap gap-2">
       {entries.map(([k, v]) => (
-        <div key={k} className="flex flex-col">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+        <div
+          key={k}
+          className="rounded-xl border border-line bg-mint-50/60 px-3 py-2"
+        >
+          <span className="block text-[11px] font-medium uppercase tracking-wide text-ink-soft">
             {COUNT_LABELS[k] ?? k.replace(/_/g, " ")}
           </span>
-          <span className="text-lg font-semibold text-gray-900">{v}</span>
+          <span className="text-lg font-semibold text-forest-900">{v}</span>
         </div>
       ))}
     </div>
@@ -873,14 +879,14 @@ function MethodologyClassificationCard({
     <Card>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold">{title}</h3>
-          <p className="mt-1 text-xs text-gray-500">{description}</p>
+          <h3 className="text-base font-semibold text-forest-900">{title}</h3>
+          <p className="mt-1 text-xs text-ink-muted">{description}</p>
         </div>
         <Pill tone={pillTone}>{pillLabel}</Pill>
       </div>
 
       {total > 0 && (
-        <div className="mt-3 text-xs text-gray-600">
+        <div className="mt-3 text-xs text-ink-muted">
           <div className="flex items-center justify-between">
             <span>
               {isCompleteWithErrors ? (
@@ -898,13 +904,15 @@ function MethodologyClassificationCard({
                 </>
               )}
             </span>
-            <span className="text-gray-400">{pct}%</span>
+            <span className="font-semibold text-forest-700">{pct}%</span>
           </div>
-          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+          <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-line-soft">
             <div
               className={
-                "h-full transition-all " +
-                (isCompleteWithErrors ? "bg-amber-500" : "bg-brand-500")
+                "h-full rounded-full transition-all duration-500 ease-out " +
+                (isCompleteWithErrors
+                  ? "bg-gradient-to-r from-warn-400 to-warn-500"
+                  : "bg-gradient-to-r from-brand-400 to-brand-600")
               }
               style={{ width: `${pct}%` }}
             />
@@ -2684,35 +2692,39 @@ export default function WorkflowWizardPage() {
     // table (PT + WWF side-by-side columns) can use the available
     // page width instead of being cramped inside a 4xl card.
     <div className="mx-auto w-full max-w-7xl px-4">
-      {/* Header */}
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {wwfOnly
-              ? "Parcours WWF Planet-Based Diets"
-              : "Parcours guidé"}
-          </h1>
-          <p className="mt-0.5 text-sm text-gray-500">
-            Étape {safeActiveIdx + 1} sur {visibleSteps.length} · Progression :{" "}
-            {status.overall_progress_pct} %
-          </p>
+      {/* Header — premium hero band with the workflow context. */}
+      <div className="mb-5 overflow-hidden rounded-3xl bg-forest-hero p-6 shadow-card">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-mint-100 ring-1 ring-white/20">
+              {wwfOnly ? "WWF Planet-Based Diets" : "Parcours guidé"}
+            </span>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+              {wwfOnly
+                ? "Parcours WWF Planet-Based Diets"
+                : "Parcours guidé"}
+            </h1>
+            <p className="mt-1 text-sm text-mint-100/90">
+              Étape {safeActiveIdx + 1} sur {visibleSteps.length} ·
+              Progression {status.overall_progress_pct} %
+            </p>
+          </div>
+          <Link
+            href={`/projects/${projectId}`}
+            className="shrink-0 rounded-lg px-2.5 py-1 text-xs text-mint-100/70 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            Détail technique →
+          </Link>
         </div>
-        <Link
-          href={`/projects/${projectId}`}
-          className="text-xs text-gray-400 hover:text-gray-600 hover:underline"
-        >
-          Voir le détail technique (admin)
-        </Link>
-      </div>
-
-      {/* Progress bar */}
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-        <div
-          className="h-full bg-brand-500 transition-all"
-          style={{
-            width: `${Math.min(100, Math.max(0, status.overall_progress_pct))}%`,
-          }}
-        />
+        {/* Progress bar inside the hero band. */}
+        <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-white/15">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-lime-200 to-brand-400 transition-all duration-500 ease-out"
+            style={{
+              width: `${Math.min(100, Math.max(0, status.overall_progress_pct))}%`,
+            }}
+          />
+        </div>
       </div>
 
       {/* Horizontal stepper — methodology-aware (Phase WWF-G). */}
@@ -2735,7 +2747,7 @@ export default function WorkflowWizardPage() {
                 }}
               />
               {i < visibleSteps.length - 1 && (
-                <div className="h-px w-4 shrink-0 bg-gray-200 mt-3.5" />
+                <div className="h-px w-4 shrink-0 bg-line mt-4" />
               )}
             </div>
           );
