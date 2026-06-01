@@ -17,6 +17,7 @@
 import { useState } from "react";
 
 import { Button, Card, Pill } from "@/components/ui";
+import { useT } from "@/lib/i18n";
 import type {
   ColumnMappingEntry,
   IngestionJob,
@@ -55,31 +56,39 @@ const CANONICAL_FIELDS = [
   "retail_channel",
 ] as const;
 
-const CANONICAL_FIELD_LABELS_FR: Record<string, string> = {
-  external_product_id: "Identifiant produit / SKU",
-  product_name: "Nom du produit",
-  brand: "Marque",
-  retailer_category: "Catégorie retailer",
-  retailer_subcategory: "Sous-catégorie retailer",
-  weight_per_item_kg: "Poids unitaire (kg)",
-  weight_per_item_g: "Poids unitaire (g)",
-  items_purchased: "Volume / nombre d’unités (achats)",
-  protein_pct: "Protéines totales (%)",
-  plant_protein_pct: "Protéines végétales (%)",
-  animal_protein_pct: "Protéines animales (%)",
-  ingredients_text: "Ingrédients",
-  is_own_brand: "Marque propre ?",
-  ean: "EAN / code-barres",
-  labels: "Labels",
-  country: "Pays",
-  language: "Langue",
-  reporting_period: "Période de reporting",
-  items_sold: "Volume / nombre d’unités (ventes)",
-  retail_channel: "Canal de distribution",
+// Sentinel error message thrown by ``parseHeadersFromFile`` (a
+// module-level helper that has no access to ``useT``). The component
+// catch detects it and surfaces a translated message.
+const UPLOAD_PARSE_HEADERS_ERROR_FR = "Lecture des en-têtes impossible";
+
+// Maps canonical field → i18n key. The KEYS are canonical (submitted to
+// the API unchanged); only the resolved display labels are translated.
+const CANONICAL_FIELD_LABEL_KEYS: Record<string, string> = {
+  external_product_id: "upload.field.external_product_id",
+  product_name: "upload.field.product_name",
+  brand: "upload.field.brand",
+  retailer_category: "upload.field.retailer_category",
+  retailer_subcategory: "upload.field.retailer_subcategory",
+  weight_per_item_kg: "upload.field.weight_per_item_kg",
+  weight_per_item_g: "upload.field.weight_per_item_g",
+  items_purchased: "upload.field.items_purchased",
+  protein_pct: "upload.field.protein_pct",
+  plant_protein_pct: "upload.field.plant_protein_pct",
+  animal_protein_pct: "upload.field.animal_protein_pct",
+  ingredients_text: "upload.field.ingredients_text",
+  is_own_brand: "upload.field.is_own_brand",
+  ean: "upload.field.ean",
+  labels: "upload.field.labels",
+  country: "upload.field.country",
+  language: "upload.field.language",
+  reporting_period: "upload.field.reporting_period",
+  items_sold: "upload.field.items_sold",
+  retail_channel: "upload.field.retail_channel",
 };
 
-function labelFor(field: string): string {
-  return CANONICAL_FIELD_LABELS_FR[field] ?? field;
+function labelFor(field: string, t: (key: string) => string): string {
+  const key = CANONICAL_FIELD_LABEL_KEYS[field];
+  return key ? t(key) : field;
 }
 
 async function parseHeadersFromFile(file: File): Promise<string[]> {
@@ -96,7 +105,8 @@ async function parseHeadersFromFile(file: File): Promise<string[]> {
           .filter(Boolean),
       );
     };
-    reader.onerror = () => reject(new Error("Lecture des en-têtes impossible"));
+    reader.onerror = () =>
+      reject(new Error(UPLOAD_PARSE_HEADERS_ERROR_FR));
     // Only the first 8 KB are needed — that always contains the header
     // row even for files with very long product names.
     reader.readAsText(file.slice(0, 8192));
@@ -108,9 +118,11 @@ function ConfidenceBadge({
 }: {
   confidence: ColumnMappingEntry["confidence"];
 }) {
+  const t = useT();
   if (confidence === "exact") return <Pill tone="ok">exact</Pill>;
-  if (confidence === "synonym") return <Pill tone="warn">synonyme</Pill>;
-  return <Pill tone="neutral">à mapper</Pill>;
+  if (confidence === "synonym")
+    return <Pill tone="warn">{t("upload.confidence.synonym")}</Pill>;
+  return <Pill tone="neutral">{t("upload.confidence.unmatched")}</Pill>;
 }
 
 function MappingTable({
@@ -122,14 +134,15 @@ function MappingTable({
   overrides: Record<string, string>;
   onChange: (normHeader: string, value: string) => void;
 }) {
+  const t = useT();
   return (
     <div className="scroll-soft mt-3 overflow-x-auto rounded-2xl border border-line">
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-line bg-mint-50/70 text-left text-[11px] uppercase tracking-wider text-ink-soft">
-            <th className="py-2.5 pl-4 pr-3 font-semibold">Colonne CSV</th>
-            <th className="py-2.5 pr-3 font-semibold">Mapper vers</th>
-            <th className="py-2.5 pr-3 font-semibold">Détection</th>
+            <th className="py-2.5 pl-4 pr-3 font-semibold">{t("upload.table.csvColumn")}</th>
+            <th className="py-2.5 pr-3 font-semibold">{t("upload.table.mapTo")}</th>
+            <th className="py-2.5 pr-3 font-semibold">{t("upload.table.detection")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line-soft">
@@ -154,11 +167,11 @@ function MappingTable({
                     }
                     className="rounded-lg border border-line bg-white px-2 py-1 text-xs text-forest-900 focus:border-brand-400 focus:outline-none"
                   >
-                    <option value="__none__">— Ignorer / tel quel —</option>
-                    <option value="ignore">Ignorer cette colonne</option>
+                    <option value="__none__">{t("upload.table.optionNone")}</option>
+                    <option value="ignore">{t("upload.table.optionIgnore")}</option>
                     {CANONICAL_FIELDS.map((f) => (
                       <option key={f} value={f}>
-                        {labelFor(f)}
+                        {labelFor(f, t)}
                       </option>
                     ))}
                   </select>
@@ -202,6 +215,7 @@ export function InlineUpload({
   const [job, setJob] = useState<IngestionJob | null>(null);
   const [transientError, setTransientError] = useState<string | null>(null);
 
+  const t = useT();
   const api = createApi(accessToken);
 
   async function pickFile(f: File) {
@@ -225,11 +239,16 @@ export function InlineUpload({
       }
       setOverrides(initial);
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Impossible de lire le fichier ou de calculer le mapping.",
-      );
+      if (
+        e instanceof Error &&
+        e.message === UPLOAD_PARSE_HEADERS_ERROR_FR
+      ) {
+        setError(t("upload.parse.headersUnreadable"));
+      } else {
+        setError(
+          e instanceof Error ? e.message : t("upload.previewError"),
+        );
+      }
     } finally {
       setPreviewing(false);
     }
@@ -270,13 +289,9 @@ export function InlineUpload({
         }
       } catch (e) {
         consecutiveFailures += 1;
-        setTransientError(
-          "Connexion temporairement interrompue. Nouvelle tentative…",
-        );
+        setTransientError(t("upload.error.transient"));
         if (consecutiveFailures >= 5) {
-          setError(
-            "Trop d'échecs réseau consécutifs. Cliquez sur Réessayer pour reprendre l'import.",
-          );
+          setError(t("upload.error.tooManyFailures"));
           setTransientError(null);
           return;
         }
@@ -322,26 +337,32 @@ export function InlineUpload({
     } catch (e) {
       if (e instanceof ApiError && typeof e.detail === "object" && e.detail) {
         const d = e.detail as { message?: string; error_code?: string };
-        // Phase 34Y — map known ingestion error codes to friendly French.
+        // Phase 34Y — map known ingestion error codes to friendly,
+        // translated wrappers. The server ``d.message`` interpolation
+        // is preserved; only the static wrapper text is translated.
         const friendly =
           d.error_code === "invalid_csv"
-            ? `Fichier CSV invalide : ${d.message ?? "vérifier l'encodage / le format"}`
+            ? t("upload.error.invalidCsv").replace(
+                "{message}",
+                d.message ?? t("upload.error.invalidCsvFallback"),
+              )
             : d.error_code === "invalid_mapping"
-            ? `Mapping invalide : ${d.message ?? "vérifier les correspondances"}`
+            ? t("upload.error.invalidMapping").replace(
+                "{message}",
+                d.message ?? t("upload.error.invalidMappingFallback"),
+              )
             : d.error_code === "ingestion_create_failed"
-            ? "Le serveur n'a pas pu créer la tâche d'import. Réessayez."
+            ? t("upload.error.createFailed")
             : d.error_code === "ingestion_advance_failed"
-            ? "Le serveur a rencontré une erreur pendant l'import. Réessayez."
+            ? t("upload.error.advanceFailed")
             : d.error_code === "ingestion_job_not_found"
-            ? "Tâche d'import introuvable — le serveur a peut-être redémarré. Re-cliquez Importer."
+            ? t("upload.error.jobNotFound")
             : d.message;
         setError(friendly ?? `${e.status} ${e}`);
       } else if (e instanceof Error && e.message.includes("Failed to fetch")) {
-        setError(
-          "Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.",
-        );
+        setError(t("upload.error.failedToFetch"));
       } else {
-        setError(e instanceof Error ? e.message : "Échec de l’import.");
+        setError(e instanceof Error ? e.message : t("upload.error.generic"));
       }
     } finally {
       setSubmitting(false);
@@ -375,16 +396,20 @@ export function InlineUpload({
                 {latestUpload.original_filename}
               </p>
               <p className="mt-0.5 text-xs text-ink-muted">
-                {latestUpload.products_count} produit(s) ·{" "}
-                {latestUpload.row_count ?? "?"} ligne(s)
+                {t("upload.summary.productsRows")
+                  .replace("{p}", String(latestUpload.products_count))
+                  .replace("{r}", String(latestUpload.row_count ?? "?"))}
               </p>
               {latestUpload.warnings.length > 0 && (
                 <p className="mt-1 text-xs text-warn-700">
-                  {latestUpload.warnings.length} avertissement(s) à l’import.
+                  {t("upload.summary.warnings").replace(
+                    "{n}",
+                    String(latestUpload.warnings.length),
+                  )}
                 </p>
               )}
             </div>
-            <Pill tone="ok">Importé</Pill>
+            <Pill tone="ok">{t("upload.summary.imported")}</Pill>
           </div>
         </Card>
       )}
@@ -392,12 +417,12 @@ export function InlineUpload({
       <Card>
         <label className="block rounded-2xl border border-dashed border-line bg-mint-50/40 p-5 transition-colors hover:border-brand-200">
           <span className="text-sm font-semibold text-forest-900">
-            {latestUpload ? "Remplacer le fichier" : "Choisir un fichier CSV"}
+            {latestUpload
+              ? t("upload.picker.replace")
+              : t("upload.picker.choose")}
           </span>
           <span className="mt-0.5 block text-xs text-ink-muted">
-            Format CSV UTF-8 ; la première ligne doit contenir les en-têtes.
-            Les CSV éparses (nom + poids + volume) sont supportées —
-            l’identifiant produit est généré si absent.
+            {t("upload.picker.hint")}
           </span>
           <input
             type="file"
@@ -413,7 +438,7 @@ export function InlineUpload({
         {previewing && (
           <div className="mt-3 flex items-center gap-2 text-xs text-ink-muted">
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600" />
-            Analyse du fichier…
+            {t("upload.analysing")}
           </div>
         )}
 
@@ -428,11 +453,18 @@ export function InlineUpload({
             <div className="rounded-xl border border-line bg-mint-50/60 px-3 py-2.5 text-xs text-forest-700">
               <p>
                 <span className="font-semibold text-forest-900">{file.name}</span> ·{" "}
-                {preview.entries.length} colonne(s) détectée(s) ·{" "}
-                {
-                  preview.entries.filter((e) => e.confidence === "exact").length
-                }{" "}
-                auto-mappée(s)
+                {t("upload.preview.columnsDetected").replace(
+                  "{n}",
+                  String(preview.entries.length),
+                )}{" "}
+                ·{" "}
+                {t("upload.preview.autoMapped").replace(
+                  "{n}",
+                  String(
+                    preview.entries.filter((e) => e.confidence === "exact")
+                      .length,
+                  ),
+                )}
               </p>
               <ul className="mt-1.5 space-y-0.5">
                 <li
@@ -440,15 +472,17 @@ export function InlineUpload({
                     productNameMapped ? "text-brand-700" : "text-danger-700"
                   }
                 >
-                  {productNameMapped ? "✓" : "✗"} Nom du produit mappé
+                  {productNameMapped ? "✓" : "✗"}{" "}
+                  {t("upload.preview.productNameMapped")}
                 </li>
                 <li
                   className={
                     weightMapped ? "text-brand-700" : "text-warn-700"
                   }
                 >
-                  {weightMapped ? "✓" : "○"} Poids unitaire mappé
-                  {!weightMapped && " (optionnel pour Protein Tracker)"}
+                  {weightMapped ? "✓" : "○"}{" "}
+                  {t("upload.preview.weightMapped")}
+                  {!weightMapped && t("upload.preview.weightOptional")}
                 </li>
               </ul>
             </div>
@@ -456,25 +490,26 @@ export function InlineUpload({
             {preview.missing_required_pt.length > 0 && (
               <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
                 <div className="font-semibold">
-                  Champs Protein Tracker requis encore manquants :{" "}
-                  {preview.missing_required_pt.join(", ")}
+                  {t("upload.missing.ptTitle").replace(
+                    "{fields}",
+                    preview.missing_required_pt.join(", "),
+                  )}
                 </div>
                 <div className="mt-1 text-warn-700/90">
-                  Sans ces champs, les lignes seront importées mais sans
-                  bloc Protein Tracker (avertissements par ligne).
+                  {t("upload.missing.ptBody")}
                 </div>
               </div>
             )}
             {preview.missing_required_wwf.length > 0 && (
               <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
                 <div className="font-semibold">
-                  Champs WWF requis encore manquants :{" "}
-                  {preview.missing_required_wwf.join(", ")}
+                  {t("upload.missing.wwfTitle").replace(
+                    "{fields}",
+                    preview.missing_required_wwf.join(", "),
+                  )}
                 </div>
                 <div className="mt-1 text-warn-700/90">
-                  Ces champs sont nécessaires pour calculer les volumes
-                  WWF par groupe alimentaire. Sans eux, les lignes
-                  seront importées mais sans bloc WWF.
+                  {t("upload.missing.wwfBody")}
                 </div>
               </div>
             )}
@@ -485,7 +520,7 @@ export function InlineUpload({
                 onClick={() => setShowMapping(true)}
                 className="text-xs font-medium text-brand-700 hover:underline"
               >
-                Voir / modifier le mapping détaillé →
+                {t("upload.showMapping")}
               </button>
             ) : (
               <MappingTable
@@ -518,10 +553,12 @@ export function InlineUpload({
                 }
               >
                 {submitting && job
-                  ? `Import en cours… (${job.processed_rows}/${job.total_rows})`
+                  ? t("upload.submit.importingProgress")
+                      .replace("{done}", String(job.processed_rows))
+                      .replace("{total}", String(job.total_rows))
                   : submitting
-                  ? "Import en cours…"
-                  : "Importer le fichier"}
+                  ? t("upload.submit.importing")
+                  : t("upload.submit.importFile")}
               </Button>
               <Button
                 variant="ghost"
@@ -539,7 +576,7 @@ export function InlineUpload({
                     !INGESTION_JOB_TERMINAL_STATUSES.includes(job.status))
                 }
               >
-                Annuler
+                {t("common.cancel")}
               </Button>
             </div>
           </div>
@@ -562,6 +599,7 @@ function IngestionJobProgress({
   job: IngestionJob;
   transient: string | null;
 }) {
+  const t = useT();
   const pct = Math.max(0, Math.min(100, Math.round(job.progress_pct)));
   const tone =
     job.status === "completed"
@@ -575,16 +613,16 @@ function IngestionJobProgress({
       : "border-brand-200 bg-mint-50 text-brand-700";
   const badge =
     job.status === "queued"
-      ? "En file d'attente"
+      ? t("upload.job.queued")
       : job.status === "running"
-      ? "Import en cours…"
+      ? t("upload.job.running")
       : job.status === "completed"
-      ? "Import terminé"
+      ? t("upload.job.completed")
       : job.status === "completed_with_errors"
-      ? "Terminé avec erreurs"
+      ? t("upload.job.completedWithErrors")
       : job.status === "failed"
-      ? "Échec"
-      : "Annulé";
+      ? t("upload.job.failed")
+      : t("upload.job.cancelled");
   return (
     <div className={`rounded-xl border px-3 py-2.5 text-sm ${tone}`}>
       <div className="flex items-center justify-between">
@@ -606,12 +644,22 @@ function IngestionJobProgress({
             per row for optional mapping fields), which scared
             non-technical users into thinking the import had failed.
             Blocking errors are still surfaced via ``errors_total``. */}
-        {job.inserted_products} produit(s) insérés
-        {job.errors_total > 0 && <> · {job.errors_total} erreur(s)</>}
+        {t("upload.job.insertedProducts").replace(
+          "{n}",
+          String(job.inserted_products),
+        )}
+        {job.errors_total > 0 && (
+          <>
+            {t("upload.job.errorsSuffix").replace(
+              "{n}",
+              String(job.errors_total),
+            )}
+          </>
+        )}
       </div>
       {(job.status === "running" || job.status === "queued") && (
         <div className="mt-2 text-xs opacity-80">
-          {"Vous pouvez laisser cette page ouverte — la progression est sauvegardée côté serveur."}
+          {t("upload.job.keepOpen")}
         </div>
       )}
       {transient && (
@@ -619,13 +667,17 @@ function IngestionJobProgress({
       )}
       {job.error_message && (
         <div className="mt-2 text-xs">
-          <strong>{job.error_code ?? "Erreur"} :</strong> {job.error_message}
+          <strong>{job.error_code ?? t("upload.job.errorLabel")} :</strong>{" "}
+          {job.error_message}
         </div>
       )}
       {job.sample_errors.length > 0 && (
         <details className="mt-1">
           <summary className="cursor-pointer text-xs opacity-80 hover:underline">
-            Voir un échantillon des erreurs ({job.sample_errors.length})
+            {t("upload.job.sampleErrors").replace(
+              "{n}",
+              String(job.sample_errors.length),
+            )}
           </summary>
           <ul className="mt-1 list-disc pl-4 text-xs opacity-80">
             {job.sample_errors.slice(0, 10).map((m, i) => (

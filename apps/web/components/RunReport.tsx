@@ -1,45 +1,48 @@
 "use client";
 
 /**
- * Phase Product-UX-B — shared, demo-ready run report.
+ * Phase Product-UX-B/E — shared, demo-ready run report.
  *
  * Renders a ``ReportDocument`` (PT and/or WWF sections + executive
- * summary) as a beautiful in-workflow report so the operator never has
- * to leave the guided flow. Reused by the workflow result step and
- * (optionally) the technical run page. Pure presentation: no fetching,
- * no calculation — it formats existing backend numbers.
+ * summary) as a beautiful in-workflow report. Pure presentation: no
+ * fetching, no calculation — it formats existing backend numbers.
+ * Phase Product-UX-E: all UI labels go through the i18n dictionary
+ * (report.* / common.*); food-group / bucket labels resolve via t().
  *
- * Handles all three methodology variants gracefully: PT-only (pt_section
- * present, wwf null), WWF-only (wwf null), and PT+WWF (both).
+ * Handles all three methodology variants gracefully: PT-only, WWF-only,
+ * and PT+WWF.
  */
 
 import { Card, Pill } from "@/components/ui";
-import { formatKg, formatNumber, formatPct, formatRatio, formatGapPts } from "@/lib/format";
+import { formatKg, formatPct, formatGapPts } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type {
   PTReportSection,
   ReportDocument,
   WWFReportSection,
 } from "@/lib/api";
 
-const PT_GROUP_LABELS: Record<string, { label: string; emoji: string }> = {
-  plant_based_core: { label: "Végétal — cœur", emoji: "🌱" },
-  plant_based_non_core: { label: "Végétal — hors cœur", emoji: "🥗" },
-  animal_core: { label: "Animal — cœur", emoji: "🐄" },
-  composite_products: { label: "Composites", emoji: "🍽️" },
-  out_of_scope: { label: "Hors périmètre", emoji: "▫️" },
-  unknown: { label: "Inconnu", emoji: "❔" },
+// Group / food-group / bucket display metadata. Labels are i18n keys
+// (resolved via t() at render); emojis are decorative and stay inline.
+const PT_GROUP_META: Record<string, { key: string; emoji: string }> = {
+  plant_based_core: { key: "report.ptGroup.plant_based_core", emoji: "🌱" },
+  plant_based_non_core: { key: "report.ptGroup.plant_based_non_core", emoji: "🥗" },
+  animal_core: { key: "report.ptGroup.animal_core", emoji: "🐄" },
+  composite_products: { key: "report.ptGroup.composite_products", emoji: "🍽️" },
+  out_of_scope: { key: "report.ptGroup.out_of_scope", emoji: "▫️" },
+  unknown: { key: "report.ptGroup.unknown", emoji: "❔" },
 };
 
-const WWF_FG_LABELS: Record<string, { label: string; emoji: string }> = {
-  FG1: { label: "Protéines", emoji: "🍗" },
-  FG2: { label: "Lait & alternatives", emoji: "🧀" },
-  FG3: { label: "Matières grasses", emoji: "🫒" },
-  FG4: { label: "Fruits & légumes", emoji: "🥕" },
-  FG5: { label: "Céréales", emoji: "🌾" },
-  FG6: { label: "Tubercules / féculents", emoji: "🥔" },
-  FG7: { label: "Snacks (sucre/sel/gras)", emoji: "⚠️" },
-  out_of_scope: { label: "Hors périmètre", emoji: "▫️" },
-  unknown: { label: "Inconnu", emoji: "❔" },
+const WWF_FG_META: Record<string, { key: string; emoji: string }> = {
+  FG1: { key: "report.fg.FG1", emoji: "🍗" },
+  FG2: { key: "report.fg.FG2", emoji: "🧀" },
+  FG3: { key: "report.fg.FG3", emoji: "🫒" },
+  FG4: { key: "report.fg.FG4", emoji: "🥕" },
+  FG5: { key: "report.fg.FG5", emoji: "🌾" },
+  FG6: { key: "report.fg.FG6", emoji: "🥔" },
+  FG7: { key: "report.fg.FG7", emoji: "⚠️" },
+  out_of_scope: { key: "report.fg.out_of_scope", emoji: "▫️" },
+  unknown: { key: "report.fg.unknown", emoji: "❔" },
 };
 
 function Bar({ pct, tone = "brand" }: { pct: number; tone?: "brand" | "warn" | "neutral" }) {
@@ -156,17 +159,15 @@ function ContributorList({
   );
 }
 
-const CONTRIBUTORS_UNAVAILABLE =
-  "Les contributions produit ne sont pas disponibles pour ce calcul.";
-
 function ContributorsUnavailable() {
+  const t = useT();
   return (
     <div className="mt-5">
       <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
-        🏅 Top produits
+        🏅 {t("report.contributors.title")}
       </p>
       <p className="mt-2 rounded-xl bg-line-soft/40 px-3 py-2 text-xs text-ink-muted">
-        {CONTRIBUTORS_UNAVAILABLE}
+        {t("report.contributors.unavailable")}
       </p>
     </div>
   );
@@ -176,6 +177,7 @@ function ContributorsUnavailable() {
 // Protein Tracker section
 // ---------------------------------------------------------------------------
 function PtSection({ pt }: { pt: PTReportSection }) {
+  const t = useT();
   const plantRatioPct = formatPct(pt.plant_share_pct);
   const totalProtein = Number(pt.total_in_scope_protein_kg) || 0;
   const sortedGroups = [...pt.groups].sort(
@@ -193,42 +195,41 @@ function PtSection({ pt }: { pt: PTReportSection }) {
       </h3>
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kpi
-          label="Protéines végétales"
+          label={t("report.kpi.plantProtein")}
           value={formatKg(pt.plant_protein_kg)}
           sub={formatPct(pt.plant_share_pct)}
           tone="brand"
         />
         <Kpi
-          label="Protéines animales"
+          label={t("report.kpi.animalProtein")}
           value={formatKg(pt.animal_protein_kg)}
           sub={formatPct(pt.animal_share_pct)}
           tone="warn"
         />
         <Kpi
-          label="Protéines totales"
+          label={t("report.kpi.totalProtein")}
           value={formatKg(pt.total_in_scope_protein_kg)}
         />
-        <Kpi label="Ratio végétal" value={plantRatioPct} tone="brand" />
+        <Kpi label={t("report.kpi.plantRatio")} value={plantRatioPct} tone="brand" />
       </div>
 
       {/* Category analysis */}
       <div className="mt-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
-          📊 Analyse par catégorie
+          📊 {t("report.categoryAnalysis")}
         </p>
         <div className="mt-2 space-y-2">
           {sortedGroups.map((g) => {
-            const meta = PT_GROUP_LABELS[g.pt_group] ?? {
-              label: g.pt_group,
-              emoji: "•",
-            };
+            const meta = PT_GROUP_META[g.pt_group];
+            const label = meta ? t(meta.key) : g.pt_group;
+            const emoji = meta?.emoji ?? "•";
             const proteinKg = Number(g.protein_kg) || 0;
             const share = totalProtein > 0 ? (proteinKg / totalProtein) * 100 : 0;
             return (
               <div key={g.pt_group}>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-forest-700">
-                    {meta.emoji} {meta.label}
+                    {emoji} {label}
                     <span className="ml-1 text-ink-soft">
                       ({g.item_count})
                     </span>
@@ -249,10 +250,13 @@ function PtSection({ pt }: { pt: PTReportSection }) {
 
       {topPlant && totalProtein > 0 && (
         <div className="mt-4 rounded-xl bg-mint-50 px-3 py-2 text-sm text-forest-700 ring-1 ring-brand-100">
-          ✅ Les produits{" "}
-          <span className="font-semibold">végétal — cœur</span> apportent{" "}
-          {formatPct(((Number(topPlant.protein_kg) || 0) / totalProtein) * 100)}{" "}
-          des protéines totales.
+          ✅{" "}
+          {t("report.pt.coreInsight")
+            .replace("{label}", t("report.ptGroup.plant_based_core"))
+            .replace(
+              "{pct}",
+              formatPct(((Number(topPlant.protein_kg) || 0) / totalProtein) * 100),
+            )}
         </div>
       )}
 
@@ -260,10 +264,10 @@ function PtSection({ pt }: { pt: PTReportSection }) {
       {ptHasContributors ? (
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <ContributorList
-            title="Top produits qui améliorent le ratio"
+            title={t("report.pt.topPositive")}
             emoji="🌱"
             tone="brand"
-            emptyText="Aucun produit végétal identifié pour ce calcul."
+            emptyText={t("report.pt.emptyPositive")}
             items={ptPositive.map((c) => ({
               id: c.product_id,
               name: c.product_name,
@@ -273,10 +277,10 @@ function PtSection({ pt }: { pt: PTReportSection }) {
             }))}
           />
           <ContributorList
-            title="Top produits à surveiller"
+            title={t("report.pt.topWatchout")}
             emoji="🐄"
             tone="warn"
-            emptyText="Aucun produit animal identifié pour ce calcul."
+            emptyText={t("report.pt.emptyWatchout")}
             items={ptWatchout.map((c) => ({
               id: c.product_id,
               name: c.product_name,
@@ -297,13 +301,13 @@ function PtSection({ pt }: { pt: PTReportSection }) {
 // WWF section
 // ---------------------------------------------------------------------------
 function WwfSection({ wwf }: { wwf: WWFReportSection }) {
-  const totalKg = Number(wwf.total_in_scope_weight_kg) || 0;
+  const t = useT();
   const compositesTotal = Number(wwf.composites_total_weight_kg) || 0;
   const buckets = [
-    { key: "meat", label: "À base de viande", emoji: "🥩", kg: wwf.composites_meat_based_kg },
-    { key: "seafood", label: "À base de poisson", emoji: "🐟", kg: wwf.composites_seafood_based_kg },
-    { key: "veg", label: "Végétarien", emoji: "🧀", kg: wwf.composites_vegetarian_kg },
-    { key: "vegan", label: "Végane", emoji: "🌱", kg: wwf.composites_vegan_kg },
+    { key: "meat", label: t("report.bucket.meat"), emoji: "🥩", kg: wwf.composites_meat_based_kg },
+    { key: "seafood", label: t("report.bucket.seafood"), emoji: "🐟", kg: wwf.composites_seafood_based_kg },
+    { key: "veg", label: t("report.bucket.vegetarian"), emoji: "🧀", kg: wwf.composites_vegetarian_kg },
+    { key: "vegan", label: t("report.bucket.vegan"), emoji: "🌱", kg: wwf.composites_vegan_kg },
   ];
   const wwfPositive = wwf.top_positive_contributors ?? [];
   const wwfWatchout = wwf.top_watchout_contributors ?? [];
@@ -314,20 +318,16 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
       <h3 className="text-base font-semibold text-forest-900">
         🥕 WWF Planet-Based Diets
       </h3>
-      {/* Phase Product-UX-D — be explicit about the methodology scope. */}
+      {/* Phase Product-UX-D/E — be explicit about the methodology scope. */}
       <div className="mt-2 rounded-xl bg-mint-50/60 px-3 py-2 text-xs leading-relaxed text-forest-700 ring-1 ring-brand-100">
-        <span className="font-semibold">Méthodologie WWF — Step 1 :</span>{" "}
-        classification au niveau produit. Les produits composés sont comptés à
-        leur poids total et affectés aux buckets <em>meat-based</em>,{" "}
-        <em>seafood-based</em>, <em>vegetarian</em> ou <em>vegan</em>. Le Step 2
-        (décomposition ingrédient par ingrédient des produits marque propre)
-        n’est pas encore activé : il nécessite des données de recette détaillées.
+        <span className="font-semibold">{t("report.wwf.step1Label")}</span>{" "}
+        {t("report.wwf.step1Body")}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Kpi label="Volume in-scope" value={formatKg(wwf.total_in_scope_weight_kg)} tone="brand" />
-        <Kpi label="Composites" value={formatKg(wwf.composites_total_weight_kg)} />
+        <Kpi label={t("report.wwf.kpiVolume")} value={formatKg(wwf.total_in_scope_weight_kg)} tone="brand" />
+        <Kpi label={t("report.wwf.kpiComposites")} value={formatKg(wwf.composites_total_weight_kg)} />
         <Kpi
-          label="Composites végé/végane"
+          label={t("report.wwf.kpiVegVegan")}
           value={
             compositesTotal > 0
               ? formatPct(
@@ -345,14 +345,13 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
       {/* Per food group vs PHD target */}
       <div className="mt-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
-          📊 Groupes alimentaires vs cible PHD
+          📊 {t("report.wwf.fgVsTarget")}
         </p>
         <div className="mt-2 space-y-2">
           {wwf.per_food_group.map((fg) => {
-            const meta = WWF_FG_LABELS[fg.food_group] ?? {
-              label: fg.food_group,
-              emoji: "•",
-            };
+            const meta = WWF_FG_META[fg.food_group];
+            const label = meta ? t(meta.key) : fg.food_group;
+            const emoji = meta?.emoji ?? "•";
             const share = Number(fg.share_pct) || 0;
             const target = fg.phd_reference_share_pct;
             const gap = formatGapPts(fg.share_pct, target);
@@ -361,13 +360,13 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
               <div key={fg.food_group}>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-forest-700">
-                    {meta.emoji} {meta.label}
+                    {emoji} {label}
                   </span>
                   <span className="text-ink-muted">
                     {formatKg(fg.weight_kg)} · {formatPct(fg.share_pct)}
                     {target != null && (
                       <span className="ml-1 text-ink-soft">
-                        (cible {formatPct(target)}
+                        ({t("report.wwf.target")} {formatPct(target)}
                         {gap ? `, ${gap}` : ""})
                       </span>
                     )}
@@ -379,12 +378,12 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
                 />
                 {fg.food_group === "FG4" && below && (
                   <p className="mt-0.5 text-[11px] text-warn-700">
-                    🥕 Fruits & légumes sous la cible.
+                    🥕 {t("report.wwf.fg4Below")}
                   </p>
                 )}
                 {fg.food_group === "FG7" && !below && share > 0 && (
                   <p className="mt-0.5 text-[11px] text-warn-700">
-                    ⚠️ Snacks à surveiller.
+                    ⚠️ {t("report.wwf.fg7Watch")}
                   </p>
                 )}
               </div>
@@ -397,7 +396,7 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
       {compositesTotal > 0 && (
         <div className="mt-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
-            🍽️ Composites par bucket (Step 1)
+            🍽️ {t("report.wwf.compositesByBucket")}
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {buckets.map((b) => {
@@ -426,10 +425,10 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
       {wwfHasContributors ? (
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <ContributorList
-            title="Top produits alignés"
+            title={t("report.wwf.topAligned")}
             emoji="✅"
             tone="brand"
-            emptyText="Aucun produit aligné identifié pour ce calcul."
+            emptyText={t("report.wwf.emptyAligned")}
             items={wwfPositive.map((c) => ({
               id: c.product_id,
               name: c.product_name,
@@ -439,10 +438,10 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
             }))}
           />
           <ContributorList
-            title="Top produits à surveiller"
+            title={t("report.wwf.topWatchout")}
             emoji="⚠️"
             tone="warn"
-            emptyText="Aucun produit à surveiller identifié pour ce calcul."
+            emptyText={t("report.wwf.emptyWatchout")}
             items={wwfWatchout.map((c) => ({
               id: c.product_id,
               name: c.product_name,
@@ -463,6 +462,7 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
 // Top-level report
 // ---------------------------------------------------------------------------
 export function RunReport({ doc }: { doc: ReportDocument }) {
+  const t = useT();
   const both = doc.pt_section && doc.wwf_section;
   return (
     <div className="space-y-4">
@@ -470,7 +470,7 @@ export function RunReport({ doc }: { doc: ReportDocument }) {
       <div className="overflow-hidden rounded-3xl bg-forest-hero p-6 shadow-card">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-mint-100 ring-1 ring-white/20">
-            🎯 Résultat
+            🎯 {t("report.badge")}
           </span>
           {doc.meta.approval_status && (
             <span className="text-[11px] text-mint-100/80">
@@ -491,12 +491,10 @@ export function RunReport({ doc }: { doc: ReportDocument }) {
       {both && (
         <div className="rounded-2xl border border-line bg-white/80 px-4 py-3">
           <p className="text-sm font-semibold text-forest-900">
-            📋 Ce que l&apos;on apprend
+            📋 {t("report.combined.title")}
           </p>
           <p className="mt-1 text-sm text-ink-muted">
-            Ce projet combine Protein Tracker (ratio protéines) et WWF
-            (groupes alimentaires). Les deux analyses ci-dessous se lisent
-            ensemble : le ratio végétal complète la répartition par groupe.
+            {t("report.combined.body")}
           </p>
         </div>
       )}
@@ -507,7 +505,7 @@ export function RunReport({ doc }: { doc: ReportDocument }) {
       {doc.recommendations && doc.recommendations.length > 0 && (
         <Card>
           <h3 className="text-base font-semibold text-forest-900">
-            🎯 Priorités d&apos;action
+            🎯 {t("report.priorities")}
           </h3>
           <ul className="mt-2 space-y-1.5">
             {doc.recommendations.slice(0, 5).map((r, i) => (

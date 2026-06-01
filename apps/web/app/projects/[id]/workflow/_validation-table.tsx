@@ -30,6 +30,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { Button, Card, Pill, Segmented, Skeleton } from "@/components/ui";
+import { useT } from "@/lib/i18n";
 import type {
   ClassificationRow,
   ClassificationsFilters,
@@ -46,47 +47,54 @@ import { WwfCorrectionModal } from "./_wwf-correction-modal";
 // frontend test runner lands later).
 // ---------------------------------------------------------------------------
 
-const WWF_FOOD_GROUP_LABELS_FR: Record<string, string> = {
-  FG1: "FG1 · Aliments protéiques",
-  FG2: "FG2 · Lait & alternatives",
-  FG3: "FG3 · Matières grasses",
-  FG4: "FG4 · Fruits & légumes",
-  FG5: "FG5 · Céréales",
-  FG6: "FG6 · Tubercules / féculents",
-  FG7: "FG7 · Snacks (sucre/sel/gras)",
-  out_of_scope: "Hors périmètre",
-  unknown: "Inconnu",
+type TFn = (key: string) => string;
+
+// CODE → i18n key. The CODE keys are canonical and must not change; the
+// display labels are looked up through ``t`` at render time.
+const WWF_FOOD_GROUP_LABEL_KEYS: Record<string, string> = {
+  FG1: "validation.fg.FG1",
+  FG2: "validation.fg.FG2",
+  FG3: "validation.fg.FG3",
+  FG4: "validation.fg.FG4",
+  FG5: "validation.fg.FG5",
+  FG6: "validation.fg.FG6",
+  FG7: "validation.fg.FG7",
+  out_of_scope: "validation.fg.out_of_scope",
+  unknown: "validation.fg.unknown",
 };
 
-const WWF_SUBGROUP_LABELS_FR: Record<string, string> = {
+const WWF_SUBGROUP_LABEL_KEYS: Record<string, string> = {
   // FG1
-  red_meat: "Viande rouge",
-  poultry: "Volaille",
-  processed_meats_alternatives: "Viandes transformées / alternatives",
-  seafood: "Poisson & fruits de mer",
-  eggs: "Œufs",
-  legumes: "Légumineuses",
-  nuts_seeds: "Noix & graines",
-  alternative_protein_sources: "Sources protéiques alternatives",
-  meat_egg_seafood_alternatives: "Alternatives viande/œuf/poisson",
+  red_meat: "validation.subgroup.red_meat",
+  poultry: "validation.subgroup.poultry",
+  processed_meats_alternatives:
+    "validation.subgroup.processed_meats_alternatives",
+  seafood: "validation.subgroup.seafood",
+  eggs: "validation.subgroup.eggs",
+  legumes: "validation.subgroup.legumes",
+  nuts_seeds: "validation.subgroup.nuts_seeds",
+  alternative_protein_sources: "validation.subgroup.alternative_protein_sources",
+  meat_egg_seafood_alternatives:
+    "validation.subgroup.meat_egg_seafood_alternatives",
   // FG2
-  cheese: "Fromage",
-  other_dairy_animal: "Autres produits laitiers",
-  dairy_alternative_plant: "Alternatives végétales aux produits laitiers",
+  cheese: "validation.subgroup.cheese",
+  other_dairy_animal: "validation.subgroup.other_dairy_animal",
+  dairy_alternative_plant: "validation.subgroup.dairy_alternative_plant",
   // FG3
-  plant_based_fat: "Matières grasses végétales",
-  animal_based_fat: "Matières grasses animales",
+  plant_based_fat: "validation.subgroup.plant_based_fat",
+  animal_based_fat: "validation.subgroup.animal_based_fat",
   // FG5
-  whole_grain: "Céréales complètes",
-  refined_grain: "Céréales raffinées",
+  whole_grain: "validation.subgroup.whole_grain",
+  refined_grain: "validation.subgroup.refined_grain",
   // FG7
-  plant_based_snack: "Snack végétal",
-  animal_based_snack: "Snack animal",
+  plant_based_snack: "validation.subgroup.plant_based_snack",
+  animal_based_snack: "validation.subgroup.animal_based_snack",
 };
 
-function wwfSubgroupLabel(v: string | null): string {
+function wwfSubgroupLabel(t: TFn, v: string | null): string {
   if (!v) return "—";
-  return WWF_SUBGROUP_LABELS_FR[v] ?? v;
+  const key = WWF_SUBGROUP_LABEL_KEYS[v];
+  return key ? t(key) : v;
 }
 
 const WWF_FOOD_GROUP_TONE: Record<string, "ok" | "warn" | "neutral" | "brand"> = {
@@ -101,21 +109,23 @@ const WWF_FOOD_GROUP_TONE: Record<string, "ok" | "warn" | "neutral" | "brand"> =
   unknown: "neutral",
 };
 
-const WWF_BUCKET_LABELS_FR: Record<string, string> = {
-  meat_based: "À base de viande",
-  seafood_based: "À base de poisson/fruits de mer",
-  vegetarian: "Végétarien",
-  vegan: "Végane",
+const WWF_BUCKET_LABEL_KEYS: Record<string, string> = {
+  meat_based: "validation.bucket.meat_based",
+  seafood_based: "validation.bucket.seafood_based",
+  vegetarian: "validation.bucket.vegetarian",
+  vegan: "validation.bucket.vegan",
 };
 
-function wwfFoodGroupLabel(fg: string | null | undefined): string {
+function wwfFoodGroupLabel(t: TFn, fg: string | null | undefined): string {
   if (!fg) return "—";
-  return WWF_FOOD_GROUP_LABELS_FR[fg] ?? fg;
+  const key = WWF_FOOD_GROUP_LABEL_KEYS[fg];
+  return key ? t(key) : fg;
 }
 
-function wwfBucketLabel(b: string | null | undefined): string {
+function wwfBucketLabel(t: TFn, b: string | null | undefined): string {
   if (!b) return "—";
-  return WWF_BUCKET_LABELS_FR[b] ?? b;
+  const key = WWF_BUCKET_LABEL_KEYS[b];
+  return key ? t(key) : b;
 }
 
 function wwfSubgroupOf(row: ClassificationRow): string | null {
@@ -133,13 +143,13 @@ function wwfSubgroupOf(row: ClassificationRow): string | null {
 
 const PAGE_SIZE = 50;
 
-const PT_GROUP_LABELS_FR: Record<ProteinTrackerGroup, string> = {
-  plant_based_core: "Végétal — cœur",
-  plant_based_non_core: "Végétal — hors cœur",
-  composite_products: "Composite",
-  animal_core: "Animal — cœur",
-  out_of_scope: "Hors périmètre",
-  unknown: "Inconnu",
+const PT_GROUP_LABEL_KEYS: Record<ProteinTrackerGroup, string> = {
+  plant_based_core: "validation.ptGroup.plant_based_core",
+  plant_based_non_core: "validation.ptGroup.plant_based_non_core",
+  composite_products: "validation.ptGroup.composite_products",
+  animal_core: "validation.ptGroup.animal_core",
+  out_of_scope: "validation.ptGroup.out_of_scope",
+  unknown: "validation.ptGroup.unknown",
 };
 
 const PT_GROUP_TONE: Record<
@@ -162,21 +172,23 @@ const PT_GROUP_OPTIONS: ProteinTrackerGroup[] = [
   "out_of_scope",
 ];
 
-const SOURCE_LABELS_FR: Record<string, string> = {
-  deterministic: "Déterministe",
-  ai: "IA",
-  manual_review: "Manuel",
-  unknown: "Aucune",
+const SOURCE_LABEL_KEYS: Record<string, string> = {
+  deterministic: "validation.source.deterministic",
+  ai: "validation.source.ai",
+  manual_review: "validation.source.manual_review",
+  unknown: "validation.source.unknown",
 };
 
-function ptGroupLabel(g: ProteinTrackerGroup | null): string {
-  if (!g) return "Aucune";
-  return PT_GROUP_LABELS_FR[g] ?? g;
+function ptGroupLabel(t: TFn, g: ProteinTrackerGroup | null): string {
+  if (!g) return t("validation.none");
+  const key = PT_GROUP_LABEL_KEYS[g];
+  return key ? t(key) : g;
 }
 
-function sourceLabel(s: string | null): string {
-  if (!s) return "Aucune";
-  return SOURCE_LABELS_FR[s] ?? s;
+function sourceLabel(t: TFn, s: string | null): string {
+  if (!s) return t("validation.none");
+  const key = SOURCE_LABEL_KEYS[s];
+  return key ? t(key) : s;
 }
 
 function confidenceText(c: number | null): string {
@@ -195,29 +207,30 @@ function reviewStatusTone(status: string | null): StatusTone {
   if (status === "in_queue" || status === "reviewing") return "warn";
   return "neutral";
 }
-const REVIEW_STATUS_LABELS_FR: Record<string, string> = {
-  in_queue: "À vérifier",
-  reviewing: "En cours",
-  accepted: "Accepté",
-  changed: "Modifié",
-  deferred: "Différé",
+const REVIEW_STATUS_LABEL_KEYS: Record<string, string> = {
+  in_queue: "validation.reviewStatus.in_queue",
+  reviewing: "validation.reviewStatus.reviewing",
+  accepted: "validation.reviewStatus.accepted",
+  changed: "validation.reviewStatus.changed",
+  deferred: "validation.reviewStatus.deferred",
 };
-function reviewStatusLabel(status: string | null): string {
+function reviewStatusLabel(t: TFn, status: string | null): string {
   if (!status) return "—";
-  return REVIEW_STATUS_LABELS_FR[status] ?? status;
+  const key = REVIEW_STATUS_LABEL_KEYS[status];
+  return key ? t(key) : status;
 }
 
 /** Phase WWF-R — PT cell summary ("Végétal — cœur · 92% · IA"). */
-function ptSummary(row: ClassificationRow): {
+function ptSummary(t: TFn, row: ClassificationRow): {
   label: string;
   tone: StatusTone;
   meta: string;
 } | null {
   if (!row.pt_group) return null;
   const conf = confidenceText(row.pt_confidence);
-  const src = sourceLabel(row.pt_source);
+  const src = sourceLabel(t, row.pt_source);
   return {
-    label: ptGroupLabel(row.pt_group),
+    label: ptGroupLabel(t, row.pt_group),
     tone: PT_GROUP_TONE[row.pt_group] ?? "neutral",
     meta: `${conf} · ${src}`,
   };
@@ -225,7 +238,7 @@ function ptSummary(row: ClassificationRow): {
 
 /** Phase WWF-R — WWF cell summary ("FG1 — Légumineuses · 100% · IA",
  *  "Composite · Végétarien · 69%"). */
-function wwfSummary(row: ClassificationRow): {
+function wwfSummary(t: TFn, row: ClassificationRow): {
   label: string;
   tone: StatusTone;
   sub: string | null;
@@ -233,14 +246,15 @@ function wwfSummary(row: ClassificationRow): {
 } | null {
   if (!row.wwf_food_group) return null;
   const sub = wwfSubgroupOf(row);
-  const subLabel = sub ? wwfSubgroupLabel(sub) : null;
+  const subLabel = sub ? wwfSubgroupLabel(t, sub) : null;
   const bucket = row.wwf_is_composite
-    ? wwfBucketLabel(row.wwf_composite_step1_bucket ?? null)
+    ? wwfBucketLabel(t, row.wwf_composite_step1_bucket ?? null)
     : null;
   const label = row.wwf_is_composite
-    ? `Composite · ${bucket}`
-    : wwfFoodGroupLabel(row.wwf_food_group);
+    ? t("validation.compositePrefix").replace("{bucket}", String(bucket))
+    : wwfFoodGroupLabel(t, row.wwf_food_group);
   const meta = `${confidenceText(row.wwf_confidence)} · ${sourceLabel(
+    t,
     row.wwf_source,
   )}`;
   return {
@@ -271,6 +285,7 @@ export function ValidationTable({
   ptEnabled?: boolean;
   onChanged?: () => void | Promise<void>;
 }) {
+  const t = useT();
   const api = useMemo(() => createApi(accessToken), [accessToken]);
 
   const searchParams = useSearchParams();
@@ -364,10 +379,10 @@ export function ValidationTable({
       setData(r);
     } catch (e) {
       setLoadError(
-        e instanceof Error ? e.message : "Échec du chargement du tableau.",
+        e instanceof Error ? e.message : t("validation.error.load"),
       );
     }
-  }, [api, projectId, filters, offset, tableView, methodologyView]);
+  }, [api, projectId, filters, offset, tableView, methodologyView, t]);
 
   useEffect(() => {
     void load();
@@ -397,7 +412,7 @@ export function ValidationTable({
         !to
       ) {
         setSubmitError(
-          "Choisissez une catégorie avant de changer la classification PT.",
+          t("validation.error.choosePtCategory"),
         );
         setSubmittingKey(null);
         return;
@@ -414,7 +429,7 @@ export function ValidationTable({
         setSubmitError(d.message ?? String(e));
       } else {
         setSubmitError(
-          e instanceof Error ? e.message : "Erreur lors de la décision.",
+          e instanceof Error ? e.message : t("validation.error.decision"),
         );
       }
     } finally {
@@ -499,17 +514,17 @@ export function ValidationTable({
       <div className="mb-3">
         <h3 className="text-base font-semibold text-forest-900">
           {isProductsView
-            ? "Validation des produits"
+            ? t("validation.title.products")
             : isReviewWwfView
-              ? "Validation WWF"
-              : "Validation Protein Tracker"}
+              ? t("validation.title.wwf")
+              : t("validation.title.pt")}
         </h3>
         <p className="mt-0.5 text-xs text-ink-muted">
           {isProductsView
-            ? "Vue d'ensemble des classifications Protein Tracker et WWF — actions indépendantes par méthodologie."
+            ? t("validation.subtitle.products")
             : isReviewWwfView
-              ? "Vérifiez les groupes alimentaires WWF, sous-groupes et produits composites."
-              : "Vérifiez les catégories Protein Tracker assignées par les règles déterministes et l'IA."}
+              ? t("validation.subtitle.wwf")
+              : t("validation.subtitle.pt")}
         </p>
       </div>
 
@@ -518,21 +533,33 @@ export function ValidationTable({
           through the queue. */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="font-medium text-forest-700">
-          {data.total} produit(s) affiché(s)
+          {t("validation.counts.displayed").replace(
+            "{n}",
+            String(data.total),
+          )}
         </span>
         {ptEnabled && (
           <Pill tone={ptReviewTotal > 0 ? "warn" : "neutral"}>
-            PT à vérifier : {ptReviewTotal}
+            {t("validation.counts.ptToReview").replace(
+              "{n}",
+              String(ptReviewTotal),
+            )}
           </Pill>
         )}
         {wwfEnabled && (
           <Pill tone={wwfReviewTotal > 0 ? "warn" : "neutral"}>
-            WWF à vérifier : {wwfReviewTotal}
+            {t("validation.counts.wwfToReview").replace(
+              "{n}",
+              String(wwfReviewTotal),
+            )}
           </Pill>
         )}
         {canToggle && (
           <Pill tone={totalReview > 0 ? "brand" : "neutral"}>
-            Total à valider : {totalReview}
+            {t("validation.counts.totalToValidate").replace(
+              "{n}",
+              String(totalReview),
+            )}
           </Pill>
         )}
         {Object.entries(data.counts_by_source).map(([k, v]) => (
@@ -540,7 +567,9 @@ export function ValidationTable({
             key={k}
             tone={k === "ai" ? "brand" : k === "deterministic" ? "ok" : "neutral"}
           >
-            {sourceLabel(k)} : {v}
+            {t("validation.counts.bySource")
+              .replace("{label}", sourceLabel(t, k))
+              .replace("{n}", String(v))}
           </Pill>
         ))}
       </div>
@@ -559,12 +588,12 @@ export function ValidationTable({
             setOffset(0);
           }}
           options={[
-            { value: "products", label: "Tous" },
+            { value: "products", label: t("validation.view.all") },
             {
               value: "review",
               label: (
                 <span className="inline-flex items-center gap-1">
-                  À valider
+                  {t("validation.view.toValidate")}
                   {totalReview > 0 && (
                     <span
                       className={
@@ -591,17 +620,17 @@ export function ValidationTable({
             onChange={(v) => setMethodologyView(v)}
             options={[
               ...(isProductsView
-                ? [{ value: "all" as const, label: "Toutes" }]
+                ? [{ value: "all" as const, label: t("validation.methodology.all") }]
                 : []),
-              { value: "protein_tracker" as const, label: "PT" },
-              { value: "wwf" as const, label: "WWF" },
+              { value: "protein_tracker" as const, label: t("validation.methodology.pt") },
+              { value: "wwf" as const, label: t("validation.methodology.wwf") },
             ]}
           />
         )}
 
         <input
           type="text"
-          placeholder="Rechercher (nom / marque)"
+          placeholder={t("validation.search.placeholder")}
           value={filters.product_search ?? ""}
           onChange={(e) => patchFilter({ product_search: e.target.value })}
           className="w-48 rounded-xl border border-line bg-white px-3 py-1.5 text-gray-800 shadow-soft transition-colors focus:border-brand-400 focus:outline-none"
@@ -617,11 +646,11 @@ export function ValidationTable({
           }
           className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-gray-800 shadow-soft transition-colors focus:border-brand-400 focus:outline-none"
         >
-          <option value="">Toutes sources</option>
-          <option value="deterministic">Déterministe</option>
-          <option value="ai">IA</option>
-          <option value="manual_review">Manuel</option>
-          <option value="unknown">Non classé</option>
+          <option value="">{t("validation.filter.allSources")}</option>
+          <option value="deterministic">{t("validation.source.deterministic")}</option>
+          <option value="ai">{t("validation.source.ai")}</option>
+          <option value="manual_review">{t("validation.source.manual_review")}</option>
+          <option value="unknown">{t("validation.filter.unclassified")}</option>
         </select>
         {ptEnabled && (
           <select
@@ -635,10 +664,10 @@ export function ValidationTable({
             }
             className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-gray-800 shadow-soft transition-colors focus:border-brand-400 focus:outline-none"
           >
-            <option value="">Toutes catégories PT</option>
+            <option value="">{t("validation.filter.allPtCategories")}</option>
             {PT_GROUP_OPTIONS.map((g) => (
               <option key={g} value={g}>
-                {PT_GROUP_LABELS_FR[g]}
+                {t(PT_GROUP_LABEL_KEYS[g])}
               </option>
             ))}
           </select>
@@ -654,11 +683,11 @@ export function ValidationTable({
           }
           className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-gray-800 shadow-soft transition-colors focus:border-brand-400 focus:outline-none"
         >
-          <option value="">Tous statuts</option>
-          <option value="in_queue">À vérifier</option>
-          <option value="accepted">Accepté</option>
-          <option value="changed">Modifié</option>
-          <option value="deferred">Différé</option>
+          <option value="">{t("validation.filter.allStatuses")}</option>
+          <option value="in_queue">{t("validation.reviewStatus.in_queue")}</option>
+          <option value="accepted">{t("validation.reviewStatus.accepted")}</option>
+          <option value="changed">{t("validation.reviewStatus.changed")}</option>
+          <option value="deferred">{t("validation.reviewStatus.deferred")}</option>
         </select>
 
         {/* Confidence preset buttons. */}
@@ -720,7 +749,7 @@ export function ValidationTable({
               : "border-line bg-white text-ink-muted hover:bg-mint-50")
           }
         >
-          Tous
+          {t("validation.view.all")}
         </button>
       </div>
 
@@ -735,8 +764,8 @@ export function ValidationTable({
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-line bg-mint-50/70 text-left text-[11px] uppercase tracking-wider text-ink-soft">
-              <th className="py-2.5 pl-4 pr-3 font-semibold">Produit</th>
-              <th className="py-2.5 pr-3 font-semibold">Catégorie retailer</th>
+              <th className="py-2.5 pl-4 pr-3 font-semibold">{t("validation.col.product")}</th>
+              <th className="py-2.5 pr-3 font-semibold">{t("validation.col.retailerCategory")}</th>
               {isProductsView ? (
                 <>
                   {showPtColumns && (
@@ -747,7 +776,7 @@ export function ValidationTable({
                           (emphasizePt ? "" : "opacity-50")
                         }
                       >
-                        Protein Tracker
+                        {t("validation.col.proteinTracker")}
                       </th>
                       <th
                         className={
@@ -755,7 +784,7 @@ export function ValidationTable({
                           (emphasizePt ? "" : "opacity-50")
                         }
                       >
-                        Statut PT
+                        {t("validation.col.ptStatus")}
                       </th>
                     </>
                   )}
@@ -767,7 +796,7 @@ export function ValidationTable({
                           (emphasizeWwf ? "" : "opacity-50")
                         }
                       >
-                        WWF
+                        {t("validation.col.wwf")}
                       </th>
                       <th
                         className={
@@ -775,32 +804,32 @@ export function ValidationTable({
                           (emphasizeWwf ? "" : "opacity-50")
                         }
                       >
-                        Statut WWF
+                        {t("validation.col.wwfStatus")}
                       </th>
                     </>
                   )}
-                  <th className="py-2 font-medium">Actions</th>
+                  <th className="py-2 font-medium">{t("validation.col.actions")}</th>
                 </>
               ) : isReviewWwfView ? (
                 <>
-                  <th className="py-2 pr-3 font-medium">Groupe WWF</th>
-                  <th className="py-2 pr-3 font-medium">Sous-groupe</th>
-                  <th className="py-2 pr-3 font-medium">Composite</th>
-                  <th className="py-2 pr-3 font-medium">Source</th>
-                  <th className="py-2 pr-3 font-medium">Confiance</th>
-                  <th className="py-2 pr-3 font-medium">Statut</th>
-                  <th className="py-2 font-medium">Action</th>
+                  <th className="py-2 pr-3 font-medium">{t("validation.col.wwfGroup")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("validation.col.subgroup")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("validation.col.composite")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("validation.col.source")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("validation.col.confidence")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("validation.col.status")}</th>
+                  <th className="py-2 font-medium">{t("validation.col.action")}</th>
                 </>
               ) : (
                 <>
-                  <th className="py-2 pr-3 font-medium">PT</th>
+                  <th className="py-2 pr-3 font-medium">{t("validation.col.pt")}</th>
                   {wwfEnabled && (
-                    <th className="py-2 pr-3 font-medium">WWF</th>
+                    <th className="py-2 pr-3 font-medium">{t("validation.col.wwf")}</th>
                   )}
-                  <th className="py-2 pr-3 font-medium">Source</th>
-                  <th className="py-2 pr-3 font-medium">Confiance</th>
-                  <th className="py-2 pr-3 font-medium">Statut</th>
-                  <th className="py-2 font-medium">Action</th>
+                  <th className="py-2 pr-3 font-medium">{t("validation.col.source")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("validation.col.confidence")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("validation.col.status")}</th>
+                  <th className="py-2 font-medium">{t("validation.col.action")}</th>
                 </>
               )}
             </tr>
@@ -823,11 +852,10 @@ export function ValidationTable({
                   className="px-4 py-10 text-center"
                 >
                   <div className="text-sm font-medium text-forest-700">
-                    Aucun produit ne correspond aux filtres
+                    {t("validation.empty.title")}
                   </div>
                   <div className="mt-1 text-xs text-ink-muted">
-                    Ajustez la recherche, la source ou la confiance pour
-                    élargir les résultats.
+                    {t("validation.empty.body")}
                   </div>
                 </td>
               </tr>
@@ -844,7 +872,7 @@ export function ValidationTable({
       {/* Pagination */}
       <div className="mt-3 flex items-center justify-between text-xs text-ink-muted">
         <span>
-          Page <span className="font-semibold text-forest-700">{pageIdx + 1}</span> / {pageCount}
+          {t("validation.pagination.page")} <span className="font-semibold text-forest-700">{pageIdx + 1}</span> / {pageCount}
         </span>
         <div className="flex items-center gap-1">
           <Button
@@ -880,7 +908,7 @@ export function ValidationTable({
                 {
                   decision: "changed",
                   wwf: payload,
-                  reason: "Correction manuelle",
+                  reason: t("validation.wwf.manualCorrection"),
                 },
               );
               await load();
@@ -906,8 +934,8 @@ export function ValidationTable({
   // -------------------------------------------------------------------
 
   function renderProductsRow(row: ClassificationRow): ReactElement {
-    const ptCell = ptSummary(row);
-    const wwfCell = wwfSummary(row);
+    const ptCell = ptSummary(t, row);
+    const wwfCell = wwfSummary(t, row);
     const ptStatus = row.review_status ?? null;
     const wwfStatus = row.wwf_review_status ?? null;
     const ptInQueue = ptStatus === "in_queue" || ptStatus === "reviewing";
@@ -950,7 +978,7 @@ export function ValidationTable({
             <td className={"py-2 pr-3 " + (emphasizePt ? "" : "opacity-60")}>
               {ptStatus ? (
                 <Pill tone={reviewStatusTone(ptStatus)}>
-                  {reviewStatusLabel(ptStatus)}
+                  {reviewStatusLabel(t, ptStatus)}
                 </Pill>
               ) : (
                 <span className="text-gray-400">—</span>
@@ -976,7 +1004,7 @@ export function ValidationTable({
             <td className={"py-2 pr-3 " + (emphasizeWwf ? "" : "opacity-60")}>
               {wwfStatus ? (
                 <Pill tone={reviewStatusTone(wwfStatus)}>
-                  {reviewStatusLabel(wwfStatus)}
+                  {reviewStatusLabel(t, wwfStatus)}
                 </Pill>
               ) : (
                 <span className="text-gray-400">—</span>
@@ -1007,14 +1035,14 @@ export function ValidationTable({
                   disabled={busyChangePt}
                   className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
                 >
-                  <option value="">Changer…</option>
+                  <option value="">{t("validation.action.change")}</option>
                   {PT_GROUP_OPTIONS.map((g) => (
                     <option key={g} value={g}>
-                      {PT_GROUP_LABELS_FR[g]}
+                      {t(PT_GROUP_LABEL_KEYS[g])}
                     </option>
                   ))}
                 </select>
-                <span title="Corriger PT">
+                <span title={t("validation.action.correctPt")}>
                   <Button
                     variant="ghost"
                     onClick={() =>
@@ -1026,7 +1054,7 @@ export function ValidationTable({
                   </Button>
                 </span>
                 {ptInQueue && (
-                  <span title="Accepter PT">
+                  <span title={t("validation.action.acceptPt")}>
                     <Button
                       variant="secondary"
                       onClick={() =>
@@ -1050,17 +1078,17 @@ export function ValidationTable({
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
                   WWF
                 </span>
-                <span title="Corriger WWF">
+                <span title={t("validation.action.correctWwf")}>
                   <Button
                     variant="ghost"
                     onClick={() => setWwfModalRow(row)}
                     disabled={busyAcceptWwf}
                   >
-                    Corriger
+                    {t("validation.action.correct")}
                   </Button>
                 </span>
                 {wwfInQueue && (
-                  <span title="Accepter WWF">
+                  <span title={t("validation.action.acceptWwf")}>
                     <Button
                       variant="secondary"
                       onClick={() => void submit(row, "wwf", "accepted")}
@@ -1100,7 +1128,7 @@ export function ValidationTable({
           {row.brand && <div className="text-ink-soft">{row.brand}</div>}
           <div className="mt-1">
             <Pill tone={isWwfRow ? "warn" : "brand"}>
-              {isWwfRow ? "WWF" : "Protein Tracker"}
+              {isWwfRow ? t("validation.col.wwf") : t("validation.col.proteinTracker")}
             </Pill>
           </div>
         </td>
@@ -1119,19 +1147,19 @@ export function ValidationTable({
                     WWF_FOOD_GROUP_TONE[row.wwf_food_group] ?? "neutral"
                   }
                 >
-                  {wwfFoodGroupLabel(row.wwf_food_group)}
+                  {wwfFoodGroupLabel(t, row.wwf_food_group)}
                 </Pill>
               ) : (
                 <span className="text-gray-400">—</span>
               )}
             </td>
             <td className="py-2 pr-3 text-gray-600">
-              {wwfSubgroupLabel(wwfSubgroupOf(row))}
+              {wwfSubgroupLabel(t, wwfSubgroupOf(row))}
             </td>
             <td className="py-2 pr-3 text-gray-600">
               {row.wwf_is_composite ? (
                 <span title={row.wwf_composite_step1_bucket ?? ""}>
-                  {wwfBucketLabel(row.wwf_composite_step1_bucket ?? null)}
+                  {wwfBucketLabel(t, row.wwf_composite_step1_bucket ?? null)}
                 </span>
               ) : (
                 <span className="text-gray-400">—</span>
@@ -1143,7 +1171,7 @@ export function ValidationTable({
             <td className="py-2 pr-3">
               {row.pt_group ? (
                 <Pill tone={PT_GROUP_TONE[row.pt_group]}>
-                  {ptGroupLabel(row.pt_group)}
+                  {ptGroupLabel(t, row.pt_group)}
                 </Pill>
               ) : (
                 <span className="text-gray-400">—</span>
@@ -1157,7 +1185,7 @@ export function ValidationTable({
           </>
         )}
         <td className="py-2 pr-3 text-gray-600">
-          {sourceLabel(isWwfRow ? row.wwf_source : row.pt_source)}
+          {sourceLabel(t, isWwfRow ? row.wwf_source : row.pt_source)}
         </td>
         <td className="py-2 pr-3 text-gray-600">
           {confidenceText(isWwfRow ? row.wwf_confidence : row.pt_confidence)}
@@ -1165,7 +1193,7 @@ export function ValidationTable({
         <td className="py-2 pr-3">
           {status ? (
             <Pill tone={reviewStatusTone(status)}>
-              {reviewStatusLabel(status)}
+              {reviewStatusLabel(t, status)}
             </Pill>
           ) : (
             <span className="text-gray-400">—</span>
@@ -1179,7 +1207,7 @@ export function ValidationTable({
                 onClick={() => setWwfModalRow(row)}
                 disabled={busyAccept}
               >
-                Corriger
+                {t("validation.action.correct")}
               </Button>
               {(status === "in_queue" || status === "reviewing") &&
                 row.wwf_food_group && (
@@ -1205,10 +1233,10 @@ export function ValidationTable({
                 disabled={busyChange}
                 className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
               >
-                <option value="">Changer…</option>
+                <option value="">{t("validation.action.change")}</option>
                 {PT_GROUP_OPTIONS.map((g) => (
                   <option key={g} value={g}>
-                    {PT_GROUP_LABELS_FR[g]}
+                    {t(PT_GROUP_LABEL_KEYS[g])}
                   </option>
                 ))}
               </select>

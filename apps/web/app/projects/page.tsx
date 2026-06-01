@@ -51,15 +51,15 @@ export default function ProjectsPage() {
           // visible. Surface a short user-facing message above the list.
           setError(
             e.message?.startsWith("TypeError")
-              ? "Impossible de joindre le serveur. Réessayez."
-              : e.message || "Le chargement des projets a échoué.",
+              ? t("projects.error.unreachable")
+              : e.message || t("projects.error.loadFailed"),
           );
         })
         .finally(() => {
           if (!signal?.aborted) setLoading(false);
         });
     },
-    [api],
+    [api, t],
   );
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export default function ProjectsPage() {
       {error && (
         <div className="mt-4 flex items-start justify-between gap-3 rounded-xl border border-warn-100 bg-warn-50 px-4 py-3 text-sm text-warn-700">
           <div>
-            <div className="font-semibold">Chargement partiel</div>
+            <div className="font-semibold">{t("projects.partialLoad")}</div>
             <div className="mt-0.5">{error}</div>
           </div>
           <button
@@ -97,7 +97,7 @@ export default function ProjectsPage() {
             disabled={loading}
             className="shrink-0 rounded-lg border border-warn-100 bg-white px-3 py-1.5 text-sm font-medium text-warn-700 hover:bg-warn-50 disabled:opacity-50"
           >
-            {loading ? "Chargement…" : "Réessayer"}
+            {loading ? t("common.loading") : t("common.retry")}
           </button>
         </div>
       )}
@@ -117,7 +117,7 @@ export default function ProjectsPage() {
                 title={t("projects.empty.title")}
                 description={
                   error
-                    ? "Les projets seront affichés une fois la connexion rétablie."
+                    ? t("projects.error.offlineHint")
                     : t("projects.empty.body")
                 }
               />

@@ -24,6 +24,7 @@ import { useParams, useSearchParams } from "next/navigation";
 
 import { Button, Card, Pill } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
+import { useT } from "@/lib/i18n";
 import {
   ApiError,
   createApi,
@@ -41,8 +42,8 @@ import {
   type WorkflowStep,
 } from "@/lib/api";
 
-// Phase Product-UX-B — shared in-workflow result report.
-import { RunReport } from "@/components/RunReport";
+// Phase Product-UX-E — extracted Result step (report cache + i18n).
+import { StepReport } from "./_step-report";
 // Phase 34E — fully inline upload + manual review inside the wizard.
 import { InlineUpload } from "./_inline-upload";
 // Phase 34F — inline category validation table.
@@ -68,7 +69,8 @@ import { NutritionTable } from "./_nutrition-table";
 
 type WizardStepDef = {
   id: string;
-  label: string;
+  /** Translation key for the step label (resolved at render time). */
+  labelKey: string;
   backendKey: string;
   /** Step is rendered when ANY of these methodologies are enabled.
    *  ``"any"`` is shorthand for "always render". */
@@ -76,23 +78,23 @@ type WizardStepDef = {
 };
 
 const ALL_WIZARD_STEPS: readonly WizardStepDef[] = [
-  { id: "import",        label: "Import",                       backendKey: "upload",                        methodologyGate: "any" },
-  { id: "methodology",   label: "Méthodologie",                 backendKey: "methodology",                   methodologyGate: "any" },
-  { id: "ai_class",      label: "Classification IA",            backendKey: "ai_classification",             methodologyGate: "any" },
-  { id: "validation",    label: "Validation",                   backendKey: "manual_classification_review",  methodologyGate: "any" },
-  { id: "nevo",          label: "NEVO",                         backendKey: "nutrition_enrichment_nevo",     methodologyGate: "protein_tracker" },
-  { id: "nutrition_val", label: "Validation nutritionnelle",    backendKey: "nutrition_validation",          methodologyGate: "protein_tracker" },
-  { id: "calculation",   label: "Calcul",                       backendKey: "calculation",                   methodologyGate: "any" },
-  { id: "report",        label: "Résultat",                     backendKey: "report",                        methodologyGate: "any" },
+  { id: "import",        labelKey: "workflow.step.import",        backendKey: "upload",                        methodologyGate: "any" },
+  { id: "methodology",   labelKey: "workflow.step.methodology",   backendKey: "methodology",                   methodologyGate: "any" },
+  { id: "ai_class",      labelKey: "workflow.step.aiClass",       backendKey: "ai_classification",             methodologyGate: "any" },
+  { id: "validation",    labelKey: "workflow.step.validation",    backendKey: "manual_classification_review",  methodologyGate: "any" },
+  { id: "nevo",          labelKey: "workflow.step.nevo",          backendKey: "nutrition_enrichment_nevo",     methodologyGate: "protein_tracker" },
+  { id: "nutrition_val", labelKey: "workflow.step.nutritionVal",  backendKey: "nutrition_validation",          methodologyGate: "protein_tracker" },
+  { id: "calculation",   labelKey: "workflow.step.calculation",   backendKey: "calculation",                   methodologyGate: "any" },
+  { id: "report",        labelKey: "workflow.step.report",        backendKey: "report",                        methodologyGate: "any" },
 ] as const;
 
-/** Phase WWF-G — wwf-flavoured labels override the PT defaults when
+/** Phase WWF-G — wwf-flavoured label keys override the PT defaults when
  *  the project is WWF-only. Keys match ``WizardStepDef.id``. */
-const WWF_ONLY_STEP_LABELS: Record<string, string> = {
-  ai_class: "Catégorisation WWF",
-  validation: "Validation WWF",
-  calculation: "Calcul WWF",
-  report: "Rapport WWF",
+const WWF_ONLY_STEP_LABEL_KEYS: Record<string, string> = {
+  ai_class: "workflow.step.aiClass.wwf",
+  validation: "workflow.step.validation.wwf",
+  calculation: "workflow.step.calculation.wwf",
+  report: "workflow.step.report.wwf",
 };
 
 /** Build the visible wizard step list for a given set of enabled
@@ -110,9 +112,9 @@ function buildWizardSteps(
     return true;
   }).map((s, idx) => ({
     ...s,
-    label: wwfOnly && WWF_ONLY_STEP_LABELS[s.id]
-      ? WWF_ONLY_STEP_LABELS[s.id]
-      : s.label,
+    labelKey: wwfOnly && WWF_ONLY_STEP_LABEL_KEYS[s.id]
+      ? WWF_ONLY_STEP_LABEL_KEYS[s.id]
+      : s.labelKey,
     idx,
   }));
 }
@@ -152,6 +154,8 @@ function StepChip({
   summary: string | null;
   onClick: () => void;
 }) {
+  const t = useT();
+  const stepLabel = t(wizardStep.labelKey);
   const isActive = wizardStep.idx === currentIdx;
   const isComplete = status === "complete" || status === "not_needed";
   const isBlocked = status === "blocked";
@@ -178,7 +182,7 @@ function StepChip({
   const container = (
     <div className="flex flex-col items-center gap-0.5 min-w-[52px]">
       <div className={circleClass}>{inner}</div>
-      <span className={labelClass}>{wizardStep.label}</span>
+      <span className={labelClass}>{stepLabel}</span>
       {summary && isComplete && !isActive && (
         <span className="text-[10px] text-ink-soft text-center leading-tight max-w-[60px] truncate">
           {summary}
@@ -196,7 +200,7 @@ function StepChip({
       type="button"
       onClick={onClick}
       className="focus:outline-none"
-      title={accessible ? wizardStep.label : "Étape verrouillée"}
+      title={accessible ? stepLabel : t("workflow.stepLocked")}
     >
       {container}
     </button>
@@ -231,23 +235,26 @@ function BlockerList({ step }: { step: WorkflowStep }) {
 // Count badge row
 // ---------------------------------------------------------------------------
 
-const COUNT_LABELS: Record<string, string> = {
-  uploads: "Imports",
-  products: "Produits",
-  classified: "Classifiés",
-  remaining: "Restants",
-  in_review: "En revue",
-  unknown: "Inconnus",
-  pending: "En attente",
-  matched: "Correspondances NEVO",
-  with_split: "Avec split plant/animal",
-  no_match: "Sans correspondance",
-  matched_total_only: "Correspondances CIQUAL",
-  eligible_rows: "Lignes éligibles",
-  runs: "Calculs",
+// Map each canonical count key to its translation key. Keys (uploads,
+// products, …) are API-derived and stay verbatim.
+const COUNT_LABEL_KEYS: Record<string, string> = {
+  uploads: "workflow.count.uploads",
+  products: "workflow.count.products",
+  classified: "workflow.count.classified",
+  remaining: "workflow.count.remaining",
+  in_review: "workflow.count.inReview",
+  unknown: "workflow.count.unknown",
+  pending: "workflow.count.pending",
+  matched: "workflow.count.matched",
+  with_split: "workflow.count.withSplit",
+  no_match: "workflow.count.noMatch",
+  matched_total_only: "workflow.count.matchedTotalOnly",
+  eligible_rows: "workflow.count.eligibleRows",
+  runs: "workflow.count.runs",
 };
 
 function CountRow({ counts }: { counts: Record<string, number> }) {
+  const t = useT();
   const entries = Object.entries(counts).filter(([, v]) => v > 0);
   if (!entries.length) return null;
   return (
@@ -258,7 +265,7 @@ function CountRow({ counts }: { counts: Record<string, number> }) {
           className="rounded-xl border border-line bg-mint-50/60 px-3 py-2"
         >
           <span className="block text-[11px] font-medium uppercase tracking-wide text-ink-soft">
-            {COUNT_LABELS[k] ?? k.replace(/_/g, " ")}
+            {COUNT_LABEL_KEYS[k] ? t(COUNT_LABEL_KEYS[k]) : k.replace(/_/g, " ")}
           </span>
           <span className="text-lg font-semibold text-forest-900">{v}</span>
         </div>
@@ -288,14 +295,14 @@ function StepImport({
   onUploaded: () => void | Promise<void>;
   onNext: () => void;
 }) {
+  const t = useT();
   const isComplete = step.status === "complete";
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">Importer le fichier CSV</h2>
+        <h2 className="text-xl font-semibold">{t("workflow.import.title")}</h2>
         <p className="mt-1 text-sm text-ink-muted">
-          Chargez le fichier produits du retailer. Altera vérifiera le mapping des colonnes
-          automatiquement et génèrera les identifiants manquants.
+          {t("workflow.import.desc")}
         </p>
       </div>
 
@@ -312,11 +319,14 @@ function StepImport({
           <CountRow counts={step.counts} />
           {latestUpload.warnings.length > 0 && (
             <div className="mt-2 rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
-              {latestUpload.warnings.length} avertissement(s) à l’import.
+              {t("workflow.import.warnings").replace(
+                "{n}",
+                String(latestUpload.warnings.length),
+              )}
             </div>
           )}
           <div className="mt-3 flex flex-wrap gap-3">
-            <Button onClick={onNext}>Continuer vers Méthodologie</Button>
+            <Button onClick={onNext}>{t("workflow.import.continue")}</Button>
           </div>
         </Card>
       )}
@@ -333,6 +343,7 @@ function StepMethodology({
   methodologies: string[];
   onNext: () => void;
 }) {
+  const t = useT();
   const isComplete = step.status === "complete";
 
   const METHOD_LABELS: Record<string, string> = {
@@ -341,17 +352,16 @@ function StepMethodology({
   };
 
   const METHOD_DESC: Record<string, string> = {
-    protein_tracker:
-      "Calcule le ratio protéines végétales / protéines totales à partir des données d'achat et de nutrition.",
-    wwf: "Step 1 (niveau produit) : classe les achats alimentaires selon les groupes PHD du WWF (FG1–FG7) et affecte les produits composés à leur poids total dans les buckets meat-based, seafood-based, vegetarian ou vegan. Requiert le poids unitaire et le volume des ventes. Le Step 2 ingrédient-level (recettes marque propre) n'est pas encore activé.",
+    protein_tracker: t("workflow.methodology.desc.pt"),
+    wwf: t("workflow.methodology.desc.wwf"),
   };
 
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">Méthodologie</h2>
+        <h2 className="text-xl font-semibold">{t("workflow.methodology.title")}</h2>
         <p className="mt-1 text-sm text-ink-muted">
-          La méthodologie détermine le type de calcul effectué sur les produits importés.
+          {t("workflow.methodology.desc")}
         </p>
       </div>
 
@@ -364,23 +374,22 @@ function StepMethodology({
                   <p className="font-medium text-gray-900">{METHOD_LABELS[m] ?? m}</p>
                   <p className="mt-0.5 text-sm text-ink-soft">{METHOD_DESC[m] ?? ""}</p>
                 </div>
-                <Pill tone="ok">Activée</Pill>
+                <Pill tone="ok">{t("workflow.methodology.enabled")}</Pill>
               </div>
             </Card>
           ))}
           <div className="flex flex-wrap gap-3 pt-2">
-            <Button onClick={onNext}>Continuer vers la classification</Button>
+            <Button onClick={onNext}>{t("workflow.methodology.continue")}</Button>
           </div>
         </div>
       ) : (
         <Card>
           <p className="text-sm text-ink-muted">
-            La méthodologie est définie à la création du projet. Retournez aux paramètres du projet
-            pour la modifier.
+            {t("workflow.methodology.fixedNote")}
           </p>
           <div className="mt-4">
             <Button variant="secondary" disabled>
-              Aucune méthodologie sélectionnée
+              {t("workflow.methodology.noneSelected")}
             </Button>
           </div>
         </Card>
@@ -400,6 +409,7 @@ function StepMethodology({
 // is presentational: data comes entirely from the `job` prop, which
 // the wizard refreshes by polling ``POST /advance``.
 function ClassificationJobProgress({ job }: { job: ClassificationJob }) {
+  const t = useT();
   const pct = Math.max(0, Math.min(100, Math.round(job.progress_pct)));
   const tone =
     job.status === "completed"
@@ -413,16 +423,16 @@ function ClassificationJobProgress({ job }: { job: ClassificationJob }) {
       : "border-brand-200 bg-brand-50 text-brand-900";
   const badge =
     job.status === "queued"
-      ? "En file d'attente"
+      ? t("workflow.job.queued")
       : job.status === "running"
-      ? "En cours…"
+      ? t("workflow.job.running")
       : job.status === "completed"
-      ? "Terminé"
+      ? t("workflow.job.completed")
       : job.status === "completed_with_errors"
-      ? "Terminé avec erreurs"
+      ? t("workflow.job.completedWithErrors")
       : job.status === "failed"
-      ? "Échec"
-      : "Annulé";
+      ? t("workflow.job.failed")
+      : t("workflow.job.cancelled");
   return (
     <div className={`rounded-md border px-3 py-2 text-sm ${tone}`}>
       <div className="flex items-center justify-between">
@@ -439,8 +449,11 @@ function ClassificationJobProgress({ job }: { job: ClassificationJob }) {
         />
       </div>
       <div className="mt-2 text-xs font-medium">
-        {job.categorized_total} catégorisé(s) · {job.accepted_total} accepté(s)
-        · {job.review_required_total} à vérifier · {job.failed_total} échec
+        {t("workflow.job.countsLine")
+          .replace("{categorized}", String(job.categorized_total))
+          .replace("{accepted}", String(job.accepted_total))
+          .replace("{review}", String(job.review_required_total))
+          .replace("{failed}", String(job.failed_total))}
       </div>
       {(job.retry_batches > 0 ||
         job.out_of_scope_total > 0 ||
@@ -448,28 +461,43 @@ function ClassificationJobProgress({ job }: { job: ClassificationJob }) {
         <div className="mt-1 text-xs opacity-80">
           {job.retry_batches > 0 && (
             <>
-              {job.retry_batches} retry
+              {t("workflow.job.retry").replace("{n}", String(job.retry_batches))}
               {job.recovered_rows > 0 && (
-                <> ({job.recovered_rows} récupéré(s))</>
+                <>
+                  {t("workflow.job.recovered").replace(
+                    "{n}",
+                    String(job.recovered_rows),
+                  )}
+                </>
               )}
             </>
           )}
           {job.out_of_scope_total > 0 && (
-            <> · {job.out_of_scope_total} hors périmètre</>
+            <>
+              {t("workflow.job.outOfScope").replace(
+                "{n}",
+                String(job.out_of_scope_total),
+              )}
+            </>
           )}
           {job.unknown_total > 0 && (
-            <> · {job.unknown_total} inconnu(s)</>
+            <>
+              {t("workflow.job.unknown").replace(
+                "{n}",
+                String(job.unknown_total),
+              )}
+            </>
           )}
         </div>
       )}
       {(job.status === "running" || job.status === "queued") && (
         <div className="mt-2 text-xs opacity-80">
-          {"Vous pouvez laisser cette page ouverte — la progression est sauvegardée."}
+          {t("workflow.job.keepOpen")}
         </div>
       )}
       {job.error_message && (
         <div className="mt-2 text-xs">
-          <strong>{job.error_code ?? "Erreur"} :</strong> {job.error_message}
+          <strong>{job.error_code ?? t("common.error")} :</strong> {job.error_message}
         </div>
       )}
     </div>
@@ -512,6 +540,7 @@ function StepAIClassification({
   onRetryFailed: () => void;
   onNext: () => void;
 }) {
+  const t = useT();
   const isComplete = step.status === "complete";
   const isNotNeeded = step.status === "not_needed";
   const ptEnabled = methodologies.includes("protein_tracker");
@@ -523,7 +552,7 @@ function StepAIClassification({
   // disable the CTA).
   const classifyEnabled = primaryMethodology === "wwf" ? wwfEnabled : ptEnabled;
 
-  // Phase 34D — map machine-readable ai_disabled_reason to a French message
+  // Phase 34D — map machine-readable ai_disabled_reason to a message
   // that explicitly names the env vars an admin must check. The banner is
   // shown both before any run (so the user knows what to expect) and
   // after a run that returned ai_enabled=false.
@@ -532,29 +561,27 @@ function StepAIClassification({
     lastClassifyResult !== null && !lastClassifyResult.ai_enabled;
   const aiBanner: string | null = aiWasOff
     ? aiReason === "deterministic_only"
-      ? "Classification IA volontairement désactivée pour cette exécution (mode déterministe seul)."
+      ? t("workflow.ai.banner.deterministicOnly")
       : aiReason === "classifier_disabled"
-      ? "Classification IA indisponible : ALTERA_AI_CLASSIFIER_ENABLED n’est pas activé sur ce serveur."
+      ? t("workflow.ai.banner.classifierDisabled")
       : aiReason === "provider_disabled"
-      ? "Classification IA indisponible : ALTERA_AI_PROVIDER vaut 'disabled'."
+      ? t("workflow.ai.banner.providerDisabled")
       : aiReason === "provider_misconfigured"
-      ? "Classification IA indisponible : OPENAI_API_KEY est manquant (provider OpenAI sélectionné)."
-      : "Classification IA indisponible — vérifier ALTERA_AI_CLASSIFIER_ENABLED, ALTERA_AI_PROVIDER, et OPENAI_API_KEY sur le serveur. Les produits non reconnus partent en validation manuelle."
+      ? t("workflow.ai.banner.providerMisconfigured")
+      : t("workflow.ai.banner.generic")
     : null;
 
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold">
-          {wwfOnly ? "Catégorisation WWF" : "Classification IA"}
+          {wwfOnly ? t("workflow.ai.title.wwf") : t("workflow.ai.title")}
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
-          {wwfOnly
-            ? "Cette étape classe les produits en groupes alimentaires WWF (FG1–FG7) et identifie les produits composites."
-            : "L'IA aide à catégoriser les produits restants à partir de champs non commerciaux."}
+          {wwfOnly ? t("workflow.ai.desc.wwf") : t("workflow.ai.desc")}
         </p>
         <p className="mt-1 text-xs text-ink-soft">
-          {"Les champs commerciaux comme volumes, ventes, prix et marges ne sont pas envoyés à l'IA."}
+          {t("workflow.ai.privacyNote")}
         </p>
       </div>
 
@@ -579,29 +606,44 @@ function StepAIClassification({
                   a proposed category that needs review is still
                   *categorized*; the wizard must never imply otherwise. */}
               <div className="font-medium">
-                {lastClassifyResult.categorized_total} catégorisé(s) ·{" "}
-                {lastClassifyResult.accepted_total} accepté(s) ·{" "}
-                {lastClassifyResult.review_required_total} à vérifier ·{" "}
-                {lastClassifyResult.ai_failed} échec.
+                {t("workflow.ai.resultLine")
+                  .replace("{categorized}", String(lastClassifyResult.categorized_total))
+                  .replace("{accepted}", String(lastClassifyResult.accepted_total))
+                  .replace("{review}", String(lastClassifyResult.review_required_total))
+                  .replace("{failed}", String(lastClassifyResult.ai_failed))}
               </div>
               <div className="mt-1 text-xs opacity-80">
-                IA exécutée sur {lastClassifyResult.ai_attempted} produit(s) en{" "}
-                {lastClassifyResult.ai_batch_count} batch(s)
+                {t("workflow.ai.ranOn")
+                  .replace("{attempted}", String(lastClassifyResult.ai_attempted))
+                  .replace("{batches}", String(lastClassifyResult.ai_batch_count))}
                 {lastClassifyResult.ai_retry_batches > 0 && (
                   <>
-                    {" "}+ {lastClassifyResult.ai_retry_batches} retry
+                    {" "}+ {t("workflow.job.retry").replace("{n}", String(lastClassifyResult.ai_retry_batches))}
                     {lastClassifyResult.ai_recovered_rows > 0 && (
-                      <> ({lastClassifyResult.ai_recovered_rows} récupéré(s))</>
+                      <>
+                        {t("workflow.job.recovered").replace(
+                          "{n}",
+                          String(lastClassifyResult.ai_recovered_rows),
+                        )}
+                      </>
                     )}
                   </>
                 )}
                 {lastClassifyResult.out_of_scope_total > 0 && (
                   <>
-                    {" "}· {lastClassifyResult.out_of_scope_total} hors périmètre
+                    {t("workflow.job.outOfScope").replace(
+                      "{n}",
+                      String(lastClassifyResult.out_of_scope_total),
+                    )}
                   </>
                 )}
                 {lastClassifyResult.unknown_total > 0 && (
-                  <> · {lastClassifyResult.unknown_total} inconnu(s)</>
+                  <>
+                    {t("workflow.job.unknown").replace(
+                      "{n}",
+                      String(lastClassifyResult.unknown_total),
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -610,33 +652,37 @@ function StepAIClassification({
               lastClassifyResult.ai_unsupported_category_failures > 0 ||
               lastClassifyResult.ai_provider_errors > 0) && (
               <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
-                <p className="font-medium">Diagnostics IA :</p>
+                <p className="font-medium">{t("workflow.ai.diagnostics")}</p>
                 <ul className="mt-1 list-disc pl-4">
                   {lastClassifyResult.ai_parse_failures > 0 && (
                     <li>
-                      {lastClassifyResult.ai_parse_failures} réponse(s) IA non
-                      analysables (JSON invalide / id manquant)
+                      {t("workflow.ai.parseFailures").replace(
+                        "{n}",
+                        String(lastClassifyResult.ai_parse_failures),
+                      )}
                     </li>
                   )}
                   {lastClassifyResult.ai_unsupported_category_failures > 0 && (
                     <li>
-                      {
-                        lastClassifyResult.ai_unsupported_category_failures
-                      }{" "}
-                      catégorie(s) inconnue(s) renvoyée(s) par le modèle
+                      {t("workflow.ai.unsupportedCategory").replace(
+                        "{n}",
+                        String(lastClassifyResult.ai_unsupported_category_failures),
+                      )}
                     </li>
                   )}
                   {lastClassifyResult.ai_provider_errors > 0 && (
                     <li>
-                      {lastClassifyResult.ai_provider_errors} erreur(s)
-                      fournisseur (réseau / 5xx / clé invalide)
+                      {t("workflow.ai.providerErrors").replace(
+                        "{n}",
+                        String(lastClassifyResult.ai_provider_errors),
+                      )}
                     </li>
                   )}
                 </ul>
                 {lastClassifyResult.ai_sample_errors.length > 0 && (
                   <details className="mt-1">
                     <summary className="cursor-pointer text-warn-700 hover:underline">
-                      Voir un échantillon des erreurs
+                      {t("workflow.ai.viewSampleErrors")}
                     </summary>
                     <ul className="mt-1 list-disc pl-4 text-warn-700">
                       {lastClassifyResult.ai_sample_errors
@@ -655,8 +701,7 @@ function StepAIClassification({
         )}
         {isNotNeeded ? (
           <div className="rounded-xl border border-brand-200 bg-mint-100 px-3 py-2 text-sm text-brand-700">
-            Aucune classification IA nécessaire — tous les produits ont été classifiés
-            déterministement.
+            {t("workflow.ai.notNeeded")}
           </div>
         ) : (
           <>
@@ -683,13 +728,15 @@ function StepAIClassification({
         )}
         <div className="mt-4 flex flex-wrap gap-3">
           {isComplete || isNotNeeded ? (
-            <Button onClick={onNext}>Continuer vers Validation</Button>
+            <Button onClick={onNext}>{t("workflow.ai.continueToValidation")}</Button>
           ) : currentJob &&
             (currentJob.status === "queued" || currentJob.status === "running") &&
             busy ? (
             // Loop is actively polling — disable to prevent duplicates.
             <Button disabled>
-              {`Classification en cours… (${currentJob.processed_products}/${currentJob.total_products})`}
+              {t("workflow.ai.inProgressWithCount")
+                .replace("{processed}", String(currentJob.processed_products))
+                .replace("{total}", String(currentJob.total_products))}
             </Button>
           ) : currentJob &&
             (currentJob.status === "queued" || currentJob.status === "running") &&
@@ -699,15 +746,20 @@ function StepAIClassification({
             // stopped it, or the user just navigated back to the
             // step). Offer Reprendre instead of leaving them stuck.
             <Button onClick={() => onResume(currentJob.job_id)}>
-              {`Reprendre la classification (${currentJob.processed_products}/${currentJob.total_products})`}
+              {t("workflow.ai.resumeWithCount")
+                .replace("{processed}", String(currentJob.processed_products))
+                .replace("{total}", String(currentJob.total_products))}
             </Button>
           ) : currentJob && currentJob.status === "completed_with_errors" ? (
             <>
               <Button onClick={onRetryFailed} disabled={busy}>
-                {`Réessayer ${currentJob.failed_product_count} échec(s)`}
+                {t("workflow.ai.retryFailures").replace(
+                  "{n}",
+                  String(currentJob.failed_product_count),
+                )}
               </Button>
               <Button onClick={onNext} variant="secondary">
-                Continuer vers Validation
+                {t("workflow.ai.continueToValidation")}
               </Button>
             </>
           ) : currentJob && currentJob.status === "completed" ? (
@@ -718,11 +770,11 @@ function StepAIClassification({
             // catégorisation WWF". Drive the user FORWARD here, with
             // reclassify as a secondary action only.
             <>
-              <Button onClick={onNext}>Continuer vers Validation</Button>
+              <Button onClick={onNext}>{t("workflow.ai.continueToValidation")}</Button>
               <Button onClick={onRun} variant="secondary" disabled={busy}>
                 {wwfOnly
-                  ? "Reclassifier WWF"
-                  : "Reclassifier"}
+                  ? t("workflow.ai.reclassifyWwf")
+                  : t("workflow.ai.reclassify")}
               </Button>
             </>
           ) : currentJob && currentJob.status === "failed" ? (
@@ -731,8 +783,8 @@ function StepAIClassification({
               disabled={busy || !latestUpload || !classifyEnabled}
             >
               {wwfOnly
-                ? "Réessayer la catégorisation WWF"
-                : "Réessayer la classification IA"}
+                ? t("workflow.ai.retryWwf")
+                : t("workflow.ai.retryAi")}
             </Button>
           ) : (
             <Button
@@ -741,17 +793,17 @@ function StepAIClassification({
             >
               {busy
                 ? wwfOnly
-                  ? "Catégorisation WWF en cours…"
-                  : "Classification IA en cours…"
+                  ? t("workflow.ai.runningWwf")
+                  : t("workflow.ai.runningAi")
                 : wwfOnly
-                ? "Lancer la catégorisation WWF"
-                : "Lancer la classification IA"}
+                ? t("workflow.ai.runWwf")
+                : t("workflow.ai.runAi")}
             </Button>
           )}
         </div>
         {!latestUpload && (
           <p className="mt-2 text-xs text-ink-soft">
-            {"Importez d'abord un fichier à l'étape 1."}
+            {t("workflow.ai.importFirst")}
           </p>
         )}
       </Card>
@@ -790,22 +842,23 @@ function MethodologyClassificationCard({
   onRetryFailed: () => void;
   onOpenValidation: () => void;
 }) {
+  const t = useT();
   const isWwf = methodology === "wwf";
   const title = isWwf
-    ? "Catégorisation WWF"
-    : "Catégorisation Protein Tracker";
+    ? t("workflow.card.title.wwf")
+    : t("workflow.card.title.pt");
   const description = isWwf
-    ? "Classe les produits en groupes alimentaires WWF (FG1–FG7), sous-groupes et composites."
-    : "Classe les produits en groupes Protein Tracker (plant-based core, animal core, composite, etc.).";
+    ? t("workflow.card.desc.wwf")
+    : t("workflow.card.desc.pt");
   const runLabel = isWwf
-    ? "Lancer la catégorisation WWF"
-    : "Lancer la catégorisation Protein Tracker";
+    ? t("workflow.card.run.wwf")
+    : t("workflow.card.run.pt");
   const resumeLabelBase = isWwf
-    ? "Reprendre la catégorisation WWF"
-    : "Reprendre la catégorisation Protein Tracker";
+    ? t("workflow.card.resume.wwf")
+    : t("workflow.card.resume.pt");
   const validationLabel = isWwf
-    ? "Voir la validation WWF"
-    : "Voir la validation Protein Tracker";
+    ? t("workflow.card.viewValidation.wwf")
+    : t("workflow.card.viewValidation.pt");
 
   const total = counts?.total ?? 0;
   const classified = counts?.classified ?? 0;
@@ -870,27 +923,27 @@ function MethodologyClassificationCard({
   //  - "Terminée avec erreurs": at least one row is unresolved
   //                              (unknown / failed / job errored).
   let pillTone: "ok" | "warn" | "neutral" = "neutral";
-  let pillLabel = "À lancer";
+  let pillLabel = t("workflow.card.pill.toRun");
   if (isCompleteClean) {
     if (needsReview > 0) {
       pillTone = "warn";
-      pillLabel = "Terminée · à valider";
+      pillLabel = t("workflow.card.pill.doneToValidate");
     } else {
       pillTone = "ok";
-      pillLabel = "Terminée";
+      pillLabel = t("workflow.card.pill.done");
     }
   } else if (isCompleteWithErrors) {
     pillTone = "warn";
-    pillLabel = "Terminée avec erreurs";
+    pillLabel = t("workflow.card.pill.doneWithErrors");
   } else if (isRunning) {
     pillTone = "warn";
-    pillLabel = "En cours";
+    pillLabel = t("workflow.card.pill.running");
   } else if (status === "locked") {
     pillTone = "neutral";
-    pillLabel = "Verrouillée";
+    pillLabel = t("workflow.card.pill.locked");
   } else {
     pillTone = "warn";
-    pillLabel = "À lancer";
+    pillLabel = t("workflow.card.pill.toRun");
   }
 
   return (
@@ -911,14 +964,39 @@ function MethodologyClassificationCard({
                 <>
                   {/* Phase WWF-Q2 — deduplicated counters. success +
                       unresolved == total, no overlap. */}
-                  {successCount} réussies / {unresolvedCount} à résoudre
-                  {needsReview > 0 && <> · {needsReview} en revue</>}
+                  {t("workflow.card.counts.successUnresolved")
+                    .replace("{success}", String(successCount))
+                    .replace("{unresolved}", String(unresolvedCount))}
+                  {needsReview > 0 && (
+                    <>
+                      {t("workflow.card.counts.inReview").replace(
+                        "{n}",
+                        String(needsReview),
+                      )}
+                    </>
+                  )}
                 </>
               ) : (
                 <>
-                  {classified}/{total} catégorisé(s)
-                  {needsReview > 0 && <> · {needsReview} en revue</>}
-                  {pending > 0 && <> · {pending} en attente</>}
+                  {t("workflow.card.counts.categorized")
+                    .replace("{classified}", String(classified))
+                    .replace("{total}", String(total))}
+                  {needsReview > 0 && (
+                    <>
+                      {t("workflow.card.counts.inReview").replace(
+                        "{n}",
+                        String(needsReview),
+                      )}
+                    </>
+                  )}
+                  {pending > 0 && (
+                    <>
+                      {t("workflow.card.counts.pending").replace(
+                        "{n}",
+                        String(pending),
+                      )}
+                    </>
+                  )}
                 </>
               )}
             </span>
@@ -957,7 +1035,11 @@ function MethodologyClassificationCard({
       {!isRunning && hasPartialFailures && (
         <div className="mt-3 rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
           {currentJob?.status === "failed"
-            ? `Échec · ${currentJob.error_message ?? "erreur inconnue"}.`
+            ? t("workflow.card.failedBanner").replace(
+                "{message}",
+                currentJob.error_message ??
+                  t("workflow.card.failedBanner.unknownError"),
+              )
             : (() => {
                 // Phase WWF-Q2 — dedup: the same row can appear as
                 // both "failed" in the job and "unknown" in the
@@ -965,12 +1047,9 @@ function MethodologyClassificationCard({
                 // an unknown classification AND the job's count still
                 // ticks the failed counter). Don't add them; use the
                 // deduplicated unresolvedCount from the header.
-                return (
-                  <>
-                    Terminée avec erreurs · {unresolvedCount} ligne(s) à
-                    résoudre
-                    .
-                  </>
+                return t("workflow.card.doneWithErrorsBanner").replace(
+                  "{n}",
+                  String(unresolvedCount),
                 );
               })()}
         </div>
@@ -989,7 +1068,10 @@ function MethodologyClassificationCard({
               onClick={() => onResume(currentJob!.job_id)}
               disabled={busy}
             >
-              {`${resumeLabelBase} (${currentJob!.processed_products}/${currentJob!.total_products})`}
+              {t("workflow.card.resumeWithCount")
+                .replace("{label}", resumeLabelBase)
+                .replace("{processed}", String(currentJob!.processed_products))
+                .replace("{total}", String(currentJob!.total_products))}
             </Button>
             {classified > 0 && (
               <Button variant="secondary" onClick={onOpenValidation}>
@@ -1001,7 +1083,10 @@ function MethodologyClassificationCard({
           // True unresolved rows — retry is primary, validation next.
           <>
             <Button onClick={onRetryFailed} disabled={busy}>
-              {`Réessayer ${unresolvedCount} ligne(s)`}
+              {t("workflow.card.retryRows").replace(
+                "{n}",
+                String(unresolvedCount),
+              )}
             </Button>
             <Button variant="secondary" onClick={onOpenValidation}>
               {validationLabel}
@@ -1013,7 +1098,7 @@ function MethodologyClassificationCard({
           <>
             <Button onClick={onOpenValidation}>{validationLabel}</Button>
             <Button variant="secondary" onClick={onRun} disabled={busy}>
-              {isWwf ? "Reclassifier WWF" : "Reclassifier"}
+              {isWwf ? t("workflow.ai.reclassifyWwf") : t("workflow.ai.reclassify")}
             </Button>
           </>
         ) : (
@@ -1068,6 +1153,7 @@ function StepAIClassificationDual({
   onOpenValidation: (methodology: Methodology) => void;
   onNext: () => void;
 }) {
+  const t = useT();
   const ptDone = ptCounts?.status === "complete";
   const wwfDone = wwfCounts?.status === "complete";
   // Allow continuing to the next step as soon as at least one of the
@@ -1090,12 +1176,12 @@ function StepAIClassificationDual({
   const wwfNeeds = !wwfDone;
   const bothNeed = ptNeeds && wwfNeeds;
   const runBothLabel = bothNeed
-    ? "Lancer les deux catégorisations"
+    ? t("workflow.dual.runBoth")
     : ptNeeds
-    ? "Lancer la catégorisation Protein Tracker restante"
+    ? t("workflow.dual.runRemainingPt")
     : wwfNeeds
-    ? "Lancer la catégorisation WWF restante"
-    : "Tout est terminé";
+    ? t("workflow.dual.runRemainingWwf")
+    : t("workflow.dual.allDone");
   const runBothDisabled = Boolean(
     busyPt ||
       busyWwf ||
@@ -1107,15 +1193,13 @@ function StepAIClassificationDual({
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold">
-          Classification IA — Protein Tracker + WWF
+          {t("workflow.dual.title")}
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
-          Ce projet a deux méthodologies activées. Vous pouvez lancer
-          les deux catégorisations en un clic, ou les piloter
-          indépendamment via les cartes ci-dessous.
+          {t("workflow.dual.desc")}
         </p>
         <p className="mt-1 text-xs text-ink-soft">
-          {"Les champs commerciaux (volumes, ventes, prix, marges) ne sont jamais envoyés à l'IA."}
+          {t("workflow.dual.privacyNote")}
         </p>
       </div>
 
@@ -1129,11 +1213,11 @@ function StepAIClassificationDual({
           </Button>
           <span className="text-xs text-ink-soft">
             {bothNeed
-              ? "Lance les deux jobs en parallèle. Vous pouvez fermer cette page — chaque job est sauvegardé et reprenable."
+              ? t("workflow.dual.hint.both")
               : ptNeeds
-              ? "WWF est terminée. Cliquez pour lancer Protein Tracker."
+              ? t("workflow.dual.hint.ptNeeds")
               : wwfNeeds
-              ? "Protein Tracker est terminée. Cliquez pour lancer WWF."
+              ? t("workflow.dual.hint.wwfNeeds")
               : ""}
           </span>
         </div>
@@ -1206,15 +1290,13 @@ function StepAIClassificationDual({
           <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
             <div className="font-medium">
               {ptHasErrors && wwfHasErrors
-                ? "Les deux catégorisations ont des lignes à résoudre."
+                ? t("workflow.dual.errors.both")
                 : ptHasErrors
-                ? `La catégorisation Protein Tracker a ${ptUnresolved} ligne(s) à résoudre.`
-                : `La catégorisation WWF a ${wwfUnresolved} ligne(s) à résoudre.`}
+                ? t("workflow.dual.errors.pt").replace("{n}", String(ptUnresolved))
+                : t("workflow.dual.errors.wwf").replace("{n}", String(wwfUnresolved))}
             </div>
             <div className="mt-1 text-warn-700">
-              Vous pouvez continuer vers la validation pour les corriger
-              manuellement, ou cliquer sur « Réessayer » pour relancer les
-              lignes en échec.
+              {t("workflow.dual.errors.hint")}
             </div>
           </div>
         );
@@ -1222,7 +1304,7 @@ function StepAIClassificationDual({
 
       <div className="flex flex-wrap gap-3">
         <Button onClick={onNext} variant={canContinue ? "primary" : "secondary"}>
-          Continuer vers Validation
+          {t("workflow.dual.continueToValidation")}
         </Button>
       </div>
     </div>
@@ -1254,6 +1336,7 @@ function StepValidation({
   onResolved: () => void | Promise<void>;
   onNext: () => void;
 }) {
+  const t = useT();
   const isNotNeeded = step.status === "not_needed";
   const pending = step.counts.pending ?? 0;
 
@@ -1261,15 +1344,15 @@ function StepValidation({
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold">
-          {wwfOnly ? "Validation WWF" : "Validation des catégories"}
+          {wwfOnly ? t("workflow.validation.title.wwf") : t("workflow.validation.title")}
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
           {wwfOnly
-            ? "Tableau de validation WWF : inspectez les groupes alimentaires (FG1–FG7), les sous-groupes et les buckets composites attribués par l'IA et les règles déterministes."
-            : "Tableau de validation : voir et corriger les catégories assignées par les règles déterministes et par l'IA."}
+            ? t("workflow.validation.desc.wwf")
+            : t("workflow.validation.desc")}
         </p>
         <p className="mt-1 text-xs text-ink-soft">
-          {"Seuls les champs non commerciaux sont affichés. Volumes, ventes, prix et marges ne sont jamais utilisés pour la classification ni envoyés à l'IA."}
+          {t("workflow.validation.privacyNote")}
         </p>
       </div>
 
@@ -1294,17 +1377,21 @@ function StepValidation({
           <div className="text-sm text-ink-muted">
             {isNotNeeded || pending === 0 ? (
               <span className="text-brand-700">
-                Aucun produit en attente de validation manuelle.
+                {t("workflow.validation.noPending")}
               </span>
             ) : (
               <span>
-                {pending} produit(s) à vérifier — la validation manuelle
-                est recommandée mais non bloquante.
+                {t("workflow.validation.pendingNote").replace(
+                  "{n}",
+                  String(pending),
+                )}
               </span>
             )}
           </div>
           <Button variant="primary" onClick={onNext}>
-            {wwfOnly ? "Continuer vers Calcul WWF" : "Continuer vers NEVO"}
+            {wwfOnly
+              ? t("workflow.validation.continueToCalc.wwf")
+              : t("workflow.validation.continueToNevo")}
           </Button>
         </div>
       </Card>
@@ -1327,6 +1414,7 @@ function StepNEVO({
   onRun: () => void;
   onNext: () => void;
 }) {
+  const t = useT();
   const isComplete = step.status === "complete";
   const isNotNeeded = step.status === "not_needed";
 
@@ -1340,13 +1428,12 @@ function StepNEVO({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">Enrichissement NEVO</h2>
+        <h2 className="text-xl font-semibold">{t("workflow.nevo.title")}</h2>
         <p className="mt-1 text-sm text-ink-muted">
-          NEVO est utilisé en priorité car il peut fournir les protéines totales, végétales et
-          animales lorsque disponibles.
+          {t("workflow.nevo.desc")}
         </p>
         <p className="mt-1 text-xs text-ink-soft">
-          {"L'IA peut aider à sélectionner une référence NEVO, mais les valeurs nutritionnelles viennent de NEVO, pas de l'IA."}
+          {t("workflow.nevo.privacyNote")}
         </p>
       </div>
 
@@ -1354,18 +1441,21 @@ function StepNEVO({
         {/* Phase 34D — hard warning when NEVO table is empty / zero matched. */}
         {lastNevoResult?.warning && (
           <div className="mb-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
-            <p className="font-medium">Aucun produit n’a été enrichi par NEVO.</p>
+            <p className="font-medium">{t("workflow.nevo.noneEnriched")}</p>
             <p className="mt-1 text-xs">{lastNevoResult.warning}</p>
           </div>
         )}
         {lastNevoResult && (
           <div className="mb-3 text-xs text-ink-soft">
-            Table NEVO : {lastNevoResult.nevo_total_references} référence(s) chargée(s).
+            {t("workflow.nevo.tableLoaded").replace(
+              "{n}",
+              String(lastNevoResult.nevo_total_references),
+            )}
           </div>
         )}
         {isNotNeeded ? (
           <div className="rounded-xl border border-brand-200 bg-mint-100 px-3 py-2 text-sm text-brand-700">
-            {"Tous les produits disposent déjà d'une donnée protéique du retailer — NEVO non requis."}
+            {t("workflow.nevo.notNeeded")}
           </div>
         ) : (
           <>
@@ -1380,14 +1470,18 @@ function StepNEVO({
             {matchedProducts.length > 0 && (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
-                  {matchedProducts.length} produit(s) enrichi(s)
+                  {t("workflow.nevo.enrichedHeading").replace(
+                    "{n}",
+                    String(matchedProducts.length),
+                  )}
                 </p>
                 <ul className="mt-1.5 space-y-1">
                   {matchedProducts.map((r) => (
                     <li key={r.product_id} className="flex items-center justify-between text-xs text-forest-700">
                       <span>{r.product_name}</span>
                       <span className="text-ink-soft truncate max-w-[200px]">
-                        → {r.reference_name ?? "NEVO"}{r.has_split ? " (split ✓)" : ""}
+                        → {r.reference_name ?? t("workflow.nevo.fallbackRef")}
+                        {r.has_split ? t("workflow.nevo.splitFlag") : ""}
                       </span>
                     </li>
                   ))}
@@ -1397,17 +1491,23 @@ function StepNEVO({
             {noMatchProducts.length > 0 && (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-warn-700">
-                  {noMatchProducts.length} produit(s) sans correspondance NEVO
+                  {t("workflow.nevo.noMatchHeading").replace(
+                    "{n}",
+                    String(noMatchProducts.length),
+                  )}
                 </p>
                 <ul className="mt-1.5 space-y-1">
                   {noMatchProducts.map((r) => (
                     <li key={r.product_id} className="text-xs text-ink-soft">
-                      {r.product_name} — aucune référence NEVO trouvée
+                      {t("workflow.nevo.noRefFound").replace(
+                        "{name}",
+                        r.product_name,
+                      )}
                     </li>
                   ))}
                 </ul>
                 <p className="mt-1.5 text-xs text-ink-soft">
-                  Ces produits seront tentés avec CIQUAL à {"l'étape"} suivante.
+                  {t("workflow.nevo.tryCiqualNext")}
                 </p>
               </div>
             )}
@@ -1427,17 +1527,17 @@ function StepNEVO({
           {isComplete || isNotNeeded ? (
             <>
               <Button onClick={onNext}>
-                Continuer vers la validation nutritionnelle
+                {t("workflow.nevo.continueToNutrition")}
               </Button>
               {isComplete && (
                 <Button variant="secondary" onClick={onRun} disabled={busy}>
-                  {busy ? "…" : "Relancer NEVO"}
+                  {busy ? "…" : t("workflow.nevo.rerun")}
                 </Button>
               )}
             </>
           ) : (
             <Button onClick={onRun} disabled={busy}>
-              {busy ? "Enrichissement NEVO en cours…" : "Enrichir avec NEVO"}
+              {busy ? t("workflow.nevo.running") : t("workflow.nevo.run")}
             </Button>
           )}
         </div>
@@ -1459,6 +1559,7 @@ function StepCIQUAL({
   onRun: () => void;
   onNext: () => void;
 }) {
+  const t = useT();
   const isComplete = step.status === "complete";
   const isNotNeeded = step.status === "not_needed";
   const isLocked = step.status === "locked";
@@ -1466,20 +1567,20 @@ function StepCIQUAL({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">Fallback CIQUAL + IA</h2>
+        <h2 className="text-xl font-semibold">{t("workflow.ciqual.title")}</h2>
         <p className="mt-1 text-sm text-ink-muted">
-          {"Uniquement pour les produits encore sans donnée protéique après NEVO. CIQUAL fournit une protéine totale. Comme CIQUAL ne fournit pas de split végétal/animal, l'IA peut aider à sélectionner une référence — qui doit être tracée."}
+          {t("workflow.ciqual.desc")}
         </p>
       </div>
 
       <Card>
         {isNotNeeded ? (
           <div className="rounded-xl border border-brand-200 bg-mint-100 px-3 py-2 text-sm text-brand-700">
-            {"Tous les produits disposent d'une donnée protéique exploitable après NEVO — CIQUAL non requis."}
+            {t("workflow.ciqual.notNeeded")}
           </div>
         ) : isLocked ? (
           <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-ink-muted">
-            {"Complétez d'abord l'étape NEVO avant d'utiliser CIQUAL."}
+            {t("workflow.ciqual.locked")}
           </div>
         ) : (
           <>
@@ -1494,23 +1595,23 @@ function StepCIQUAL({
         )}
         <div className="mt-4 flex flex-wrap gap-3">
           {isComplete || isNotNeeded ? (
-            <Button onClick={onNext}>Continuer vers Calcul</Button>
+            <Button onClick={onNext}>{t("workflow.ciqual.continueToCalc")}</Button>
           ) : isLocked ? (
             <Button variant="secondary" disabled>
-              {"NEVO d'abord"}
+              {t("workflow.ciqual.nevoFirst")}
             </Button>
           ) : (
             <Button onClick={onRun} disabled={busy}>
-              {busy ? "CIQUAL en cours…" : "Essayer CIQUAL + IA"}
+              {busy ? t("workflow.ciqual.running") : t("workflow.ciqual.run")}
             </Button>
           )}
           {isComplete && (
             <Button variant="secondary" onClick={onRun} disabled={busy}>
-              {busy ? "…" : "Ré-enrichir CIQUAL"}
+              {busy ? "…" : t("workflow.ciqual.reEnrich")}
             </Button>
           )}
           <Button variant="ghost" onClick={onNext}>
-            Continuer sans CIQUAL →
+            {t("workflow.ciqual.continueWithout")}
           </Button>
         </div>
       </Card>
@@ -1544,6 +1645,7 @@ function StepCalculation({
    *  hard-coded numeric index. */
   goToStepById: (id: string) => void;
 }) {
+  const t = useT();
   const isReady = step.status === "ready";
   const isBlocked = step.status === "blocked";
   // Phase 34N — the preflight endpoint is now the single source of
@@ -1581,26 +1683,26 @@ function StepCalculation({
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold">
-          {wwfOnly ? "Calcul WWF" : "Calcul"}
+          {wwfOnly ? t("workflow.calc.title.wwf") : t("workflow.calc.title")}
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
-          {wwfOnly
-            ? "Lance le calcul des volumes WWF par groupe alimentaire (FG1–FG7) et la répartition des composites selon les buckets Step 1. Le calcul est bloqué tant que des pré-requis sont manquants."
-            : "Lance le calcul du ratio protéines végétales / totales pour tous les produits éligibles. Le calcul est bloqué tant que des pré-requis sont manquants."}
+          {wwfOnly ? t("workflow.calc.desc.wwf") : t("workflow.calc.desc")}
         </p>
       </div>
 
       <Card>
-        <h3 className="text-sm font-semibold text-forest-900">Conditions requises</h3>
+        <h3 className="text-sm font-semibold text-forest-900">{t("workflow.calc.requirements")}</h3>
         {preflight && (
           <p className="mt-1 text-xs text-ink-muted">
-            {preflight.products_ready_for_calculation} sur{" "}
-            {preflight.total_products} produit(s) prêt(s) pour le calcul.
+            {t("workflow.calc.readyLine")
+              .replace("{ready}", String(preflight.products_ready_for_calculation))
+              .replace("{total}", String(preflight.total_products))}
             {preflight.products_missing_nutrition > 0 && (
               <>
-                {" "}
-                {preflight.products_missing_nutrition} sans donnée
-                protéique exploitable.
+                {t("workflow.calc.missingNutritionLine").replace(
+                  "{n}",
+                  String(preflight.products_missing_nutrition),
+                )}
               </>
             )}
           </p>
@@ -1622,14 +1724,14 @@ function StepCalculation({
             const requiresNutrition = preflight?.requires_nutrition !== false;
             const items: { label: string; marker: Marker }[] = [
               {
-                label: "Fichier importé",
+                label: t("workflow.calc.check.fileImported"),
                 marker:
                   (preflight?.total_products ?? 0) > 0 ? "ok" : "missing",
               },
               {
                 label: wwfOnly
-                  ? "Classification WWF terminée"
-                  : "Classification terminée",
+                  ? t("workflow.calc.check.classification.wwf")
+                  : t("workflow.calc.check.classification"),
                 marker:
                   preflight !== null &&
                   preflight.classified_products === preflight.total_products
@@ -1639,17 +1741,20 @@ function StepCalculation({
               {
                 label:
                   reviewOnly > 0
-                    ? `Validation manuelle — ${reviewOnly} à vérifier (non bloquant)`
-                    : "Validation manuelle complète",
+                    ? t("workflow.calc.check.manualReview.pending").replace(
+                        "{n}",
+                        String(reviewOnly),
+                      )
+                    : t("workflow.calc.check.manualReview.complete"),
                 marker: reviewOnly > 0 ? "warn" : "ok",
               },
               requiresNutrition
                 ? {
-                    label: "Données nutritionnelles disponibles",
+                    label: t("workflow.calc.check.nutrition"),
                     marker: readyRows > 0 ? "ok" : "missing",
                   }
                 : {
-                    label: "Données de volume / poids disponibles",
+                    label: t("workflow.calc.check.volume"),
                     marker: readyRows > 0 ? "ok" : "missing",
                   },
             ];
@@ -1710,12 +1815,12 @@ function StepCalculation({
               {classifBlockers.length > 0 && (
                 <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2">
                   <p className="text-sm font-medium text-danger-700">
-                    Catégorisation incomplète
+                    {t("workflow.calc.blocker.classifTitle")}
                   </p>
                   <p className="mt-0.5 text-xs text-danger-600">
                     {wwfOnly
-                      ? "Certains produits n'ont pas encore de groupe alimentaire WWF."
-                      : "Certains produits n'ont pas encore de catégorie Protein Tracker validée."}
+                      ? t("workflow.calc.blocker.classifDesc.wwf")
+                      : t("workflow.calc.blocker.classifDesc")}
                   </p>
                   <ul className="mt-2 space-y-1.5">
                     {classifBlockers.map((r) => {
@@ -1735,7 +1840,7 @@ function StepCalculation({
                               onClick={() => goToStepById(targetId)}
                               className="shrink-0 text-xs text-brand-600 hover:underline"
                             >
-                              Corriger →
+                              {t("workflow.calc.blocker.fix")}
                             </button>
                           )}
                         </li>
@@ -1747,10 +1852,10 @@ function StepCalculation({
               {nutritionBlockers.length > 0 && (
                 <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2">
                   <p className="text-sm font-medium text-warn-700">
-                    Données protéiques manquantes
+                    {t("workflow.calc.blocker.nutritionTitle")}
                   </p>
                   <p className="mt-0.5 text-xs text-warn-700">
-                    {"Certains produits sont catégorisés, mais n'ont pas encore de protéine exploitable."}
+                    {t("workflow.calc.blocker.nutritionDesc")}
                   </p>
                   <ul className="mt-2 space-y-1.5">
                     {nutritionBlockers.map((r) => {
@@ -1770,7 +1875,7 @@ function StepCalculation({
                               onClick={() => goToStepById(targetId)}
                               className="shrink-0 text-xs text-brand-600 hover:underline"
                             >
-                              Corriger →
+                              {t("workflow.calc.blocker.fix")}
                             </button>
                           )}
                         </li>
@@ -1799,18 +1904,19 @@ function StepCalculation({
         {(step.counts.review_only ?? 0) > 0 && (
           <div className="mt-3 rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-sm text-warn-700">
             <p className="font-medium">
-              {step.counts.review_only} produit(s) encore à vérifier
+              {t("workflow.calc.reviewBacklogTitle").replace(
+                "{n}",
+                String(step.counts.review_only),
+              )}
             </p>
             <p className="mt-1 text-xs">
-              Le calcul peut être lancé avec les catégories actuelles.
-              Les corrections manuelles affineront le résultat lors du
-              prochain calcul.{" "}
+              {t("workflow.calc.reviewBacklogBody")}
               <button
                 type="button"
                 onClick={() => goToStepById(BLOCKER_STEP_ID["review_pending"] ?? -1)}
                 className="text-brand-700 hover:underline"
               >
-                Voir les produits à vérifier →
+                {t("workflow.calc.viewReviewProducts")}
               </button>
             </p>
           </div>
@@ -1822,12 +1928,11 @@ function StepCalculation({
             partial-calc button. */}
         {(nutritionOnlyBlocker || missingNutritionCount > 0) && (
           <div className="mt-3 rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-sm text-warn-700">
-            <p className="font-medium">Données nutritionnelles incomplètes</p>
+            <p className="font-medium">{t("workflow.calc.incompleteNutritionTitle")}</p>
             <p className="mt-1 text-xs">
-              {missingNutritionCount} produit(s) sans donnée protéique
-              exploitable. {readyRows} produit(s) prêts seront inclus
-              dans le calcul. Le rapport indiquera explicitement le
-              pourcentage de produits couverts.
+              {t("workflow.calc.incompleteNutritionBody")
+                .replace("{missing}", String(missingNutritionCount))
+                .replace("{ready}", String(readyRows))}
             </p>
           </div>
         )}
@@ -1835,7 +1940,7 @@ function StepCalculation({
         {preflight && preflight.sample_exclusion_reasons.length > 0 && (
           <details className="mt-3 text-xs text-ink-soft">
             <summary className="cursor-pointer hover:text-forest-700">
-              Voir un échantillon des produits exclus
+              {t("workflow.calc.viewExcludedSample")}
             </summary>
             <ul className="mt-1 list-disc pl-4">
               {preflight.sample_exclusion_reasons.slice(0, 10).map((r, i) => (
@@ -1847,7 +1952,7 @@ function StepCalculation({
 
         <div className="mt-4 flex flex-wrap gap-3">
           <Button onClick={onRun} disabled={!isReady || busy}>
-            {busy ? "Calcul en cours…" : "Lancer le calcul"}
+            {busy ? t("workflow.calc.running") : t("workflow.calc.run")}
           </Button>
           {(nutritionOnlyBlocker || missingNutritionCount > 0) && (
             <Button
@@ -1858,8 +1963,8 @@ function StepCalculation({
               {busy
                 ? "…"
                 : partialAllowed
-                  ? "Calculer sur les données disponibles"
-                  : "Aucun produit exploitable"}
+                  ? t("workflow.calc.runPartial")
+                  : t("workflow.calc.noUsableProduct")}
             </Button>
           )}
         </div>
@@ -1868,169 +1973,6 @@ function StepCalculation({
   );
 }
 
-function StepReport({
-  projectId,
-  accessToken,
-  step,
-  latestRun,
-  isAltera,
-}: {
-  projectId: string;
-  accessToken: string | null;
-  step: WorkflowStep;
-  latestRun: Run | null;
-  isAltera: boolean;
-}) {
-  const hasRun = step.status === "complete" && latestRun !== null;
-
-  // Phase Product-UX-B/D — fetch the full ReportDocument so the guided
-  // result step shows the beautiful report inline (no forced click-out
-  // to /runs/:id). We track explicit loading/error states so we never
-  // silently degrade to the old compact summary when the full report
-  // should be available (Phase Product-UX-D).
-  const reportApi = useMemo(() => createApi(accessToken), [accessToken]);
-  const [report, setReport] = useState<ReportDocument | null>(null);
-  const [reportLoading, setReportLoading] = useState(false);
-  const [reportError, setReportError] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
-  useEffect(() => {
-    let active = true;
-    if (!latestRun) {
-      setReport(null);
-      setReportLoading(false);
-      setReportError(false);
-      return;
-    }
-    setReportLoading(true);
-    setReportError(false);
-    reportApi
-      .getReport(projectId, latestRun.id)
-      .then((d) => {
-        if (!active) return;
-        setReport(d);
-        setReportLoading(false);
-      })
-      .catch((err) => {
-        if (!active) return;
-        // Surface, don't swallow: log the backend error and show an
-        // actionable message rather than the old compact summary.
-        console.error("Failed to load guided report", err);
-        setReport(null);
-        setReportError(true);
-        setReportLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [reportApi, projectId, latestRun, reloadKey]);
-
-  // No successful run yet — invite the user back to the calculation step.
-  if (!hasRun) {
-    return (
-      <div className="space-y-5">
-        <div>
-          <h2 className="text-xl font-semibold">Résultat / rapport</h2>
-          <p className="mt-1 text-sm text-ink-muted">
-            Le rapport complet s’affiche ici après un calcul réussi.
-          </p>
-        </div>
-        <Card>
-          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-ink-muted">
-            {"Aucun calcul effectué. Revenez à l'étape Calcul pour lancer un premier calcul."}
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  // Phase Product-UX-D — the full guided report is the ONLY user-facing
-  // result. We render it as soon as it loads; while it loads we show a
-  // skeleton; if it truly fails we show an actionable error (never a
-  // silent fall-back to a compact summary).
-  if (report) {
-    return (
-      <div className="space-y-5">
-        <RunReport doc={report} />
-        {/* The technical/export detail page is an admin/debug surface;
-            keep it out of the normal client flow. */}
-        {isAltera && (
-          <div className="border-t border-gray-100 pt-3">
-            <Link href={`/projects/${projectId}/runs/${latestRun!.id}`}>
-              <Button variant="ghost" className="text-xs">
-                Détail technique (admin) →
-              </Button>
-            </Link>
-            <p className="mt-1 text-xs text-ink-soft">
-              Exports CSV/JSON/Markdown et historique d’approbation.
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (reportError) {
-    return (
-      <div className="space-y-5">
-        <div>
-          <h2 className="text-xl font-semibold">Résultat / rapport</h2>
-        </div>
-        <Card>
-          <div className="rounded-xl border border-danger-100 bg-danger-50 px-4 py-3 text-sm text-danger-700">
-            <p className="font-medium">
-              Le rapport complet n’a pas pu être chargé.
-            </p>
-            <p className="mt-1 text-xs">
-              Une erreur est survenue lors de la génération du rapport pour ce
-              calcul. Réessayez dans un instant ; si le problème persiste,
-              relancez un calcul depuis l’étape Calcul.
-            </p>
-          </div>
-          <div className="mt-4">
-            <Button variant="secondary" onClick={() => setReloadKey((k) => k + 1)}>
-              Réessayer
-            </Button>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  // Loading — beautiful skeleton while the report is fetched.
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-semibold">Résultat / rapport</h2>
-        <p className="mt-1 text-sm text-ink-muted">
-          Préparation de votre rapport…
-        </p>
-      </div>
-      <div className="overflow-hidden rounded-3xl bg-forest-hero p-6 shadow-card">
-        <div className="h-3 w-24 animate-pulse rounded-full bg-white/20" />
-        <div className="mt-3 h-6 w-2/3 animate-pulse rounded-lg bg-white/25" />
-        <div className="mt-2 h-3 w-1/2 animate-pulse rounded-full bg-white/15" />
-      </div>
-      <Card>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-16 animate-pulse rounded-2xl bg-line-soft/60 ring-1 ring-line"
-            />
-          ))}
-        </div>
-        <div className="mt-5 space-y-2">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-3 w-full animate-pulse rounded-full bg-line-soft/60"
-            />
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Main wizard page
@@ -2042,6 +1984,7 @@ export default function WorkflowWizardPage() {
   const projectId = params.id;
   const { accessToken, isAltera } = useAuth();
   const api = useMemo(() => createApi(accessToken), [accessToken]);
+  const t = useT();
 
   const [status, setStatus] = useState<WorkflowStatus | null>(null);
   const [uploads, setUploads] = useState<UploadResult[]>([]);
@@ -2118,9 +2061,9 @@ export default function WorkflowWizardPage() {
         setPreflight(null);
       }
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : "Échec du chargement");
+      setLoadError(e instanceof Error ? e.message : t("workflow.err.loadFailed"));
     }
-  }, [api, projectId]);
+  }, [api, projectId, t]);
 
   useEffect(() => {
     void refresh();
@@ -2247,30 +2190,34 @@ export default function WorkflowWizardPage() {
     } catch (e) {
       if (e instanceof ApiError && typeof e.detail === "object" && e.detail !== null) {
         const d = e.detail as { message?: string; error_code?: string };
-        // Phase 34P+U — map known failure codes to friendly French.
+        // Phase 34P+U — map known failure codes to friendly copy.
         const friendly =
           d.error_code === "classify_failed"
-            ? "La classification IA a échoué côté serveur. Réessayez ou contactez l'équipe Altera."
+            ? t("workflow.err.classifyFailed")
             : d.error_code === "upload_not_found"
-            ? "Fichier introuvable — il a peut-être été supprimé. Re-importez le CSV."
+            ? t("workflow.err.uploadNotFound")
             : d.error_code === "classify_invalid_request"
-            ? `Requête invalide : ${d.message ?? "vérifier les options"}`
+            ? t("workflow.err.classifyInvalidRequest").replace(
+                "{message}",
+                d.message ?? t("workflow.err.classifyInvalidRequest.fallback"),
+              )
             : d.error_code === "zero_usable_nutrition"
-            ? "Aucun produit ne dispose de données protéiques exploitables. Complétez au moins une ligne dans la validation nutritionnelle (ou exécutez NEVO si ce n'est pas encore fait)."
+            ? t("workflow.err.zeroUsableNutrition")
             : d.error_code === "run_not_ready"
-            ? `Le calcul ne peut pas être lancé : ${d.message ?? "des étapes restent à compléter"}.`
+            ? t("workflow.err.runNotReady").replace(
+                "{message}",
+                d.message ?? t("workflow.err.runNotReady.fallback"),
+              )
             : d.error_code === "response_serialization_failed"
-            ? "Le serveur a renvoyé une réponse invalide. L'équipe Altera a été notifiée — réessayez dans quelques instants."
+            ? t("workflow.err.serializationFailed")
             : d.error_code === "classification_job_conflict"
-            ? "Une autre exécution est en cours. Patientez quelques secondes puis réessayez."
+            ? t("workflow.err.jobConflict")
             : d.message;
         setActionError(friendly ?? String(e));
       } else if (e instanceof Error && e.message.includes("Failed to fetch")) {
-        setActionError(
-          "Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.",
-        );
+        setActionError(t("workflow.err.failedToFetch"));
       } else {
-        setActionError(e instanceof Error ? e.message : "Erreur inattendue");
+        setActionError(e instanceof Error ? e.message : t("workflow.err.unexpected"));
       }
     } finally {
       setBusy(false);
@@ -2332,18 +2279,14 @@ export default function WorkflowWizardPage() {
           }
         } catch (e) {
           consecutiveFailures += 1;
-          setJobError(
-            "Connexion temporairement interrompue. Nouvelle tentative…",
-          );
+          setJobError(t("workflow.poll.interrupted"));
           if (consecutiveFailures >= 5) {
             // Phase 35C — improved dead-end message. The job state
             // is persisted server-side; the user just has to click
             // "Reprendre la classification" (which the StepAI block
             // now renders thanks to ``currentJob`` being non-terminal
             // and ``busy`` being false after this return).
-            setJobError(
-              "Connexion interrompue. Le traitement est sauvegardé et peut être repris.",
-            );
+            setJobError(t("workflow.poll.deadEnd"));
             return;
           }
           // Catch-all: wait a bit longer between retries.
@@ -2353,7 +2296,7 @@ export default function WorkflowWizardPage() {
         await new Promise((r) => setTimeout(r, 1500));
       }
     },
-    [api, projectId, refresh],
+    [api, projectId, refresh, t],
   );
 
   // Phase 35A — resume the existing active job instead of creating
@@ -2377,7 +2320,7 @@ export default function WorkflowWizardPage() {
         }
       })
       .catch((e: Error) => {
-        setActionError(e.message ?? "Impossible de reprendre la classification.");
+        setActionError(e.message ?? t("workflow.err.resumeFailed"));
       })
       .finally(() => {
         setBusyPt(false);
@@ -2424,21 +2367,14 @@ export default function WorkflowWizardPage() {
             // running (last advance < 2 min ago). Paused/idle jobs
             // no longer trip the guard; if the wizard hits this, the
             // platform really is processing something else right now.
-            setActionError(
-              "Un traitement volumineux est actuellement en cours sur la " +
-                "plateforme. Il peut provenir d'une autre organisation. " +
-                "Réessayez dans quelques minutes — un traitement en pause " +
-                "sur votre fichier reste reprenable.",
-            );
+            setActionError(t("workflow.err.heavyJobInProgress"));
             return;
           }
           setActionError(d.message ?? String(e));
         } else if (e.message?.includes("Failed to fetch")) {
-          setActionError(
-            "Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.",
-          );
+          setActionError(t("workflow.err.failedToFetch"));
         } else {
-          setActionError(e.message ?? "Échec de la classification IA.");
+          setActionError(e.message ?? t("workflow.err.classifyAiFailed"));
         }
       })
       .finally(() => {
@@ -2459,7 +2395,7 @@ export default function WorkflowWizardPage() {
         await pollJob(job.job_id);
       })
       .catch((e: Error) => {
-        setActionError(e.message ?? "Échec lors du redémarrage de la classification IA.");
+        setActionError(e.message ?? t("workflow.err.retryFailed"));
       })
       .finally(() => {
         setBusyPt(false);
@@ -2489,13 +2425,9 @@ export default function WorkflowWizardPage() {
           }
         } catch {
           consecutiveFailures += 1;
-          setJobErrorWwf(
-            "Connexion temporairement interrompue. Nouvelle tentative…",
-          );
+          setJobErrorWwf(t("workflow.poll.interrupted"));
           if (consecutiveFailures >= 5) {
-            setJobErrorWwf(
-              "Connexion interrompue. Le traitement WWF est sauvegardé et peut être repris.",
-            );
+            setJobErrorWwf(t("workflow.poll.deadEnd.wwf"));
             return;
           }
           await new Promise((r) => setTimeout(r, 3000));
@@ -2504,7 +2436,7 @@ export default function WorkflowWizardPage() {
         await new Promise((r) => setTimeout(r, 1500));
       }
     },
-    [api, projectId, refresh],
+    [api, projectId, refresh, t],
   );
 
   function handleResumeClassifyWwf(jobId: string) {
@@ -2523,9 +2455,7 @@ export default function WorkflowWizardPage() {
         }
       })
       .catch((e: Error) => {
-        setActionErrorWwf(
-          e.message ?? "Impossible de reprendre la catégorisation WWF.",
-        );
+        setActionErrorWwf(e.message ?? t("workflow.err.resumeWwfFailed"));
       })
       .finally(() => {
         setBusyWwf(false);
@@ -2565,13 +2495,9 @@ export default function WorkflowWizardPage() {
           }
           setActionErrorWwf(d.message ?? String(e));
         } else if (e.message?.includes("Failed to fetch")) {
-          setActionErrorWwf(
-            "Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.",
-          );
+          setActionErrorWwf(t("workflow.err.failedToFetch"));
         } else {
-          setActionErrorWwf(
-            e.message ?? "Échec de la catégorisation WWF.",
-          );
+          setActionErrorWwf(e.message ?? t("workflow.err.classifyWwfFailed"));
         }
       })
       .finally(() => {
@@ -2592,9 +2518,7 @@ export default function WorkflowWizardPage() {
         await pollJobWwf(job.job_id);
       })
       .catch((e: Error) => {
-        setActionErrorWwf(
-          e.message ?? "Échec lors du redémarrage de la catégorisation WWF.",
-        );
+        setActionErrorWwf(e.message ?? t("workflow.err.retryWwfFailed"));
       })
       .finally(() => {
         setBusyWwf(false);
@@ -2679,14 +2603,14 @@ export default function WorkflowWizardPage() {
           href={`/projects/${projectId}`}
           className="mt-4 inline-block text-sm text-brand-700 hover:underline"
         >
-          ← Retour au projet
+          {t("workflow.backToProject")}
         </Link>
       </div>
     );
   }
 
   if (!status || activeIdx === null) {
-    return <div className="text-sm text-ink-soft">Chargement…</div>;
+    return <div className="text-sm text-ink-soft">{t("common.loading")}</div>;
   }
 
   // Phase WWF-G — index into the methodology-aware visible step list.
@@ -2718,7 +2642,7 @@ export default function WorkflowWizardPage() {
 
   const activeBackendStep = backendStepForActive ?? ({
     key: currentStep.backendKey,
-    label: currentStep.label,
+    label: t(currentStep.labelKey),
     status: "locked",
     progress_pct: 0,
     counts: {},
@@ -2738,23 +2662,23 @@ export default function WorkflowWizardPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-mint-100 ring-1 ring-white/20">
-              {wwfOnly ? "WWF Planet-Based Diets" : "Parcours guidé"}
+              {wwfOnly ? t("workflow.hero.badge.wwf") : t("workflow.hero.badge")}
             </span>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-              {wwfOnly
-                ? "Parcours WWF Planet-Based Diets"
-                : "Parcours guidé"}
+              {wwfOnly ? t("workflow.hero.title.wwf") : t("workflow.hero.title")}
             </h1>
             <p className="mt-1 text-sm text-mint-100/90">
-              Étape {safeActiveIdx + 1} sur {visibleSteps.length} ·
-              Progression {status.overall_progress_pct} %
+              {t("workflow.hero.stepProgress")
+                .replace("{current}", String(safeActiveIdx + 1))
+                .replace("{total}", String(visibleSteps.length))
+                .replace("{pct}", String(status.overall_progress_pct))}
             </p>
           </div>
           <Link
             href={`/projects/${projectId}`}
             className="shrink-0 rounded-lg px-2.5 py-1 text-xs text-mint-100/70 transition-colors hover:bg-white/10 hover:text-white"
           >
-            Détail technique →
+            {t("workflow.hero.technicalDetail")}
           </Link>
         </div>
         {/* Progress bar inside the hero band. */}
@@ -2885,16 +2809,13 @@ export default function WorkflowWizardPage() {
           <div className="space-y-5">
             <div>
               <h2 className="text-xl font-semibold">
-                Validation nutritionnelle
+                {t("workflow.nutrition.title")}
               </h2>
               <p className="mt-1 text-sm text-ink-muted">
-                Inspectez les valeurs protéiques attribuées par NEVO et
-                complétez manuellement les produits restants.
+                {t("workflow.nutrition.desc")}
               </p>
               <p className="mt-1 text-xs text-ink-soft">
-                {"L'IA ne génère jamais de valeurs protéiques. Les "}
-                valeurs proviennent du CSV retailer, de NEVO, ou de la
-                saisie manuelle.
+                {t("workflow.nutrition.privacyNote")}
               </p>
             </div>
             <NutritionTable
@@ -2905,7 +2826,7 @@ export default function WorkflowWizardPage() {
             <Card>
               <CountRow counts={activeBackendStep.counts} />
               <div className="mt-3 flex flex-wrap gap-3">
-                <Button onClick={advanceNext}>Continuer vers Calcul</Button>
+                <Button onClick={advanceNext}>{t("workflow.nutrition.continueToCalc")}</Button>
               </div>
             </Card>
           </div>
@@ -2943,7 +2864,7 @@ export default function WorkflowWizardPage() {
           }
           disabled={safeActiveIdx === 0}
         >
-          ← Précédent
+          {t("workflow.prev")}
         </Button>
         <span className="text-xs text-ink-soft">
           {safeActiveIdx + 1} / {visibleSteps.length}
@@ -2957,15 +2878,13 @@ export default function WorkflowWizardPage() {
           }
           disabled={safeActiveIdx === maxIdx}
         >
-          Suivant →
+          {t("workflow.next")}
         </Button>
       </div>
 
       {/* Phase WWF-G — privacy footer adapts to methodology context. */}
       <p className="mt-6 text-xs text-ink-soft">
-        {wwfOnly
-          ? "Note : la catégorisation WWF utilise uniquement les descripteurs non commerciaux (nom, marque, catégorie retailer, ingrédients). Les volumes, ventes et prix ne sont jamais envoyés à l'IA."
-          : "Note : l'IA peut aider à sélectionner certaines références, mais ne génère pas de valeurs nutritionnelles. Les protéines proviennent uniquement des données fournies par le retailer, de NEVO, de CIQUAL ou de la validation manuelle."}
+        {wwfOnly ? t("workflow.footer.wwf") : t("workflow.footer")}
       </p>
     </div>
   );

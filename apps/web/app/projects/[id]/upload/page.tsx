@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Card, CardHeader, Field, Pill } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
+import { useT } from "@/lib/i18n";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import {
   createApi,
@@ -49,27 +50,29 @@ const CANONICAL_FIELDS = [
   "retail_channel",
 ] as const;
 
-const CANONICAL_FIELD_LABELS_FR: Record<string, string> = {
-  external_product_id: "Identifiant produit / SKU",
-  product_name: "Nom du produit",
-  brand: "Marque",
-  retailer_category: "Catégorie retailer",
-  retailer_subcategory: "Sous-catégorie retailer",
-  weight_per_item_kg: "Poids unitaire (kg)",
-  weight_per_item_g: "Poids unitaire (g)",
-  items_purchased: "Volume / nombre d’unités (achats)",
-  protein_pct: "Protéines totales (%)",
-  plant_protein_pct: "Protéines végétales (%)",
-  animal_protein_pct: "Protéines animales (%)",
-  ingredients_text: "Ingrédients",
-  is_own_brand: "Marque propre ?",
-  ean: "EAN / code-barres",
-  labels: "Labels",
-  country: "Pays",
-  language: "Langue",
-  reporting_period: "Période de reporting",
-  items_sold: "Volume / nombre d’unités (ventes)",
-  retail_channel: "Canal de distribution",
+// Maps canonical field → i18n key. The KEYS are canonical (submitted to
+// the API unchanged); only the resolved display labels are translated.
+const CANONICAL_FIELD_LABEL_KEYS: Record<string, string> = {
+  external_product_id: "upload.field.external_product_id",
+  product_name: "upload.field.product_name",
+  brand: "upload.field.brand",
+  retailer_category: "upload.field.retailer_category",
+  retailer_subcategory: "upload.field.retailer_subcategory",
+  weight_per_item_kg: "upload.field.weight_per_item_kg",
+  weight_per_item_g: "upload.field.weight_per_item_g",
+  items_purchased: "upload.field.items_purchased",
+  protein_pct: "upload.field.protein_pct",
+  plant_protein_pct: "upload.field.plant_protein_pct",
+  animal_protein_pct: "upload.field.animal_protein_pct",
+  ingredients_text: "upload.field.ingredients_text",
+  is_own_brand: "upload.field.is_own_brand",
+  ean: "upload.field.ean",
+  labels: "upload.field.labels",
+  country: "upload.field.country",
+  language: "upload.field.language",
+  reporting_period: "upload.field.reporting_period",
+  items_sold: "upload.field.items_sold",
+  retail_channel: "upload.field.retail_channel",
 };
 
 const REQUIRED_PT_CANONICAL = new Set([
@@ -85,9 +88,15 @@ const REQUIRED_WWF_CANONICAL = new Set([
   "retail_channel",
 ]);
 
-function labelFor(field: string): string {
-  return CANONICAL_FIELD_LABELS_FR[field] ?? field;
+function labelFor(field: string, t: (key: string) => string): string {
+  const key = CANONICAL_FIELD_LABEL_KEYS[field];
+  return key ? t(key) : field;
 }
+
+// Sentinel error message thrown by ``parseHeadersFromFile`` (a
+// module-level helper with no access to ``useT``). The page catch
+// detects it and surfaces a translated message.
+const UPLOAD_PARSE_HEADERS_ERROR = "Could not read file headers";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -117,7 +126,7 @@ async function parseHeadersFromFile(file: File): Promise<string[]> {
       const sep = firstLine.includes("\t") ? "\t" : ",";
       resolve(firstLine.split(sep).map((h) => h.replace(/^"|"$/g, "").trim()).filter(Boolean));
     };
-    reader.onerror = () => reject(new Error("Could not read file headers"));
+    reader.onerror = () => reject(new Error(UPLOAD_PARSE_HEADERS_ERROR));
     reader.readAsText(file.slice(0, 8192));
   });
 }
@@ -127,11 +136,12 @@ async function parseHeadersFromFile(file: File): Promise<string[]> {
 // ---------------------------------------------------------------------------
 
 function ConfidenceBadge({ confidence }: { confidence: ColumnMappingEntry["confidence"] }) {
+  const t = useT();
   if (confidence === "exact")
     return <Pill tone="ok">exact</Pill>;
   if (confidence === "synonym")
-    return <Pill tone="warn">synonym</Pill>;
-  return <Pill tone="neutral">unmatched</Pill>;
+    return <Pill tone="warn">{t("upload.confidence.synonymEn")}</Pill>;
+  return <Pill tone="neutral">{t("upload.confidence.unmatchedEn")}</Pill>;
 }
 
 function MappingTable({
@@ -143,14 +153,15 @@ function MappingTable({
   overrides: Record<string, string>;
   onChange: (normHeader: string, value: string) => void;
 }) {
+  const t = useT();
   return (
     <div className="mt-4 overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-gray-200 text-left text-ink-soft uppercase tracking-wider">
-            <th className="pb-2 pr-4 font-medium">CSV header</th>
-            <th className="pb-2 pr-4 font-medium">Map to field</th>
-            <th className="pb-2 font-medium">Confidence</th>
+            <th className="pb-2 pr-4 font-medium">{t("upload.tableStd.csvHeader")}</th>
+            <th className="pb-2 pr-4 font-medium">{t("upload.tableStd.mapToField")}</th>
+            <th className="pb-2 font-medium">{t("upload.tableStd.confidence")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -161,7 +172,7 @@ function MappingTable({
                 <td className="py-2 pr-4 font-mono text-gray-800 align-middle">
                   {entry.raw_header}
                   {entry.enrichment_needed && (
-                    <span className="ml-1.5 text-blue-600 text-xs">(enrichable)</span>
+                    <span className="ml-1.5 text-blue-600 text-xs">{t("upload.tableStd.enrichable")}</span>
                   )}
                 </td>
                 <td className="py-2 pr-4 align-middle">
@@ -170,11 +181,11 @@ function MappingTable({
                     onChange={(e) => onChange(entry.normalised_header, e.target.value)}
                     className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
                   >
-                    <option value="__none__">— Ignorer / utiliser tel quel —</option>
-                    <option value="ignore">Ignorer cette colonne</option>
+                    <option value="__none__">{t("upload.tableStd.optionNone")}</option>
+                    <option value="ignore">{t("upload.tableStd.optionIgnore")}</option>
                     {CANONICAL_FIELDS.map((f) => (
                       <option key={f} value={f}>
-                        {labelFor(f)}
+                        {labelFor(f, t)}
                       </option>
                     ))}
                   </select>
@@ -192,6 +203,7 @@ function MappingTable({
 }
 
 function ClassifyResultSummary({ result }: { result: JobResult }) {
+  const t = useT();
   const queued = (result.queued_for_review as number) ?? 0;
   const aiAttempted = (result.ai_attempted as number) ?? 0;
   const aiAccepted = (result.ai_accepted as number) ?? 0;
@@ -201,38 +213,42 @@ function ClassifyResultSummary({ result }: { result: JobResult }) {
     <>
       <div className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
         <div>
-          <div className="text-xs uppercase tracking-wider text-ink-soft">Rules matched</div>
+          <div className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.rulesMatched")}</div>
           <div className="mt-1 text-lg font-semibold">{result.matched ?? 0}</div>
         </div>
         {hasAi ? (
           <div>
-            <div className="text-xs uppercase tracking-wider text-ink-soft">AI accepted</div>
+            <div className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.aiAccepted")}</div>
             <div className="mt-1 text-lg font-semibold">{aiAccepted}</div>
           </div>
         ) : (
           <div>
-            <div className="text-xs uppercase tracking-wider text-ink-soft">Pass-through</div>
+            <div className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.passThrough")}</div>
             <div className="mt-1 text-lg font-semibold">{result.pass_through ?? 0}</div>
           </div>
         )}
         <div>
-          <div className="text-xs uppercase tracking-wider text-ink-soft">Collisions</div>
+          <div className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.collisions")}</div>
           <div className="mt-1 text-lg font-semibold">{result.rule_collision ?? 0}</div>
         </div>
         <div>
-          <div className="text-xs uppercase tracking-wider text-ink-soft">Sent to review</div>
+          <div className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.sentToReview")}</div>
           <div className="mt-1 text-lg font-semibold">{queued}</div>
         </div>
       </div>
       {hasAi && (
         <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-          AI classifier: {aiAttempted} attempted · {aiAccepted} accepted · {aiReview} sent to Altera review
+          {t("upload.page.aiClassifierSummary")
+            .replace("{attempted}", String(aiAttempted))
+            .replace("{accepted}", String(aiAccepted))
+            .replace("{review}", String(aiReview))}
         </div>
       )}
       {queued > 0 && (
         <p className="mt-3 text-sm text-ink-muted">
-          {queued} product{queued !== 1 ? "s" : ""} will be reviewed by the Altera team before the
-          report is generated.
+          {t("upload.page.queuedReview")
+            .replace("{n}", String(queued))
+            .replace("{s}", queued !== 1 ? "s" : "")}
         </p>
       )}
     </>
@@ -244,6 +260,7 @@ function ClassifyResultSummary({ result }: { result: JobResult }) {
 // ---------------------------------------------------------------------------
 
 export default function UploadPage() {
+  const t = useT();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const projectId = params.id;
@@ -268,7 +285,7 @@ export default function UploadPage() {
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [busyLabel, setBusyLabel] = useState("Uploading…");
+  const [busyLabel, setBusyLabel] = useState(() => t("upload.page.busy.uploading"));
 
   // Step 3 — classify
   const [classifyBusy, setClassifyBusy] = useState<Methodology | null>(null);
@@ -311,7 +328,13 @@ export default function UploadPage() {
       }
       setMappingOverrides(initial);
     } catch (err) {
-      setMappingError(err instanceof Error ? err.message : "Could not preview column mapping");
+      if (err instanceof Error && err.message === UPLOAD_PARSE_HEADERS_ERROR) {
+        setMappingError(t("upload.parse.headersUnreadableEn"));
+      } else {
+        setMappingError(
+          err instanceof Error ? err.message : t("upload.page.previewError"),
+        );
+      }
     } finally {
       setMappingBusy(false);
     }
@@ -346,11 +369,11 @@ export default function UploadPage() {
 
     try {
       if (useStorageFlow) {
-        setBusyLabel("Preparing…");
+        setBusyLabel(t("upload.page.busy.preparing"));
         const prep = await api.prepareUpload(projectId, file.name);
-        setBusyLabel("Uploading to storage…");
+        setBusyLabel(t("upload.page.busy.uploadingStorage"));
         await uploadViaStorage(file, prep.signed_url);
-        setBusyLabel("Processing…");
+        setBusyLabel(t("upload.page.busy.processing"));
         const r = await api.ingestUpload(
           projectId,
           prep.upload_id,
@@ -360,15 +383,15 @@ export default function UploadPage() {
         );
         setResult(r);
       } else {
-        setBusyLabel("Uploading…");
+        setBusyLabel(t("upload.page.busy.uploading"));
         const r = await api.uploadCsv(projectId, file, columnMapping);
         setResult(r);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setError(err instanceof Error ? err.message : t("upload.page.uploadFailed"));
     } finally {
       setBusy(false);
-      setBusyLabel("Uploading…");
+      setBusyLabel(t("upload.page.busy.uploading"));
     }
   }
 
@@ -384,9 +407,10 @@ export default function UploadPage() {
           : job;
       setClassifyJob(finalJob);
       setLastClassifiedMethodology(m);
-      if (finalJob.status === "failed") setError(finalJob.error_message ?? "Classification failed");
+      if (finalJob.status === "failed")
+        setError(finalJob.error_message ?? t("upload.page.classificationFailed"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Classification failed");
+      setError(err instanceof Error ? err.message : t("upload.page.classificationFailed"));
     } finally {
       setClassifyBusy(null);
     }
@@ -402,7 +426,7 @@ export default function UploadPage() {
       const r = await api.uploadWwfStep2(projectId, wwfStep2File);
       setWwfStep2Result(r);
     } catch (err) {
-      setWwfStep2Error(err instanceof Error ? err.message : "Upload failed");
+      setWwfStep2Error(err instanceof Error ? err.message : t("upload.page.uploadFailed"));
     } finally {
       setWwfStep2Busy(false);
     }
@@ -471,18 +495,17 @@ export default function UploadPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Upload data</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{t("upload.page.title")}</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        Upload a CSV. The pipeline drops commercial columns at the boundary, normalises units, and
-        validates per methodology.
+        {t("upload.page.subtitle")}
       </p>
 
       {/* Step 1 — file selection */}
       <div className="mt-8">
         <Card>
-          <CardHeader title="1. Pick a CSV file" />
+          <CardHeader title={t("upload.page.step1Title")} />
           <div className="mt-4 space-y-4">
-            <Field label="CSV / TSV / TXT file">
+            <Field label={t("upload.page.fileField")}>
               <input
                 type="file"
                 accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values"
@@ -496,7 +519,7 @@ export default function UploadPage() {
               )}
             </Field>
             {mappingBusy && (
-              <p className="text-sm text-ink-soft">Parsing column headers…</p>
+              <p className="text-sm text-ink-soft">{t("upload.page.parsingHeaders")}</p>
             )}
             {mappingError && (
               <div className="rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
@@ -512,14 +535,16 @@ export default function UploadPage() {
         <div className="mt-6">
           <Card>
             <CardHeader
-              title="1b. Column mapping"
-              subtitle="Review suggested field mappings. Adjust any that look wrong before uploading."
+              title={t("upload.page.step1bTitle")}
+              subtitle={t("upload.page.step1bSubtitle")}
             />
 
             {hasDuplicates && (
               <div className="mt-3 rounded-md border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
-                Duplicate column headers detected: {mappingPreview.duplicate_normalised.join(", ")}.
-                Only the last value will be kept per row.
+                {t("upload.page.duplicates").replace(
+                  "{headers}",
+                  mappingPreview.duplicate_normalised.join(", "),
+                )}
               </div>
             )}
 
@@ -528,24 +553,26 @@ export default function UploadPage() {
                 {hasMissingPt && (
                   <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-danger-700">
                     <div className="font-medium">
-                      Champs Protein Tracker requis encore manquants :{" "}
-                      {liveMissingPt.map(labelFor).join(", ")}.
+                      {t("upload.page.missingPtTitle").replace(
+                        "{fields}",
+                        liveMissingPt.map((f) => labelFor(f, t)).join(", "),
+                      )}
                     </div>
                     <div className="mt-1 text-rose-600">
-                      Ces champs sont nécessaires pour calculer les volumes de
-                      protéines (totales, animales, végétales).
+                      {t("upload.page.missingPtBody")}
                     </div>
                   </div>
                 )}
                 {hasMissingWwf && (
                   <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-danger-700">
                     <div className="font-medium">
-                      Champs WWF requis encore manquants :{" "}
-                      {liveMissingWwf.map(labelFor).join(", ")}.
+                      {t("upload.page.missingWwfTitle").replace(
+                        "{fields}",
+                        liveMissingWwf.map((f) => labelFor(f, t)).join(", "),
+                      )}
                     </div>
                     <div className="mt-1 text-rose-600">
-                      Ces champs sont nécessaires pour calculer les volumes WWF
-                      par groupe alimentaire.
+                      {t("upload.page.missingWwfBody")}
                     </div>
                   </div>
                 )}
@@ -555,16 +582,18 @@ export default function UploadPage() {
             {/* Phase 33J — auto-ID + scale hint notices (info, not blocking). */}
             {noExternalIdMapped && (
               <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                Aucune colonne d’identifiant produit détectée : Altera générera des
-                identifiants internes pour cet upload (préfixés <code>AUTO-</code>).
+                {t("upload.page.noExternalId")}
+                <code>AUTO-</code>
+                {t("upload.page.noExternalIdSuffix")}
               </div>
             )}
             {gramsHint && (
               <div className="mt-3 rounded-md border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
-                Cette colonne semble contenir des grammes. Sélection recommandée :
-                <strong> Poids unitaire (g)</strong> au lieu de
-                <strong> Poids unitaire (kg)</strong>. Aucune conversion automatique
-                n’est appliquée tant que vous n’avez pas choisi la bonne unité.
+                {t("upload.page.gramsHintPrefix")}
+                <strong> {labelFor("weight_per_item_g", t)}</strong>
+                {t("upload.page.gramsHintInsteadOf")}
+                <strong> {labelFor("weight_per_item_kg", t)}</strong>
+                {t("upload.page.gramsHintSuffix")}
               </div>
             )}
 
@@ -576,7 +605,7 @@ export default function UploadPage() {
 
             <div className="mt-4">
               <Button onClick={onUpload} disabled={busy}>
-                {busy ? busyLabel : "Upload with this mapping"}
+                {busy ? busyLabel : t("upload.page.uploadWithMapping")}
               </Button>
             </div>
           </Card>
@@ -588,7 +617,7 @@ export default function UploadPage() {
         <div className="mt-6">
           <Card>
             <CardHeader
-              title="2. Ingestion report"
+              title={t("upload.page.step2Title")}
               action={
                 <Pill
                   tone={
@@ -605,30 +634,29 @@ export default function UploadPage() {
             />
             {result.duplicate_of && (
               <div className="mt-3 rounded-md border border-warn-100 bg-warn-50 px-3 py-2 text-sm text-warn-700">
-                This file appears to be a duplicate of a previous upload (same content). Processing
-                continued, but you may want to verify this is intentional.
+                {t("upload.page.duplicateOf")}
               </div>
             )}
             <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">
               <div>
-                <dt className="text-xs uppercase tracking-wider text-ink-soft">Rows</dt>
+                <dt className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.rows")}</dt>
                 <dd className="mt-1 font-medium">{result.row_count}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-wider text-ink-soft">Products</dt>
+                <dt className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.products")}</dt>
                 <dd className="mt-1 font-medium">{result.products_count}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-wider text-ink-soft">Errors</dt>
+                <dt className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.errors")}</dt>
                 <dd className="mt-1 font-medium">{result.errors.length}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-wider text-ink-soft">Warnings</dt>
+                <dt className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.warnings")}</dt>
                 <dd className="mt-1 font-medium">{result.warnings.length}</dd>
               </div>
               {result.file_size_bytes != null && (
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-ink-soft">File size</dt>
+                  <dt className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.fileSize")}</dt>
                   <dd className="mt-1 font-medium">{formatBytes(result.file_size_bytes)}</dd>
                 </div>
               )}
@@ -636,7 +664,7 @@ export default function UploadPage() {
             {result.dropped_columns.length > 0 && (
               <div className="mt-4">
                 <div className="text-xs font-medium uppercase tracking-wider text-ink-soft">
-                  Dropped commercial columns
+                  {t("upload.page.droppedColumns")}
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {result.dropped_columns.map((c) => (
@@ -648,15 +676,21 @@ export default function UploadPage() {
             {result.errors.length > 0 && (
               <details className="mt-4">
                 <summary className="cursor-pointer text-sm font-medium text-danger-700">
-                  Errors ({result.errors.length})
+                  {t("upload.page.errorsCount").replace(
+                    "{n}",
+                    String(result.errors.length),
+                  )}
                 </summary>
                 <p className="mt-2 text-xs text-danger-700">
-                  Rows with errors were not ingested. Fix the CSV and re-upload.
+                  {t("upload.page.errorsHint")}
                 </p>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-danger-700">
                   {result.errors.slice(0, 20).map((e, i) => (
                     <li key={i}>
-                      row {e.row_number}: {e.code} — {e.message}
+                      {t("upload.page.errorRow")
+                        .replace("{row}", String(e.row_number))
+                        .replace("{code}", e.code)
+                        .replace("{message}", e.message)}
                     </li>
                   ))}
                 </ul>
@@ -671,22 +705,22 @@ export default function UploadPage() {
         <div className="mt-6">
           <Card>
             <CardHeader
-              title="3. Classify"
-              subtitle="Runs the deterministic rules engine. Unmatched products are queued for Altera review."
+              title={t("upload.page.step3Title")}
+              subtitle={t("upload.page.step3Subtitle")}
             />
             <div className="mt-4 flex gap-2">
               <Button
                 onClick={() => onClassify("protein_tracker")}
                 disabled={classifyBusy !== null}
               >
-                {classifyBusy === "protein_tracker" ? "Classifying…" : "Classify as Protein Tracker"}
+                {classifyBusy === "protein_tracker" ? t("upload.page.classifying") : t("upload.page.classifyPt")}
               </Button>
               <Button
                 variant="secondary"
                 onClick={() => onClassify("wwf")}
                 disabled={classifyBusy !== null}
               >
-                {classifyBusy === "wwf" ? "Classifying…" : "Classify as WWF"}
+                {classifyBusy === "wwf" ? t("upload.page.classifying") : t("upload.page.classifyWwf")}
               </Button>
             </div>
             {classifyJob && (
@@ -703,7 +737,7 @@ export default function UploadPage() {
                   >
                     {classifyJob.status}
                   </Pill>
-                  <span className="text-xs text-ink-soft">job {classifyJob.job_id.slice(0, 8)}</span>
+                  <span className="text-xs text-ink-soft">{t("upload.page.jobLabel").replace("{id}", classifyJob.job_id.slice(0, 8))}</span>
                 </div>
                 {classifyJob.status === "succeeded" && classifyJob.result && (
                   <ClassifyResultSummary result={classifyJob.result} />
@@ -719,16 +753,14 @@ export default function UploadPage() {
         <div className="mt-6">
           <Card>
             <CardHeader
-              title="4. Step 2 ingredient attribution (WWF)"
-              subtitle="Optional: upload a JSON file mapping own-brand composite products to their ingredients."
+              title={t("upload.page.step4Title")}
+              subtitle={t("upload.page.step4Subtitle")}
             />
             <p className="mt-3 text-sm text-ink-muted">
-              Step 2 applies to <strong>own-brand composite products only</strong>. Branded composites
-              are always reported at Step 1 (whole product weight) and are unaffected by this file.
-              Uploading a new file replaces any previously stored Step 2 data for this project.
+              {t("upload.page.step4Body")}
             </p>
             <form onSubmit={onWwfStep2Upload} className="mt-4 space-y-4">
-              <Field label="Ingredient JSON file (.json, max 50 MB)">
+              <Field label={t("upload.page.step4Field")}>
                 <input
                   type="file"
                   accept=".json,application/json"
@@ -742,7 +774,7 @@ export default function UploadPage() {
                 )}
               </Field>
               <Button type="submit" disabled={!wwfStep2File || wwfStep2Busy} variant="secondary">
-                {wwfStep2Busy ? "Uploading…" : "Upload ingredients"}
+                {wwfStep2Busy ? t("upload.page.busy.uploading") : t("upload.page.uploadIngredients")}
               </Button>
             </form>
             {wwfStep2Error && (
@@ -754,48 +786,50 @@ export default function UploadPage() {
               <div className="mt-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <Pill tone={wwfStep2Result.stored ? "ok" : wwfStep2Result.error_count > 0 ? "error" : "warn"}>
-                    {wwfStep2Result.stored ? "stored" : "not stored"}
+                    {wwfStep2Result.stored ? t("upload.page.stored") : t("upload.page.notStored")}
                   </Pill>
                   {wwfStep2Result.stored && (
                     <span className="text-xs text-ink-soft">
-                      {wwfStep2Result.replaced ? "Replaced previous data — i" : "I"}
-                      ngredients saved for {wwfStep2Result.valid_product_count} product
-                      {wwfStep2Result.valid_product_count !== 1 ? "s" : ""}
+                      {(wwfStep2Result.replaced
+                        ? t("upload.page.ingredientsSavedReplaced")
+                        : t("upload.page.ingredientsSaved")
+                      )
+                        .replace("{n}", String(wwfStep2Result.valid_product_count))
+                        .replace("{s}", wwfStep2Result.valid_product_count !== 1 ? "s" : "")}
                     </span>
                   )}
                 </div>
                 {wwfStep2Result.stored && (
                   <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                    Re-run the calculation to apply these ingredients to the report.
+                    {t("upload.page.rerunCalculation")}
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-ink-soft">Products in file</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.productsInFile")}</div>
                     <div className="mt-1 text-lg font-semibold">{wwfStep2Result.total_products_in_file}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-ink-soft">Own-brand stored</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.ownBrandStored")}</div>
                     <div className="mt-1 text-lg font-semibold">{wwfStep2Result.valid_product_count}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-ink-soft">Errors</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.errors")}</div>
                     <div className="mt-1 text-lg font-semibold">{wwfStep2Result.error_count}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-ink-soft">Warnings</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">{t("upload.page.warnings")}</div>
                     <div className="mt-1 text-lg font-semibold">{wwfStep2Result.warning_count}</div>
                   </div>
                 </div>
                 {(wwfStep2Result.unknown_product_count > 0 || wwfStep2Result.branded_composite_count > 0) && (
                   <div className="rounded-md border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
                     {wwfStep2Result.unknown_product_count > 0 && (
-                      <div>{wwfStep2Result.unknown_product_count} product(s) not found in project — check external IDs.</div>
+                      <div>{t("upload.page.unknownProducts").replace("{n}", String(wwfStep2Result.unknown_product_count))}</div>
                     )}
                     {wwfStep2Result.branded_composite_count > 0 && (
                       <div>
-                        {wwfStep2Result.branded_composite_count} branded composite(s): ingredients not stored. These
-                        products remain at Step 1 (whole product weight) only.
+                        {t("upload.page.brandedComposites").replace("{n}", String(wwfStep2Result.branded_composite_count))}
                       </div>
                     )}
                   </div>
@@ -803,7 +837,7 @@ export default function UploadPage() {
                 {wwfStep2Result.product_results.some((r) => r.errors.length > 0) && (
                   <details>
                     <summary className="cursor-pointer text-sm font-medium text-danger-700">
-                      Validation errors
+                      {t("upload.page.validationErrors")}
                     </summary>
                     <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-danger-700">
                       {wwfStep2Result.product_results
@@ -832,16 +866,16 @@ export default function UploadPage() {
 
       <div className="mt-8 flex gap-2">
         <Button variant="ghost" onClick={() => router.push(`/projects/${projectId}`)}>
-          ← Back to project
+          {t("upload.page.backToProject")}
         </Button>
         {classifyJob?.status === "succeeded" && (classifyJob.result?.queued_for_review ?? 0) > 0 && (
           <Button onClick={() => router.push(`/projects/${projectId}/review`)}>
-            Review queue ({classifyJob.result!.queued_for_review}) →
+            {t("upload.page.reviewQueue").replace("{n}", String(classifyJob.result!.queued_for_review))}
           </Button>
         )}
         {classifyJob?.status === "succeeded" && (classifyJob.result?.queued_for_review ?? 1) === 0 && (
           <Button onClick={() => router.push(`/projects/${projectId}/runs`)}>
-            Calculate →
+            {t("upload.page.calculate")}
           </Button>
         )}
       </div>

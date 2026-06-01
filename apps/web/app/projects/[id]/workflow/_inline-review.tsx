@@ -21,6 +21,7 @@
 import { useEffect, useState } from "react";
 
 import { Button, Card, Pill } from "@/components/ui";
+import { useT } from "@/lib/i18n";
 import type {
   Methodology,
   ProteinTrackerGroup,
@@ -28,13 +29,14 @@ import type {
 } from "@/lib/api";
 import { ApiError, createApi } from "@/lib/api";
 
-const PT_GROUP_LABELS_FR: Record<ProteinTrackerGroup, string> = {
-  plant_based_core: "Végétal — cœur",
-  plant_based_non_core: "Végétal — hors cœur",
-  composite_products: "Composite",
-  animal_core: "Animal — cœur",
-  out_of_scope: "Hors périmètre",
-  unknown: "Inconnu",
+// PT group CODE -> i18n key (codes unchanged; display label is translated).
+const PT_GROUP_LABEL_KEYS: Record<ProteinTrackerGroup, string> = {
+  plant_based_core: "review.ptGroup.plant_based_core",
+  plant_based_non_core: "review.ptGroup.plant_based_non_core",
+  composite_products: "review.ptGroup.composite_products",
+  animal_core: "review.ptGroup.animal_core",
+  out_of_scope: "review.ptGroup.out_of_scope",
+  unknown: "review.ptGroup.unknown",
 };
 
 const PT_GROUP_OPTIONS: ProteinTrackerGroup[] = [
@@ -47,21 +49,28 @@ const PT_GROUP_OPTIONS: ProteinTrackerGroup[] = [
 
 const PAGE_SIZE = 20;
 
-function labelForCategory(c: string | null): string {
-  if (!c) return "Aucune suggestion";
-  return PT_GROUP_LABELS_FR[c as ProteinTrackerGroup] ?? c;
+// Returns either a translated label (via t) for a known PT group code, or
+// the raw category value when it isn't a known code. ``t`` is passed in so
+// this stays a plain helper (hooks belong inside components).
+function labelForCategory(t: (key: string) => string, c: string | null): string {
+  if (!c) return t("review.noSuggestion");
+  const key = PT_GROUP_LABEL_KEYS[c as ProteinTrackerGroup];
+  return key ? t(key) : c;
 }
 
 function ReasonPill({ reason }: { reason: ReviewItem["reason"] }) {
-  const REASON_FR: Record<ReviewItem["reason"], string> = {
-    low_confidence: "Faible confiance IA",
-    ai_parse_failed: "IA — parse échoué",
-    ai_provider_error: "IA indisponible",
-    rule_collision: "Règles en conflit",
-    contradiction_detected: "Contradiction",
-    requested: "À valider",
+  const t = useT();
+  // Review reason CODE -> i18n key (codes unchanged; label is translated).
+  const REASON_KEYS: Record<ReviewItem["reason"], string> = {
+    low_confidence: "review.reason.low_confidence",
+    ai_parse_failed: "review.reason.ai_parse_failed",
+    ai_provider_error: "review.reason.ai_provider_error",
+    rule_collision: "review.reason.rule_collision",
+    contradiction_detected: "review.reason.contradiction_detected",
+    requested: "review.reason.requested",
   };
-  return <Pill tone="neutral">{REASON_FR[reason] ?? reason}</Pill>;
+  const key = REASON_KEYS[reason];
+  return <Pill tone="neutral">{key ? t(key) : reason}</Pill>;
 }
 
 export function InlineReview({
@@ -85,6 +94,7 @@ export function InlineReview({
     {},
   );
 
+  const t = useT();
   const api = createApi(accessToken);
 
   async function load() {
@@ -101,7 +111,7 @@ export function InlineReview({
       setPage((p) => Math.min(p, maxPage));
     } catch (e) {
       setLoadError(
-        e instanceof Error ? e.message : "Échec du chargement de la file.",
+        e instanceof Error ? e.message : t("review.loadError"),
       );
     }
   }
@@ -120,9 +130,7 @@ export function InlineReview({
           ? overrides[item.product_id]
           : undefined;
       if (decision === "changed" && !to) {
-        setSubmitError(
-          "Choisissez une catégorie avant de changer la suggestion.",
-        );
+        setSubmitError(t("review.chooseCategoryFirst"));
         setSubmittingId(null);
         return;
       }
@@ -143,7 +151,7 @@ export function InlineReview({
         setSubmitError(d.message ?? String(e));
       } else {
         setSubmitError(
-          e instanceof Error ? e.message : "Erreur lors de la décision.",
+          e instanceof Error ? e.message : t("review.decisionError"),
         );
       }
     } finally {
@@ -154,7 +162,7 @@ export function InlineReview({
   if (items === null && !loadError) {
     return (
       <Card>
-        <p className="text-sm text-gray-500">Chargement de la file…</p>
+        <p className="text-sm text-gray-500">{t("review.loading")}</p>
       </Card>
     );
   }
@@ -172,7 +180,7 @@ export function InlineReview({
     return (
       <Card>
         <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Aucun produit à valider — la file de validation est vide.
+          {t("review.empty")}
         </div>
       </Card>
     );
@@ -185,7 +193,10 @@ export function InlineReview({
     <Card>
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-700">
-          {total} produit(s) à valider — page {page + 1} / {pageCount}
+          {t("review.pageStatus")
+            .replace("{n}", String(total))
+            .replace("{page}", String(page + 1))
+            .replace("{pages}", String(pageCount))}
         </p>
         <div className="flex items-center gap-1">
           <Button
@@ -226,9 +237,9 @@ export function InlineReview({
                     {item.brand && <span>{item.brand}</span>}
                     <ReasonPill reason={item.reason} />
                     <span>
-                      Suggestion :{" "}
+                      {t("review.suggestionLabel")}{" "}
                       <span className="font-medium text-gray-700">
-                        {labelForCategory(item.current_category)}
+                        {labelForCategory(t, item.current_category)}
                       </span>
                     </span>
                     {item.confidence != null && (
@@ -250,10 +261,10 @@ export function InlineReview({
                     className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
                     disabled={busy}
                   >
-                    <option value="">Choisir une catégorie…</option>
+                    <option value="">{t("review.chooseCategory")}</option>
                     {PT_GROUP_OPTIONS.map((g) => (
                       <option key={g} value={g}>
-                        {PT_GROUP_LABELS_FR[g]}
+                        {t(PT_GROUP_LABEL_KEYS[g])}
                       </option>
                     ))}
                   </select>
@@ -262,13 +273,13 @@ export function InlineReview({
                     onClick={() => void submit(item, "changed")}
                     disabled={busy || !chosen}
                   >
-                    {busy ? "…" : "Changer"}
+                    {busy ? "…" : t("review.change")}
                   </Button>
                   <Button
                     onClick={() => void submit(item, "accepted")}
                     disabled={busy || !item.current_category}
                   >
-                    {busy ? "…" : "Accepter"}
+                    {busy ? "…" : t("review.accept")}
                   </Button>
                 </div>
               </div>

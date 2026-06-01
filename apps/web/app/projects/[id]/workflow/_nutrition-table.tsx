@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button, Card, Pill, Skeleton } from "@/components/ui";
+import { useT } from "@/lib/i18n";
 import type {
   NutritionValidationRow,
   NutritionValidationsResponse,
@@ -28,15 +29,15 @@ import { ApiError, createApi } from "@/lib/api";
 const PAGE_SIZE = 25;
 
 // Phase 34M — extended status palette to surface confidence tiers
-// from the backend.
-const STATUS_LABELS_FR: Record<string, string> = {
-  ready: "Prêt — haute confiance",
-  ready_medium_confidence: "Prêt — confiance moyenne",
-  needs_review: "À vérifier",
-  needs_review_low_confidence: "À vérifier — confiance faible",
-  suggested_very_low_confidence: "Suggéré — confiance très faible",
-  missing: "Manquant",
-  excluded: "Exclu",
+// from the backend. Codes map to i18n key suffixes resolved at render.
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  ready: "nutrition.status.ready",
+  ready_medium_confidence: "nutrition.status.ready_medium_confidence",
+  needs_review: "nutrition.status.needs_review",
+  needs_review_low_confidence: "nutrition.status.needs_review_low_confidence",
+  suggested_very_low_confidence: "nutrition.status.suggested_very_low_confidence",
+  missing: "nutrition.status.missing",
+  excluded: "nutrition.status.excluded",
 };
 const STATUS_TONES: Record<string, "ok" | "warn" | "neutral" | "brand"> = {
   ready: "ok",
@@ -47,12 +48,12 @@ const STATUS_TONES: Record<string, "ok" | "warn" | "neutral" | "brand"> = {
   missing: "neutral",
   excluded: "neutral",
 };
-const SOURCE_LABELS_FR: Record<string, string> = {
-  retailer_csv: "CSV retailer",
-  nevo: "NEVO",
-  ciqual: "CIQUAL",
-  manual: "Manuel",
-  missing: "Manquant",
+const SOURCE_LABEL_KEYS: Record<string, string> = {
+  retailer_csv: "nutrition.source.retailer_csv",
+  nevo: "nutrition.source.nevo",
+  ciqual: "nutrition.source.ciqual",
+  manual: "nutrition.source.manual",
+  missing: "nutrition.source.missing",
 };
 
 export function NutritionTable({
@@ -64,6 +65,7 @@ export function NutritionTable({
   accessToken: string | null;
   onChanged?: () => void | Promise<void>;
 }) {
+  const t = useT();
   const api = useMemo(() => createApi(accessToken), [accessToken]);
   const [filters, setFilters] = useState<{
     status?: "ready" | "needs_review" | "missing" | "excluded";
@@ -99,12 +101,10 @@ export function NutritionTable({
       setData(r);
     } catch (e) {
       setLoadError(
-        e instanceof Error
-          ? e.message
-          : "Échec du chargement du tableau nutrition.",
+        e instanceof Error ? e.message : t("nutrition.error.load"),
       );
     }
-  }, [api, projectId, filters, offset]);
+  }, [api, projectId, filters, offset, t]);
 
   useEffect(() => {
     void load();
@@ -132,11 +132,11 @@ export function NutritionTable({
         !Number.isFinite(plant) ||
         !Number.isFinite(animal)
       ) {
-        setSubmitError("Les trois valeurs doivent être numériques.");
+        setSubmitError(t("nutrition.error.numeric"));
         return;
       }
       if (protein < 0 || plant < 0 || animal < 0) {
-        setSubmitError("Les valeurs doivent être positives.");
+        setSubmitError(t("nutrition.error.positive"));
         return;
       }
       await api.submitManualNutrition(projectId, row.product_id, {
@@ -153,7 +153,7 @@ export function NutritionTable({
         setSubmitError(d.message ?? String(e));
       } else {
         setSubmitError(
-          e instanceof Error ? e.message : "Échec de l’enregistrement.",
+          e instanceof Error ? e.message : t("nutrition.error.save"),
         );
       }
     } finally {
@@ -189,7 +189,9 @@ export function NutritionTable({
     <Card>
       {/* Aggregate counters */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="font-medium text-forest-700">{data.total} produit(s)</span>
+        <span className="font-medium text-forest-700">
+          {t("nutrition.productCount").replace("{n}", String(data.total))}
+        </span>
         {Object.entries(data.counts_by_status).map(([k, v]) => (
           <Pill
             key={k}
@@ -201,7 +203,7 @@ export function NutritionTable({
                   : "neutral"
             }
           >
-            {STATUS_LABELS_FR[k] ?? k}: {v}
+            {(STATUS_LABEL_KEYS[k] ? t(STATUS_LABEL_KEYS[k]) : k)}: {v}
           </Pill>
         ))}
       </div>
@@ -210,7 +212,7 @@ export function NutritionTable({
       <div className="mt-4 grid grid-cols-1 gap-2 rounded-2xl border border-line bg-mint-50/50 p-2 sm:grid-cols-3">
         <input
           type="text"
-          placeholder="Rechercher (nom de produit)"
+          placeholder={t("nutrition.filter.searchPlaceholder")}
           value={filters.product_search ?? ""}
           onChange={(e) => {
             setOffset(0);
@@ -229,10 +231,10 @@ export function NutritionTable({
           }}
           className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-xs text-gray-800 shadow-soft focus:border-brand-400 focus:outline-none"
         >
-          <option value="">Tous statuts</option>
-          <option value="ready">Prêt</option>
-          <option value="needs_review">À vérifier</option>
-          <option value="missing">Manquant</option>
+          <option value="">{t("nutrition.filter.allStatuses")}</option>
+          <option value="ready">{t("nutrition.filter.statusReady")}</option>
+          <option value="needs_review">{t("nutrition.status.needs_review")}</option>
+          <option value="missing">{t("nutrition.status.missing")}</option>
         </select>
         <select
           value={filters.source ?? ""}
@@ -245,11 +247,11 @@ export function NutritionTable({
           }}
           className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-xs text-gray-800 shadow-soft focus:border-brand-400 focus:outline-none"
         >
-          <option value="">Toutes sources</option>
-          <option value="retailer_csv">CSV retailer</option>
-          <option value="nevo">NEVO</option>
-          <option value="manual">Manuel</option>
-          <option value="missing">Manquant</option>
+          <option value="">{t("nutrition.filter.allSources")}</option>
+          <option value="retailer_csv">{t("nutrition.source.retailer_csv")}</option>
+          <option value="nevo">{t("nutrition.source.nevo")}</option>
+          <option value="manual">{t("nutrition.source.manual")}</option>
+          <option value="missing">{t("nutrition.source.missing")}</option>
         </select>
       </div>
 
@@ -258,14 +260,14 @@ export function NutritionTable({
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-line bg-mint-50/70 text-left text-[11px] uppercase tracking-wider text-ink-soft">
-              <th className="py-2.5 pl-4 pr-3 font-semibold">Produit</th>
-              <th className="py-2.5 pr-3 font-semibold">PT</th>
-              <th className="py-2.5 pr-3 font-semibold">Protéine</th>
-              <th className="py-2.5 pr-3 font-semibold">Végétal</th>
-              <th className="py-2.5 pr-3 font-semibold">Animal</th>
-              <th className="py-2.5 pr-3 font-semibold">Source</th>
-              <th className="py-2.5 pr-3 font-semibold">Statut</th>
-              <th className="py-2.5 pr-3 font-semibold">Action</th>
+              <th className="py-2.5 pl-4 pr-3 font-semibold">{t("nutrition.col.product")}</th>
+              <th className="py-2.5 pr-3 font-semibold">{t("nutrition.col.pt")}</th>
+              <th className="py-2.5 pr-3 font-semibold">{t("nutrition.col.protein")}</th>
+              <th className="py-2.5 pr-3 font-semibold">{t("nutrition.col.plant")}</th>
+              <th className="py-2.5 pr-3 font-semibold">{t("nutrition.col.animal")}</th>
+              <th className="py-2.5 pr-3 font-semibold">{t("nutrition.col.source")}</th>
+              <th className="py-2.5 pr-3 font-semibold">{t("nutrition.col.status")}</th>
+              <th className="py-2.5 pr-3 font-semibold">{t("nutrition.col.action")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
@@ -273,7 +275,7 @@ export function NutritionTable({
               <tr>
                 <td colSpan={8} className="px-4 py-10 text-center">
                   <div className="text-sm font-medium text-forest-700">
-                    Aucun produit ne correspond aux filtres
+                    {t("nutrition.empty")}
                   </div>
                 </td>
               </tr>
@@ -361,11 +363,15 @@ export function NutritionTable({
                     </>
                   )}
                   <td className="py-2.5 pr-3 text-ink-muted">
-                    {SOURCE_LABELS_FR[row.source] ?? row.source}
+                    {SOURCE_LABEL_KEYS[row.source]
+                      ? t(SOURCE_LABEL_KEYS[row.source])
+                      : row.source}
                   </td>
                   <td className="py-2.5 pr-3">
                     <Pill tone={STATUS_TONES[row.status] ?? "neutral"}>
-                      {STATUS_LABELS_FR[row.status] ?? row.status}
+                      {STATUS_LABEL_KEYS[row.status]
+                        ? t(STATUS_LABEL_KEYS[row.status])
+                        : row.status}
                     </Pill>
                   </td>
                   <td className="py-2">
@@ -376,7 +382,7 @@ export function NutritionTable({
                           onClick={() => void saveEdit(row)}
                           disabled={submitting}
                         >
-                          {submitting ? "…" : "✓ Enregistrer"}
+                          {submitting ? "…" : t("nutrition.saveEdit")}
                         </Button>
                         <Button
                           variant="ghost"
@@ -388,7 +394,7 @@ export function NutritionTable({
                       </div>
                     ) : (
                       <Button variant="ghost" onClick={() => startEdit(row)}>
-                        Modifier
+                        {t("common.edit")}
                       </Button>
                     )}
                   </td>
@@ -408,7 +414,7 @@ export function NutritionTable({
       {/* Pagination */}
       <div className="mt-3 flex items-center justify-between text-xs text-ink-muted">
         <span>
-          Page <span className="font-semibold text-forest-700">{pageIdx + 1}</span> / {pageCount}
+          {t("nutrition.page")} <span className="font-semibold text-forest-700">{pageIdx + 1}</span> / {pageCount}
         </span>
         <div className="flex items-center gap-1">
           <Button

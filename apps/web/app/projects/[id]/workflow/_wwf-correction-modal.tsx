@@ -23,60 +23,63 @@
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui";
+import { useT } from "@/lib/i18n";
 import type { ClassificationRow, WWFCorrectionPayload } from "@/lib/api";
 
 type FoodGroup = WWFCorrectionPayload["wwf_food_group"];
 
-const FOOD_GROUP_OPTIONS: { value: FoodGroup; label: string }[] = [
-  { value: "FG1", label: "FG1 — Sources de protéines" },
-  { value: "FG2", label: "FG2 — Produits laitiers et alternatives" },
-  { value: "FG3", label: "FG3 — Matières grasses et huiles" },
-  { value: "FG4", label: "FG4 — Fruits et légumes" },
-  { value: "FG5", label: "FG5 — Céréales" },
-  { value: "FG6", label: "FG6 — Tubercules" },
-  { value: "FG7", label: "FG7 — Snacks riches en gras/sel/sucre" },
-  { value: "out_of_scope", label: "Hors périmètre" },
-  { value: "unknown", label: "Inconnu" },
+// ``labelKey`` holds the i18n key; the CODE in ``value`` is canonical and
+// stays untouched. Components resolve the label via ``t(labelKey)``.
+const FOOD_GROUP_OPTIONS: { value: FoodGroup; labelKey: string }[] = [
+  { value: "FG1", labelKey: "correction.fg.FG1" },
+  { value: "FG2", labelKey: "correction.fg.FG2" },
+  { value: "FG3", labelKey: "correction.fg.FG3" },
+  { value: "FG4", labelKey: "correction.fg.FG4" },
+  { value: "FG5", labelKey: "correction.fg.FG5" },
+  { value: "FG6", labelKey: "correction.fg.FG6" },
+  { value: "FG7", labelKey: "correction.fg.FG7" },
+  { value: "out_of_scope", labelKey: "correction.fg.out_of_scope" },
+  { value: "unknown", labelKey: "correction.fg.unknown" },
 ];
 
-const FG1_OPTIONS: { value: string; label: string }[] = [
-  { value: "red_meat", label: "Viande rouge" },
-  { value: "poultry", label: "Volaille" },
-  { value: "processed_meats_alternatives", label: "Viandes transformées / alternatives" },
-  { value: "seafood", label: "Poisson & fruits de mer" },
-  { value: "eggs", label: "Œufs" },
-  { value: "legumes", label: "Légumineuses" },
-  { value: "nuts_seeds", label: "Noix & graines" },
-  { value: "alternative_protein_sources", label: "Sources protéiques alternatives" },
-  { value: "meat_egg_seafood_alternatives", label: "Alternatives viande/œuf/poisson" },
+const FG1_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: "red_meat", labelKey: "correction.fg1.red_meat" },
+  { value: "poultry", labelKey: "correction.fg1.poultry" },
+  { value: "processed_meats_alternatives", labelKey: "correction.fg1.processed_meats_alternatives" },
+  { value: "seafood", labelKey: "correction.fg1.seafood" },
+  { value: "eggs", labelKey: "correction.fg1.eggs" },
+  { value: "legumes", labelKey: "correction.fg1.legumes" },
+  { value: "nuts_seeds", labelKey: "correction.fg1.nuts_seeds" },
+  { value: "alternative_protein_sources", labelKey: "correction.fg1.alternative_protein_sources" },
+  { value: "meat_egg_seafood_alternatives", labelKey: "correction.fg1.meat_egg_seafood_alternatives" },
 ];
 
-const FG2_OPTIONS: { value: string; label: string }[] = [
-  { value: "cheese", label: "Produit laitier animal — Fromage" },
-  { value: "other_dairy_animal", label: "Produit laitier animal — Autre" },
-  { value: "dairy_alternative_plant", label: "Alternative végétale aux produits laitiers" },
+const FG2_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: "cheese", labelKey: "correction.fg2.cheese" },
+  { value: "other_dairy_animal", labelKey: "correction.fg2.other_dairy_animal" },
+  { value: "dairy_alternative_plant", labelKey: "correction.fg2.dairy_alternative_plant" },
 ];
 
-const FG3_OPTIONS: { value: string; label: string }[] = [
-  { value: "plant_based_fat", label: "Matières grasses végétales" },
-  { value: "animal_based_fat", label: "Matières grasses animales" },
+const FG3_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: "plant_based_fat", labelKey: "correction.fg3.plant_based_fat" },
+  { value: "animal_based_fat", labelKey: "correction.fg3.animal_based_fat" },
 ];
 
-const FG5_OPTIONS: { value: string; label: string }[] = [
-  { value: "whole_grain", label: "Céréales complètes" },
-  { value: "refined_grain", label: "Céréales raffinées" },
+const FG5_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: "whole_grain", labelKey: "correction.fg5.whole_grain" },
+  { value: "refined_grain", labelKey: "correction.fg5.refined_grain" },
 ];
 
-const FG7_OPTIONS: { value: string; label: string }[] = [
-  { value: "plant_based_snack", label: "Snack végétal" },
-  { value: "animal_based_snack", label: "Snack animal" },
+const FG7_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: "plant_based_snack", labelKey: "correction.fg7.plant_based_snack" },
+  { value: "animal_based_snack", labelKey: "correction.fg7.animal_based_snack" },
 ];
 
-const BUCKET_OPTIONS: { value: string; label: string }[] = [
-  { value: "meat_based", label: "À base de viande" },
-  { value: "seafood_based", label: "À base de poisson/fruits de mer" },
-  { value: "vegetarian", label: "Végétarien" },
-  { value: "vegan", label: "Végane" },
+const BUCKET_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: "meat_based", labelKey: "correction.bucket.meat_based" },
+  { value: "seafood_based", labelKey: "correction.bucket.seafood_based" },
+  { value: "vegetarian", labelKey: "correction.bucket.vegetarian" },
+  { value: "vegan", labelKey: "correction.bucket.vegan" },
 ];
 
 interface WWFModalState {
@@ -105,22 +108,23 @@ function _initialState(row: ClassificationRow): WWFModalState {
 
 /** Phase WWF-P — pure function (also exported for tests if a frontend
  *  test framework lands later). Returns ``null`` when the modal state
- *  is valid; otherwise a French explanation of what's missing. */
+ *  is valid; otherwise an i18n key describing what's missing (resolved
+ *  to a display string by the caller via ``t()``). */
 export function validateWwfModalState(s: WWFModalState): string | null {
   const fg = s.food_group;
   if (fg === "out_of_scope" || fg === "unknown") {
     if (s.is_composite) {
-      return "Hors périmètre / Inconnu ne peuvent pas être composite.";
+      return "correction.validation.systemNotComposite";
     }
     return null;
   }
-  if (fg === "FG1" && !s.fg1) return "Choisissez un sous-groupe FG1.";
-  if (fg === "FG2" && !s.fg2) return "Choisissez un sous-groupe FG2.";
-  if (fg === "FG3" && !s.fg3) return "Choisissez un sous-groupe FG3.";
-  if (fg === "FG5" && !s.fg5) return "Choisissez le type de céréale (FG5).";
-  if (fg === "FG7" && !s.fg7) return "Choisissez le type de snack (FG7).";
+  if (fg === "FG1" && !s.fg1) return "correction.validation.fg1Subgroup";
+  if (fg === "FG2" && !s.fg2) return "correction.validation.fg2Subgroup";
+  if (fg === "FG3" && !s.fg3) return "correction.validation.fg3Subgroup";
+  if (fg === "FG5" && !s.fg5) return "correction.validation.fg5Grain";
+  if (fg === "FG7" && !s.fg7) return "correction.validation.fg7Snack";
   if (s.is_composite && !s.bucket) {
-    return "Choisissez le bucket composite (à base de viande / poisson / vegetarien / végane).";
+    return "correction.validation.compositeBucket";
   }
   return null;
 }
@@ -160,6 +164,7 @@ export function WwfCorrectionModal({
   onClose: () => void;
   onSubmit: (payload: WWFCorrectionPayload) => Promise<void>;
 }) {
+  const t = useT();
   const [state, setState] = useState<WWFModalState>(() =>
     _initialState(row),
   );
@@ -181,7 +186,9 @@ export function WwfCorrectionModal({
       await onSubmit(modalStateToPayload(state));
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Échec de la correction.");
+      setError(
+        e instanceof Error ? e.message : t("correction.error.submit"),
+      );
     } finally {
       setBusy(false);
     }
@@ -194,7 +201,7 @@ export function WwfCorrectionModal({
   return (
     <div
       role="dialog"
-      aria-label="Corriger la classification WWF"
+      aria-label={t("correction.title")}
       className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-forest-900/40 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
@@ -204,7 +211,7 @@ export function WwfCorrectionModal({
       >
         <div className="border-b border-line-soft bg-mint-50/60 px-5 py-4">
           <h3 className="text-base font-semibold text-forest-900">
-            Corriger la classification WWF
+            {t("correction.title")}
           </h3>
           <p className="mt-0.5 text-xs text-ink-muted">
             {row.product_name}
@@ -216,7 +223,7 @@ export function WwfCorrectionModal({
           {/* Food group */}
           <div>
             <label className="block text-[11px] font-medium uppercase tracking-wide text-ink-soft">
-              Groupe alimentaire
+              {t("correction.label.foodGroup")}
             </label>
             <select
               value={state.food_group}
@@ -227,7 +234,7 @@ export function WwfCorrectionModal({
             >
               {FOOD_GROUP_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
-                  {o.label}
+                  {t(o.labelKey)}
                 </option>
               ))}
             </select>
@@ -236,7 +243,7 @@ export function WwfCorrectionModal({
           {/* Subgroup (conditional) */}
           {fg === "FG1" && (
             <ConditionalSelect
-              label="Sous-groupe"
+              label={t("correction.label.subgroup")}
               value={state.fg1}
               onChange={(v) => patch({ fg1: v })}
               options={FG1_OPTIONS}
@@ -244,7 +251,7 @@ export function WwfCorrectionModal({
           )}
           {fg === "FG2" && (
             <ConditionalSelect
-              label="Type"
+              label={t("correction.label.type")}
               value={state.fg2}
               onChange={(v) => patch({ fg2: v })}
               options={FG2_OPTIONS}
@@ -252,7 +259,7 @@ export function WwfCorrectionModal({
           )}
           {fg === "FG3" && (
             <ConditionalSelect
-              label="Type"
+              label={t("correction.label.type")}
               value={state.fg3}
               onChange={(v) => patch({ fg3: v })}
               options={FG3_OPTIONS}
@@ -260,7 +267,7 @@ export function WwfCorrectionModal({
           )}
           {fg === "FG5" && (
             <ConditionalSelect
-              label="Type"
+              label={t("correction.label.type")}
               value={state.fg5}
               onChange={(v) => patch({ fg5: v })}
               options={FG5_OPTIONS}
@@ -268,7 +275,7 @@ export function WwfCorrectionModal({
           )}
           {fg === "FG7" && (
             <ConditionalSelect
-              label="Type"
+              label={t("correction.label.type")}
               value={state.fg7}
               onChange={(v) => patch({ fg7: v })}
               options={FG7_OPTIONS}
@@ -287,7 +294,7 @@ export function WwfCorrectionModal({
                   }
                   className="accent-brand-600"
                 />
-                Produit composite
+                {t("correction.label.composite")}
               </label>
             </div>
           )}
@@ -295,7 +302,7 @@ export function WwfCorrectionModal({
           {/* Composite bucket (conditional on composite) */}
           {!isSystemState && state.is_composite && (
             <ConditionalSelect
-              label="Bucket composite"
+              label={t("correction.label.compositeBucket")}
               value={state.bucket}
               onChange={(v) => patch({ bucket: v })}
               options={BUCKET_OPTIONS}
@@ -304,7 +311,7 @@ export function WwfCorrectionModal({
 
           {validationError && (
             <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
-              {validationError}
+              {t(validationError)}
             </div>
           )}
           {error && (
@@ -316,13 +323,13 @@ export function WwfCorrectionModal({
 
         <div className="flex items-center justify-end gap-2 border-t border-line-soft bg-mint-50/40 px-5 py-3">
           <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button
             onClick={() => void handleSave()}
             disabled={busy || validationError !== null}
           >
-            {busy ? "Enregistrement…" : "Enregistrer"}
+            {busy ? t("common.saving") : t("common.save")}
           </Button>
         </div>
       </div>
@@ -339,8 +346,9 @@ function ConditionalSelect({
   label: string;
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; labelKey: string }[];
 }) {
+  const t = useT();
   return (
     <div>
       <label className="block text-[11px] font-medium uppercase tracking-wide text-ink-soft">
@@ -351,10 +359,10 @@ function ConditionalSelect({
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm focus:border-brand-400 focus:outline-none"
       >
-        <option value="">— Choisir —</option>
+        <option value="">{t("correction.choose")}</option>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
-            {o.label}
+            {t(o.labelKey)}
           </option>
         ))}
       </select>

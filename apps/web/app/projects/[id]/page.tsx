@@ -5,12 +5,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button, Card, CardHeader, EmptyState, Pill, Stat } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
+import { useT } from "@/lib/i18n";
 import { createApi, type ApplyReferencesSummary, type ClassifySummary, type Methodology, type Project, type Run, type UploadResult } from "@/lib/api";
 
 export default function ProjectDetail() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const { accessToken, loading: authLoading, isAltera } = useAuth();
+  const t = useT();
   const api = useMemo(() => createApi(accessToken), [accessToken]);
 
   const [project, setProject] = useState<Project | null>(null);
@@ -187,7 +189,7 @@ export default function ProjectDetail() {
         </div>
         <div className="flex items-center gap-2">
           <Link href={`/projects/${id}/workflow`}>
-            <Button variant="primary">Parcours guidé →</Button>
+            <Button variant="primary">{t("projects.guidedWorkflow")} →</Button>
           </Link>
           <Link href="/projects">
             <Button variant="ghost">← All projects</Button>

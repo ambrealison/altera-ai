@@ -24,6 +24,17 @@ import {
   type ReactNode,
 } from "react";
 
+import type { I18nDict } from "./i18n/types";
+import { common } from "./i18n/common";
+import { report } from "./i18n/report";
+import { workflow } from "./i18n/workflow";
+import { upload } from "./i18n/upload";
+import { validation } from "./i18n/validation";
+import { nutrition } from "./i18n/nutrition";
+import { review } from "./i18n/review";
+import { correction } from "./i18n/correction";
+import { projectsExtra } from "./i18n/projectsExtra";
+
 export type Lang = "fr" | "en";
 
 const STORAGE_KEY = "altera.lang";
@@ -31,8 +42,13 @@ const STORAGE_KEY = "altera.lang";
 // ---------------------------------------------------------------------------
 // Dictionary. Keys are stable IDs; values are per-language display text.
 // Only UI labels live here — never field values or canonicals.
+//
+// Phase Product-UX-E — the dictionary is split into per-surface modules
+// (lib/i18n/*) and merged here. ``_BASE`` keeps the original nav /
+// projects / templates entries; surface modules add the rest. Later
+// spreads win on key collision, so keep keys namespaced per surface.
 // ---------------------------------------------------------------------------
-const DICT: Record<string, { fr: string; en: string }> = {
+const _BASE: I18nDict = {
   // Navigation
   "nav.projects": { fr: "Projets enseignes", en: "Retailer projects" },
   "nav.templates": { fr: "Templates", en: "Templates" },
@@ -141,10 +157,25 @@ const DICT: Record<string, { fr: string; en: string }> = {
   "lang.en": { fr: "EN", en: "EN" },
 };
 
+// Merged dictionary: base entries + per-surface modules. Later spreads
+// win on collision, so keep keys namespaced per surface to avoid clashes.
+const DICT: I18nDict = {
+  ..._BASE,
+  ...common,
+  ...report,
+  ...workflow,
+  ...upload,
+  ...validation,
+  ...nutrition,
+  ...review,
+  ...correction,
+  ...projectsExtra,
+};
+
 interface I18nValue {
   lang: Lang;
   setLang: (l: Lang) => void;
-  t: (key: keyof typeof DICT | string) => string;
+  t: (key: string) => string;
 }
 
 const I18nContext = createContext<I18nValue | null>(null);
