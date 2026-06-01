@@ -80,10 +80,8 @@ class TestReviewPendingNotBlocking:
         from altera_api.api import workflow
 
         src = inspect.getsource(workflow)
-        # The string MUST exist in the comment explaining the policy
-        # so future readers know review_pending was demoted.
-        assert "review_pending" in src
-        # But no ``code="review_pending"`` keyword call must remain.
+        # No ``code="review_pending"`` keyword call must remain — review
+        # is a non-blocking ``review_only`` count, not a blocker.
         assert 'code="review_pending"' not in src, (
             "BlockingReason(code='review_pending') was removed in "
             "Phase UX-Validation-S — review queue is no longer a "

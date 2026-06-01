@@ -603,56 +603,117 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
         )
     )
 
-    # 11. calculation — blocked unless every PT product is classified,
-    #     no review is open, and at least one row is eligible.
+    # 11. calculation — Phase Product-UX-A: methodology-aware.
+    #
+    # The calculation step previously assumed Protein Tracker
+    # unconditionally: a WWF-only project (pt_total == 0) hit the
+    # "Aucun produit Protein Tracker importé" blocker and could never
+    # run, even though every product had a valid WWF classification.
+    #
+    # We now build blockers ONLY for the methodologies the project
+    # actually enables, and label them per methodology so a PT+WWF
+    # project never mixes "Protein Tracker" wording into WWF blockers.
+    pt_enabled = Methodology.PROTEIN_TRACKER in project.methodologies_enabled
+    wwf_enabled = Methodology.WWF in project.methodologies_enabled
+
+    # A WWF row is eligible once it has a non-unknown food group. WWF
+    # needs weight + items_sold (both required at ingestion via
+    # WWFProductFields) and never needs protein nutrition.
+    wwf_remaining_to_classify = max(
+        0, counts.wwf_products - counts.wwf_classified
+    )
+    wwf_eligible = max(0, counts.wwf_classified - counts.wwf_unknown)
+
     blocking: list[BlockingReason] = []
-    if pt_total == 0:
-        blocking.append(
-            BlockingReason(
-                code="no_eligible_products",
-                label="Aucun produit Protein Tracker importé",
-                count=0,
-                next_action="upload",
+
+    if pt_enabled:
+        if pt_total == 0:
+            blocking.append(
+                BlockingReason(
+                    code="no_eligible_products",
+                    label="Aucun produit Protein Tracker importé",
+                    count=0,
+                    next_action="upload",
+                )
             )
-        )
-    if pt_remaining_to_classify > 0:
-        blocking.append(
-            BlockingReason(
-                code="classification_required",
-                label="Produits non classifiés",
-                count=pt_remaining_to_classify,
-                next_action="classify",
+        if pt_remaining_to_classify > 0:
+            blocking.append(
+                BlockingReason(
+                    code="classification_required",
+                    label="Produits Protein Tracker non classifiés",
+                    count=pt_remaining_to_classify,
+                    next_action="classify",
+                )
             )
-        )
-    # Phase UX-Validation-S — ``review_pending`` is no longer a
-    # blocking reason. A product with an AI/deterministic classification
-    # AND an open review item is still usable for calculation; the
-    # manual review is a recommended audit step, not a prerequisite.
-    # The count is still surfaced (see ``calc_counts['review_only']``
-    # below) so the frontend can show an amber non-blocking warning.
-    if pt_total > 0 and pt_needs_nutrition > 0:
-        blocking.append(
-            BlockingReason(
-                code="nutrition_required",
-                label="Produits sans donnée nutritionnelle exploitable",
-                count=pt_needs_nutrition,
-                next_action="apply_nevo",
+        # Phase UX-Validation-S — review is non-blocking (surfaced as a
+        # ``review_only`` count, not a blocker).
+        if pt_total > 0 and pt_needs_nutrition > 0:
+            blocking.append(
+                BlockingReason(
+                    code="nutrition_required",
+                    label="Produits sans donnée nutritionnelle exploitable",
+                    count=pt_needs_nutrition,
+                    next_action="apply_nevo",
+                )
             )
-        )
-    if pt_total > 0 and counts.pt_eligible == 0 and not blocking:
-        # All filtered out (e.g. all OUT_OF_SCOPE) — surface that.
-        blocking.append(
-            BlockingReason(
-                code="no_eligible_products",
-                label="Aucun produit éligible au calcul",
-                count=0,
-                next_action="open_review_queue",
+        if pt_total > 0 and counts.pt_eligible == 0 and not blocking:
+            blocking.append(
+                BlockingReason(
+                    code="no_eligible_products",
+                    label="Aucun produit éligible au calcul Protein Tracker",
+                    count=0,
+                    next_action="open_review_queue",
+                )
             )
-        )
+
+    if wwf_enabled:
+        # WWF blockers only — never reference Protein Tracker or
+        # nutrition (WWF calculation does not use protein values).
+        if counts.wwf_products == 0:
+            blocking.append(
+                BlockingReason(
+                    code="no_eligible_products_wwf",
+                    label="Aucun produit WWF importé",
+                    count=0,
+                    next_action="upload",
+                )
+            )
+        if wwf_remaining_to_classify > 0:
+            blocking.append(
+                BlockingReason(
+                    code="classification_required_wwf",
+                    label="Produits WWF non classifiés",
+                    count=wwf_remaining_to_classify,
+                    next_action="classify",
+                )
+            )
+        if (
+            counts.wwf_products > 0
+            and wwf_eligible == 0
+            and wwf_remaining_to_classify == 0
+        ):
+            blocking.append(
+                BlockingReason(
+                    code="no_eligible_products_wwf",
+                    label="Aucun produit éligible au calcul WWF",
+                    count=0,
+                    next_action="open_review_queue",
+                )
+            )
+
+    # Eligible rows + review backlog reflect the enabled methodologies.
+    # For WWF-only the frontend reads ``review_only`` for its amber
+    # non-blocking notice; we sum across enabled methodologies.
+    eligible_rows = (counts.pt_eligible if pt_enabled else 0) + (
+        wwf_eligible if wwf_enabled else 0
+    )
+    review_only = (counts.pt_needs_review if pt_enabled else 0) + (
+        counts.wwf_needs_review if wwf_enabled else 0
+    )
 
     if blocking:
         calc_status: StepStatus = "blocked"
-    elif pt_total > 0 and counts.pt_eligible > 0:
+    elif eligible_rows > 0:
         calc_status = "ready"
     else:
         calc_status = "locked"
@@ -662,18 +723,14 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
             label="Calcul du ratio",
             status=calc_status,
             counts={
-                "eligible_rows": counts.pt_eligible,
-                # Phase UX-Validation-S — surface the review backlog as
-                # a non-blocking warning so the calculation step can
-                # show "X produits encore à vérifier" without disabling
-                # the launch button.
-                "review_only": counts.pt_needs_review,
+                "eligible_rows": eligible_rows,
+                "review_only": review_only,
             },
             blocking_reasons=blocking,
             accessible=calc_status not in ("locked",),
             editable=False,
             summary=(
-                f"{counts.pt_eligible} ligne(s) éligible(s)"
+                f"{eligible_rows} ligne(s) éligible(s)"
                 if calc_status == "ready"
                 else None
             ),

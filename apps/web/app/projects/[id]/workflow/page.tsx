@@ -1537,6 +1537,9 @@ function StepCalculation({
     classification_required: "ai_class",
     review_pending: "validation",
     nutrition_required: "nevo",
+    // Phase Product-UX-A — WWF blocker codes route to the same steps.
+    no_eligible_products_wwf: "import",
+    classification_required_wwf: "ai_class",
   };
 
   return (
@@ -1577,6 +1580,11 @@ function StepCalculation({
             //   * "missing" (✗ rose) — true blocker; calc disabled.
             type Marker = "ok" | "warn" | "missing";
             const reviewOnly = step.counts.review_only ?? 0;
+            // Phase Product-UX-A — methodology-aware checklist. WWF-only
+            // projects never require protein nutrition, so the
+            // nutrition condition is replaced by a volume/weight one
+            // and all wording stays WWF-specific.
+            const requiresNutrition = preflight?.requires_nutrition !== false;
             const items: { label: string; marker: Marker }[] = [
               {
                 label: "Fichier importé",
@@ -1584,7 +1592,9 @@ function StepCalculation({
                   (preflight?.total_products ?? 0) > 0 ? "ok" : "missing",
               },
               {
-                label: "Classification terminée",
+                label: wwfOnly
+                  ? "Classification WWF terminée"
+                  : "Classification terminée",
                 marker:
                   preflight !== null &&
                   preflight.classified_products === preflight.total_products
@@ -1598,10 +1608,15 @@ function StepCalculation({
                     : "Validation manuelle complète",
                 marker: reviewOnly > 0 ? "warn" : "ok",
               },
-              {
-                label: "Données nutritionnelles disponibles",
-                marker: readyRows > 0 ? "ok" : "missing",
-              },
+              requiresNutrition
+                ? {
+                    label: "Données nutritionnelles disponibles",
+                    marker: readyRows > 0 ? "ok" : "missing",
+                  }
+                : {
+                    label: "Données de volume / poids disponibles",
+                    marker: readyRows > 0 ? "ok" : "missing",
+                  },
             ];
             return items.map((c) => {
               const iconColor =
@@ -1639,9 +1654,14 @@ function StepCalculation({
           // a blocker (the backend emits it only as a non-blocking
           // ``review_only`` count on the step). The amber warning
           // below renders that count separately.
+          // Phase Product-UX-A — recognise WWF blocker codes too so a
+          // WWF-only project's blockers render (and never under PT
+          // wording).
           const CLASSIF_CODES = new Set([
             "classification_required",
             "no_eligible_products",
+            "classification_required_wwf",
+            "no_eligible_products_wwf",
           ]);
           const NUTRITION_CODES = new Set(["nutrition_required"]);
           const classifBlockers = step.blocking_reasons.filter((r) =>
@@ -1657,8 +1677,10 @@ function StepCalculation({
                   <p className="text-sm font-medium text-danger-700">
                     Catégorisation incomplète
                   </p>
-                  <p className="mt-0.5 text-xs text-rose-600">
-                    {"Certains produits n'ont pas encore de catégorie Protein Tracker validée."}
+                  <p className="mt-0.5 text-xs text-danger-600">
+                    {wwfOnly
+                      ? "Certains produits n'ont pas encore de groupe alimentaire WWF."
+                      : "Certains produits n'ont pas encore de catégorie Protein Tracker validée."}
                   </p>
                   <ul className="mt-2 space-y-1.5">
                     {classifBlockers.map((r) => {
@@ -2071,7 +2093,18 @@ export default function WorkflowWizardPage() {
       // upload step isn't complete). We swallow the error so the
       // wizard still renders.
       try {
-        const pf = await api.getCalculationPreflight(projectId);
+        // Phase Product-UX-A — request the preflight for the project's
+        // calculation methodology. WWF-only projects must use the WWF
+        // preflight (no Protein Tracker / nutrition requirements).
+        const methos = s.methodologies_enabled ?? [];
+        const prefMethodology =
+          methos.includes("wwf") && !methos.includes("protein_tracker")
+            ? "wwf"
+            : "protein_tracker";
+        const pf = await api.getCalculationPreflight(
+          projectId,
+          prefMethodology,
+        );
         setPreflight(pf);
       } catch {
         setPreflight(null);

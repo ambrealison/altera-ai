@@ -533,6 +533,9 @@ export interface CalculationPreflightResponse {
   sample_exclusion_reasons: string[];
   nevo_total_references: number;
   nevo_attempted: boolean;
+  // Phase Product-UX-A — which methodology this preflight reflects.
+  methodology?: "protein_tracker" | "wwf";
+  requires_nutrition?: boolean;
 }
 
 export interface NutritionReferencesStats {
@@ -1461,9 +1464,13 @@ export function createApi(accessToken: string | null) {
     // this to power Step 7's "Conditions requises" panel with the
     // same source of truth the run engine uses, so eligible_rows and
     // rows_count never disagree.
-    getCalculationPreflight: (projectId: string) =>
+    getCalculationPreflight: (
+      projectId: string,
+      methodology?: "protein_tracker" | "wwf",
+    ) =>
       request<CalculationPreflightResponse>(
-        `/api/v1/projects/${projectId}/calculation-preflight`,
+        `/api/v1/projects/${projectId}/calculation-preflight` +
+          (methodology ? `?methodology=${methodology}` : ""),
         { method: "GET" },
         accessToken,
       ),

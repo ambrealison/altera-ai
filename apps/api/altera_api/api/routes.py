@@ -2841,6 +2841,96 @@ class CalculationPreflightResponse(BaseModel):
     sample_exclusion_reasons: list[str]
     nevo_total_references: int
     nevo_attempted: bool
+    # Phase Product-UX-A — which methodology this preflight reflects.
+    # ``protein_tracker`` keeps the legacy nutrition-aware shape;
+    # ``wwf`` reports WWF readiness (no nutrition requirement). The
+    # frontend uses this to render methodology-appropriate copy.
+    methodology: str = "protein_tracker"
+    requires_nutrition: bool = True
+
+
+def _wwf_calculation_preflight(
+    store: StoreProtocol,
+    project: Project,
+) -> CalculationPreflightResponse:
+    """Phase Product-UX-A — WWF calculation readiness.
+
+    A WWF product is ready once it has a non-unknown WWF food group +
+    a usable per-item weight. WWF never uses protein nutrition, so the
+    nutrition counters are reported as zero and ``requires_nutrition``
+    is False. Mirrors what ``calculate_wwf_run`` actually needs.
+    """
+    from altera_api.domain.wwf import WWFFoodGroup
+
+    all_products = store.list_products_for_project(project.id)
+    products = [
+        p
+        for p in all_products
+        if p.wwf_fields is not None
+        and Methodology.WWF in p.methodologies_enabled
+    ]
+    product_ids = [p.id for p in products]
+    cls_map = (
+        store.get_wwf_classifications_bulk(product_ids) if product_ids else {}
+    )
+
+    classified = 0
+    with_weight = 0
+    ready = 0
+    missing_classification = 0
+    missing_weight = 0
+    out_of_scope = 0
+    sample_reasons: list[str] = []
+
+    def _sample(reason: str) -> None:
+        if len(sample_reasons) < 10:
+            sample_reasons.append(reason)
+
+    for p in products:
+        cls = cls_map.get(p.id)
+        has_weight = p.weight_per_item_kg > 0
+        if has_weight:
+            with_weight += 1
+        if cls is None:
+            missing_classification += 1
+            _sample(f"{p.product_name}: classification WWF manquante")
+            continue
+        classified += 1
+        if cls.wwf_food_group is WWFFoodGroup.OUT_OF_SCOPE:
+            out_of_scope += 1
+        usable = cls.wwf_food_group.is_methodology_group
+        if usable and has_weight:
+            ready += 1
+        else:
+            parts = []
+            if not usable:
+                parts.append("classification WWF inconnue / hors périmètre")
+            if not has_weight:
+                parts.append("poids manquant")
+                missing_weight += 1
+            _sample(f"{p.product_name}: " + ", ".join(parts or ["non éligible"]))
+
+    return CalculationPreflightResponse(
+        total_products=len(products),
+        classified_products=classified,
+        # WWF uses sales volume + weight, not PT items_purchased; we
+        # report weight coverage as the volume proxy so the frontend's
+        # generic "volume/poids" condition is satisfiable.
+        products_with_volume=with_weight,
+        products_with_weight=with_weight,
+        products_with_total_protein=0,
+        products_with_plant_animal_split=0,
+        products_ready_for_calculation=ready,
+        products_missing_nutrition=0,
+        products_missing_volume_or_weight=missing_weight,
+        products_missing_classification=missing_classification,
+        products_out_of_scope=out_of_scope,
+        sample_exclusion_reasons=sample_reasons,
+        nevo_total_references=0,
+        nevo_attempted=False,
+        methodology="wwf",
+        requires_nutrition=False,
+    )
 
 
 @api_router.get(
@@ -2850,9 +2940,17 @@ class CalculationPreflightResponse(BaseModel):
 def calculation_preflight_route(
     project: Annotated[Project, Depends(get_project)],
     store: Annotated[StoreProtocol, Depends(get_data_store)],
+    methodology: Literal["protein_tracker", "wwf"] | None = None,
 ) -> CalculationPreflightResponse:
     """Phase 34N — single source of truth for what the next
     calculation will include.
+
+    Phase Product-UX-A — methodology-aware. When ``methodology=wwf``
+    (or omitted on a WWF-only project) the preflight reports WWF
+    readiness: a product is ready once it has a non-unknown WWF food
+    group + a usable weight. WWF never requires protein nutrition, so
+    the nutrition counters are zero and ``requires_nutrition=False``.
+    The default / ``protein_tracker`` path is unchanged.
 
     Walks each PT-eligible product and computes:
     - whether it has accepted classification
@@ -2877,6 +2975,18 @@ def calculation_preflight_route(
     """
     import logging
     import time
+
+    # Phase Product-UX-A — resolve the effective methodology. When the
+    # caller doesn't pass one, infer from the project: PT if enabled,
+    # else WWF. This keeps PT-only + PT+WWF projects on the legacy PT
+    # preflight by default while letting a WWF-only project work.
+    pt_enabled = Methodology.PROTEIN_TRACKER in project.methodologies_enabled
+    effective = methodology
+    if effective is None:
+        effective = "protein_tracker" if pt_enabled else "wwf"
+
+    if effective == "wwf":
+        return _wwf_calculation_preflight(store, project)
 
     t_total = time.perf_counter()
     t0 = time.perf_counter()
