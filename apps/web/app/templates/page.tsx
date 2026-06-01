@@ -1,120 +1,92 @@
 "use client";
 
 /**
- * Phase Product-UX-A — Templates page (replaces the old "Data
- * Requirements"). Concise, retailer-facing: pick a methodology,
- * download a CSV whose headers match Altera's auto-mapping, and import
- * without renaming columns. Display-only — no API/mapping logic here.
+ * Phase Product-UX-B — Templates page (operator-friendly).
+ *
+ * Three beautiful cards (Protein Tracker / WWF / combined), each with a
+ * short description, who-it's-for, a badge, and CSV + Excel download
+ * buttons pointing at the static, import-verified assets under
+ * ``/public/templates/``. No required/optional field chips, no
+ * copy-headers — keep it simple for supermarket users.
  */
 
-import { useState } from "react";
 import { Card, Pill } from "@/components/ui";
 import { useT } from "@/lib/i18n";
-import {
-  TEMPLATES,
-  templateToCsv,
-  type TemplateDef,
-  type TemplateKind,
-} from "@/lib/templates";
 
-const FILENAMES: Record<TemplateKind, string> = {
-  protein_tracker: "altera_template_protein_tracker.csv",
-  wwf: "altera_template_wwf.csv",
-  combined: "altera_template_protein_tracker_wwf.csv",
+type Kind = "protein_tracker" | "wwf" | "combined";
+
+const ASSET_BASE = "/templates";
+const FILES: Record<Kind, { csv: string; xlsx: string }> = {
+  protein_tracker: {
+    csv: `${ASSET_BASE}/altera_template_protein_tracker.csv`,
+    xlsx: `${ASSET_BASE}/altera_template_protein_tracker.xlsx`,
+  },
+  wwf: {
+    csv: `${ASSET_BASE}/altera_template_wwf.csv`,
+    xlsx: `${ASSET_BASE}/altera_template_wwf.xlsx`,
+  },
+  combined: {
+    csv: `${ASSET_BASE}/altera_template_combined.csv`,
+    xlsx: `${ASSET_BASE}/altera_template_combined.xlsx`,
+  },
 };
 
-function download(def: TemplateDef) {
-  const csv = templateToCsv(def);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = FILENAMES[def.kind];
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
 function TemplateCard({
-  def,
+  kind,
+  emoji,
   titleKey,
-  whenKey,
+  whoKey,
+  enablesKey,
+  badge,
+  badgeTone,
 }: {
-  def: TemplateDef;
+  kind: Kind;
+  emoji: string;
   titleKey: string;
-  whenKey: string;
+  whoKey: string;
+  enablesKey: string;
+  badge: string;
+  badgeTone: "brand" | "warn" | "ok";
 }) {
   const t = useT();
-  const [copied, setCopied] = useState(false);
-
-  async function copyHeaders() {
-    try {
-      await navigator.clipboard.writeText(def.headers.join(","));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch {
-      /* clipboard unavailable — no-op */
-    }
-  }
-
+  const files = FILES[kind];
   return (
     <Card className="flex flex-col">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-base font-semibold text-forest-900">
-          {t(titleKey)}
-        </h3>
-        <Pill tone="brand">{def.requiredFields.length} requis</Pill>
-      </div>
-      <p className="mt-1 text-xs text-ink-muted">{t(whenKey)}</p>
-
-      <div className="mt-3">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
-          {t("templates.required")}
+        <div className="flex items-center gap-2">
+          <span className="text-2xl" aria-hidden>
+            {emoji}
+          </span>
+          <h3 className="text-base font-semibold text-forest-900">
+            {t(titleKey)}
+          </h3>
         </div>
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {def.requiredFields.map((f) => (
-            <span
-              key={f}
-              className="rounded-md bg-mint-100 px-1.5 py-0.5 font-mono text-[11px] text-brand-700 ring-1 ring-brand-200"
-            >
-              {f}
-            </span>
-          ))}
-        </div>
+        <Pill tone={badgeTone}>{badge}</Pill>
       </div>
 
-      <div className="mt-3">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
-          {t("templates.optional")}
-        </div>
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {def.optionalFields.map((f) => (
-            <span
-              key={f}
-              className="rounded-md bg-line-soft px-1.5 py-0.5 font-mono text-[11px] text-ink-muted"
-            >
-              {f}
-            </span>
-          ))}
-        </div>
-      </div>
+      <p className="mt-3 text-sm text-ink-muted">{t(enablesKey)}</p>
+      <p className="mt-2 text-xs text-ink-soft">
+        <span className="font-medium text-forest-700">
+          {t("templates.who")} :
+        </span>{" "}
+        {t(whoKey)}
+      </p>
 
-      <div className="mt-4 flex flex-wrap gap-2 pt-1">
-        <button
-          type="button"
-          onClick={() => download(def)}
+      <div className="mt-auto flex flex-wrap gap-2 pt-4">
+        <a
+          href={files.csv}
+          download
           className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-soft transition-all hover:bg-brand-700 active:scale-[0.98]"
         >
-          ↓ {t("templates.download")}
-        </button>
-        <button
-          type="button"
-          onClick={() => void copyHeaders()}
-          className="inline-flex items-center rounded-xl border border-line bg-white px-3 py-1.5 text-sm font-medium text-forest-700 transition-colors hover:bg-mint-50"
+          ↓ {t("templates.downloadCsv")}
+        </a>
+        <a
+          href={files.xlsx}
+          download
+          className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-white px-3.5 py-1.5 text-sm font-medium text-forest-700 transition-colors hover:bg-mint-50"
         >
-          {copied ? t("templates.copied") : t("templates.copyHeaders")}
-        </button>
+          ↓ {t("templates.downloadExcel")}
+        </a>
       </div>
     </Card>
   );
@@ -138,26 +110,38 @@ export default function TemplatesPage() {
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <TemplateCard
-          def={TEMPLATES.protein_tracker}
+          kind="protein_tracker"
+          emoji="🌱"
           titleKey="templates.pt.title"
-          whenKey="templates.pt.when"
+          whoKey="templates.pt.who"
+          enablesKey="templates.pt.enables"
+          badge={t("templates.badge.ratio")}
+          badgeTone="ok"
         />
         <TemplateCard
-          def={TEMPLATES.wwf}
+          kind="wwf"
+          emoji="🥕"
           titleKey="templates.wwf.title"
-          whenKey="templates.wwf.when"
+          whoKey="templates.wwf.who"
+          enablesKey="templates.wwf.enables"
+          badge={t("templates.badge.groups")}
+          badgeTone="brand"
         />
         <TemplateCard
-          def={TEMPLATES.combined}
+          kind="combined"
+          emoji="📊"
           titleKey="templates.combined.title"
-          whenKey="templates.combined.when"
+          whoKey="templates.combined.who"
+          enablesKey="templates.combined.enables"
+          badge={t("templates.badge.complete")}
+          badgeTone="warn"
         />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Card>
           <h3 className="text-sm font-semibold text-forest-900">
-            {t("templates.privacy.title")}
+            🔒 {t("templates.privacy.title")}
           </h3>
           <p className="mt-1 text-sm text-ink-muted">
             {t("templates.privacy.body")}
@@ -165,7 +149,7 @@ export default function TemplatesPage() {
         </Card>
         <Card>
           <h3 className="text-sm font-semibold text-forest-900">
-            {t("templates.tip.title")}
+            ✅ {t("templates.tip.title")}
           </h3>
           <p className="mt-1 text-sm text-ink-muted">
             {t("templates.tip.body")}

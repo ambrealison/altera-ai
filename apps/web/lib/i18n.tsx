@@ -36,7 +36,6 @@ const DICT: Record<string, { fr: string; en: string }> = {
   // Navigation
   "nav.projects": { fr: "Projets enseignes", en: "Retailer projects" },
   "nav.templates": { fr: "Templates", en: "Templates" },
-  "nav.settings": { fr: "Paramètres", en: "Settings" },
   "nav.admin": { fr: "Admin", en: "Admin" },
   "nav.workspace": { fr: "Espace de travail", en: "Workspace" },
   "nav.helper.title": { fr: "Parcours guidé", en: "Guided workflow" },
@@ -71,41 +70,54 @@ const DICT: Record<string, { fr: string; en: string }> = {
   "templates.eyebrow": { fr: "Données", en: "Data" },
   "templates.title": { fr: "Templates d'import", en: "Import templates" },
   "templates.subtitle": {
-    fr: "Téléchargez le modèle CSV adapté à votre méthodologie. Les colonnes correspondent au mapping automatique d'Altera — aucun renommage nécessaire.",
-    en: "Download the CSV template that matches your methodology. The columns match Altera's auto-mapping — no renaming required.",
+    fr: "Choisissez le modèle adapté à votre méthodologie et téléchargez-le en CSV ou Excel. Les colonnes correspondent au mapping automatique d'Altera — aucun renommage nécessaire.",
+    en: "Pick the template that matches your methodology and download it as CSV or Excel. The columns match Altera's auto-mapping — no renaming required.",
   },
+  "templates.who": { fr: "Pour qui", en: "Who it's for" },
+  "templates.downloadCsv": { fr: "Télécharger CSV", en: "Download CSV" },
+  "templates.downloadExcel": { fr: "Télécharger Excel", en: "Download Excel" },
+  "templates.badge.ratio": { fr: "Ratio protéines", en: "Protein ratio" },
+  "templates.badge.groups": { fr: "Groupes WWF", en: "WWF groups" },
+  "templates.badge.complete": { fr: "Complet", en: "Complete" },
   "templates.pt.title": { fr: "Protein Tracker", en: "Protein Tracker" },
-  "templates.pt.when": {
-    fr: "Pour analyser le ratio protéines végétales / totales.",
-    en: "To analyse the plant / total protein ratio.",
+  "templates.pt.enables": {
+    fr: "Calcule le ratio protéines végétales / totales de votre assortiment.",
+    en: "Computes the plant / total protein ratio of your assortment.",
+  },
+  "templates.pt.who": {
+    fr: "Enseignes qui suivent la transition protéique.",
+    en: "Retailers tracking the protein transition.",
   },
   "templates.wwf.title": { fr: "WWF Planet-Based Diets", en: "WWF Planet-Based Diets" },
-  "templates.wwf.when": {
-    fr: "Pour répartir les volumes par groupe alimentaire (FG1–FG7).",
-    en: "To split volumes across food groups (FG1–FG7).",
+  "templates.wwf.enables": {
+    fr: "Répartit vos volumes de vente par groupe alimentaire (FG1–FG7) et bucket composite.",
+    en: "Splits your sales volumes across food groups (FG1–FG7) and composite buckets.",
+  },
+  "templates.wwf.who": {
+    fr: "Enseignes qui mesurent un régime planet-based.",
+    en: "Retailers measuring a planet-based diet.",
   },
   "templates.combined.title": {
     fr: "Protein Tracker + WWF",
     en: "Protein Tracker + WWF",
   },
-  "templates.combined.when": {
-    fr: "Pour mener les deux méthodologies sur un même import.",
-    en: "To run both methodologies from a single upload.",
+  "templates.combined.enables": {
+    fr: "Mène les deux analyses sur un seul import — un seul fichier à préparer.",
+    en: "Runs both analyses from a single upload — one file to prepare.",
   },
-  "templates.required": { fr: "Champs requis", en: "Required fields" },
-  "templates.optional": { fr: "Champs optionnels", en: "Optional fields" },
-  "templates.download": { fr: "Télécharger le CSV", en: "Download CSV" },
-  "templates.copyHeaders": { fr: "Copier les en-têtes", en: "Copy headers" },
-  "templates.copied": { fr: "Copié ✓", en: "Copied ✓" },
+  "templates.combined.who": {
+    fr: "Enseignes qui veulent une vue complète en une fois.",
+    en: "Retailers wanting the full picture in one go.",
+  },
   "templates.privacy.title": { fr: "Confidentialité", en: "Privacy" },
   "templates.privacy.body": {
-    fr: "Les volumes de vente, poids et valeurs nutritionnelles servent au calcul, mais les champs commerciaux ne sont jamais envoyés à l'IA.",
-    en: "Sales volumes, weights and nutrition values are used for calculation, but commercial fields are never sent to the AI.",
+    fr: "Les volumes, ventes, poids et données nutritionnelles sont utilisés pour les calculs, mais ne sont jamais envoyés à l'IA.",
+    en: "Volumes, sales, weights and nutrition data are used for calculation, but are never sent to the AI.",
   },
   "templates.tip.title": { fr: "Éviter les erreurs d'import", en: "Avoid upload errors" },
   "templates.tip.body": {
-    fr: "Gardez la première ligne d'en-têtes, un encodage UTF-8, et une valeur par cellule. Les identifiants manquants sont générés automatiquement.",
-    en: "Keep the header row, UTF-8 encoding, and one value per cell. Missing IDs are generated automatically.",
+    fr: "Utilisez ces templates pour éviter les erreurs de mapping. Gardez la première ligne d'en-têtes et un encodage UTF-8.",
+    en: "Use these templates to avoid mapping errors. Keep the header row and UTF-8 encoding.",
   },
   // Language switch
   "lang.fr": { fr: "FR", en: "FR" },

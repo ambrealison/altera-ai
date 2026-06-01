@@ -34,12 +34,15 @@ import {
   CLASSIFICATION_JOB_TERMINAL_STATUSES,
   type MethodologyClassificationCounts,
   type Methodology,
+  type ReportDocument,
   type Run,
   type UploadResult,
   type WorkflowStatus,
   type WorkflowStep,
 } from "@/lib/api";
 
+// Phase Product-UX-B — shared in-workflow result report.
+import { RunReport } from "@/components/RunReport";
 // Phase 34E — fully inline upload + manual review inside the wizard.
 import { InlineUpload } from "./_inline-upload";
 // Phase 34F — inline category validation table.
@@ -707,6 +710,21 @@ function StepAIClassification({
                 Continuer vers Validation
               </Button>
             </>
+          ) : currentJob && currentJob.status === "completed" ? (
+            // Phase Product-UX-B — the job finished cleanly. For
+            // WWF-only projects the backend ``ai_classification`` step
+            // is PT-based (pt_total == 0 → locked), so ``isComplete``
+            // never trips and the old code fell through to "Lancer la
+            // catégorisation WWF". Drive the user FORWARD here, with
+            // reclassify as a secondary action only.
+            <>
+              <Button onClick={onNext}>Continuer vers Validation</Button>
+              <Button onClick={onRun} variant="secondary" disabled={busy}>
+                {wwfOnly
+                  ? "Reclassifier WWF"
+                  : "Reclassifier"}
+              </Button>
+            </>
           ) : currentJob && currentJob.status === "failed" ? (
             <Button
               onClick={onRun}
@@ -966,24 +984,41 @@ function MethodologyClassificationCard({
 
       <div className="mt-4 flex flex-wrap gap-2">
         {canResume ? (
-          <Button
-            onClick={() => onResume(currentJob!.job_id)}
-            disabled={busy}
-          >
-            {`${resumeLabelBase} (${currentJob!.processed_products}/${currentJob!.total_products})`}
-          </Button>
-        ) : currentJob && currentJob.status === "completed_with_errors" ? (
-          <Button onClick={onRetryFailed} disabled={busy}>
-            {`Réessayer ${currentJob.failed_product_count} échec(s)`}
-          </Button>
+          <>
+            <Button
+              onClick={() => onResume(currentJob!.job_id)}
+              disabled={busy}
+            >
+              {`${resumeLabelBase} (${currentJob!.processed_products}/${currentJob!.total_products})`}
+            </Button>
+            {classified > 0 && (
+              <Button variant="secondary" onClick={onOpenValidation}>
+                {validationLabel}
+              </Button>
+            )}
+          </>
+        ) : isCompleteWithErrors ? (
+          // True unresolved rows — retry is primary, validation next.
+          <>
+            <Button onClick={onRetryFailed} disabled={busy}>
+              {`Réessayer ${unresolvedCount} ligne(s)`}
+            </Button>
+            <Button variant="secondary" onClick={onOpenValidation}>
+              {validationLabel}
+            </Button>
+          </>
+        ) : isCompleteClean ? (
+          // Phase Product-UX-B — finished cleanly. Guide to validation;
+          // reclassify is a secondary action, never the headline.
+          <>
+            <Button onClick={onOpenValidation}>{validationLabel}</Button>
+            <Button variant="secondary" onClick={onRun} disabled={busy}>
+              {isWwf ? "Reclassifier WWF" : "Reclassifier"}
+            </Button>
+          </>
         ) : (
           <Button onClick={onRun} disabled={busy || !latestUpload}>
             {busy ? "…" : runLabel}
-          </Button>
-        )}
-        {(classified > 0 || isCompleteClean || isCompleteWithErrors) && (
-          <Button variant="secondary" onClick={onOpenValidation}>
-            {validationLabel}
           </Button>
         )}
       </div>
@@ -1835,14 +1870,41 @@ function StepCalculation({
 
 function StepReport({
   projectId,
+  accessToken,
   step,
   latestRun,
 }: {
   projectId: string;
+  accessToken: string | null;
   step: WorkflowStep;
   latestRun: Run | null;
 }) {
   const hasRun = step.status === "complete" && latestRun !== null;
+
+  // Phase Product-UX-B — fetch the full ReportDocument so the guided
+  // result step shows the beautiful report inline (no forced click-out
+  // to /runs/:id). Best-effort: on failure we fall back to the inline
+  // summary below.
+  const reportApi = useMemo(() => createApi(accessToken), [accessToken]);
+  const [report, setReport] = useState<ReportDocument | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!latestRun) {
+      setReport(null);
+      return;
+    }
+    reportApi
+      .getReport(projectId, latestRun.id)
+      .then((d) => {
+        if (active) setReport(d);
+      })
+      .catch(() => {
+        if (active) setReport(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [reportApi, projectId, latestRun]);
 
   const summary = latestRun?.summary as Record<string, unknown> | undefined;
   const plantRatio = summary?.plant_protein_ratio as number | undefined;
@@ -1886,6 +1948,26 @@ function StepReport({
         : productPct < 80
           ? "medium"
           : "normal";
+
+  // Phase Product-UX-B — when the full report is available, render it
+  // inline as the main user-facing result; the technical detail page
+  // becomes a secondary link below.
+  if (hasRun && report) {
+    return (
+      <div className="space-y-5">
+        <RunReport doc={report} />
+        <div className="flex flex-wrap gap-3">
+          <Link href={`/projects/${projectId}/runs/${latestRun!.id}`}>
+            <Button variant="ghost">Voir le détail technique →</Button>
+          </Link>
+        </div>
+        <p className="text-xs text-ink-soft">
+          Le détail technique regroupe les exports CSV/JSON/Markdown et
+          l’historique d’approbation.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -2918,6 +3000,7 @@ export default function WorkflowWizardPage() {
         {activeStepId === "report" && (
           <StepReport
             projectId={projectId}
+            accessToken={accessToken}
             step={activeBackendStep}
             latestRun={latestRun}
           />

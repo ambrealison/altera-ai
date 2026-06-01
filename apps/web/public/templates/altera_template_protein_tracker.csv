@@ -1,0 +1,3 @@
+product_id,product_name,raw_product_category,ingredient_declaration_simulated,pack_weight_g,unit_purchased,protein_total_g_per_100g,protein_plant_g_per_100g,protein_animal_g_per_100g,protein_split_known,label_claims_notes
+SKU-0001,Lentilles vertes 500g,Épicerie / Légumes secs,Lentilles vertes,500,1200,9.0,9.0,0.0,true,Bio
+SKU-0002,Filet de poulet 400g,Boucherie / Volaille,Filet de poulet,400,850,23.0,0.0,23.0,true,

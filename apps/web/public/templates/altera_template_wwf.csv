@@ -1,0 +1,3 @@
+product_id,product_name,brand_type,retail_channel,raw_product_category,ingredient_declaration_simulated,pack_weight_g,units_sold,sales_weight_kg,drained_weight_g_if_applicable,label_claims_notes
+SKU-0001,Lentilles vertes 500g,Own brand,grocery_ambient,Épicerie / Légumes secs,Lentilles vertes,500,1200,600,,Bio
+SKU-0002,Filet de saumon 200g,National brand,fresh,Marée / Poisson frais,Saumon atlantique,200,640,128,,

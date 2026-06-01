@@ -12,10 +12,11 @@ type NavItem = {
 };
 
 // Phase Product-UX-A — Dashboard removed; labels are i18n keys.
+// Phase Product-UX-B — Settings removed from primary navigation (the
+// /settings route still exists, it's just no longer surfaced here).
 const BASE_NAV: NavItem[] = [
   { labelKey: "nav.projects", href: "/projects" },
   { labelKey: "nav.templates", href: "/templates" },
-  { labelKey: "nav.settings", href: "/settings" },
 ];
 
 const ALTERA_NAV: NavItem[] = [{ labelKey: "nav.admin", href: "/admin" }];
