@@ -14,19 +14,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-line/70 bg-white/70 px-6 backdrop-blur-md">
-          <div className="flex items-center gap-2.5">
-            <Link href="/" className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-forest-hero text-sm font-bold text-white shadow-soft">
-                A
-              </span>
-              <span className="text-[15px] font-semibold tracking-tight text-forest-900">
-                Altera AI
-              </span>
-            </Link>
-            <span className="hidden rounded-full bg-mint-100 px-2.5 py-0.5 text-[11px] font-medium text-brand-700 ring-1 ring-brand-200 sm:inline">
-              Climate intelligence
+          <Link
+            href="/"
+            className="flex items-baseline transition-opacity hover:opacity-80"
+            aria-label="Altera.ai — accueil"
+          >
+            <span className="text-2xl font-black italic tracking-tight text-forest-900">
+              Altera
             </span>
-          </div>
+            <span className="ml-0.5 text-xl font-bold text-brand-600">
+              .ai
+            </span>
+          </Link>
           <UserMenu />
         </header>
         <main className="flex-1 px-6 py-8">{children}</main>
