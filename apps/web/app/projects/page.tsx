@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Card, CardHeader, EmptyState, Pill, Skeleton } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import { createApi, type Project } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { NewProjectForm } from "./NewProjectForm";
 
 /**
@@ -27,6 +28,7 @@ import { NewProjectForm } from "./NewProjectForm";
  */
 export default function ProjectsPage() {
   const { accessToken, loading: authLoading } = useAuth();
+  const t = useT();
   const api = useMemo(() => createApi(accessToken), [accessToken]);
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,15 +75,13 @@ export default function ProjectsPage() {
     <div className="mx-auto max-w-5xl">
       <div className="overflow-hidden rounded-3xl bg-forest-hero p-7 shadow-card">
         <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-mint-100 ring-1 ring-white/20">
-          Projets
+          {t("projects.eyebrow")}
         </span>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-          Vos projets
+          {t("projects.title")}
         </h1>
         <p className="mt-1 max-w-xl text-sm text-mint-100/90">
-          Chaque projet fixe les méthodologies (Protein Tracker, WWF) et
-          une période de reporting. Les imports et les calculs vivent
-          dans un projet.
+          {t("projects.subtitle")}
         </p>
       </div>
 
@@ -104,7 +104,7 @@ export default function ProjectsPage() {
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
         <Card>
-          <CardHeader title="All projects" />
+          <CardHeader title={t("projects.all")} />
           {showInitialLoading ? (
             <div className="mt-4 space-y-2">
               <Skeleton className="h-16 w-full" />
@@ -114,11 +114,11 @@ export default function ProjectsPage() {
           ) : projects === null || projects.length === 0 ? (
             <div className="mt-4">
               <EmptyState
-                title="Aucun projet pour l'instant"
+                title={t("projects.empty.title")}
                 description={
                   error
                     ? "Les projets seront affichés une fois la connexion rétablie."
-                    : "Créez votre premier projet à droite."
+                    : t("projects.empty.body")
                 }
               />
             </div>
@@ -143,14 +143,20 @@ export default function ProjectsPage() {
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-muted">
                       <span>{p.reporting_period_label}</span>
                       <span className="text-line">·</span>
-                      <span>{p.upload_count} imports</span>
+                      <span>
+                        {p.upload_count} {t("projects.meta.uploads")}
+                      </span>
                       <span className="text-line">·</span>
-                      <span>{p.review_queue_count} en revue</span>
+                      <span>
+                        {p.review_queue_count} {t("projects.meta.review")}
+                      </span>
                       <span className="text-line">·</span>
-                      <span>{p.run_count} calculs</span>
+                      <span>
+                        {p.run_count} {t("projects.meta.runs")}
+                      </span>
                     </div>
                     <div className="mt-2 text-xs font-medium text-brand-700 underline-offset-2 group-hover:underline">
-                      Ouvrir le parcours guidé →
+                      {t("projects.open")} →
                     </div>
                   </Link>
                 </li>
@@ -160,10 +166,7 @@ export default function ProjectsPage() {
         </Card>
 
         <Card>
-          <CardHeader
-            title="New project"
-            subtitle="A project carries the enabled methodologies and reporting period."
-          />
+          <CardHeader title={t("projects.new")} />
           <div className="mt-4">
             <NewProjectForm onCreated={() => setBumper((n) => n + 1)} />
           </div>

@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { AuthGate } from "@/components/AuthGate";
+import { LanguageProvider } from "@/lib/i18n";
 
 export const metadata: Metadata = {
-  title: "Altera AI",
+  title: "Altera.ai",
   description:
-    "Open-source SaaS for retailer protein-ratio analysis (Protein Tracker and WWF methodologies).",
+    "Retailer protein-ratio + planet-based-diet analysis (Protein Tracker and WWF methodologies).",
 };
 
 export default function RootLayout({
@@ -15,11 +16,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-gray-50 text-gray-900 antialiased">
-        <AuthProvider>
-          <AuthGate>{children}</AuthGate>
-        </AuthProvider>
+    // Phase Design-A/B — let globals.css paint the climate gradient
+    // (the previous bg-gray-50 override hid it). Default lang FR.
+    <html lang="fr">
+      <body className="min-h-screen text-forest-900 antialiased">
+        <LanguageProvider>
+          <AuthProvider>
+            <AuthGate>{children}</AuthGate>
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

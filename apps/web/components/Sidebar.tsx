@@ -3,24 +3,27 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { useT } from "@/lib/i18n";
 
 type NavItem = {
-  label: string;
+  /** i18n key resolved at render time. */
+  labelKey: string;
   href: string;
 };
 
+// Phase Product-UX-A — Dashboard removed; labels are i18n keys.
 const BASE_NAV: NavItem[] = [
-  { label: "Dashboard", href: "/" },
-  { label: "Projects", href: "/projects" },
-  { label: "Data Requirements", href: "/data-requirements" },
-  { label: "Settings", href: "/settings" },
+  { labelKey: "nav.projects", href: "/projects" },
+  { labelKey: "nav.templates", href: "/templates" },
+  { labelKey: "nav.settings", href: "/settings" },
 ];
 
-const ALTERA_NAV: NavItem[] = [{ label: "Admin", href: "/admin" }];
+const ALTERA_NAV: NavItem[] = [{ labelKey: "nav.admin", href: "/admin" }];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { isAltera } = useAuth();
+  const t = useT();
 
   const nav = isAltera ? [...BASE_NAV, ...ALTERA_NAV] : BASE_NAV;
 
@@ -28,15 +31,12 @@ export function Sidebar() {
     <aside className="hidden w-60 shrink-0 border-r border-line/70 bg-white/60 backdrop-blur-md md:flex md:flex-col">
       <div className="px-5 py-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
-          Workspace
+          {t("nav.workspace")}
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3 pb-4">
         {nav.map((item) => {
-          const active =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname?.startsWith(item.href);
+          const active = pathname?.startsWith(item.href);
           return (
             <Link
               key={item.href}
@@ -56,17 +56,16 @@ export function Sidebar() {
                     : "bg-line group-hover:bg-brand-300")
                 }
               />
-              {item.label}
+              {t(item.labelKey)}
             </Link>
           );
         })}
       </nav>
       <div className="m-3 rounded-2xl bg-lime-soft p-4 text-xs leading-relaxed text-forest-700 ring-1 ring-brand-100">
-        <span className="font-semibold text-forest-900">Parcours guidé</span>
-        <p className="mt-1 text-ink-muted">
-          Importez, classez, validez et calculez vos ratios directement
-          dans un projet.
-        </p>
+        <span className="font-semibold text-forest-900">
+          {t("nav.helper.title")}
+        </span>
+        <p className="mt-1 text-ink-muted">{t("nav.helper.body")}</p>
       </div>
     </aside>
   );
