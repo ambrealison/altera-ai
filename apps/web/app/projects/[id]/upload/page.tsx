@@ -147,7 +147,7 @@ function MappingTable({
     <div className="mt-4 overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-gray-200 text-left text-gray-500 uppercase tracking-wider">
+          <tr className="border-b border-gray-200 text-left text-ink-soft uppercase tracking-wider">
             <th className="pb-2 pr-4 font-medium">CSV header</th>
             <th className="pb-2 pr-4 font-medium">Map to field</th>
             <th className="pb-2 font-medium">Confidence</th>
@@ -201,26 +201,26 @@ function ClassifyResultSummary({ result }: { result: JobResult }) {
     <>
       <div className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
         <div>
-          <div className="text-xs uppercase tracking-wider text-gray-500">Rules matched</div>
+          <div className="text-xs uppercase tracking-wider text-ink-soft">Rules matched</div>
           <div className="mt-1 text-lg font-semibold">{result.matched ?? 0}</div>
         </div>
         {hasAi ? (
           <div>
-            <div className="text-xs uppercase tracking-wider text-gray-500">AI accepted</div>
+            <div className="text-xs uppercase tracking-wider text-ink-soft">AI accepted</div>
             <div className="mt-1 text-lg font-semibold">{aiAccepted}</div>
           </div>
         ) : (
           <div>
-            <div className="text-xs uppercase tracking-wider text-gray-500">Pass-through</div>
+            <div className="text-xs uppercase tracking-wider text-ink-soft">Pass-through</div>
             <div className="mt-1 text-lg font-semibold">{result.pass_through ?? 0}</div>
           </div>
         )}
         <div>
-          <div className="text-xs uppercase tracking-wider text-gray-500">Collisions</div>
+          <div className="text-xs uppercase tracking-wider text-ink-soft">Collisions</div>
           <div className="mt-1 text-lg font-semibold">{result.rule_collision ?? 0}</div>
         </div>
         <div>
-          <div className="text-xs uppercase tracking-wider text-gray-500">Sent to review</div>
+          <div className="text-xs uppercase tracking-wider text-ink-soft">Sent to review</div>
           <div className="mt-1 text-lg font-semibold">{queued}</div>
         </div>
       </div>
@@ -230,7 +230,7 @@ function ClassifyResultSummary({ result }: { result: JobResult }) {
         </div>
       )}
       {queued > 0 && (
-        <p className="mt-3 text-sm text-gray-600">
+        <p className="mt-3 text-sm text-ink-muted">
           {queued} product{queued !== 1 ? "s" : ""} will be reviewed by the Altera team before the
           report is generated.
         </p>
@@ -472,7 +472,7 @@ export default function UploadPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-semibold tracking-tight">Upload data</h1>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-ink-muted">
         Upload a CSV. The pipeline drops commercial columns at the boundary, normalises units, and
         validates per methodology.
       </p>
@@ -490,16 +490,16 @@ export default function UploadPage() {
                 className="block w-full text-sm"
               />
               {file && (
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-ink-soft">
                   {file.name} &mdash; {formatBytes(file.size)}
                 </p>
               )}
             </Field>
             {mappingBusy && (
-              <p className="text-sm text-gray-500">Parsing column headers…</p>
+              <p className="text-sm text-ink-soft">Parsing column headers…</p>
             )}
             {mappingError && (
-              <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              <div className="rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
                 {mappingError}
               </div>
             )}
@@ -517,7 +517,7 @@ export default function UploadPage() {
             />
 
             {hasDuplicates && (
-              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <div className="mt-3 rounded-md border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
                 Duplicate column headers detected: {mappingPreview.duplicate_normalised.join(", ")}.
                 Only the last value will be kept per row.
               </div>
@@ -526,7 +526,7 @@ export default function UploadPage() {
             {(hasMissingPt || hasMissingWwf) && (
               <div className="mt-3 space-y-2">
                 {hasMissingPt && (
-                  <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                  <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-danger-700">
                     <div className="font-medium">
                       Champs Protein Tracker requis encore manquants :{" "}
                       {liveMissingPt.map(labelFor).join(", ")}.
@@ -538,7 +538,7 @@ export default function UploadPage() {
                   </div>
                 )}
                 {hasMissingWwf && (
-                  <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                  <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-danger-700">
                     <div className="font-medium">
                       Champs WWF requis encore manquants :{" "}
                       {liveMissingWwf.map(labelFor).join(", ")}.
@@ -560,7 +560,7 @@ export default function UploadPage() {
               </div>
             )}
             {gramsHint && (
-              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <div className="mt-3 rounded-md border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
                 Cette colonne semble contenir des grammes. Sélection recommandée :
                 <strong> Poids unitaire (g)</strong> au lieu de
                 <strong> Poids unitaire (kg)</strong>. Aucune conversion automatique
@@ -604,38 +604,38 @@ export default function UploadPage() {
               }
             />
             {result.duplicate_of && (
-              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <div className="mt-3 rounded-md border border-warn-100 bg-warn-50 px-3 py-2 text-sm text-warn-700">
                 This file appears to be a duplicate of a previous upload (same content). Processing
                 continued, but you may want to verify this is intentional.
               </div>
             )}
             <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">
               <div>
-                <dt className="text-xs uppercase tracking-wider text-gray-500">Rows</dt>
+                <dt className="text-xs uppercase tracking-wider text-ink-soft">Rows</dt>
                 <dd className="mt-1 font-medium">{result.row_count}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-wider text-gray-500">Products</dt>
+                <dt className="text-xs uppercase tracking-wider text-ink-soft">Products</dt>
                 <dd className="mt-1 font-medium">{result.products_count}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-wider text-gray-500">Errors</dt>
+                <dt className="text-xs uppercase tracking-wider text-ink-soft">Errors</dt>
                 <dd className="mt-1 font-medium">{result.errors.length}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-wider text-gray-500">Warnings</dt>
+                <dt className="text-xs uppercase tracking-wider text-ink-soft">Warnings</dt>
                 <dd className="mt-1 font-medium">{result.warnings.length}</dd>
               </div>
               {result.file_size_bytes != null && (
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-gray-500">File size</dt>
+                  <dt className="text-xs uppercase tracking-wider text-ink-soft">File size</dt>
                   <dd className="mt-1 font-medium">{formatBytes(result.file_size_bytes)}</dd>
                 </div>
               )}
             </dl>
             {result.dropped_columns.length > 0 && (
               <div className="mt-4">
-                <div className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                <div className="text-xs font-medium uppercase tracking-wider text-ink-soft">
                   Dropped commercial columns
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1">
@@ -647,13 +647,13 @@ export default function UploadPage() {
             )}
             {result.errors.length > 0 && (
               <details className="mt-4">
-                <summary className="cursor-pointer text-sm font-medium text-rose-700">
+                <summary className="cursor-pointer text-sm font-medium text-danger-700">
                   Errors ({result.errors.length})
                 </summary>
-                <p className="mt-2 text-xs text-rose-700">
+                <p className="mt-2 text-xs text-danger-700">
                   Rows with errors were not ingested. Fix the CSV and re-upload.
                 </p>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-rose-800">
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-danger-700">
                   {result.errors.slice(0, 20).map((e, i) => (
                     <li key={i}>
                       row {e.row_number}: {e.code} — {e.message}
@@ -703,7 +703,7 @@ export default function UploadPage() {
                   >
                     {classifyJob.status}
                   </Pill>
-                  <span className="text-xs text-gray-500">job {classifyJob.job_id.slice(0, 8)}</span>
+                  <span className="text-xs text-ink-soft">job {classifyJob.job_id.slice(0, 8)}</span>
                 </div>
                 {classifyJob.status === "succeeded" && classifyJob.result && (
                   <ClassifyResultSummary result={classifyJob.result} />
@@ -722,7 +722,7 @@ export default function UploadPage() {
               title="4. Step 2 ingredient attribution (WWF)"
               subtitle="Optional: upload a JSON file mapping own-brand composite products to their ingredients."
             />
-            <p className="mt-3 text-sm text-gray-600">
+            <p className="mt-3 text-sm text-ink-muted">
               Step 2 applies to <strong>own-brand composite products only</strong>. Branded composites
               are always reported at Step 1 (whole product weight) and are unaffected by this file.
               Uploading a new file replaces any previously stored Step 2 data for this project.
@@ -736,7 +736,7 @@ export default function UploadPage() {
                   className="block w-full text-sm"
                 />
                 {wwfStep2File && (
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-ink-soft">
                     {wwfStep2File.name} &mdash; {formatBytes(wwfStep2File.size)}
                   </p>
                 )}
@@ -746,7 +746,7 @@ export default function UploadPage() {
               </Button>
             </form>
             {wwfStep2Error && (
-              <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              <div className="mt-3 rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
                 {wwfStep2Error}
               </div>
             )}
@@ -757,7 +757,7 @@ export default function UploadPage() {
                     {wwfStep2Result.stored ? "stored" : "not stored"}
                   </Pill>
                   {wwfStep2Result.stored && (
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-ink-soft">
                       {wwfStep2Result.replaced ? "Replaced previous data — i" : "I"}
                       ngredients saved for {wwfStep2Result.valid_product_count} product
                       {wwfStep2Result.valid_product_count !== 1 ? "s" : ""}
@@ -771,24 +771,24 @@ export default function UploadPage() {
                 )}
                 <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">Products in file</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">Products in file</div>
                     <div className="mt-1 text-lg font-semibold">{wwfStep2Result.total_products_in_file}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">Own-brand stored</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">Own-brand stored</div>
                     <div className="mt-1 text-lg font-semibold">{wwfStep2Result.valid_product_count}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">Errors</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">Errors</div>
                     <div className="mt-1 text-lg font-semibold">{wwfStep2Result.error_count}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">Warnings</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">Warnings</div>
                     <div className="mt-1 text-lg font-semibold">{wwfStep2Result.warning_count}</div>
                   </div>
                 </div>
                 {(wwfStep2Result.unknown_product_count > 0 || wwfStep2Result.branded_composite_count > 0) && (
-                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <div className="rounded-md border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
                     {wwfStep2Result.unknown_product_count > 0 && (
                       <div>{wwfStep2Result.unknown_product_count} product(s) not found in project — check external IDs.</div>
                     )}
@@ -802,10 +802,10 @@ export default function UploadPage() {
                 )}
                 {wwfStep2Result.product_results.some((r) => r.errors.length > 0) && (
                   <details>
-                    <summary className="cursor-pointer text-sm font-medium text-rose-700">
+                    <summary className="cursor-pointer text-sm font-medium text-danger-700">
                       Validation errors
                     </summary>
-                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-rose-800">
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-danger-700">
                       {wwfStep2Result.product_results
                         .flatMap((r) =>
                           r.errors.map((e) => ({
@@ -825,7 +825,7 @@ export default function UploadPage() {
       )}
 
       {error && (
-        <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+        <div className="mt-4 rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
           {error}
         </div>
       )}

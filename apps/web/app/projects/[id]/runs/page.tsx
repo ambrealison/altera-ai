@@ -90,41 +90,41 @@ export default function RunsPage() {
           ← Back to project
         </Button>
       </div>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-ink-muted">
         Each run computes the methodology summary from the active classifications
         for every product in this project.
       </p>
 
       {error && (
-        <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+        <div className="mt-4 rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
           {error}
         </div>
       )}
 
       {(ptNeedsClassification || classificationError) && (
-        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-sm font-medium text-amber-800">
+        <div className="mt-4 rounded-md border border-warn-100 bg-warn-50 px-4 py-3">
+          <p className="text-sm font-medium text-warn-700">
             Classification required before calculation
           </p>
-          <p className="mt-1 text-xs text-amber-700">
+          <p className="mt-1 text-xs text-warn-700">
             {classificationError
               ? classificationError.message
               : `${unclassifiedPt} product${unclassifiedPt !== 1 ? "s" : ""} have not been classified yet.`}
           </p>
-          <p className="mt-1 text-xs text-amber-700">
+          <p className="mt-1 text-xs text-warn-700">
             Upload your CSV, run classification, then complete any manual review before
             triggering a calculation.
           </p>
           <div className="mt-2 flex flex-wrap gap-3">
             <Link
               href={`/projects/${projectId}/upload`}
-              className="text-xs font-medium text-amber-900 underline underline-offset-2"
+              className="text-xs font-medium text-warn-700 underline underline-offset-2"
             >
               Go to Upload &amp; Classify
             </Link>
             <Link
               href={`/projects/${projectId}/review`}
-              className="text-xs font-medium text-amber-900 underline underline-offset-2"
+              className="text-xs font-medium text-warn-700 underline underline-offset-2"
             >
               Open review queue
             </Link>
@@ -136,7 +136,7 @@ export default function RunsPage() {
         <Card>
           <CardHeader title="Trigger a calculation" />
           {ptNeedsClassification && (
-            <p className="mt-2 text-xs text-amber-700">
+            <p className="mt-2 text-xs text-warn-700">
               Protein Tracker calculation is disabled until all products are classified.
             </p>
           )}
@@ -159,7 +159,7 @@ export default function RunsPage() {
         <Card>
           <CardHeader title="Past runs" />
           {runs === null ? (
-            <div className="mt-3 text-sm text-gray-500">Loading…</div>
+            <div className="mt-3 text-sm text-ink-soft">Loading…</div>
           ) : runs.length === 0 ? (
             <div className="mt-4">
               <EmptyState title="No runs yet" description="Trigger one above." />
@@ -175,7 +175,7 @@ export default function RunsPage() {
                     >
                       {r.id.slice(0, 8)}
                     </Link>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-ink-soft">
                       {new Date(r.started_at).toLocaleString()} · {r.rows_count} rows
                     </div>
                   </div>
@@ -208,9 +208,9 @@ function fmtDelta(val: string | null | undefined): string {
 }
 
 function deltaClass(val: string | null | undefined): string {
-  if (val == null) return "text-gray-500";
+  if (val == null) return "text-ink-soft";
   const n = parseFloat(val);
-  if (isNaN(n) || n === 0) return "text-gray-500";
+  if (isNaN(n) || n === 0) return "text-ink-soft";
   return n > 0 ? "text-green-600 font-medium" : "text-rose-600 font-medium";
 }
 
@@ -224,7 +224,7 @@ function PTComparisonResult({ pt }: { pt: NonNullable<RunComparisonResponse["pt_
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500">Direction:</span>
+        <span className="text-xs text-ink-soft">Direction:</span>
         <Pill tone={DIRECTION_TONE[pt.direction] ?? "neutral"}>{pt.direction}</Pill>
         {pt.baseline_methodology_version !== pt.comparison_methodology_version && (
           <Pill tone="warn">methodology version changed</Pill>
@@ -283,7 +283,7 @@ function PTComparisonResult({ pt }: { pt: NonNullable<RunComparisonResponse["pt_
             <tbody className="divide-y divide-gray-100">
               {pt.per_group.map((g: PTGroupComparisonResponse) => (
                 <tr key={g.pt_group}>
-                  <td className="py-1 text-gray-600">{g.pt_group.replace(/_/g, " ")}</td>
+                  <td className="py-1 text-ink-muted">{g.pt_group.replace(/_/g, " ")}</td>
                   <td className="py-1 text-right font-mono">{parseFloat(g.baseline_protein_kg).toFixed(2)}</td>
                   <td className="py-1 text-right font-mono">{parseFloat(g.comparison_protein_kg).toFixed(2)}</td>
                   <td className={`py-1 text-right font-mono ${deltaClass(g.delta_protein_kg)}`}>{fmtDelta(g.delta_protein_kg)}</td>
@@ -301,7 +301,7 @@ function WWFComparisonResult({ wwf }: { wwf: NonNullable<RunComparisonResponse["
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500">Direction:</span>
+        <span className="text-xs text-ink-soft">Direction:</span>
         <Pill tone={DIRECTION_TONE[wwf.direction] ?? "neutral"}>{wwf.direction}</Pill>
       </div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -356,7 +356,7 @@ function CompareRunsCard({
         subtitle="Year-over-year or period-to-period comparison. Deterministic — run data is never changed."
       />
       <div className="mt-4 flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-xs text-gray-600">
+        <label className="flex flex-col gap-1 text-xs text-ink-muted">
           Baseline (earlier)
           <select
             className="rounded border border-gray-200 px-2 py-1.5 text-sm"
@@ -368,7 +368,7 @@ function CompareRunsCard({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs text-gray-600">
+        <label className="flex flex-col gap-1 text-xs text-ink-muted">
           Comparison (later)
           <select
             className="rounded border border-gray-200 px-2 py-1.5 text-sm"
@@ -396,10 +396,10 @@ function CompareRunsCard({
         <div className="mt-5">
           {result.warnings.length > 0 && (
             <div className="mb-4 rounded border border-amber-100 bg-amber-50 px-3 py-2">
-              <p className="text-xs font-medium text-amber-700 mb-1">Warnings</p>
+              <p className="text-xs font-medium text-warn-700 mb-1">Warnings</p>
               <ul className="space-y-0.5">
                 {result.warnings.map((w, i) => (
-                  <li key={i} className="text-xs text-amber-700">· {w}</li>
+                  <li key={i} className="text-xs text-warn-700">· {w}</li>
                 ))}
               </ul>
             </div>

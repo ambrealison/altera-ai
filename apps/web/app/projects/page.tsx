@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Card, CardHeader, EmptyState, Pill } from "@/components/ui";
+import { Card, CardHeader, EmptyState, Pill, Skeleton } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import { createApi, type Project } from "@/lib/api";
 import { NewProjectForm } from "./NewProjectForm";
@@ -71,23 +71,31 @@ export default function ProjectsPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
-      <p className="mt-1 text-sm text-gray-600">
-        Each project pins methodologies (Protein Tracker, WWF) and a reporting
-        period. Uploads and runs live inside one project.
-      </p>
+      <div className="overflow-hidden rounded-3xl bg-forest-hero p-7 shadow-card">
+        <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-mint-100 ring-1 ring-white/20">
+          Projets
+        </span>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+          Vos projets
+        </h1>
+        <p className="mt-1 max-w-xl text-sm text-mint-100/90">
+          Chaque projet fixe les méthodologies (Protein Tracker, WWF) et
+          une période de reporting. Les imports et les calculs vivent
+          dans un projet.
+        </p>
+      </div>
 
       {error && (
-        <div className="mt-4 flex items-start justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="mt-4 flex items-start justify-between gap-3 rounded-xl border border-warn-100 bg-warn-50 px-4 py-3 text-sm text-warn-700">
           <div>
-            <div className="font-medium">Chargement partiel</div>
+            <div className="font-semibold">Chargement partiel</div>
             <div className="mt-0.5">{error}</div>
           </div>
           <button
             type="button"
             onClick={() => setBumper((n) => n + 1)}
             disabled={loading}
-            className="shrink-0 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+            className="shrink-0 rounded-lg border border-warn-100 bg-white px-3 py-1.5 text-sm font-medium text-warn-700 hover:bg-warn-50 disabled:opacity-50"
           >
             {loading ? "Chargement…" : "Réessayer"}
           </button>
@@ -98,28 +106,32 @@ export default function ProjectsPage() {
         <Card>
           <CardHeader title="All projects" />
           {showInitialLoading ? (
-            <div className="mt-4 text-sm text-gray-500">Loading…</div>
+            <div className="mt-4 space-y-2">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
           ) : projects === null || projects.length === 0 ? (
             <div className="mt-4">
               <EmptyState
-                title="No projects yet"
+                title="Aucun projet pour l'instant"
                 description={
                   error
                     ? "Les projets seront affichés une fois la connexion rétablie."
-                    : "Create your first project on the right."
+                    : "Créez votre premier projet à droite."
                 }
               />
             </div>
           ) : (
-            <ul className="mt-4 divide-y divide-gray-100">
+            <ul className="mt-4 space-y-1.5">
               {projects.map((p) => (
-                <li key={p.id} className="py-3">
+                <li key={p.id}>
                   <Link
                     href={`/projects/${p.id}/workflow`}
-                    className="block rounded-md p-2 -m-2 hover:bg-gray-50"
+                    className="group block rounded-xl border border-transparent p-3 transition-all hover:border-brand-100 hover:bg-mint-50/60 hover:shadow-soft"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-medium text-brand-700">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold text-forest-900">
                         {p.name}
                       </div>
                       <div className="flex items-center gap-1">
@@ -128,16 +140,16 @@ export default function ProjectsPage() {
                         ))}
                       </div>
                     </div>
-                    <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-muted">
                       <span>{p.reporting_period_label}</span>
-                      <span>·</span>
-                      <span>{p.upload_count} uploads</span>
-                      <span>·</span>
-                      <span>{p.review_queue_count} in review</span>
-                      <span>·</span>
-                      <span>{p.run_count} runs</span>
+                      <span className="text-line">·</span>
+                      <span>{p.upload_count} imports</span>
+                      <span className="text-line">·</span>
+                      <span>{p.review_queue_count} en revue</span>
+                      <span className="text-line">·</span>
+                      <span>{p.run_count} calculs</span>
                     </div>
-                    <div className="mt-2 text-xs text-brand-600 underline-offset-2 hover:underline">
+                    <div className="mt-2 text-xs font-medium text-brand-700 underline-offset-2 group-hover:underline">
                       Ouvrir le parcours guidé →
                     </div>
                   </Link>

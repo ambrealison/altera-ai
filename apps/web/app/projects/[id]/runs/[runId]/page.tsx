@@ -89,12 +89,12 @@ export default function RunDetail() {
   if (error)
     return (
       <div className="mx-auto max-w-3xl">
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <div className="rounded-md border border-danger-100 bg-danger-50 px-4 py-3 text-sm text-danger-700">
           {error}
         </div>
       </div>
     );
-  if (!run) return <div className="text-sm text-gray-500">Loading…</div>;
+  if (!run) return <div className="text-sm text-ink-soft">Loading…</div>;
 
   const summary = run.summary as Record<string, unknown>;
   const isPt = run.methodology === "protein_tracker";
@@ -118,7 +118,7 @@ export default function RunDetail() {
           <h1 className="text-2xl font-semibold tracking-tight">
             Run {run.id.slice(0, 8)}
           </h1>
-          <div className="mt-1 flex items-center gap-2 text-sm text-gray-500">
+          <div className="mt-1 flex items-center gap-2 text-sm text-ink-soft">
             <Pill tone="brand">{run.methodology}</Pill>
             <span>{new Date(run.started_at).toLocaleString()}</span>
             <span>·</span>
@@ -153,7 +153,7 @@ export default function RunDetail() {
           />
 
           {exportError && (
-            <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            <div className="mt-3 rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
               {exportError}
             </div>
           )}
@@ -162,7 +162,7 @@ export default function RunDetail() {
           {!isAltera && latestClientStatus && (
             <div className="mt-4 flex items-center gap-3">
               <Pill tone={STATUS_TONE[latestClientStatus]}>{latestClientStatus.replace("_", " ")}</Pill>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-ink-muted">
                 {CLIENT_STATUS_LABEL[latestClientStatus]}
               </span>
             </div>
@@ -180,7 +180,7 @@ export default function RunDetail() {
           )}
 
           {!isAltera && !hasClientExport && (
-            <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <div className="mt-4 rounded-md border border-warn-100 bg-warn-50 px-3 py-2 text-sm text-warn-700">
               {latestClientStatus
                 ? CLIENT_STATUS_LABEL[latestClientStatus]
                 : "Awaiting approval from the Altera methodology team."}
@@ -190,7 +190,7 @@ export default function RunDetail() {
           {/* Altera export list with lifecycle controls */}
           {isAltera && exports.length > 0 && (
             <div className="mt-6">
-              <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+              <div className="text-xs font-semibold uppercase tracking-wider text-ink-soft">
                 Export records
               </div>
               <ul className="mt-2 divide-y divide-gray-100">
@@ -199,7 +199,7 @@ export default function RunDetail() {
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="font-medium">{exp.filename}</span>
-                        <span className="ml-2 text-xs text-gray-500">
+                        <span className="ml-2 text-xs text-ink-soft">
                           {new Date(exp.created_at).toLocaleString()}
                         </span>
                         {exp.client_download_count > 0 && (
@@ -335,7 +335,7 @@ function PTSummary({ summary }: { summary: Record<string, unknown> }) {
       <Card>
         <CardHeader title="Per group" />
         <table className="mt-4 w-full text-left text-sm">
-          <thead className="text-xs uppercase tracking-wider text-gray-500">
+          <thead className="text-xs uppercase tracking-wider text-ink-soft">
             <tr>
               <th className="py-2">Group</th>
               <th className="py-2 text-right">Items</th>
@@ -378,7 +378,7 @@ function WWFSummary({ summary }: { summary: Record<string, unknown> }) {
       <Card>
         <CardHeader title="Per food group" />
         <table className="mt-4 w-full text-left text-sm">
-          <thead className="text-xs uppercase tracking-wider text-gray-500">
+          <thead className="text-xs uppercase tracking-wider text-ink-soft">
             <tr>
               <th className="py-2">Food group</th>
               <th className="py-2 text-right">Weight (kg)</th>

@@ -62,9 +62,9 @@ export default function ReportPage() {
   if (notApproved) {
     return (
       <div className="mx-auto max-w-3xl">
-        <div className="mt-12 rounded-xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
-          <div className="text-lg font-semibold text-amber-800">Report under review</div>
-          <p className="mt-2 text-sm text-amber-700">
+        <div className="mt-12 rounded-xl border border-warn-100 bg-warn-50 px-6 py-8 text-center">
+          <div className="text-lg font-semibold text-warn-700">Report under review</div>
+          <p className="mt-2 text-sm text-warn-700">
             This report is being reviewed by the Altera methodology team. It will be available
             here once approved.
           </p>
@@ -81,14 +81,14 @@ export default function ReportPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-3xl">
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <div className="rounded-md border border-danger-100 bg-danger-50 px-4 py-3 text-sm text-danger-700">
           {error}
         </div>
       </div>
     );
   }
 
-  if (!report) return <div className="text-sm text-gray-500">Loading…</div>;
+  if (!report) return <div className="text-sm text-ink-soft">Loading…</div>;
 
   const { meta, executive_summary, pt_section, wwf_section, review_summary, coverage, recommendations } = report;
   const statusTone = STATUS_TONE[meta.approval_status] ?? "neutral";
@@ -101,7 +101,7 @@ export default function ReportPage() {
           <h1 className="text-2xl font-semibold tracking-tight">
             {meta.project_name} — Report
           </h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
             <Pill tone="brand">{meta.methodology.replace("_", " ")}</Pill>
             <Pill tone={statusTone}>{meta.approval_status.replace(/_/g, " ")}</Pill>
             <span>Period: {meta.reporting_period}</span>
@@ -116,7 +116,7 @@ export default function ReportPage() {
 
       {/* Altera-only: preview banner for non-client-visible statuses */}
       {isAltera && meta.approval_status !== "approved" && meta.approval_status !== "delivered" && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-md border border-warn-100 bg-warn-50 px-4 py-3 text-sm text-warn-700">
           <span className="font-medium">Altera preview — </span>
           this report has not yet been approved for client access.
         </div>
@@ -183,7 +183,7 @@ export default function ReportPage() {
             <Stat label="Pending" value={String(review_summary.pending)} />
           </div>
           {review_summary.top_reasons.length > 0 && (
-            <div className="mt-3 text-xs text-gray-500">
+            <div className="mt-3 text-xs text-ink-soft">
               Top queue reasons:{" "}
               {review_summary.top_reasons.map((r) => r.replace(/_/g, " ")).join(", ")}
             </div>
@@ -320,7 +320,7 @@ function RecommendationsCard({
         <p className="mt-2 text-xs text-rose-600">{actionError}</p>
       )}
       {visible.length === 0 ? (
-        <p className="mt-3 text-sm text-gray-500">No recommendations generated yet.</p>
+        <p className="mt-3 text-sm text-ink-soft">No recommendations generated yet.</p>
       ) : (
         <ul className="mt-4 space-y-4">
           {visible.map((r) => (
@@ -333,24 +333,24 @@ function RecommendationsCard({
                   <Pill tone="brand">Altera only</Pill>
                 )}
               </div>
-              <p className="mt-1 text-xs text-gray-500 uppercase tracking-wide">
+              <p className="mt-1 text-xs text-ink-soft uppercase tracking-wide">
                 {r.action_type.replace(/_/g, " ")}
               </p>
               <p className="mt-2 text-sm text-gray-700">{r.rationale}</p>
-              <p className="mt-1 text-xs text-gray-500 italic">{r.expected_direction}</p>
+              <p className="mt-1 text-xs text-ink-soft italic">{r.expected_direction}</p>
               {r.evidence.length > 0 && (
                 <ul className="mt-2 space-y-0.5">
                   {r.evidence.map((e, i) => (
-                    <li key={i} className="text-xs text-gray-600">· {e}</li>
+                    <li key={i} className="text-xs text-ink-muted">· {e}</li>
                   ))}
                 </ul>
               )}
               {r.caveats.length > 0 && (
                 <div className="mt-2 rounded border border-amber-100 bg-amber-50 px-2 py-1.5">
-                  <p className="text-xs font-medium text-amber-700 mb-1">Caveats</p>
+                  <p className="text-xs font-medium text-warn-700 mb-1">Caveats</p>
                   <ul className="space-y-0.5">
                     {r.caveats.map((c, i) => (
-                      <li key={i} className="text-xs text-amber-700">· {c}</li>
+                      <li key={i} className="text-xs text-warn-700">· {c}</li>
                     ))}
                   </ul>
                 </div>
@@ -419,7 +419,7 @@ function CoverageSectionCard({ coverage: c }: { coverage: CoverageSection }) {
           />
           <Pill tone={tone}>{c.uncertainty_level} uncertainty</Pill>
         </div>
-        <p className="mt-3 text-sm text-gray-600">{c.uncertainty_rationale}</p>
+        <p className="mt-3 text-sm text-ink-muted">{c.uncertainty_rationale}</p>
 
         {c.uploaded_rows != null && (
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -455,7 +455,7 @@ function CoverageSectionCard({ coverage: c }: { coverage: CoverageSection }) {
           )}
         </div>
 
-        <div className="mt-4 text-sm text-gray-500">{c.review_completion_note}</div>
+        <div className="mt-4 text-sm text-ink-soft">{c.review_completion_note}</div>
       </Card>
 
       {c.caveats.length > 0 && (
@@ -489,12 +489,12 @@ function PTSection({ section: s }: { section: PTReportSection }) {
           <Stat label="Plant share %" value={s.plant_share_pct ?? "—"} />
           <Stat label="Animal share %" value={s.animal_share_pct ?? "—"} />
         </div>
-        <div className="mt-4 text-xs text-gray-500">{s.composite_note}</div>
+        <div className="mt-4 text-xs text-ink-soft">{s.composite_note}</div>
       </Card>
       <Card>
         <CardHeader title="Four-group breakdown" />
         <table className="mt-4 w-full text-left text-sm">
-          <thead className="text-xs uppercase tracking-wider text-gray-500">
+          <thead className="text-xs uppercase tracking-wider text-ink-soft">
             <tr>
               <th className="py-2">Group</th>
               <th className="py-2 text-right">Items</th>
@@ -544,7 +544,7 @@ function WWFSection({ section: s }: { section: WWFReportSection }) {
       <Card>
         <CardHeader title="Food group breakdown (FG1–FG7)" />
         <table className="mt-4 w-full text-left text-sm">
-          <thead className="text-xs uppercase tracking-wider text-gray-500">
+          <thead className="text-xs uppercase tracking-wider text-ink-soft">
             <tr>
               <th className="py-2">Food group</th>
               <th className="py-2 text-right">Weight (kg)</th>
@@ -611,9 +611,9 @@ function fmtDelta(val: string | null | undefined): string {
 }
 
 function deltaClass(val: string | null | undefined): string {
-  if (val == null) return "text-gray-500";
+  if (val == null) return "text-ink-soft";
   const n = parseFloat(val);
-  if (isNaN(n) || n === 0) return "text-gray-500";
+  if (isNaN(n) || n === 0) return "text-ink-soft";
   return n > 0 ? "text-green-600" : "text-rose-600";
 }
 
@@ -668,7 +668,7 @@ function OpParamFields({
   if (form.operation_type === "shift_protein_between_groups") {
     return (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <label className="flex flex-col gap-1 text-xs text-gray-600">
+        <label className="flex flex-col gap-1 text-xs text-ink-muted">
           From group
           <select
             className="rounded border border-gray-200 px-2 py-1.5 text-sm"
@@ -680,7 +680,7 @@ function OpParamFields({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs text-gray-600">
+        <label className="flex flex-col gap-1 text-xs text-ink-muted">
           To group
           <select
             className="rounded border border-gray-200 px-2 py-1.5 text-sm"
@@ -692,7 +692,7 @@ function OpParamFields({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs text-gray-600">
+        <label className="flex flex-col gap-1 text-xs text-ink-muted">
           Amount (kg)
           <input
             type="number"
@@ -712,7 +712,7 @@ function OpParamFields({
       ? "Protein to add (kg)"
       : "Protein to reduce (kg)";
     return (
-      <label className="flex flex-col gap-1 text-xs text-gray-600">
+      <label className="flex flex-col gap-1 text-xs text-ink-muted">
         {label}
         <input
           type="number"
@@ -731,7 +731,7 @@ function OpParamFields({
     const animal = isNaN(plant) ? "—" : String(100 - plant);
     return (
       <div className="flex items-end gap-4">
-        <label className="flex flex-col gap-1 text-xs text-gray-600">
+        <label className="flex flex-col gap-1 text-xs text-ink-muted">
           Plant % (of composite protein)
           <input
             type="number"
@@ -744,7 +744,7 @@ function OpParamFields({
             onChange={(e) => onChange({ plant_pct: e.target.value })}
           />
         </label>
-        <div className="pb-2 text-xs text-gray-500">Animal: {animal}%</div>
+        <div className="pb-2 text-xs text-ink-soft">Animal: {animal}%</div>
       </div>
     );
   }
@@ -756,7 +756,7 @@ function ScenarioResultTable({ result }: { result: ScenarioResultResponse }) {
   if (!p) return null;
   return (
     <div className="mt-4 space-y-3">
-      <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Projection result</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-ink-soft">Projection result</div>
       <table className="w-full text-left text-sm">
         <thead className="text-xs uppercase tracking-wider text-gray-400">
           <tr>
@@ -801,10 +801,10 @@ function ScenarioResultTable({ result }: { result: ScenarioResultResponse }) {
       </table>
       {result.warnings.length > 0 && (
         <div className="rounded border border-amber-100 bg-amber-50 px-3 py-2">
-          <p className="text-xs font-medium text-amber-700 mb-1">Projection warnings</p>
+          <p className="text-xs font-medium text-warn-700 mb-1">Projection warnings</p>
           <ul className="space-y-0.5">
             {result.warnings.map((w, i) => (
-              <li key={i} className="text-xs text-amber-700">· {w}</li>
+              <li key={i} className="text-xs text-warn-700">· {w}</li>
             ))}
           </ul>
         </div>
@@ -896,7 +896,7 @@ function ScenarioItem({
         </Button>
       </div>
       {scenario.description && (
-        <p className="mt-1 text-xs text-gray-500">{scenario.description}</p>
+        <p className="mt-1 text-xs text-ink-soft">{scenario.description}</p>
       )}
       {runError && <p className="mt-2 text-xs text-rose-600">{runError}</p>}
 
@@ -906,7 +906,7 @@ function ScenarioItem({
           {ops && ops.length > 0 && (
             <div className="space-y-1.5">
               {ops.map((op, i) => (
-                <div key={op.id} className="flex items-start gap-2 text-xs text-gray-600">
+                <div key={op.id} className="flex items-start gap-2 text-xs text-ink-muted">
                   <span className="text-gray-300">{i + 1}.</span>
                   <div>
                     <span className="font-medium">{OP_LABELS[op.operation_type as ScenarioOperationType]}</span>
@@ -927,9 +927,9 @@ function ScenarioItem({
             <div className="rounded border border-gray-200 bg-white p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-gray-700">Add operation</span>
-                <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => setShowOpForm(false)}>✕</button>
+                <button className="text-xs text-gray-400 hover:text-ink-muted" onClick={() => setShowOpForm(false)}>✕</button>
               </div>
-              <label className="flex flex-col gap-1 text-xs text-gray-600">
+              <label className="flex flex-col gap-1 text-xs text-ink-muted">
                 Type
                 <select
                   className="rounded border border-gray-200 px-2 py-1.5 text-sm"
@@ -942,7 +942,7 @@ function ScenarioItem({
                 </select>
               </label>
               <OpParamFields form={opForm} onChange={(patch) => setOpForm((f) => ({ ...f, ...patch }))} />
-              <label className="flex flex-col gap-1 text-xs text-gray-600">
+              <label className="flex flex-col gap-1 text-xs text-ink-muted">
                 Rationale (optional)
                 <input
                   type="text"
@@ -1064,7 +1064,7 @@ function ScenariosCard({
               <span className="text-sm font-medium text-blue-900">New scenario</span>
               <button className="text-xs text-blue-400 hover:text-blue-600" onClick={() => { setShowCreate(false); setPendingOpType(null); }}>✕</button>
             </div>
-            <label className="flex flex-col gap-1 text-xs text-gray-600">
+            <label className="flex flex-col gap-1 text-xs text-ink-muted">
               Name
               <input
                 type="text"
@@ -1075,7 +1075,7 @@ function ScenariosCard({
                 autoFocus
               />
             </label>
-            <label className="flex flex-col gap-1 text-xs text-gray-600">
+            <label className="flex flex-col gap-1 text-xs text-ink-muted">
               Description (optional)
               <input
                 type="text"

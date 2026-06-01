@@ -87,7 +87,7 @@ export function NewProjectForm({ onCreated }: { onCreated?: () => void }) {
         </div>
       </Field>
       {error && (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+        <div className="rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-xs text-danger-700">
           {error}
         </div>
       )}

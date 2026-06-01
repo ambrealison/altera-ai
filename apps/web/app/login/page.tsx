@@ -71,17 +71,17 @@ function LoginForm() {
 
   return (
     <div className="mx-auto mt-16 max-w-md p-6">
-      <h1 className="text-2xl font-semibold tracking-tight">
+      <h1 className="text-2xl font-semibold tracking-tight text-forest-900">
         {forgotMode ? "Reset password" : "Sign in"}
       </h1>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-ink-muted">
         {forgotMode
           ? "Enter your email and we'll send a reset link."
           : "Email + password sign-in via Supabase Auth."}
       </p>
 
       {!supabaseConfigured && (
-        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+        <div className="mt-4 rounded-xl border border-warn-100 bg-warn-50 p-3 text-xs text-warn-700">
           Supabase is not configured for this build. If you are developing
           locally, the backend may be running with{" "}
           <code>ALTERA_DEV_AUTH_ENABLED=true</code> — in that case the dashboard
@@ -95,12 +95,12 @@ function LoginForm() {
             <CardHeader title="Send reset link" />
             {resetSent ? (
               <div className="mt-4 space-y-3">
-                <p className="text-sm text-green-700">
+                <p className="text-sm text-brand-700">
                   Reset link sent to <strong>{email}</strong>. Check your inbox.
                 </p>
                 <button
                   onClick={() => { setForgotMode(false); setResetSent(false); }}
-                  className="text-xs text-brand-600 hover:underline"
+                  className="text-xs font-medium text-brand-700 hover:underline"
                 >
                   Back to sign in
                 </button>
@@ -114,11 +114,11 @@ function LoginForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     autoComplete="email"
-                    className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm focus:border-brand-400 focus:outline-none"
                   />
                 </Field>
                 {error && (
-                  <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                  <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-xs text-danger-700">
                     {error}
                   </div>
                 )}
@@ -129,7 +129,7 @@ function LoginForm() {
                   <button
                     type="button"
                     onClick={() => setForgotMode(false)}
-                    className="text-xs text-gray-500 hover:underline"
+                    className="text-xs text-ink-muted hover:underline"
                   >
                     Cancel
                   </button>
@@ -148,7 +148,7 @@ function LoginForm() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm focus:border-brand-400 focus:outline-none"
                 />
               </Field>
               <Field label="Password">
@@ -158,11 +158,11 @@ function LoginForm() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
-                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm focus:border-brand-400 focus:outline-none"
                 />
               </Field>
               {error && (
-                <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-xs text-danger-700">
                   {error}
                 </div>
               )}
@@ -174,7 +174,7 @@ function LoginForm() {
                   <button
                     type="button"
                     onClick={() => { setForgotMode(true); setError(null); }}
-                    className="text-xs text-gray-500 hover:underline"
+                    className="text-xs text-ink-muted hover:underline"
                   >
                     Forgot password?
                   </button>

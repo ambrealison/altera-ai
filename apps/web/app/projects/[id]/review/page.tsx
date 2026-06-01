@@ -128,14 +128,14 @@ export default function ReviewPage() {
           ← Back to project
         </Button>
       </div>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-ink-muted">
         {isAltera
           ? "Products the rules engine could not classify confidently. Reviewers see only non-commercial fields."
           : "These products are being reviewed by the Altera methodology team. No action is required from you."}
       </p>
 
       {error && (
-        <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+        <div className="mt-4 rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
           {error}
         </div>
       )}
@@ -144,7 +144,7 @@ export default function ReviewPage() {
       {isAltera && (
         <div className="mt-4 flex flex-wrap items-end gap-3 rounded-md border border-gray-200 bg-gray-50 p-3">
           <label className="text-sm">
-            <div className="text-xs font-medium text-gray-600">Methodology</div>
+            <div className="text-xs font-medium text-ink-muted">Methodology</div>
             <select
               value={filterMethodology}
               onChange={(e) => setFilterMethodology(e.target.value as Methodology | "")}
@@ -158,7 +158,7 @@ export default function ReviewPage() {
           </label>
 
           <label className="text-sm">
-            <div className="text-xs font-medium text-gray-600">Status</div>
+            <div className="text-xs font-medium text-ink-muted">Status</div>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as ManualReviewStatus | "")}
@@ -172,7 +172,7 @@ export default function ReviewPage() {
           </label>
 
           <label className="text-sm">
-            <div className="text-xs font-medium text-gray-600">Reason</div>
+            <div className="text-xs font-medium text-ink-muted">Reason</div>
             <select
               value={filterReason}
               onChange={(e) => setFilterReason(e.target.value as ManualReviewReason | "")}
@@ -186,7 +186,7 @@ export default function ReviewPage() {
           </label>
 
           <label className="text-sm">
-            <div className="text-xs font-medium text-gray-600">Priority</div>
+            <div className="text-xs font-medium text-ink-muted">Priority</div>
             <select
               value={filterPriority}
               onChange={(e) => setFilterPriority(e.target.value as ReviewPriority | "")}
@@ -200,7 +200,7 @@ export default function ReviewPage() {
           </label>
 
           <label className="grow text-sm">
-            <div className="text-xs font-medium text-gray-600">Search</div>
+            <div className="text-xs font-medium text-ink-muted">Search</div>
             <input
               type="text"
               value={filterSearch}
@@ -211,7 +211,7 @@ export default function ReviewPage() {
           </label>
 
           <label className="text-sm">
-            <div className="text-xs font-medium text-gray-600">Sort</div>
+            <div className="text-xs font-medium text-ink-muted">Sort</div>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as "oldest" | "newest" | "priority")}
@@ -226,7 +226,7 @@ export default function ReviewPage() {
       )}
 
       {items === null ? (
-        <div className="mt-6 text-sm text-gray-500">Loading…</div>
+        <div className="mt-6 text-sm text-ink-soft">Loading…</div>
       ) : items.length === 0 ? (
         <div className="mt-6">
           <EmptyState
@@ -326,7 +326,7 @@ export default function ReviewPage() {
           </div>
 
           {bulkError && (
-            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            <div className="rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
               {bulkError}
             </div>
           )}
@@ -457,7 +457,7 @@ function ReviewRow({
             <Pill tone={PRIORITY_TONE[item.priority_level]}>
               {item.priority_level}
             </Pill>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-ink-soft">
               current: {item.current_category ?? "—"}
             </span>
             {item.confidence !== null && (
@@ -479,14 +479,14 @@ function ReviewRow({
             )}
             {/* Assignment badge */}
             {item.assigned_to_email && (
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-ink-soft">
                 assigned: <span className="font-medium">{item.assigned_to_email}</span>
               </span>
             )}
           </div>
           {/* Priority reasons — compact inline list */}
           {item.priority_reasons.length > 0 && (
-            <div className="mt-1 text-xs text-gray-500">
+            <div className="mt-1 text-xs text-ink-soft">
               priority signals:{" "}
               <span className="font-medium text-gray-700">
                 {item.priority_reasons.join(", ")}
@@ -494,23 +494,23 @@ function ReviewRow({
             </div>
           )}
           {/* Rationale section — source metadata + notes */}
-          <div className="mt-2 space-y-1 text-xs text-gray-500">
+          <div className="mt-2 space-y-1 text-xs text-ink-soft">
             {item.source && (
               <div className="flex flex-wrap gap-3">
                 <span>source: <span className="font-medium text-gray-700">{item.source}</span></span>
                 {item.rule_id && (
-                  <span>rule: <span className="font-mono text-gray-600">{item.rule_id}</span></span>
+                  <span>rule: <span className="font-mono text-ink-muted">{item.rule_id}</span></span>
                 )}
                 {item.ai_model && (
-                  <span>model: <span className="font-mono text-gray-600">{item.ai_model}</span></span>
+                  <span>model: <span className="font-mono text-ink-muted">{item.ai_model}</span></span>
                 )}
                 {item.ai_prompt_version && (
-                  <span>prompt: <span className="font-mono text-gray-600">{item.ai_prompt_version}</span></span>
+                  <span>prompt: <span className="font-mono text-ink-muted">{item.ai_prompt_version}</span></span>
                 )}
               </div>
             )}
             {item.rationale_notes.length > 0 && (
-              <ul className="mt-1 list-disc pl-4 space-y-0.5 text-amber-700">
+              <ul className="mt-1 list-disc pl-4 space-y-0.5 text-warn-700">
                 {item.rationale_notes.map((note, i) => (
                   <li key={i}>{note}</li>
                 ))}
@@ -518,7 +518,7 @@ function ReviewRow({
             )}
           </div>
           {lockedByOther ? (
-            <p className="mt-4 text-xs text-gray-500">
+            <p className="mt-4 text-xs text-ink-soft">
               This item is being reviewed by {item.locked_by_email ?? "another reviewer"}.
               Decisions are disabled until the lock is released or expires.
             </p>
@@ -572,7 +572,7 @@ function ReviewRow({
             </>
           )}
           {err && (
-            <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+            <div className="mt-3 rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-xs text-danger-700">
               {err}
             </div>
           )}
@@ -592,7 +592,7 @@ function ClientReviewRow({ item }: { item: ReviewItem }) {
       />
       <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
         <Pill tone="brand">{item.methodology}</Pill>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-ink-soft">
           current: {item.current_category ?? "—"}
         </span>
         <span className="text-xs text-gray-400 italic">In review by Altera</span>

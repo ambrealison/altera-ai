@@ -123,24 +123,27 @@ function MappingTable({
   onChange: (normHeader: string, value: string) => void;
 }) {
   return (
-    <div className="mt-3 overflow-x-auto">
+    <div className="scroll-soft mt-3 overflow-x-auto rounded-2xl border border-line">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-gray-200 text-left text-gray-500 uppercase tracking-wider">
-            <th className="pb-2 pr-3 font-medium">Colonne CSV</th>
-            <th className="pb-2 pr-3 font-medium">Mapper vers</th>
-            <th className="pb-2 font-medium">Détection</th>
+          <tr className="border-b border-line bg-mint-50/70 text-left text-[11px] uppercase tracking-wider text-ink-soft">
+            <th className="py-2.5 pl-4 pr-3 font-semibold">Colonne CSV</th>
+            <th className="py-2.5 pr-3 font-semibold">Mapper vers</th>
+            <th className="py-2.5 pr-3 font-semibold">Détection</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-line-soft">
           {entries.map((entry) => {
             const current =
               overrides[entry.normalised_header] ??
               entry.canonical_field ??
               "__none__";
             return (
-              <tr key={entry.normalised_header}>
-                <td className="py-2 pr-3 font-mono text-gray-800 align-middle">
+              <tr
+                key={entry.normalised_header}
+                className="transition-colors hover:bg-mint-50/50"
+              >
+                <td className="py-2 pl-4 pr-3 font-mono text-forest-900 align-middle">
                   {entry.raw_header}
                 </td>
                 <td className="py-2 pr-3 align-middle">
@@ -149,7 +152,7 @@ function MappingTable({
                     onChange={(e) =>
                       onChange(entry.normalised_header, e.target.value)
                     }
-                    className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand-500 focus:outline-none"
+                    className="rounded-lg border border-line bg-white px-2 py-1 text-xs text-forest-900 focus:border-brand-400 focus:outline-none"
                   >
                     <option value="__none__">— Ignorer / tel quel —</option>
                     <option value="ignore">Ignorer cette colonne</option>
@@ -160,7 +163,7 @@ function MappingTable({
                     ))}
                   </select>
                 </td>
-                <td className="py-2 align-middle">
+                <td className="py-2 pr-3 align-middle">
                   <ConfidenceBadge confidence={entry.confidence} />
                 </td>
               </tr>
@@ -368,15 +371,15 @@ export function InlineUpload({
         <Card>
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-800">
+              <p className="text-sm font-semibold text-forest-900">
                 {latestUpload.original_filename}
               </p>
-              <p className="mt-0.5 text-xs text-gray-500">
+              <p className="mt-0.5 text-xs text-ink-muted">
                 {latestUpload.products_count} produit(s) ·{" "}
                 {latestUpload.row_count ?? "?"} ligne(s)
               </p>
               {latestUpload.warnings.length > 0 && (
-                <p className="mt-1 text-xs text-amber-700">
+                <p className="mt-1 text-xs text-warn-700">
                   {latestUpload.warnings.length} avertissement(s) à l’import.
                 </p>
               )}
@@ -387,11 +390,11 @@ export function InlineUpload({
       )}
 
       <Card>
-        <label className="block">
-          <span className="text-sm font-medium text-gray-700">
+        <label className="block rounded-2xl border border-dashed border-line bg-mint-50/40 p-5 transition-colors hover:border-brand-200">
+          <span className="text-sm font-semibold text-forest-900">
             {latestUpload ? "Remplacer le fichier" : "Choisir un fichier CSV"}
           </span>
-          <span className="mt-0.5 block text-xs text-gray-500">
+          <span className="mt-0.5 block text-xs text-ink-muted">
             Format CSV UTF-8 ; la première ligne doit contenir les en-têtes.
             Les CSV éparses (nom + poids + volume) sont supportées —
             l’identifiant produit est généré si absent.
@@ -403,42 +406,45 @@ export function InlineUpload({
               const f = e.target.files?.[0];
               if (f) void pickFile(f);
             }}
-            className="mt-2 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100"
+            className="mt-3 block w-full text-sm text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-brand-700"
           />
         </label>
 
         {previewing && (
-          <p className="mt-3 text-xs text-gray-500">Analyse du fichier…</p>
+          <div className="mt-3 flex items-center gap-2 text-xs text-ink-muted">
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600" />
+            Analyse du fichier…
+          </div>
         )}
 
         {error && (
-          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          <div className="mt-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
             {error}
           </div>
         )}
 
         {preview && file && (
           <div className="mt-4 space-y-3">
-            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+            <div className="rounded-xl border border-line bg-mint-50/60 px-3 py-2.5 text-xs text-forest-700">
               <p>
-                <span className="font-medium">{file.name}</span> ·{" "}
+                <span className="font-semibold text-forest-900">{file.name}</span> ·{" "}
                 {preview.entries.length} colonne(s) détectée(s) ·{" "}
                 {
                   preview.entries.filter((e) => e.confidence === "exact").length
                 }{" "}
                 auto-mappée(s)
               </p>
-              <ul className="mt-1 space-y-0.5">
+              <ul className="mt-1.5 space-y-0.5">
                 <li
                   className={
-                    productNameMapped ? "text-emerald-700" : "text-rose-700"
+                    productNameMapped ? "text-brand-700" : "text-danger-700"
                   }
                 >
                   {productNameMapped ? "✓" : "✗"} Nom du produit mappé
                 </li>
                 <li
                   className={
-                    weightMapped ? "text-emerald-700" : "text-amber-700"
+                    weightMapped ? "text-brand-700" : "text-warn-700"
                   }
                 >
                   {weightMapped ? "✓" : "○"} Poids unitaire mappé
@@ -448,24 +454,24 @@ export function InlineUpload({
             </div>
 
             {preview.missing_required_pt.length > 0 && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                <div className="font-medium">
+              <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
+                <div className="font-semibold">
                   Champs Protein Tracker requis encore manquants :{" "}
                   {preview.missing_required_pt.join(", ")}
                 </div>
-                <div className="mt-1 text-amber-700">
+                <div className="mt-1 text-warn-700/90">
                   Sans ces champs, les lignes seront importées mais sans
                   bloc Protein Tracker (avertissements par ligne).
                 </div>
               </div>
             )}
             {preview.missing_required_wwf.length > 0 && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                <div className="font-medium">
+              <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
+                <div className="font-semibold">
                   Champs WWF requis encore manquants :{" "}
                   {preview.missing_required_wwf.join(", ")}
                 </div>
-                <div className="mt-1 text-amber-700">
+                <div className="mt-1 text-warn-700/90">
                   Ces champs sont nécessaires pour calculer les volumes
                   WWF par groupe alimentaire. Sans eux, les lignes
                   seront importées mais sans bloc WWF.
@@ -477,7 +483,7 @@ export function InlineUpload({
               <button
                 type="button"
                 onClick={() => setShowMapping(true)}
-                className="text-xs text-brand-600 hover:underline"
+                className="text-xs font-medium text-brand-700 hover:underline"
               >
                 Voir / modifier le mapping détaillé →
               </button>
@@ -559,14 +565,14 @@ function IngestionJobProgress({
   const pct = Math.max(0, Math.min(100, Math.round(job.progress_pct)));
   const tone =
     job.status === "completed"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+      ? "border-brand-200 bg-mint-100 text-brand-700"
       : job.status === "completed_with_errors"
-      ? "border-amber-200 bg-amber-50 text-amber-900"
+      ? "border-warn-100 bg-warn-50 text-warn-700"
       : job.status === "failed"
-      ? "border-rose-200 bg-rose-50 text-rose-900"
+      ? "border-danger-100 bg-danger-50 text-danger-700"
       : job.status === "cancelled"
-      ? "border-gray-200 bg-gray-50 text-gray-700"
-      : "border-brand-200 bg-brand-50 text-brand-900";
+      ? "border-line bg-line-soft text-ink-muted"
+      : "border-brand-200 bg-mint-50 text-brand-700";
   const badge =
     job.status === "queued"
       ? "En file d'attente"
@@ -580,16 +586,16 @@ function IngestionJobProgress({
       ? "Échec"
       : "Annulé";
   return (
-    <div className={`rounded-md border px-3 py-2 text-sm ${tone}`}>
+    <div className={`rounded-xl border px-3 py-2.5 text-sm ${tone}`}>
       <div className="flex items-center justify-between">
-        <div className="font-medium">{badge}</div>
+        <div className="font-semibold">{badge}</div>
         <div className="text-xs opacity-70">
           {job.processed_rows}/{job.total_rows} · {pct.toFixed(0)}%
         </div>
       </div>
-      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/60">
+      <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-white/60">
         <div
-          className="h-full rounded-full bg-current opacity-60 transition-all"
+          className="h-full rounded-full bg-current opacity-60 transition-all duration-500 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>

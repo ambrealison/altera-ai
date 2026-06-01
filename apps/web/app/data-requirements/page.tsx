@@ -72,7 +72,7 @@ export default function DataRequirementsPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Data Requirements</h1>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-ink-muted">
           What data you need to provide, and what Altera does with it.
         </p>
       </div>
@@ -80,7 +80,7 @@ export default function DataRequirementsPage() {
       {/* Download templates */}
       <Card>
         <CardHeader title="Download templates" />
-        <p className="mt-2 text-sm text-gray-500">
+        <p className="mt-2 text-sm text-ink-soft">
           Use these templates to prepare your upload files. Column names and formats match exactly
           what the ingestion pipeline expects.
         </p>
@@ -89,7 +89,7 @@ export default function DataRequirementsPage() {
             <li key={t.path} className="flex items-start justify-between py-3">
               <div>
                 <p className="text-sm font-medium text-gray-800">{t.label}</p>
-                <p className="mt-0.5 text-xs text-gray-500">{t.description}</p>
+                <p className="mt-0.5 text-xs text-ink-soft">{t.description}</p>
               </div>
               <button
                 onClick={() => downloadTemplate(t)}
@@ -162,17 +162,17 @@ export default function DataRequirementsPage() {
 
           <section>
             <h3 className="font-medium">WWF Step 2 — own-brand composite ingredients</h3>
-            <p className="mt-1 text-gray-600">
+            <p className="mt-1 text-ink-muted">
               Step 2 applies only to <strong>own-brand composite products</strong> (products
               classified as composite by the AI). For each such product you can optionally provide
               ingredient-level food-group attribution. This improves the accuracy of the WWF
               whole-diet score.
             </p>
-            <p className="mt-1 text-gray-600">
+            <p className="mt-1 text-ink-muted">
               Use the WWF Step 2 template to organise your data. The actual upload format is JSON —
               see your Altera methodology contact for details.
             </p>
-            <p className="mt-1 text-gray-600">
+            <p className="mt-1 text-ink-muted">
               Branded composites are handled at Step 1 (whole-product weight) only.
             </p>
           </section>
@@ -182,12 +182,12 @@ export default function DataRequirementsPage() {
       {/* Business assumptions */}
       <Card>
         <CardHeader title="Business assumptions (optional)" />
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-ink-muted">
           Optional inputs for opportunity modelling and financial impact scenarios. None of these
           fields affect the methodology calculation — they are used only in the scenario modelling
           section. All fields are optional; leave blank if not applicable.
         </p>
-        <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-gray-600">
+        <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-ink-muted">
           <li>Total food sales, protein basket sales</li>
           <li>Current and target plant/animal protein share</li>
           <li>Private-label share, gross margin assumptions</li>
@@ -198,7 +198,7 @@ export default function DataRequirementsPage() {
       {/* What Altera reviews */}
       <Card>
         <CardHeader title="What Altera reviews manually" />
-        <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-gray-600">
+        <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-ink-muted">
           <li>Products where the AI cannot confidently classify the PT group or WWF food group.</li>
           <li>
             Products where <code className="rounded bg-gray-100 px-1 py-0.5 text-xs">protein_pct</code>{" "}
@@ -207,7 +207,7 @@ export default function DataRequirementsPage() {
           <li>Products with conflicting classification signals (rule collision).</li>
           <li>Composite products where the ingredient split cannot be determined automatically.</li>
         </ul>
-        <p className="mt-2 text-sm text-gray-500">
+        <p className="mt-2 text-sm text-ink-soft">
           Altera methodology reviewers will contact you if manual input is needed before the report
           can be finalised.
         </p>
@@ -255,9 +255,9 @@ function FieldSection({
   rows: FieldRow[];
 }) {
   const colors = {
-    rose: "border-rose-200 bg-rose-50 text-rose-700",
-    amber: "border-amber-200 bg-amber-50 text-amber-700",
-    gray: "border-gray-200 bg-gray-50 text-gray-600",
+    rose: "border-danger-100 bg-danger-50 text-danger-700",
+    amber: "border-warn-100 bg-warn-50 text-warn-700",
+    gray: "border-gray-200 bg-gray-50 text-ink-muted",
   }[accent];
 
   return (
@@ -274,7 +274,7 @@ function FieldSection({
               <td className="py-1.5 pr-4 font-mono font-medium text-gray-800 align-top w-52">
                 {r.field}
               </td>
-              <td className="py-1.5 text-gray-600 align-top">{r.desc}</td>
+              <td className="py-1.5 text-ink-muted align-top">{r.desc}</td>
             </tr>
           ))}
         </tbody>
@@ -312,13 +312,13 @@ function NutritionNote() {
 
 function AIPrivacyNote() {
   return (
-    <section className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+    <section className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-ink-muted">
       <p className="font-medium text-gray-700">What is sent to AI — and what is not</p>
       <p className="mt-1">
         The AI classifier receives only product descriptors needed for classification:
         product name, brand, retailer category/subcategory, and ingredients text.
       </p>
-      <p className="mt-1 text-rose-700 font-medium">
+      <p className="mt-1 text-danger-700 font-medium">
         The following fields are NEVER sent to AI:
       </p>
       <ul className="mt-1 list-inside list-disc space-y-0.5">

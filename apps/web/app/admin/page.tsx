@@ -11,7 +11,7 @@ export default function AdminPage() {
 
   if (currentUser && currentUser.organisation_type !== "altera_internal") {
     return (
-      <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+      <div className="rounded-md border border-danger-100 bg-danger-50 px-4 py-3 text-sm text-danger-700">
         This page is only accessible to Altera internal users.
       </div>
     );
@@ -21,7 +21,7 @@ export default function AdminPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-ink-muted">
           Create client organisations and manage members.
         </p>
       </div>
@@ -68,15 +68,15 @@ function OrgList({ accessToken }: { accessToken: string | null }) {
       <Card>
         <CardHeader title="Client organisations" />
         {loading ? (
-          <p className="mt-3 text-sm text-gray-500">Loading…</p>
+          <p className="mt-3 text-sm text-ink-soft">Loading…</p>
         ) : error ? (
           <p className="mt-3 text-sm text-rose-600">{error}</p>
         ) : orgs.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-500">No organisations yet.</p>
+          <p className="mt-3 text-sm text-ink-soft">No organisations yet.</p>
         ) : (
           <table className="mt-3 w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <tr className="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wider text-ink-soft">
                 <th className="pb-2 pr-4">Name</th>
                 <th className="pb-2 pr-4">Slug</th>
                 <th className="pb-2 pr-4">Type</th>
@@ -87,8 +87,8 @@ function OrgList({ accessToken }: { accessToken: string | null }) {
               {orgs.map((org) => (
                 <tr key={org.id}>
                   <td className="py-2 pr-4 font-medium">{org.name}</td>
-                  <td className="py-2 pr-4 font-mono text-xs text-gray-500">{org.slug}</td>
-                  <td className="py-2 pr-4 text-gray-500">{org.organisation_type}</td>
+                  <td className="py-2 pr-4 font-mono text-xs text-ink-soft">{org.slug}</td>
+                  <td className="py-2 pr-4 text-ink-soft">{org.organisation_type}</td>
                   <td className="py-2 text-right">
                     {org.organisation_type === "gms_client" && (
                       <button
@@ -191,7 +191,7 @@ function CreateOrgForm({
           />
         </Field>
         {error && (
-          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+          <div className="rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-xs text-danger-700">
             {error}
           </div>
         )}
@@ -249,21 +249,21 @@ function OrgMembersPanel({
     <Card>
       <div className="flex items-start justify-between">
         <CardHeader title={`${org.name} — Members`} />
-        <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600">
+        <button onClick={onClose} className="text-xs text-gray-400 hover:text-ink-muted">
           Close
         </button>
       </div>
 
       {loading ? (
-        <p className="mt-3 text-sm text-gray-500">Loading members…</p>
+        <p className="mt-3 text-sm text-ink-soft">Loading members…</p>
       ) : error ? (
         <p className="mt-3 text-sm text-rose-600">{error}</p>
       ) : members.length === 0 ? (
-        <p className="mt-3 text-sm text-gray-500">No members yet.</p>
+        <p className="mt-3 text-sm text-ink-soft">No members yet.</p>
       ) : (
         <table className="mt-3 w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+            <tr className="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wider text-ink-soft">
               <th className="pb-2 pr-4">Email</th>
               <th className="pb-2 pr-4">Name</th>
               <th className="pb-2 pr-4">Role</th>
@@ -376,7 +376,7 @@ function MemberRow({
   return (
     <tr>
       <td className="py-2 pr-4">{member.email}</td>
-      <td className="py-2 pr-4 text-gray-500">{member.display_name}</td>
+      <td className="py-2 pr-4 text-ink-soft">{member.display_name}</td>
       <td className="py-2 pr-4">
         <select
           value={member.role}
@@ -391,7 +391,7 @@ function MemberRow({
           ))}
         </select>
         {feedback && (
-          <span className="ml-2 text-xs text-gray-500">{feedback}</span>
+          <span className="ml-2 text-xs text-ink-soft">{feedback}</span>
         )}
       </td>
       <td className="py-2 text-right">
@@ -467,7 +467,7 @@ function InviteUserForm({
 
   return (
     <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
-      <p className="mb-3 text-xs font-medium uppercase tracking-wider text-gray-500">
+      <p className="mb-3 text-xs font-medium uppercase tracking-wider text-ink-soft">
         Invite new user
       </p>
       <form onSubmit={handleSubmit} className="space-y-3">
@@ -496,13 +496,13 @@ function InviteUserForm({
           <button
             type="button"
             onClick={onDone}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-ink-muted hover:bg-gray-100"
           >
             Cancel
           </button>
         </div>
         {error && (
-          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+          <div className="rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-xs text-danger-700">
             {error}
           </div>
         )}

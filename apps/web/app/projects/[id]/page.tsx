@@ -159,7 +159,7 @@ export default function ProjectDetail() {
   if (error)
     return (
       <div className="mx-auto max-w-3xl">
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <div className="rounded-md border border-danger-100 bg-danger-50 px-4 py-3 text-sm text-danger-700">
           {error}
         </div>
         <Link href="/projects" className="mt-4 inline-block text-sm text-brand-700 hover:underline">
@@ -168,7 +168,7 @@ export default function ProjectDetail() {
       </div>
     );
   if (!project || uploads === null || runs === null) {
-    return <div className="text-sm text-gray-500">Loading…</div>;
+    return <div className="text-sm text-ink-soft">Loading…</div>;
   }
 
   return (
@@ -180,7 +180,7 @@ export default function ProjectDetail() {
             {project.methodologies_enabled.map((m) => (
               <Pill key={m} tone="brand">{m}</Pill>
             ))}
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-ink-soft">
               {project.reporting_period_label}
             </span>
           </div>
@@ -214,7 +214,7 @@ export default function ProjectDetail() {
             }
           />
           {deleteError && (
-            <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            <div className="mt-3 rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
               {deleteError}
             </div>
           )}
@@ -228,7 +228,7 @@ export default function ProjectDetail() {
                 <li key={u.id} className="flex items-center justify-between py-3 text-sm">
                   <div>
                     <span className="font-medium">{u.original_filename}</span>
-                    <span className="ml-2 text-gray-500">
+                    <span className="ml-2 text-ink-soft">
                       {u.row_count ?? "—"} rows · {u.products_count} products
                     </span>
                   </div>
@@ -238,7 +238,7 @@ export default function ProjectDetail() {
                       type="button"
                       onClick={() => onDeleteUpload(u.id, u.original_filename)}
                       disabled={deleteBusy !== null}
-                      className="text-xs text-rose-600 hover:text-rose-800 hover:underline disabled:opacity-50"
+                      className="text-xs text-rose-600 hover:text-danger-700 hover:underline disabled:opacity-50"
                       aria-label={`Delete upload ${u.original_filename}`}
                     >
                       {deleteBusy === u.id ? "Deleting…" : "Delete"}
@@ -263,32 +263,32 @@ export default function ProjectDetail() {
                 title="Classify products"
                 subtitle={`${project.unclassified_pt_count} product${project.unclassified_pt_count === 1 ? "" : "s"} need classification before a calculation can run.`}
               />
-              <p className="mt-2 text-xs text-gray-500">
+              <p className="mt-2 text-xs text-ink-soft">
                 The rules engine will classify products from all {classifiableUploads.length}{" "}
                 upload{classifiableUploads.length === 1 ? "" : "s"} that have ingested data.
                 Ambiguous products are queued for manual review.
               </p>
               {classifyError && (
-                <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                <div className="mt-3 rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
                   {classifyError}
                 </div>
               )}
               {classifyResult ? (
                 <div className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">Matched</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">Matched</div>
                     <div className="mt-1 text-lg font-semibold">{classifyResult.matched}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">Pass-through</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">Pass-through</div>
                     <div className="mt-1 text-lg font-semibold">{classifyResult.pass_through}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">Collisions</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">Collisions</div>
                     <div className="mt-1 text-lg font-semibold">{classifyResult.rule_collision}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">Sent to review</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">Sent to review</div>
                     <div className="mt-1 text-lg font-semibold">{classifyResult.queued_for_review}</div>
                   </div>
                 </div>
@@ -315,20 +315,20 @@ export default function ProjectDetail() {
               title="Apply nutrition enrichment"
               subtitle="Fill missing protein values using reference tables. NEVO (RIVM 2025 v9.0) is tried first and supplies plant/animal split when available; CIQUAL (Anses 2025) is the total-only fallback. Retailer-provided values are never overwritten."
             />
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-ink-soft">
               AI may assist matching product names to reference databases. Nutrition
               values come only from retailer data, NEVO, CIQUAL, or manual review —
               AI does not generate nutrition values.
             </p>
             {enrichError && (
-              <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              <div className="mt-3 rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
                 {enrichError}
               </div>
             )}
             {enrichResult ? (
               <>
                 <div className="mt-4 flex items-center gap-2">
-                  <span className="text-xs uppercase tracking-wider text-gray-500">
+                  <span className="text-xs uppercase tracking-wider text-ink-soft">
                     AI matching
                   </span>
                   {enrichResult.ai_enabled ? (
@@ -341,63 +341,63 @@ export default function ProjectDetail() {
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">
                       NEVO — deterministic
                     </div>
                     <div className="mt-1 text-lg font-semibold">{enrichResult.nevo_matched}</div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-ink-soft">
                       {enrichResult.nevo_with_split} with plant/animal split
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">
                       NEVO — AI-assisted
                     </div>
                     <div className="mt-1 text-lg font-semibold">
                       {enrichResult.ai_enabled ? enrichResult.nevo_ai_assisted_matched : "—"}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-ink-soft">
                       {enrichResult.ai_enabled
                         ? `${enrichResult.nevo_ai_assisted_with_split} with split`
                         : "AI matching disabled"}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">
                       CIQUAL — deterministic
                     </div>
                     <div className="mt-1 text-lg font-semibold">{enrichResult.ciqual_matched}</div>
-                    <div className="text-xs text-gray-500">total only</div>
+                    <div className="text-xs text-ink-soft">total only</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">
                       CIQUAL — AI-assisted
                     </div>
                     <div className="mt-1 text-lg font-semibold">
                       {enrichResult.ai_enabled ? enrichResult.ciqual_ai_assisted_matched : "—"}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-ink-soft">
                       {enrichResult.ai_enabled ? "total only" : "AI matching disabled"}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">
                       Needs review
                     </div>
                     <div className="mt-1 text-lg font-semibold">
                       {enrichResult.ai_enabled ? enrichResult.ai_needs_review : "—"}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-ink-soft">
                       {enrichResult.ai_enabled ? "medium-confidence AI" : "—"}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">No match</div>
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">No match</div>
                     <div className="mt-1 text-lg font-semibold">{enrichResult.no_match}</div>
-                    <div className="text-xs text-gray-500">needs manual</div>
+                    <div className="text-xs text-ink-soft">needs manual</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">
                       Retailer values kept
                     </div>
                     <div className="mt-1 text-lg font-semibold">
@@ -405,7 +405,7 @@ export default function ProjectDetail() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">
+                    <div className="text-xs uppercase tracking-wider text-ink-soft">
                       Skipped (non-PT)
                     </div>
                     <div className="mt-1 text-lg font-semibold">
@@ -415,7 +415,7 @@ export default function ProjectDetail() {
                 </div>
               </>
             ) : (
-              <p className="mt-2 text-xs text-gray-500">
+              <p className="mt-2 text-xs text-ink-soft">
                 One-click match against the reference tables. Only products with no
                 retailer-provided protein_pct are touched. Run the calculation with
                 &ldquo;Use enriched nutrition&rdquo; to consume the resulting records.
@@ -451,7 +451,7 @@ export default function ProjectDetail() {
               ) : undefined
             }
           />
-          <div className="mt-3 text-sm text-gray-600">
+          <div className="mt-3 text-sm text-ink-muted">
             {isAltera ? (
               project.review_queue_count > 0
                 ? `${project.review_queue_count} item${project.review_queue_count === 1 ? "" : "s"} need a decision.`
@@ -488,7 +488,7 @@ export default function ProjectDetail() {
                     <Link href={`/projects/${id}/runs/${r.id}`} className="font-medium text-brand-700 hover:underline">
                       {r.methodology} · {r.id.slice(0, 8)}
                     </Link>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-ink-soft">
                       {new Date(r.started_at).toLocaleString()} · {r.rows_count} rows
                     </div>
                   </div>

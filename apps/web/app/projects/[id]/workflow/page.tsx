@@ -177,7 +177,7 @@ function StepChip({
       <div className={circleClass}>{inner}</div>
       <span className={labelClass}>{wizardStep.label}</span>
       {summary && isComplete && !isActive && (
-        <span className="text-[10px] text-gray-400 text-center leading-tight max-w-[60px] truncate">
+        <span className="text-[10px] text-ink-soft text-center leading-tight max-w-[60px] truncate">
           {summary}
         </span>
       )}
@@ -290,7 +290,7 @@ function StepImport({
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold">Importer le fichier CSV</h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-ink-muted">
           Chargez le fichier produits du retailer. Altera vérifiera le mapping des colonnes
           automatiquement et génèrera les identifiants manquants.
         </p>
@@ -308,7 +308,7 @@ function StepImport({
         <Card>
           <CountRow counts={step.counts} />
           {latestUpload.warnings.length > 0 && (
-            <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="mt-2 rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
               {latestUpload.warnings.length} avertissement(s) à l’import.
             </div>
           )}
@@ -347,7 +347,7 @@ function StepMethodology({
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold">Méthodologie</h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-ink-muted">
           La méthodologie détermine le type de calcul effectué sur les produits importés.
         </p>
       </div>
@@ -359,7 +359,7 @@ function StepMethodology({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-medium text-gray-900">{METHOD_LABELS[m] ?? m}</p>
-                  <p className="mt-0.5 text-sm text-gray-500">{METHOD_DESC[m] ?? ""}</p>
+                  <p className="mt-0.5 text-sm text-ink-soft">{METHOD_DESC[m] ?? ""}</p>
                 </div>
                 <Pill tone="ok">Activée</Pill>
               </div>
@@ -371,7 +371,7 @@ function StepMethodology({
         </div>
       ) : (
         <Card>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-muted">
             La méthodologie est définie à la création du projet. Retournez aux paramètres du projet
             pour la modifier.
           </p>
@@ -400,13 +400,13 @@ function ClassificationJobProgress({ job }: { job: ClassificationJob }) {
   const pct = Math.max(0, Math.min(100, Math.round(job.progress_pct)));
   const tone =
     job.status === "completed"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+      ? "border-brand-200 bg-mint-100 text-brand-700"
       : job.status === "completed_with_errors"
-      ? "border-amber-200 bg-amber-50 text-amber-900"
+      ? "border-warn-100 bg-warn-50 text-warn-700"
       : job.status === "failed"
-      ? "border-rose-200 bg-rose-50 text-rose-900"
+      ? "border-danger-100 bg-danger-50 text-danger-700"
       : job.status === "cancelled"
-      ? "border-gray-200 bg-gray-50 text-gray-700"
+      ? "border-gray-200 bg-gray-50 text-forest-700"
       : "border-brand-200 bg-brand-50 text-brand-900";
   const badge =
     job.status === "queued"
@@ -545,19 +545,19 @@ function StepAIClassification({
         <h2 className="text-xl font-semibold">
           {wwfOnly ? "Catégorisation WWF" : "Classification IA"}
         </h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-ink-muted">
           {wwfOnly
             ? "Cette étape classe les produits en groupes alimentaires WWF (FG1–FG7) et identifie les produits composites."
             : "L'IA aide à catégoriser les produits restants à partir de champs non commerciaux."}
         </p>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-ink-soft">
           {"Les champs commerciaux comme volumes, ventes, prix et marges ne sont pas envoyés à l'IA."}
         </p>
       </div>
 
       <Card>
         {aiBanner && (
-          <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <div className="mb-3 rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-sm text-warn-700">
             {aiBanner}
           </div>
         )}
@@ -568,8 +568,8 @@ function StepAIClassification({
               className={
                 "rounded-md border px-3 py-2 text-sm " +
                 (lastClassifyResult.ai_accepted > 0
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-rose-200 bg-rose-50 text-rose-800")
+                  ? "border-brand-200 bg-mint-100 text-brand-700"
+                  : "border-danger-100 bg-danger-50 text-danger-700")
               }
             >
               {/* Phase 34Q — coverage-oriented copy. A product with
@@ -606,7 +606,7 @@ function StepAIClassification({
             {(lastClassifyResult.ai_parse_failures > 0 ||
               lastClassifyResult.ai_unsupported_category_failures > 0 ||
               lastClassifyResult.ai_provider_errors > 0) && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
                 <p className="font-medium">Diagnostics IA :</p>
                 <ul className="mt-1 list-disc pl-4">
                   {lastClassifyResult.ai_parse_failures > 0 && (
@@ -632,10 +632,10 @@ function StepAIClassification({
                 </ul>
                 {lastClassifyResult.ai_sample_errors.length > 0 && (
                   <details className="mt-1">
-                    <summary className="cursor-pointer text-amber-700 hover:underline">
+                    <summary className="cursor-pointer text-warn-700 hover:underline">
                       Voir un échantillon des erreurs
                     </summary>
-                    <ul className="mt-1 list-disc pl-4 text-amber-700">
+                    <ul className="mt-1 list-disc pl-4 text-warn-700">
                       {lastClassifyResult.ai_sample_errors
                         .slice(0, 5)
                         .map((m, i) => (
@@ -651,7 +651,7 @@ function StepAIClassification({
           </div>
         )}
         {isNotNeeded ? (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <div className="rounded-xl border border-brand-200 bg-mint-100 px-3 py-2 text-sm text-brand-700">
             Aucune classification IA nécessaire — tous les produits ont été classifiés
             déterministement.
           </div>
@@ -667,14 +667,14 @@ function StepAIClassification({
           <div className="mb-3 space-y-2">
             <ClassificationJobProgress job={currentJob} />
             {jobError && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
                 {jobError}
               </div>
             )}
           </div>
         )}
         {error && (
-          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          <div className="mt-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
             {error}
           </div>
         )}
@@ -732,7 +732,7 @@ function StepAIClassification({
           )}
         </div>
         {!latestUpload && (
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-2 text-xs text-ink-soft">
             {"Importez d'abord un fichier à l'étape 1."}
           </p>
         )}
@@ -937,7 +937,7 @@ function MethodologyClassificationCard({
           ``unknown`` (the user's complaint: "100/100 catégorisé · 51
           en échec" was displayed as a green 'Terminée'). */}
       {!isRunning && hasPartialFailures && (
-        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div className="mt-3 rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
           {currentJob?.status === "failed"
             ? `Échec · ${currentJob.error_message ?? "erreur inconnue"}.`
             : (() => {
@@ -959,7 +959,7 @@ function MethodologyClassificationCard({
       )}
 
       {error && (
-        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+        <div className="mt-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-xs text-danger-700">
           {error}
         </div>
       )}
@@ -1074,12 +1074,12 @@ function StepAIClassificationDual({
         <h2 className="text-xl font-semibold">
           Classification IA — Protein Tracker + WWF
         </h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-ink-muted">
           Ce projet a deux méthodologies activées. Vous pouvez lancer
           les deux catégorisations en un clic, ou les piloter
           indépendamment via les cartes ci-dessous.
         </p>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-ink-soft">
           {"Les champs commerciaux (volumes, ventes, prix, marges) ne sont jamais envoyés à l'IA."}
         </p>
       </div>
@@ -1092,7 +1092,7 @@ function StepAIClassificationDual({
           <Button onClick={onRunBoth} disabled={runBothDisabled}>
             {runBothLabel}
           </Button>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-ink-soft">
             {bothNeed
               ? "Lance les deux jobs en parallèle. Vous pouvez fermer cette page — chaque job est sauvegardé et reprenable."
               : ptNeeds
@@ -1168,7 +1168,7 @@ function StepAIClassificationDual({
           wwfFailed > 0;
         if (!ptHasErrors && !wwfHasErrors) return null;
         return (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
             <div className="font-medium">
               {ptHasErrors && wwfHasErrors
                 ? "Les deux catégorisations ont des lignes à résoudre."
@@ -1176,7 +1176,7 @@ function StepAIClassificationDual({
                 ? `La catégorisation Protein Tracker a ${ptUnresolved} ligne(s) à résoudre.`
                 : `La catégorisation WWF a ${wwfUnresolved} ligne(s) à résoudre.`}
             </div>
-            <div className="mt-1 text-amber-700">
+            <div className="mt-1 text-warn-700">
               Vous pouvez continuer vers la validation pour les corriger
               manuellement, ou cliquer sur « Réessayer » pour relancer les
               lignes en échec.
@@ -1228,12 +1228,12 @@ function StepValidation({
         <h2 className="text-xl font-semibold">
           {wwfOnly ? "Validation WWF" : "Validation des catégories"}
         </h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-ink-muted">
           {wwfOnly
             ? "Tableau de validation WWF : inspectez les groupes alimentaires (FG1–FG7), les sous-groupes et les buckets composites attribués par l'IA et les règles déterministes."
             : "Tableau de validation : voir et corriger les catégories assignées par les règles déterministes et par l'IA."}
         </p>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-ink-soft">
           {"Seuls les champs non commerciaux sont affichés. Volumes, ventes, prix et marges ne sont jamais utilisés pour la classification ni envoyés à l'IA."}
         </p>
       </div>
@@ -1256,9 +1256,9 @@ function StepValidation({
           on. */}
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-ink-muted">
             {isNotNeeded || pending === 0 ? (
-              <span className="text-emerald-700">
+              <span className="text-brand-700">
                 Aucun produit en attente de validation manuelle.
               </span>
             ) : (
@@ -1306,11 +1306,11 @@ function StepNEVO({
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold">Enrichissement NEVO</h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-ink-muted">
           NEVO est utilisé en priorité car il peut fournir les protéines totales, végétales et
           animales lorsque disponibles.
         </p>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-ink-soft">
           {"L'IA peut aider à sélectionner une référence NEVO, mais les valeurs nutritionnelles viennent de NEVO, pas de l'IA."}
         </p>
       </div>
@@ -1318,18 +1318,18 @@ function StepNEVO({
       <Card>
         {/* Phase 34D — hard warning when NEVO table is empty / zero matched. */}
         {lastNevoResult?.warning && (
-          <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          <div className="mb-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
             <p className="font-medium">Aucun produit n’a été enrichi par NEVO.</p>
             <p className="mt-1 text-xs">{lastNevoResult.warning}</p>
           </div>
         )}
         {lastNevoResult && (
-          <div className="mb-3 text-xs text-gray-500">
+          <div className="mb-3 text-xs text-ink-soft">
             Table NEVO : {lastNevoResult.nevo_total_references} référence(s) chargée(s).
           </div>
         )}
         {isNotNeeded ? (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <div className="rounded-xl border border-brand-200 bg-mint-100 px-3 py-2 text-sm text-brand-700">
             {"Tous les produits disposent déjà d'une donnée protéique du retailer — NEVO non requis."}
           </div>
         ) : (
@@ -1344,14 +1344,14 @@ function StepNEVO({
           <div className="mt-4 space-y-3">
             {matchedProducts.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
                   {matchedProducts.length} produit(s) enrichi(s)
                 </p>
                 <ul className="mt-1.5 space-y-1">
                   {matchedProducts.map((r) => (
-                    <li key={r.product_id} className="flex items-center justify-between text-xs text-gray-700">
+                    <li key={r.product_id} className="flex items-center justify-between text-xs text-forest-700">
                       <span>{r.product_name}</span>
-                      <span className="text-gray-400 truncate max-w-[200px]">
+                      <span className="text-ink-soft truncate max-w-[200px]">
                         → {r.reference_name ?? "NEVO"}{r.has_split ? " (split ✓)" : ""}
                       </span>
                     </li>
@@ -1361,17 +1361,17 @@ function StepNEVO({
             )}
             {noMatchProducts.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                <p className="text-xs font-semibold uppercase tracking-wide text-warn-700">
                   {noMatchProducts.length} produit(s) sans correspondance NEVO
                 </p>
                 <ul className="mt-1.5 space-y-1">
                   {noMatchProducts.map((r) => (
-                    <li key={r.product_id} className="text-xs text-gray-500">
+                    <li key={r.product_id} className="text-xs text-ink-soft">
                       {r.product_name} — aucune référence NEVO trouvée
                     </li>
                   ))}
                 </ul>
-                <p className="mt-1.5 text-xs text-gray-400">
+                <p className="mt-1.5 text-xs text-ink-soft">
                   Ces produits seront tentés avec CIQUAL à {"l'étape"} suivante.
                 </p>
               </div>
@@ -1380,7 +1380,7 @@ function StepNEVO({
         )}
 
         {error && (
-          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          <div className="mt-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
             {error}
           </div>
         )}
@@ -1432,18 +1432,18 @@ function StepCIQUAL({
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold">Fallback CIQUAL + IA</h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-ink-muted">
           {"Uniquement pour les produits encore sans donnée protéique après NEVO. CIQUAL fournit une protéine totale. Comme CIQUAL ne fournit pas de split végétal/animal, l'IA peut aider à sélectionner une référence — qui doit être tracée."}
         </p>
       </div>
 
       <Card>
         {isNotNeeded ? (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <div className="rounded-xl border border-brand-200 bg-mint-100 px-3 py-2 text-sm text-brand-700">
             {"Tous les produits disposent d'une donnée protéique exploitable après NEVO — CIQUAL non requis."}
           </div>
         ) : isLocked ? (
-          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-ink-muted">
             {"Complétez d'abord l'étape NEVO avant d'utiliser CIQUAL."}
           </div>
         ) : (
@@ -1453,7 +1453,7 @@ function StepCIQUAL({
           </>
         )}
         {error && (
-          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          <div className="mt-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
             {error}
           </div>
         )}
@@ -1545,7 +1545,7 @@ function StepCalculation({
         <h2 className="text-xl font-semibold">
           {wwfOnly ? "Calcul WWF" : "Calcul"}
         </h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-ink-muted">
           {wwfOnly
             ? "Lance le calcul des volumes WWF par groupe alimentaire (FG1–FG7) et la répartition des composites selon les buckets Step 1. Le calcul est bloqué tant que des pré-requis sont manquants."
             : "Lance le calcul du ratio protéines végétales / totales pour tous les produits éligibles. Le calcul est bloqué tant que des pré-requis sont manquants."}
@@ -1553,9 +1553,9 @@ function StepCalculation({
       </div>
 
       <Card>
-        <h3 className="text-sm font-medium text-gray-700">Conditions requises</h3>
+        <h3 className="text-sm font-semibold text-forest-900">Conditions requises</h3>
         {preflight && (
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-ink-muted">
             {preflight.products_ready_for_calculation} sur{" "}
             {preflight.total_products} produit(s) prêt(s) pour le calcul.
             {preflight.products_missing_nutrition > 0 && (
@@ -1606,16 +1606,16 @@ function StepCalculation({
             return items.map((c) => {
               const iconColor =
                 c.marker === "ok"
-                  ? "text-emerald-600"
+                  ? "text-brand-600"
                   : c.marker === "warn"
-                    ? "text-amber-600"
-                    : "text-rose-500";
+                    ? "text-warn-600"
+                    : "text-danger-500";
               const labelColor =
                 c.marker === "ok"
-                  ? "text-gray-700"
+                  ? "text-forest-700"
                   : c.marker === "warn"
-                    ? "text-amber-800"
-                    : "text-gray-500";
+                    ? "text-warn-700"
+                    : "text-ink-soft";
               const icon =
                 c.marker === "ok" ? "✓" : c.marker === "warn" ? "◷" : "✗";
               return (
@@ -1653,8 +1653,8 @@ function StepCalculation({
           return (
             <div className="mt-4 space-y-3">
               {classifBlockers.length > 0 && (
-                <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2">
-                  <p className="text-sm font-medium text-rose-700">
+                <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2">
+                  <p className="text-sm font-medium text-danger-700">
                     Catégorisation incomplète
                   </p>
                   <p className="mt-0.5 text-xs text-rose-600">
@@ -1668,7 +1668,7 @@ function StepCalculation({
                           key={r.code}
                           className="flex items-start justify-between gap-3"
                         >
-                          <span className="text-xs text-rose-700">
+                          <span className="text-xs text-danger-700">
                             ▸ {r.label}
                             {r.count > 0 ? ` (${r.count})` : ""}
                           </span>
@@ -1688,11 +1688,11 @@ function StepCalculation({
                 </div>
               )}
               {nutritionBlockers.length > 0 && (
-                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                  <p className="text-sm font-medium text-amber-800">
+                <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2">
+                  <p className="text-sm font-medium text-warn-700">
                     Données protéiques manquantes
                   </p>
-                  <p className="mt-0.5 text-xs text-amber-700">
+                  <p className="mt-0.5 text-xs text-warn-700">
                     {"Certains produits sont catégorisés, mais n'ont pas encore de protéine exploitable."}
                   </p>
                   <ul className="mt-2 space-y-1.5">
@@ -1703,7 +1703,7 @@ function StepCalculation({
                           key={r.code}
                           className="flex items-start justify-between gap-3"
                         >
-                          <span className="text-xs text-amber-800">
+                          <span className="text-xs text-warn-700">
                             ▸ {r.label}
                             {r.count > 0 ? ` (${r.count})` : ""}
                           </span>
@@ -1729,7 +1729,7 @@ function StepCalculation({
         <CountRow counts={step.counts} />
 
         {error && (
-          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          <div className="mt-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
             {error}
           </div>
         )}
@@ -1740,7 +1740,7 @@ function StepCalculation({
             review. It does NOT block the calculation, but the analyst
             should know the backlog exists. */}
         {(step.counts.review_only ?? 0) > 0 && (
-          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <div className="mt-3 rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-sm text-warn-700">
             <p className="font-medium">
               {step.counts.review_only} produit(s) encore à vérifier
             </p>
@@ -1764,7 +1764,7 @@ function StepCalculation({
             missing nutrition we show the warning + the secondary
             partial-calc button. */}
         {(nutritionOnlyBlocker || missingNutritionCount > 0) && (
-          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <div className="mt-3 rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-sm text-warn-700">
             <p className="font-medium">Données nutritionnelles incomplètes</p>
             <p className="mt-1 text-xs">
               {missingNutritionCount} produit(s) sans donnée protéique
@@ -1776,8 +1776,8 @@ function StepCalculation({
         )}
 
         {preflight && preflight.sample_exclusion_reasons.length > 0 && (
-          <details className="mt-3 text-xs text-gray-500">
-            <summary className="cursor-pointer hover:text-gray-700">
+          <details className="mt-3 text-xs text-ink-soft">
+            <summary className="cursor-pointer hover:text-forest-700">
               Voir un échantillon des produits exclus
             </summary>
             <ul className="mt-1 list-disc pl-4">
@@ -1869,10 +1869,10 @@ function StepReport({
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold">Résultat / rapport</h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-ink-muted">
           Dernier calcul réussi et exports disponibles.
         </p>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-ink-soft">
           {"L'IA a aidé à sélectionner certaines références, mais n'a pas généré de valeurs"}
           nutritionnelles.
         </p>
@@ -1880,7 +1880,7 @@ function StepReport({
 
       {!hasRun ? (
         <Card>
-          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-ink-muted">
             {"Aucun calcul effectué. Revenez à l'étape Calcul pour lancer un premier calcul."}
           </div>
         </Card>
@@ -1888,18 +1888,18 @@ function StepReport({
         <Card>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-gray-700">
+              <p className="text-sm font-medium text-forest-700">
                 Calcul du {new Date(latestRun.started_at).toLocaleDateString("fr-FR")}
               </p>
-              <p className="mt-0.5 text-xs text-gray-500">
+              <p className="mt-0.5 text-xs text-ink-soft">
                 {latestRun.rows_count} ligne(s) traitée(s) ·{" "}
                 {latestRun.methodology.replace("_", " ")}
               </p>
             </div>
             {plantPct && (
               <div className="text-right">
-                <p className="text-xs text-gray-500">Ratio végétal</p>
-                <p className="text-2xl font-bold text-emerald-600">{plantPct}</p>
+                <p className="text-xs text-ink-soft">Ratio végétal</p>
+                <p className="text-2xl font-bold text-brand-600">{plantPct}</p>
               </div>
             )}
           </div>
@@ -1912,10 +1912,10 @@ function StepReport({
               className={
                 "mt-4 rounded-md border px-3 py-2 text-sm " +
                 (coverageTone === "high"
-                  ? "border-rose-200 bg-rose-50 text-rose-800"
+                  ? "border-danger-100 bg-danger-50 text-danger-700"
                   : coverageTone === "medium"
-                    ? "border-amber-200 bg-amber-50 text-amber-800"
-                    : "border-gray-200 bg-gray-50 text-gray-700")
+                    ? "border-warn-100 bg-warn-50 text-warn-700"
+                    : "border-gray-200 bg-gray-50 text-forest-700")
               }
             >
               <p className="font-medium">
@@ -1950,35 +1950,35 @@ function StepReport({
           {/* Phase 34D — headline numbers inline so the wizard is self-sufficient */}
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2">
-              <p className="text-xs text-emerald-700">Protéines végétales</p>
-              <p className="mt-0.5 text-sm font-semibold text-emerald-800">
+              <p className="text-xs text-brand-700">Protéines végétales</p>
+              <p className="mt-0.5 text-sm font-semibold text-brand-700">
                 {fmtKg(plantKg)}
               </p>
               {plantPct && (
-                <p className="text-xs text-emerald-600">{plantPct}</p>
+                <p className="text-xs text-brand-600">{plantPct}</p>
               )}
             </div>
             <div className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2">
-              <p className="text-xs text-amber-700">Protéines animales</p>
-              <p className="mt-0.5 text-sm font-semibold text-amber-800">
+              <p className="text-xs text-warn-700">Protéines animales</p>
+              <p className="mt-0.5 text-sm font-semibold text-warn-700">
                 {fmtKg(animalKg)}
               </p>
               {animalPct && (
-                <p className="text-xs text-amber-600">{animalPct}</p>
+                <p className="text-xs text-warn-600">{animalPct}</p>
               )}
             </div>
             <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-              <p className="text-xs text-gray-600">Protéines totales</p>
-              <p className="mt-0.5 text-sm font-semibold text-gray-800">
+              <p className="text-xs text-ink-muted">Protéines totales</p>
+              <p className="mt-0.5 text-sm font-semibold text-forest-900">
                 {fmtKg(totalKg)}
               </p>
             </div>
             <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-              <p className="text-xs text-gray-600">Lignes</p>
-              <p className="mt-0.5 text-sm font-semibold text-gray-800">
+              <p className="text-xs text-ink-muted">Lignes</p>
+              <p className="mt-0.5 text-sm font-semibold text-forest-900">
                 {rowsIncluded ?? latestRun.rows_count ?? "—"}
                 {rowsExcluded != null && rowsExcluded > 0 && (
-                  <span className="ml-1 text-xs font-normal text-gray-500">
+                  <span className="ml-1 text-xs font-normal text-ink-soft">
                     (+{rowsExcluded} exclues)
                   </span>
                 )}
@@ -1992,7 +1992,7 @@ function StepReport({
             </Link>
           </div>
 
-          <p className="mt-3 text-xs text-gray-400">
+          <p className="mt-3 text-xs text-ink-soft">
             Le détail technique (admin/debug) regroupe les exports CSV/JSON/Markdown
             et l’historique d’approbation.
           </p>
@@ -2631,7 +2631,7 @@ export default function WorkflowWizardPage() {
   if (loadError) {
     return (
       <div className="mx-auto max-w-3xl">
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <div className="rounded-xl border border-danger-100 bg-danger-50 px-4 py-3 text-sm text-danger-700">
           {loadError}
         </div>
         <Link
@@ -2645,7 +2645,7 @@ export default function WorkflowWizardPage() {
   }
 
   if (!status || activeIdx === null) {
-    return <div className="text-sm text-gray-500">Chargement…</div>;
+    return <div className="text-sm text-ink-soft">Chargement…</div>;
   }
 
   // Phase WWF-G — index into the methodology-aware visible step list.
@@ -2846,11 +2846,11 @@ export default function WorkflowWizardPage() {
               <h2 className="text-xl font-semibold">
                 Validation nutritionnelle
               </h2>
-              <p className="mt-1 text-sm text-gray-600">
+              <p className="mt-1 text-sm text-ink-muted">
                 Inspectez les valeurs protéiques attribuées par NEVO et
                 complétez manuellement les produits restants.
               </p>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-ink-soft">
                 {"L'IA ne génère jamais de valeurs protéiques. Les "}
                 valeurs proviennent du CSV retailer, de NEVO, ou de la
                 saisie manuelle.
@@ -2902,7 +2902,7 @@ export default function WorkflowWizardPage() {
         >
           ← Précédent
         </Button>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-ink-soft">
           {safeActiveIdx + 1} / {visibleSteps.length}
         </span>
         <Button
@@ -2919,7 +2919,7 @@ export default function WorkflowWizardPage() {
       </div>
 
       {/* Phase WWF-G — privacy footer adapts to methodology context. */}
-      <p className="mt-6 text-xs text-gray-400">
+      <p className="mt-6 text-xs text-ink-soft">
         {wwfOnly
           ? "Note : la catégorisation WWF utilise uniquement les descripteurs non commerciaux (nom, marque, catégorie retailer, ingrédients). Les volumes, ventes et prix ne sont jamais envoyés à l'IA."
           : "Note : l'IA peut aider à sélectionner certaines références, mais ne génère pas de valeurs nutritionnelles. Les protéines proviennent uniquement des données fournies par le retailer, de NEVO, de CIQUAL ou de la validation manuelle."}
