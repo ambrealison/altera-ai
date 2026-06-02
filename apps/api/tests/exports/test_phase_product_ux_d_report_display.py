@@ -31,6 +31,11 @@ _WEB = _REPO / "apps" / "web"
 
 _WORKFLOW = _WEB / "app" / "projects" / "[id]" / "workflow" / "page.tsx"
 _RUNREPORT = _WEB / "components" / "RunReport.tsx"
+# Phase Product-UX-E extracted the Result step into its own component +
+# a cache hook; Phase Product-UX-F removed the technical link.
+_STEP_REPORT = _WEB / "app" / "projects" / "[id]" / "workflow" / "_step-report.tsx"
+_USE_RUN_REPORT = _WEB / "lib" / "use-run-report.ts"
+_REPORT_DICT = _WEB / "lib" / "i18n" / "report.ts"
 _I18N = _WEB / "lib" / "i18n.tsx"
 _TECH_REPORT = (
     _WEB / "app" / "projects" / "[id]" / "runs" / "[runId]" / "report" / "page.tsx"
@@ -49,36 +54,36 @@ def _read(p: Path) -> str:
 
 
 def test_step_report_renders_runreport() -> None:
-    src = _read(_WORKFLOW)
+    # Phase Product-UX-E — the Result step lives in _step-report.tsx now.
+    src = _read(_STEP_REPORT)
     assert "<RunReport doc={report} />" in src
 
 
 def test_step_report_has_loading_and_error_states() -> None:
-    src = _read(_WORKFLOW)
-    # Explicit states instead of a silent null fall-back.
-    assert "reportLoading" in src
-    assert "reportError" in src
-    assert "Le rapport complet n’a pas pu être chargé" in src
+    # Loading/error states + non-silent error handling now live in the
+    # extracted component + the run-report cache hook (Phase Product-UX-E).
+    step = _read(_STEP_REPORT)
+    hook = _read(_USE_RUN_REPORT)
+    assert "report.step.loadErrorTitle" in step  # actionable error
+    assert "report.step.preparing" in step  # loading skeleton
+    assert "loading" in hook and "error" in hook
     # The backend error must be surfaced (logged), not swallowed.
-    assert "console.error" in src
+    assert "console.error" in hook
 
 
 def test_step_report_does_not_silently_show_old_compact_summary() -> None:
-    src = _read(_WORKFLOW)
-    # The old fallback headline ("Calcul du {date}" card with the inline
-    # KPI grid) used a local ``fmtKg`` 1-decimal helper. It was removed in
-    # Product-UX-D so the guided step never degrades to it.
-    assert "const fmtKg" not in src
+    # The old fallback headline used a local ``fmtKg`` 1-decimal helper;
+    # it must not reappear in the extracted Result step.
+    assert "const fmtKg" not in _read(_STEP_REPORT)
 
 
-def test_technical_link_gated_behind_isAltera() -> None:
-    src = _read(_WORKFLOW)
-    assert "isAltera" in src
-    # The detail link appears inside an isAltera gate.
-    idx = src.find("Détail technique")
-    assert idx != -1, "expected an admin-only technical detail link"
-    # Look back a little to confirm the gate precedes the link.
-    assert "isAltera &&" in src[max(0, idx - 400) : idx]
+def test_no_technical_link_in_guided_result_step() -> None:
+    # Phase Product-UX-F — the guided flow has NO technical-detail link
+    # (for any methodology). The Result step renders only the report.
+    src = _read(_STEP_REPORT)
+    assert "report.step.technicalLink" not in src
+    assert "/runs/${" not in src
+    assert "<Link" not in src
 
 
 # ---------------------------------------------------------------------------
@@ -108,9 +113,14 @@ def test_tech_report_has_no_raw_kg_interpolation() -> None:
 
 
 def test_runreport_states_wwf_step1_scope() -> None:
+    # Phase Product-UX-E moved the WWF Step 1/Step 2 scope copy into the
+    # i18n dictionary; RunReport renders it via the report.wwf.step1* keys.
     src = _read(_RUNREPORT)
-    assert "Step 1" in src
-    assert "Step 2" in src
+    assert "report.wwf.step1Label" in src
+    assert "report.wwf.step1Body" in src
+    dict_src = _read(_REPORT_DICT)
+    assert "Step 1" in dict_src
+    assert "Step 2" in dict_src
 
 
 @pytest.mark.parametrize(

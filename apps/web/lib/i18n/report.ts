@@ -8,6 +8,30 @@ import type { I18nDict } from "./types";
 export const report: I18nDict = {
   // Hero
   "report.badge": { fr: "Résultat", en: "Result" },
+
+  // Phase Product-UX-F — localized executive summary (replaces the raw
+  // backend narrative in the hero). {ratio}/{plant}/{animal}/{total}/
+  // {weight} are pre-formatted via formatPct/formatKg at the call site.
+  "report.summary.ptRatio": {
+    fr: "Ratio protéines végétales : {ratio} — {plant} d'origine végétale, {animal} d'origine animale, {total} de protéines totales in-scope.",
+    en: "Plant-protein ratio: {ratio} — {plant} plant-source, {animal} animal-source, {total} total in-scope protein.",
+  },
+  "report.summary.ptEmpty": {
+    fr: "Aucun produit protéiné in-scope sur cette période.",
+    en: "No in-scope protein products for this period.",
+  },
+  "report.summary.wwfLead": {
+    fr: "{weight} de poids de ventes in-scope réparties sur les 7 groupes alimentaires WWF. La ",
+    en: "{weight} of in-scope sales weight across the 7 WWF food groups. The ",
+  },
+  "report.summary.wwfMethodologyLink": {
+    fr: "méthodologie WWF Planet-Based Diets",
+    en: "WWF Planet-Based Diets methodology",
+  },
+  "report.summary.wwfTail": {
+    fr: " a été appliquée — elle mesure le poids des produits, pas la teneur en protéines.",
+    en: " was applied — it measures product weight, not protein content.",
+  },
   "report.combined.title": {
     fr: "Ce que l'on apprend",
     en: "What this tells you",

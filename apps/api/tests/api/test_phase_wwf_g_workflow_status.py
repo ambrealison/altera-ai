@@ -56,8 +56,10 @@ class TestWWFOnlyWorkflowStatus:
         assert body["methodologies_enabled"] == ["wwf"]
         assert isinstance(body["steps"], list)
 
-    def test_wwf_only_nevo_step_locked(self, client: TestClient) -> None:
-        """No PT data → NEVO step must be locked, not accessible."""
+    def test_wwf_only_nevo_step_not_needed(self, client: TestClient) -> None:
+        """Phase Product-UX-F — PT not enabled (WWF-only) → the PT-only
+        NEVO step is ``not_needed`` (complete-neutral for progress), NOT
+        ``locked`` (which previously dragged WWF-only progress below 100%)."""
         pid = _create_project(client, methodologies=["wwf"])
         body = client.get(
             f"/api/v1/projects/{pid}/workflow-status"
@@ -65,11 +67,9 @@ class TestWWFOnlyWorkflowStatus:
         nevo = next(
             s for s in body["steps"] if s["key"] == "nutrition_enrichment_nevo"
         )
-        # locked because pt_total == 0.
-        assert nevo["status"] == "locked"
-        assert nevo["accessible"] is False
+        assert nevo["status"] == "not_needed"
 
-    def test_wwf_only_nutrition_validation_locked(
+    def test_wwf_only_nutrition_validation_not_needed(
         self, client: TestClient
     ) -> None:
         pid = _create_project(client, methodologies=["wwf"])
@@ -79,14 +79,14 @@ class TestWWFOnlyWorkflowStatus:
         nv = next(
             s for s in body["steps"] if s["key"] == "nutrition_validation"
         )
-        assert nv["status"] == "locked"
-        assert nv["accessible"] is False
+        assert nv["status"] == "not_needed"
 
-    def test_wwf_only_after_upload_still_locks_pt_only_steps(
+    def test_wwf_only_pt_only_steps_not_needed_after_upload(
         self, client: TestClient, wwf_tiny_csv: bytes
     ) -> None:
-        """Even after a WWF CSV upload (no PT data), NEVO / Nutrition
-        Validation remain locked because nothing PT-eligible exists."""
+        """Phase Product-UX-F — after a WWF CSV upload (no PT data), the
+        PT-only steps stay ``not_needed`` so they never lower WWF-only
+        progress."""
         pid = _create_project(client, methodologies=["wwf"])
         client.post(
             f"/api/v1/projects/{pid}/uploads",
@@ -101,8 +101,13 @@ class TestWWFOnlyWorkflowStatus:
         nv = next(
             s for s in body["steps"] if s["key"] == "nutrition_validation"
         )
-        assert nevo["status"] == "locked"
-        assert nv["status"] == "locked"
+        review = next(
+            s for s in body["steps"]
+            if s["key"] == "manual_classification_review"
+        )
+        assert nevo["status"] == "not_needed"
+        assert nv["status"] == "not_needed"
+        assert review["status"] == "not_needed"
 
 
 class TestPTOnlyWorkflowStatusUnchanged:

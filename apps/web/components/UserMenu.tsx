@@ -51,19 +51,13 @@ export function UserMenu() {
 
       {currentUser && (
         <>
-          <div className="hidden text-right text-xs sm:block">
-            <div className="font-medium text-forest-700">
-              {currentUser.email}
-            </div>
-            <div className="text-[10px] uppercase tracking-wider text-ink-soft">
-              {currentUser.role} · org{" "}
-              {currentUser.organisation_id.slice(0, 8)}…
-              {currentUser.is_dev_auth && (
-                <span className="ml-1 text-warn-700">· dev</span>
-              )}
-            </div>
-          </div>
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-mint-100 text-xs font-semibold text-brand-700 ring-1 ring-brand-200">
+          {/* Phase Product-UX-F — header shows only the round avatar
+              initial + Sign out (plus the FR/EN switch above). The email
+              and role/org line were removed to declutter the header. */}
+          <span
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-mint-100 text-xs font-semibold text-brand-700 ring-1 ring-brand-200"
+            title={currentUser.email ?? undefined}
+          >
             {(currentUser.email?.[0] ?? "?").toUpperCase()}
           </span>
           {!isDevMode && (

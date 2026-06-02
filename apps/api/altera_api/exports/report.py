@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from collections import Counter
 from datetime import UTC, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
 
@@ -243,16 +244,42 @@ def _wwf_section(run: RunRecord, store: StoreProtocol, project: Project) -> WWFR
     )
 
 
+def _fmt_kg(value: Decimal) -> str:
+    """Human-rounded kilograms for narrative text (Phase Product-UX-F).
+
+    The narrative must never expose raw Decimal precision
+    (``175266.95000000``). We round to a whole number with thousands
+    separators (e.g. ``175,267``). Display-only — no calculation values
+    are altered.
+    """
+    rounded = Decimal(value).to_integral_value(rounding=ROUND_HALF_UP)
+    return f"{int(rounded):,}"
+
+
+def _fmt_pct(value: Decimal) -> str:
+    """One-decimal percentage for narrative text (e.g. ``19.3``)."""
+    return f"{Decimal(value):.1f}"
+
+
+def _approval_sentence(status: str) -> str:
+    """Trailing approval sentence — omitted for ``draft`` (Phase
+    Product-UX-F: a generated report should not read as "being
+    prepared")."""
+    if status == "draft":
+        return ""
+    phrase = _APPROVAL_PHRASES.get(status, f"has status '{status}'")
+    return f" This report {phrase}."
+
+
 def _pt_executive_summary(
     s: ProteinTrackerCalculationSummary, status: str, project_name: str
 ) -> str:
-    phrase = _APPROVAL_PHRASES.get(status, f"has status '{status}'")
     if s.plant_share_pct is not None:
         ratio_line = (
-            f"a plant-source protein ratio of {format_decimal(s.plant_share_pct)}% "
-            f"({format_decimal(s.plant_protein_kg)} kg plant-source, "
-            f"{format_decimal(s.animal_protein_kg)} kg animal-source, "
-            f"{format_decimal(s.total_in_scope_protein_kg)} kg total in-scope protein)"
+            f"a plant-source protein ratio of {_fmt_pct(s.plant_share_pct)}% "
+            f"({_fmt_kg(s.plant_protein_kg)} kg plant-source, "
+            f"{_fmt_kg(s.animal_protein_kg)} kg animal-source, "
+            f"{_fmt_kg(s.total_in_scope_protein_kg)} kg total in-scope protein)"
         )
     else:
         ratio_line = "no in-scope protein products"
@@ -260,23 +287,22 @@ def _pt_executive_summary(
         f"For the {s.reporting_period_label} reporting period, {project_name} achieved "
         f"{ratio_line}. "
         f"The Protein Tracker methodology (version {s.methodology_version}, "
-        f"{s.methodology_source_edition}) was applied. "
-        f"This report {phrase}."
+        f"{s.methodology_source_edition}) was applied."
+        f"{_approval_sentence(status)}"
     )
 
 
 def _wwf_executive_summary(
     s: WWFCalculationSummary, status: str, project_name: str
 ) -> str:
-    phrase = _APPROVAL_PHRASES.get(status, f"has status '{status}'")
     return (
         f"For the {s.reporting_period_label} reporting period, {project_name}'s product range "
-        f"covered {format_decimal(s.total_sales_weight_in_scope_kg)} kg of in-scope sales weight "
+        f"covered {_fmt_kg(s.total_sales_weight_in_scope_kg)} kg of in-scope sales weight "
         f"across 7 WWF food groups. "
         f"The WWF Planet-Based Diets methodology (version {s.methodology_version}, "
         f"{s.methodology_source_edition}) was applied. "
-        f"Note: this methodology measures product weight, not protein content. "
-        f"This report {phrase}."
+        f"Note: this methodology measures product weight, not protein content."
+        f"{_approval_sentence(status)}"
     )
 
 

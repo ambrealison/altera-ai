@@ -420,14 +420,32 @@ class TestExecutiveSummary:
         doc = r.json()
         assert "approved" in doc["executive_summary"].lower()
 
-    def test_exec_summary_draft_has_draft_phrase(self):
+    def test_exec_summary_draft_omits_being_prepared(self):
+        """Phase Product-UX-F — a generated report should not read as
+        "being prepared". The draft approval phrase is dropped; the
+        summary still states the methodology and the figures."""
         store, altera_org, _, altera_user, _, pt_project, _, pt_run, _ = _setup()
         auth = _auth(altera_user, altera_org)
         with _client(store, auth) as c:
             r = c.get(f"/api/v1/projects/{pt_project.id}/runs/{pt_run.id}/report")
         doc = r.json()
         assert doc["meta"]["approval_status"] == "draft"
-        assert "being prepared" in doc["executive_summary"]
+        assert "being prepared" not in doc["executive_summary"]
+        assert "Protein Tracker" in doc["executive_summary"]
+
+    def test_exec_summary_has_no_raw_decimals(self):
+        """Phase Product-UX-F — narrative numbers are rounded, never raw
+        Decimal precision like ``175266.95000000``."""
+        store, altera_org, _, altera_user, _, pt_project, _, pt_run, _ = _setup()
+        auth = _auth(altera_user, altera_org)
+        with _client(store, auth) as c:
+            r = c.get(f"/api/v1/projects/{pt_project.id}/runs/{pt_run.id}/report")
+        summary = r.json()["executive_summary"]
+        assert ".00000000" not in summary
+        # no long fractional run of digits anywhere in the narrative
+        import re
+
+        assert re.search(r"\.\d{4,}", summary) is None, summary
 
 
 # ---------------------------------------------------------------------------

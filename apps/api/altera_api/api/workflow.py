@@ -429,13 +429,33 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
     pt_total = counts.pt_products
     pt_remaining_to_classify = max(0, pt_total - counts.pt_classified)
 
+    # Phase Product-UX-F — which methodologies the project actually
+    # enables. Defined early so the PT-only steps below can be marked
+    # ``not_needed`` (rather than ``locked``) on a WWF-only project.
+    pt_enabled = Methodology.PROTEIN_TRACKER in project.methodologies_enabled
+    wwf_enabled = Methodology.WWF in project.methodologies_enabled
+
     # 5. AI classification — Phase 34I makes this the primary classifier
     #    (the legacy deterministic-only step has been removed from the
-    #    user-facing workflow). Available whenever there are PT products
-    #    in scope; complete once every product has a classification.
-    if pt_total == 0:
+    #    user-facing workflow). Available whenever there are products in
+    #    scope; complete once every product has a classification.
+    #
+    # Phase Product-UX-F — methodology-aware. Previously this was gated on
+    # PT counts only, so a WWF-only project (pt_total == 0) left the step
+    # permanently "locked" and dragged overall progress below 100%. Use
+    # the union of the enabled methodologies' classification state.
+    clf_total = (pt_total if pt_enabled else 0) + (
+        counts.wwf_products if wwf_enabled else 0
+    )
+    clf_done = (counts.pt_classified if pt_enabled else 0) + (
+        counts.wwf_classified if wwf_enabled else 0
+    )
+    clf_in_review = (counts.pt_needs_review if pt_enabled else 0) + (
+        counts.wwf_needs_review if wwf_enabled else 0
+    )
+    if clf_total == 0:
         ai_status: StepStatus = "locked"
-    elif counts.pt_classified == pt_total:
+    elif clf_done >= clf_total:
         ai_status = "complete"
     else:
         ai_status = "needs_action"
@@ -445,26 +465,33 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
             label="Classification IA",
             status=ai_status,
             progress_pct=(
-                int(100 * counts.pt_classified / pt_total) if pt_total else 0
+                int(100 * clf_done / clf_total) if clf_total else 0
             ),
             counts={
-                "classified": counts.pt_classified,
-                "remaining": pt_remaining_to_classify,
-                "in_review": counts.pt_needs_review,
+                "classified": clf_done,
+                "remaining": max(0, clf_total - clf_done),
+                "in_review": clf_in_review,
             },
             accessible=ai_status != "locked",
             editable=ai_status not in ("locked",),
             summary=(
-                f"{counts.pt_classified}/{pt_total} produit(s) classifiés"
-                if pt_total > 0
+                f"{clf_done}/{clf_total} produit(s) classifiés"
+                if clf_total > 0
                 else None
             ),
         )
     )
 
     # 7. manual classification review
-    if counts.pt_needs_review > 0:
-        review_status: StepStatus = "needs_action"
+    # Phase Product-UX-F — when PT is NOT enabled for the project (e.g.
+    # WWF-only) this PT-only step does not apply and must be ``not_needed``
+    # (counts as complete-neutral for progress), NOT ``locked`` (which
+    # dragged WWF-only progress below 100%). ``pt_total == 0`` while PT IS
+    # enabled still means "waiting for products" → locked.
+    if not pt_enabled:
+        review_status: StepStatus = "not_needed"
+    elif counts.pt_needs_review > 0:
+        review_status = "needs_action"
     elif pt_total == 0:
         review_status = "locked"
     else:
@@ -511,8 +538,12 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
     except Exception:
         nevo_attempted = False
     pt_needs_nutrition = counts.pt_missing_nutrition
-    if pt_total == 0:
-        nevo_status: StepStatus = "locked"
+    if not pt_enabled:
+        # Phase Product-UX-F — PT not enabled (WWF-only): NEVO does not
+        # apply. ``not_needed`` so it never lowers overall progress.
+        nevo_status: StepStatus = "not_needed"
+    elif pt_total == 0:
+        nevo_status = "locked"
     elif nevo_attempted:
         nevo_status = "complete"
     elif pt_needs_nutrition == 0:
@@ -578,8 +609,12 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
     # NEVO and Calculation. Status reflects whether NEVO leaves any
     # products without usable nutrition (`needs_action`), everything
     # is ready (`complete`), or nothing applies yet (`locked`).
-    if pt_total == 0:
-        nv_status: StepStatus = "locked"
+    if not pt_enabled:
+        # Phase Product-UX-F — PT not enabled (WWF-only): nutrition
+        # validation does not apply. ``not_needed`` keeps progress correct.
+        nv_status: StepStatus = "not_needed"
+    elif pt_total == 0:
+        nv_status = "locked"
     elif pt_needs_nutrition == 0:
         nv_status = "complete"
     else:
@@ -613,8 +648,8 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
     # We now build blockers ONLY for the methodologies the project
     # actually enables, and label them per methodology so a PT+WWF
     # project never mixes "Protein Tracker" wording into WWF blockers.
-    pt_enabled = Methodology.PROTEIN_TRACKER in project.methodologies_enabled
-    wwf_enabled = Methodology.WWF in project.methodologies_enabled
+    # (``pt_enabled`` / ``wwf_enabled`` are defined once near the top of
+    # this function — Phase Product-UX-F.)
 
     # A WWF row is eligible once it has a non-unknown food group. WWF
     # needs weight + items_sold (both required at ingestion via
@@ -711,8 +746,14 @@ def compute_workflow_status(store: StoreProtocol, project: Project) -> WorkflowS
         counts.wwf_needs_review if wwf_enabled else 0
     )
 
-    if blocking:
-        calc_status: StepStatus = "blocked"
+    # Phase Product-UX-F — once a successful run exists the calculation
+    # step is ``complete`` (it never was before, so the final report step
+    # could not reach 100%). A re-run is still possible (complete steps
+    # stay accessible).
+    if has_runs:
+        calc_status: StepStatus = "complete"
+    elif blocking:
+        calc_status = "blocked"
     elif eligible_rows > 0:
         calc_status = "ready"
     else:

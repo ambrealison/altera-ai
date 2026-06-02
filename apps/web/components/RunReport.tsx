@@ -22,6 +22,10 @@ import type {
   WWFReportSection,
 } from "@/lib/api";
 
+// Phase Product-UX-F — official WWF retailer methodology PDF.
+const WWF_METHODOLOGY_PDF =
+  "https://wwfint.awsassets.panda.org/downloads/wwf-planet-based-diets-retailer-methodology.pdf";
+
 // Group / food-group / bucket display metadata. Labels are i18n keys
 // (resolved via t() at render); emojis are decorative and stay inline.
 const PT_GROUP_META: Record<string, { key: string; emoji: string }> = {
@@ -481,10 +485,44 @@ export function RunReport({ doc }: { doc: ReportDocument }) {
         <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
           {doc.meta.project_name}
         </h2>
-        {doc.executive_summary && (
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-mint-100/90">
-            {doc.executive_summary}
-          </p>
+        {/* Phase Product-UX-F — localized, formatted summary built from
+            structured fields (no raw Decimals, no "being prepared"). The
+            WWF methodology PDF link appears only when a WWF section
+            exists (WWF-only or PT+WWF). */}
+        {(doc.pt_section || doc.wwf_section) && (
+          <div className="mt-1 max-w-3xl space-y-1 text-sm leading-relaxed text-mint-100/90">
+            {doc.pt_section && (
+              <p>
+                {doc.pt_section.plant_share_pct != null
+                  ? t("report.summary.ptRatio")
+                      .replace("{ratio}", formatPct(doc.pt_section.plant_share_pct))
+                      .replace("{plant}", formatKg(doc.pt_section.plant_protein_kg))
+                      .replace("{animal}", formatKg(doc.pt_section.animal_protein_kg))
+                      .replace(
+                        "{total}",
+                        formatKg(doc.pt_section.total_in_scope_protein_kg),
+                      )
+                  : t("report.summary.ptEmpty")}
+              </p>
+            )}
+            {doc.wwf_section && (
+              <p>
+                {t("report.summary.wwfLead").replace(
+                  "{weight}",
+                  formatKg(doc.wwf_section.total_in_scope_weight_kg),
+                )}
+                <a
+                  href={WWF_METHODOLOGY_PDF}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-white underline decoration-mint-100/60 underline-offset-2 hover:decoration-white"
+                >
+                  {t("report.summary.wwfMethodologyLink")}
+                </a>
+                {t("report.summary.wwfTail")}
+              </p>
+            )}
+          </div>
         )}
       </div>
 

@@ -1982,7 +1982,7 @@ export default function WorkflowWizardPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const projectId = params.id;
-  const { accessToken, isAltera } = useAuth();
+  const { accessToken } = useAuth();
   const api = useMemo(() => createApi(accessToken), [accessToken]);
   const t = useT();
 
@@ -2674,11 +2674,13 @@ export default function WorkflowWizardPage() {
                 .replace("{pct}", String(status.overall_progress_pct))}
             </p>
           </div>
+          {/* Phase Product-UX-F — plain "back to project" navigation, not a
+              technical-detail link. No technical link in the guided flow. */}
           <Link
             href={`/projects/${projectId}`}
             className="shrink-0 rounded-lg px-2.5 py-1 text-xs text-mint-100/70 transition-colors hover:bg-white/10 hover:text-white"
           >
-            {t("workflow.hero.technicalDetail")}
+            {t("workflow.backToProject")}
           </Link>
         </div>
         {/* Progress bar inside the hero band. */}
@@ -2850,7 +2852,6 @@ export default function WorkflowWizardPage() {
             accessToken={accessToken}
             step={activeBackendStep}
             latestRun={latestRun}
-            isAltera={isAltera}
           />
         )}
       </div>

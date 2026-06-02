@@ -10,8 +10,6 @@
  * technical detail link is admin-only.
  */
 
-import Link from "next/link";
-
 import { Button, Card } from "@/components/ui";
 import { RunReport } from "@/components/RunReport";
 import type { Run, WorkflowStep } from "@/lib/api";
@@ -23,13 +21,11 @@ export function StepReport({
   accessToken,
   step,
   latestRun,
-  isAltera,
 }: {
   projectId: string;
   accessToken: string | null;
   step: WorkflowStep;
   latestRun: Run | null;
-  isAltera: boolean;
 }) {
   const t = useT();
   const hasRun = step.status === "complete" && latestRun !== null;
@@ -56,22 +52,13 @@ export function StepReport({
   }
 
   // Cached or freshly loaded report — the only user-facing result.
+  // Phase Product-UX-F — no technical-detail link in the guided flow
+  // (PT-only, WWF-only, or PT+WWF). The /runs/:id technical page remains
+  // reachable directly for admins via the project page.
   if (report) {
     return (
       <div className="space-y-5">
         <RunReport doc={report} />
-        {isAltera && (
-          <div className="border-t border-gray-100 pt-3">
-            <Link href={`/projects/${projectId}/runs/${latestRun!.id}`}>
-              <Button variant="ghost" className="text-xs">
-                {t("report.step.technicalLink")} →
-              </Button>
-            </Link>
-            <p className="mt-1 text-xs text-ink-soft">
-              {t("report.step.technicalHint")}
-            </p>
-          </div>
-        )}
       </div>
     );
   }
