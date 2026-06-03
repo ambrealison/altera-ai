@@ -675,3 +675,52 @@ present, just ranked low, gates green) is a reranker the next step; if they
 are `harmless_equivalent` / `expected_too_specific` / `fixture_should_
 change`, no reranker is warranted. The reranker is still NOT implemented;
 V1 remains the production default and embeddings stay disabled by default.
+
+## Quality-V2-H — refined rank-miss interpretation (no reranker yet)
+
+V2-G's diagnostics bucketed every same-concept rank>1 miss as
+`needs_reranker`. On the real green run that over-states the problem: with
+coverage 100% / HC-FP 0, a rank miss where the system still accepted a
+correct same-concept food is HARMLESS, not a reranker failure. V2-H
+refines the heuristic (diagnostics only — no rules/gate change):
+
+- A rank>1 miss where `accepted_same_concept_as_expected = true` →
+  `harmless_equivalent` (or `expected_too_specific` when the accepted food
+  is broader than an over-specific fixture label). NEVER `needs_reranker`.
+- `needs_reranker` is reserved for a DIFFERENT-concept food accepted above
+  the right same-concept one (reordering by concept agreement would help).
+- A new `match_relationship` column distinguishes the finer cases:
+  `exact_code_rank_miss`, `same_concept_code_mismatch`,
+  `accepted_more_specific_variant`, `fixture_expected_too_specific`,
+  `different_concept_ranking_noise`, `expected_variant_rejected`.
+
+### The six real cases, re-read
+
+| case | product | accepted | bucket | relationship |
+|---|---|---|---|---|
+| nve-11 | Lentilles corail | Lentils red boiled @2 | harmless_equivalent | exact_code_rank_miss |
+| nve-16 | Fresh cheese | Quark full fat @4 | harmless_equivalent | same_concept_code_mismatch |
+| nve-23 | Fromage | Cheese Brie 60+ @3 | harmless_equivalent | accepted_more_specific_variant |
+| nve-27 | Soupe lentilles coco | Lentils green and brown boiled @6 | harmless_equivalent | same_concept_code_mismatch |
+| nve-20 | Pates penne | Pasta white boiled | harmless_equivalent | expected_variant_rejected |
+| nve-22 | Muesli maison | Muesli w fruit seeds and kernels | harmless_equivalent | expected_variant_rejected |
+
+All six are same-concept safe accepts — coverage stays 100% and there are
+**zero** `needs_reranker` cases.
+
+### Fixtures
+
+No fixture changes were warranted: every fixture already points at a valid
+NEVO 2025 code, and the accepted equivalents are same-concept (the
+fixture's reference is as good or better). Fixture updates remain reserved
+for cases where the accepted candidate is clearly a more realistic NEVO
+reference — none here.
+
+### Decision: a reranker is NOT justified yet
+
+The real run's rank tail is entirely `harmless_equivalent`, with HC-FP 0,
+forbidden rejection 100%, coverage 100%, and top20 100%. There is no
+`needs_reranker` signal, so we do **not** build a reranker. Revisit only if
+a future run shows `needs_reranker` cases (a different-concept food
+accepted above the right one) or genuine ranking noise. V1 remains the
+production default; embeddings stay disabled by default; evaluator/dev-only.

@@ -270,17 +270,29 @@ RANK_INSPECTION_CSV_COLUMNS = [
     "accepted_candidate_rank", "accepted_candidate_similarity",
     "accepted_match_type", "accepted_confidence",
     "accepted_same_concept_as_expected", "top_5_candidate_names",
-    "top_5_candidate_codes", "top_5_similarities", "diagnosis_bucket", "notes",
+    "top_5_candidate_codes", "top_5_similarities", "diagnosis_bucket",
+    "match_relationship", "notes",
 ]
 
 #: All diagnosis buckets a rank-miss / rejected case can fall into.
 DIAGNOSIS_BUCKETS = (
-    "harmless_equivalent",     # a same-concept food was accepted; coverage fine
-    "expected_too_specific",   # accepted a broader same-concept food
+    "harmless_equivalent",     # a safe same-concept food was accepted; coverage fine
+    "expected_too_specific",   # accepted a broader same-concept food (fixture too specific)
     "rule_too_strict",         # rule rejected the only good candidate
-    "true_ranking_issue",      # an unrelated food ranks #1 (embeddings mis-rank)
+    "true_ranking_issue",      # expected couldn't be located among candidates
     "fixture_should_change",   # expected resolves to a different food per rules
-    "needs_reranker",          # right food present below rejected same-concept noise
+    "needs_reranker",          # a DIFFERENT-concept food was accepted above the right one
+)
+
+#: Finer notes on how the accepted food relates to the expected one.
+MATCH_RELATIONSHIPS = (
+    "exact_code_rank_miss",          # exact expected code, just below rank 1
+    "same_concept_code_mismatch",    # same concept, different NEVO code/variant
+    "accepted_more_specific_variant",  # accepted a narrower variant of the expected
+    "fixture_expected_too_specific",   # accepted is broader; the fixture was too specific
+    "different_concept_ranking_noise",  # accepted a different concept (real ranking issue)
+    "expected_variant_rejected",     # the expected candidate itself was rejected
+    "no_accept",                     # nothing was accepted
 )
 
 
@@ -293,10 +305,18 @@ def _is_broader(accepted_name: str, expected_name: str) -> bool:
 def _diagnosis_bucket(
     *,
     exp_trace: Any,
-    accepted_trace: Any,
+    accepted_name: str,
+    expected_name: str,
     accepted_same_concept: bool,
 ) -> str:
-    """Heuristic, advisory classification (see ``DIAGNOSIS_BUCKETS``)."""
+    """Heuristic, advisory classification (see ``DIAGNOSIS_BUCKETS``).
+
+    Phase Quality-V2-H: a rank>1 miss where the system still accepted a
+    correct, safe same-concept food is HARMLESS (coverage 100%, HC-FP 0) —
+    it is NOT a reranker failure. ``needs_reranker`` is reserved for the
+    case where a DIFFERENT-concept food was accepted above the right
+    same-concept one (a reranker preferring concept agreement would fix the
+    selection). Broadness is judged against the fixture's EXPECTED label."""
     if exp_trace is None:
         return "true_ranking_issue"
 
@@ -316,21 +336,42 @@ def _diagnosis_bucket(
 
     # The expected candidate was ACCEPTED, but at rank > 1.
     if not accepted_same_concept:
-        # A different-concept food (or nothing) was accepted while the
-        # expected was present → the embedding ranking is genuinely off.
-        return "true_ranking_issue"
-    if (
-        accepted_trace is not None
-        and accepted_trace.rank < exp_trace.rank
-        and accepted_trace.candidate_name != exp_trace.candidate_name
-    ):
-        # A different same-concept food ranked above and was accepted.
-        if _is_broader(accepted_trace.candidate_name, exp_trace.candidate_name):
-            return "expected_too_specific"
-        return "harmless_equivalent"
-    # The right food itself was accepted, just ranked below different-
-    # concept noise → a reranker would lift it to rank 1.
-    return "needs_reranker"
+        # A different-concept food was accepted above the right same-concept
+        # one → reordering by concept agreement would help.
+        return "needs_reranker"
+    # A correct same-concept food was accepted → harmless rank miss. If the
+    # accepted food is BROADER than the fixture's expected label, the fixture
+    # was simply too specific.
+    if accepted_name and expected_name and _is_broader(accepted_name, expected_name):
+        return "expected_too_specific"
+    return "harmless_equivalent"
+
+
+def _match_relationship(
+    *,
+    expected: dict[str, Any],
+    exp_trace: Any,
+    decision: Any,
+    accepted_same_concept: bool,
+) -> str:
+    if not exp_trace.accepted:
+        return "expected_variant_rejected"
+    if not decision.matched:
+        return "no_accept"
+    if not accepted_same_concept:
+        return "different_concept_ranking_noise"
+    exp_code = str(expected.get("nevo_code", "") or "")
+    acc_code = str(decision.nevo_code or "")
+    if exp_code and acc_code and exp_code == acc_code:
+        return "exact_code_rank_miss"
+    # Compare the ACCEPTED food to the fixture's EXPECTED label.
+    acc_name = str(decision.food_name_en or "")
+    exp_name = str(expected.get("food_name_en", "") or "")
+    if _is_broader(acc_name, exp_name):
+        return "fixture_expected_too_specific"
+    if _is_broader(exp_name, acc_name):
+        return "accepted_more_specific_variant"
+    return "same_concept_code_mismatch"
 
 
 def _rank_inspection_row(
@@ -349,7 +390,13 @@ def _rank_inspection_row(
     )
     top5 = top[:5]
     bucket = _diagnosis_bucket(
-        exp_trace=exp_trace, accepted_trace=accepted_trace,
+        exp_trace=exp_trace,
+        accepted_name=str(decision.food_name_en or "") if decision.matched else "",
+        expected_name=str(expected.get("food_name_en", "") or ""),
+        accepted_same_concept=accepted_same_concept,
+    )
+    relationship = _match_relationship(
+        expected=expected, exp_trace=exp_trace, decision=decision,
         accepted_same_concept=accepted_same_concept,
     )
     return {
@@ -377,6 +424,7 @@ def _rank_inspection_row(
         "top_5_candidate_codes": " | ".join(str(t.nevo_code) for t in top5),
         "top_5_similarities": " | ".join(f"{t.similarity:.3f}" for t in top5),
         "diagnosis_bucket": bucket,
+        "match_relationship": relationship,
         "notes": case.get("notes", ""),
     }
 
@@ -449,6 +497,7 @@ def print_rank_inspection(
             f"accepted {r['accepted_candidate_name']!r} "
             f"(rank {r['accepted_candidate_rank']}, same_concept="
             f"{r['accepted_same_concept_as_expected']}) | {r['diagnosis_bucket']}"
+            f" [{r['match_relationship']}]"
         )
 
     print("\nExpected retrieved but rejected by rules:")

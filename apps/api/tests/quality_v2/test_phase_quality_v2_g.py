@@ -61,52 +61,66 @@ class TestDiagnosisBucket:
             "true_ranking_issue", "fixture_should_change", "needs_reranker",
         }
 
-    def test_needs_reranker_when_right_food_ranked_low(self) -> None:
+    def test_same_concept_safe_accept_is_harmless_not_reranker(self) -> None:
+        # V2-H: the right same-concept food was accepted (just at rank>1) →
+        # harmless, NOT a reranker failure.
         exp = _trace(3, "Tofu unprepared", "5519", 0.6, accepted=True)
         assert _diagnosis_bucket(
-            exp_trace=exp, accepted_trace=exp, accepted_same_concept=True
+            exp_trace=exp, accepted_name="Tofu unprepared", expected_name="Tofu",
+            accepted_same_concept=True,
+        ) == "harmless_equivalent"
+
+    def test_needs_reranker_when_different_concept_accepted_above(self) -> None:
+        # A DIFFERENT-concept food was accepted while the right one sat lower.
+        exp = _trace(3, "Tofu unprepared", "5519", 0.6, accepted=True)
+        assert _diagnosis_bucket(
+            exp_trace=exp, accepted_name="Bread white", expected_name="Tofu",
+            accepted_same_concept=False,
         ) == "needs_reranker"
 
     def test_harmless_equivalent_when_equivalent_accepted_above(self) -> None:
         exp = _trace(3, "Quark low fat", "305", 0.6, accepted=True)
-        acc = _trace(1, "Quark half fat", "306", 0.8, accepted=True)
         assert _diagnosis_bucket(
-            exp_trace=exp, accepted_trace=acc, accepted_same_concept=True
+            exp_trace=exp, accepted_name="Quark half fat",
+            expected_name="Quark low fat", accepted_same_concept=True,
         ) == "harmless_equivalent"
 
-    def test_expected_too_specific_when_broader_accepted_above(self) -> None:
+    def test_expected_too_specific_when_broader_accepted(self) -> None:
         exp = _trace(3, "Lentils red boiled", "5174", 0.6, accepted=True)
-        acc = _trace(1, "Lentils boiled", "970", 0.8, accepted=True)
         assert _diagnosis_bucket(
-            exp_trace=exp, accepted_trace=acc, accepted_same_concept=True
+            exp_trace=exp, accepted_name="Lentils boiled",
+            expected_name="Lentils red boiled", accepted_same_concept=True,
         ) == "expected_too_specific"
 
-    def test_true_ranking_issue_when_accepted_different_concept(self) -> None:
-        exp = _trace(3, "Tofu unprepared", "5519", 0.6, accepted=True)
-        acc = _trace(1, "Bread white", "999", 0.9, accepted=True)
+    def test_true_ranking_issue_when_expected_not_located(self) -> None:
+        # Defensive: expected couldn't be located among candidates.
         assert _diagnosis_bucket(
-            exp_trace=exp, accepted_trace=acc, accepted_same_concept=False
+            exp_trace=None, accepted_name="", expected_name="",
+            accepted_same_concept=False,
         ) == "true_ranking_issue"
 
     def test_rule_too_strict_when_composite_rejected_and_no_equivalent(self) -> None:
         exp = _trace(1, "Lentil soup canned", "9001", 0.8, accepted=False,
                      reason="Candidate is a composite/prepared dish ...")
         assert _diagnosis_bucket(
-            exp_trace=exp, accepted_trace=None, accepted_same_concept=False
+            exp_trace=exp, accepted_name="", expected_name="Red lentils",
+            accepted_same_concept=False,
         ) == "rule_too_strict"
 
     def test_harmless_equivalent_when_rejected_but_equivalent_accepted(self) -> None:
         exp = _trace(1, "Lentil soup canned", "9001", 0.8, accepted=False,
                      reason="composite")
         assert _diagnosis_bucket(
-            exp_trace=exp, accepted_trace=None, accepted_same_concept=True
+            exp_trace=exp, accepted_name="Lentils red boiled",
+            expected_name="Red lentils", accepted_same_concept=True,
         ) == "harmless_equivalent"
 
     def test_fixture_should_change_when_rejected_non_composite(self) -> None:
         exp = _trace(1, "Weird entry", "Q1", 0.7, accepted=False,
                      reason="No safe head/concept match → abstain.")
         assert _diagnosis_bucket(
-            exp_trace=exp, accepted_trace=None, accepted_same_concept=False
+            exp_trace=exp, accepted_name="", expected_name="Weird",
+            accepted_same_concept=False,
         ) == "fixture_should_change"
 
 
@@ -150,7 +164,8 @@ class TestInspectRankMisses:
         assert r["expected_candidate_name"] == "Peas chick canned"
         assert r["accepted_candidate_name"] == "Peas chick canned"
         assert r["accepted_same_concept_as_expected"] is True
-        assert r["diagnosis_bucket"] == "needs_reranker"
+        # V2-H: a correct same-concept food was accepted → harmless, not reranker.
+        assert r["diagnosis_bucket"] == "harmless_equivalent"
         assert "Beef stew" in r["top_5_candidate_names"]
 
     def test_rejected_isolated_rule_too_strict(self) -> None:
