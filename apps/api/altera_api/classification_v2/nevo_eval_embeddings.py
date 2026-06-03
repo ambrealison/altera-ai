@@ -71,6 +71,7 @@ def evaluate_nevo_embeddings(
     query_progress: QueryProgressFn | None = None,
     model: str | None = None,
     index: NevoVectorIndex | None = None,
+    decisions_sink: list[tuple[dict[str, Any], Any]] | None = None,
 ) -> tuple[NevoMetrics, list[dict[str, Any]]]:
     """Run the rules+embeddings NEVO pipeline over a fixture.
 
@@ -101,6 +102,8 @@ def evaluate_nevo_embeddings(
         decision = decide_with_embeddings(
             _query(case), index, top_k=top_k, full_trace=True
         )
+        if decisions_sink is not None:
+            decisions_sink.append((case, decision))
 
         # Full candidate trace rows (up to top_k) for the candidate CSV.
         for tr in decision.top_candidates:
@@ -250,11 +253,14 @@ def summarize_candidates(
 
     ref_names: set[str] | None = None
     ref_codes: set[str] | None = None
+    ref_concepts: set[str | None] = set()
     if references is not None:
         ref_names = {str(r.get("food_name_en", "")).lower() for r in references}
         ref_codes = {
             str(r.get("nevo_code", "")) for r in references if r.get("nevo_code")
         }
+        ref_concepts = {concept_of(str(r.get("food_name_en", ""))) for r in references}
+        ref_concepts.discard(None)
 
     tax = {
         "expected_rank_1": 0,
@@ -280,9 +286,15 @@ def summarize_candidates(
         else:
             in_reference = True
             if ref_names is not None:
+                # Concept-aware: the expected food counts as present if its
+                # code, normalised name, OR canonical concept matches a
+                # reference food (so "Chickpeas" aligns with NEVO's
+                # "Peas chick boiled" via the chickpea concept).
+                exp_concept = concept_of(str(expected.get("food_name_en", "")))
                 in_reference = (
                     (bool(exp_name) and exp_name in ref_names)
                     or (bool(exp_code) and exp_code in (ref_codes or set()))
+                    or (exp_concept is not None and exp_concept in ref_concepts)
                 )
                 if not in_reference:
                     tax["fixture_expected_not_in_reference"] += 1

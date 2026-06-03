@@ -1,0 +1,252 @@
+"""Phase Quality-V2-F — NEVO benchmark failure diagnostics.
+
+Turns the per-case decisions of a benchmark run into focused failure
+reports so an operator can identify the exact problem cases without
+grepping the full candidate CSV:
+
+  * ``nevo_failures_<model>.csv``                       — everything that
+    is not a clean correct auto-accept.
+  * ``nevo_high_conf_false_positives_<model>.csv``      — the dangerous
+    cases: a high-confidence accept of the wrong food (gate-blocking).
+  * ``nevo_expected_missing_topk_<model>.csv``          — the expected food
+    is in the NEVO reference but retrieval missed it (recall problem).
+  * ``nevo_fixture_expected_not_in_reference_<model>.csv`` — the fixture
+    expects a food absent from the NEVO reference (fixture/coverage gap).
+  * ``nevo_abstains_<model>.csv``                        — should-match
+    cases the matcher (safely) sent to review/abstain.
+
+Plus concise console sections for the three highest-signal buckets.
+Everything is derived from decisions already computed by the evaluator —
+no extra embedding/network cost.
+"""
+
+from __future__ import annotations
+
+import csv
+from pathlib import Path
+from typing import Any
+
+from altera_api.classification_v2.nevo_eval_embeddings import _same_food
+from altera_api.classification_v2.nevo_rules import concept_of
+
+FAILURE_CSV_COLUMNS = [
+    "fixture_id", "product_name", "expected_match", "expected_nevo_code",
+    "expected_exists_in_reference", "final_decision", "accepted_candidate_name",
+    "accepted_candidate_code", "accepted_candidate_rank", "confidence",
+    "match_type", "review_required", "taxonomy_bucket", "top_1_candidate_name",
+    "top_1_similarity", "top_5_candidate_names", "rejection_reasons_summary",
+    "notes",
+]
+
+
+def _reference_membership(references: list[dict[str, Any]]):
+    names = {str(r.get("food_name_en", "")).strip().lower() for r in references}
+    codes = {str(r.get("nevo_code", "")) for r in references if r.get("nevo_code")}
+    concepts = {concept_of(str(r.get("food_name_en", ""))) for r in references}
+    concepts.discard(None)
+    return names, codes, concepts
+
+
+def _expected_exists(
+    expected: dict[str, Any], names: set, codes: set, concepts: set
+) -> bool:
+    exp_name = str(expected.get("food_name_en", "")).strip().lower()
+    exp_code = str(expected.get("nevo_code", ""))
+    if exp_code and exp_code in codes:
+        return True
+    if exp_name and exp_name in names:
+        return True
+    exp_concept = concept_of(str(expected.get("food_name_en", "")))
+    return exp_concept is not None and exp_concept in concepts
+
+
+def build_diagnosis_rows(
+    records: list[tuple[dict[str, Any], Any]],
+    references: list[dict[str, Any]],
+    *,
+    auto_accept_threshold: float = 0.90,
+) -> list[dict[str, Any]]:
+    """One diagnosis row per fixture case, classified into a bucket."""
+    names, codes, concepts = _reference_membership(references)
+    rows: list[dict[str, Any]] = []
+    for case, decision in records:
+        expected = case.get("expected_match") or {}
+        should_match = bool(case.get("should_match", bool(expected)))
+        top = list(getattr(decision, "top_candidates", []))
+        top1 = top[0] if top else None
+        top5 = top[:5]
+
+        # The candidate the decision actually chose (by name), if any.
+        accepted_name = decision.food_name_en if decision.matched else ""
+        accepted_code = decision.nevo_code if decision.matched else ""
+        accepted_rank = ""
+        for tr in top:
+            if decision.matched and tr.candidate_name == decision.food_name_en:
+                accepted_rank = tr.rank
+                break
+
+        exp_exists = _expected_exists(expected, names, codes, concepts) if expected else False
+        high_conf = decision.matched and not decision.review_required and (
+            decision.confidence >= auto_accept_threshold
+        )
+        correct = (
+            _same_food(expected, decision.nevo_code, decision.food_name_en)
+            if expected else False
+        )
+
+        # Where did the expected food land among candidates?
+        expected_rank = None
+        for tr in top:
+            if _same_food(expected, tr.nevo_code, tr.candidate_name):
+                expected_rank = tr.rank
+                break
+
+        bucket = _classify(
+            should_match=should_match, exp_exists=exp_exists, high_conf=high_conf,
+            correct=correct, matched=decision.matched,
+            review=decision.review_required, expected_rank=expected_rank,
+            has_expected=bool(expected),
+        )
+
+        rejections = sorted(
+            {tr.rejection_reason for tr in top5 if tr.rejection_reason}
+        )
+        rows.append(
+            {
+                "fixture_id": str(case.get("id", "")),
+                "product_name": case.get("product_name", ""),
+                "expected_match": expected.get("food_name_en", ""),
+                "expected_nevo_code": expected.get("nevo_code", ""),
+                "expected_exists_in_reference": exp_exists,
+                "final_decision": decision.match_type,
+                "accepted_candidate_name": accepted_name,
+                "accepted_candidate_code": accepted_code,
+                "accepted_candidate_rank": accepted_rank,
+                "confidence": round(decision.confidence, 4),
+                "match_type": decision.match_type,
+                "review_required": decision.review_required,
+                "taxonomy_bucket": bucket,
+                "top_1_candidate_name": top1.candidate_name if top1 else "",
+                "top_1_similarity": top1.similarity if top1 else "",
+                "top_5_candidate_names": " | ".join(t.candidate_name for t in top5),
+                "rejection_reasons_summary": " ;; ".join(rejections),
+                "notes": case.get("notes", ""),
+            }
+        )
+    return rows
+
+
+def _classify(
+    *, should_match: bool, exp_exists: bool, high_conf: bool, correct: bool,
+    matched: bool, review: bool, expected_rank: int | None, has_expected: bool,
+) -> str:
+    if not should_match:
+        if high_conf:
+            return "high_conf_false_positive_should_abstain"
+        return "correct_abstain"
+    if not has_expected:
+        return "no_safe_reference"
+    if high_conf and not correct:
+        return "high_conf_false_positive"
+    if not exp_exists:
+        return "fixture_expected_not_in_reference"
+    if high_conf and correct:
+        if expected_rank == 1:
+            return "matched_rank_1"
+        if expected_rank is not None and expected_rank <= 5:
+            return "matched_rank_2_5"
+        return "matched_rank_6_20"
+    if expected_rank is None:
+        return "expected_missing_from_topk"
+    if matched and review:
+        return "review"
+    if matched and not high_conf:
+        return "review"
+    return "expected_retrieved_but_rejected"
+
+
+_FAILURE_BUCKETS = {
+    "high_conf_false_positive", "high_conf_false_positive_should_abstain",
+    "fixture_expected_not_in_reference", "expected_missing_from_topk",
+    "expected_retrieved_but_rejected", "review", "no_safe_reference",
+}
+_HC_FP_BUCKETS = {
+    "high_conf_false_positive", "high_conf_false_positive_should_abstain",
+}
+
+
+def write_failure_reports(
+    out_dir: str | Path, model: str, rows: list[dict[str, Any]]
+) -> dict[str, int]:
+    """Write the five focused failure CSVs. Returns row counts per file."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    slug = model.replace(".", "_")
+    subsets = {
+        f"nevo_failures_{slug}.csv": [
+            r for r in rows if r["taxonomy_bucket"] in _FAILURE_BUCKETS
+        ],
+        f"nevo_high_conf_false_positives_{slug}.csv": [
+            r for r in rows if r["taxonomy_bucket"] in _HC_FP_BUCKETS
+        ],
+        f"nevo_expected_missing_topk_{slug}.csv": [
+            r for r in rows if r["taxonomy_bucket"] == "expected_missing_from_topk"
+        ],
+        f"nevo_fixture_expected_not_in_reference_{slug}.csv": [
+            r for r in rows
+            if r["taxonomy_bucket"] == "fixture_expected_not_in_reference"
+        ],
+        f"nevo_abstains_{slug}.csv": [
+            r for r in rows
+            if r["taxonomy_bucket"] in (
+                "review", "expected_missing_from_topk",
+                "expected_retrieved_but_rejected",
+            )
+        ],
+    }
+    counts: dict[str, int] = {}
+    for fname, subset in subsets.items():
+        with (out / fname).open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=FAILURE_CSV_COLUMNS)
+            w.writeheader()
+            for r in subset:
+                w.writerow(r)
+        counts[fname] = len(subset)
+    return counts
+
+
+def print_console_diagnostics(rows: list[dict[str, Any]]) -> None:
+    """Concise, high-signal console sections (no need to open the CSVs)."""
+    hc_fp = [r for r in rows if r["taxonomy_bucket"] in _HC_FP_BUCKETS]
+    missing = [r for r in rows if r["taxonomy_bucket"] == "expected_missing_from_topk"]
+    not_in_ref = [
+        r for r in rows if r["taxonomy_bucket"] == "fixture_expected_not_in_reference"
+    ]
+
+    print("\nHigh-confidence false positives:")
+    if not hc_fp:
+        print("  (none) ✓")
+    for r in hc_fp:
+        print(
+            f"  {r['fixture_id']} | {r['product_name']} | exp {r['expected_match']!r}"
+            f" | accepted {r['accepted_candidate_name']!r}"
+            f" | conf {r['confidence']} | {r['rejection_reasons_summary'] or r['match_type']}"
+        )
+
+    print("\nExpected missing from top-k:")
+    if not missing:
+        print("  (none)")
+    for r in missing:
+        print(
+            f"  {r['fixture_id']} | {r['product_name']} | exp {r['expected_match']!r}"
+            f" | top1 {r['top_1_candidate_name']!r} | top5 {r['top_5_candidate_names']}"
+        )
+
+    print("\nExpected not in NEVO reference:")
+    if not not_in_ref:
+        print("  (none) ✓")
+    for r in not_in_ref:
+        print(
+            f"  {r['fixture_id']} | {r['product_name']} | exp {r['expected_match']!r}"
+            f" | closest: {r['top_5_candidate_names']}"
+        )

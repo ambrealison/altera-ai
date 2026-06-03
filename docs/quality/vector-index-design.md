@@ -150,3 +150,31 @@ selecting a non-V1 matcher is an explicit, evaluator/dev-only action.
 **Contract reaffirmed:** retrieval only proposes candidates; the rules
 decide, and a hard rejection can never be overridden by similarity. This
 remains evaluator/dev-only — V1 is the production default.
+
+### Concept extraction + reference text (Quality-V2-F)
+
+The rules resolve a product/candidate to a canonical **concept** across
+FR/EN/NL *and* NEVO's inverted naming ("Pois chiches" / "Peas chick
+boiled" → `chickpea`). Two asymmetric helpers in `nevo_rules.py`:
+
+- `concept_of(text)` — full text; used for PRODUCTS (the meaningful food
+  may be a trailing word).
+- `_head_concept(text)` — used for CANDIDATES; a DISH-NOUN candidate has
+  no simple-food identity (so "Hummus with chickpeas" is a dish, not
+  chickpeas), and a JOINER candidate is the food before "with/without".
+
+Preparation states (boiled/canned/dried/…) are SAFE; composite markers
+(joiners + dish nouns) trigger rejection unless the candidate's head food
+shares the product concept. A literal token that is not the candidate's
+head never auto-accepts (review/abstain) — closing the high-confidence
+false-positive class.
+
+`build_nevo_reference_text` (in `embeddings/text_builder.py`) adds
+cross-language aliases for common SIMPLE foods only (never composites), so
+the right candidate ranks higher without raising false positives;
+commercial fields are still forbidden.
+
+Fixtures are aligned to real NEVO 2025 codes; the alignment validator is
+`python -m altera_api.classification_v2.validate_nevo_fixtures`, and the
+benchmark emits focused failure CSVs + console diagnostics
+(`nevo_diagnostics.py`).

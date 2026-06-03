@@ -25,46 +25,75 @@ from dataclasses import dataclass
 
 from altera_api.classification_v2.pt_rules import _norm
 
-# Secondary-ingredient / qualifier phrases that must NOT drive a
-# high-confidence match for a simple product head.
-_SECONDARY_QUALIFIERS = (
-    "huile", "olive", "ail", "persil", "with", "without", "sans", "avec",
-    "sauce", "mashed", "puree", "boiled", "fried",
-)
-# STRUCTURAL qualifiers describe a composite/prepared candidate
-# ("X with Y", "X without Y", "mashed", "sauce"). A candidate carrying
-# one is never a clean head match for a simple product — reject it even
-# when the product name itself contains an ingredient word.
-_STRUCTURAL_QUALIFIERS = (
-    "with", "without", "avec", "sans", "mashed", "mash", "puree", "sauce",
-    "fried", "boiled",
-)
+# Phase Quality-V2-F — preparation STATE words (boiled, canned, dried, …)
+# describe a SIMPLE food in a particular form. They are SAFE: a candidate
+# that is "simple food + preparation state" ("Peas chick boiled",
+# "Lentils red boiled", "Beans black canned") is still a clean match for
+# the same-concept product. They are NOT composite-dish markers.
+_PREPARATION_STATES = frozenset({
+    "boiled", "cooked", "canned", "dried", "frozen", "fresh", "raw",
+    "drained", "roasted", "steamed", "unprepared", "baked", "prepared",
+    "av", "average", "grilled", "stewed",  # 'stewed' = state, 'stew' = dish
+})
+# Phase Quality-V2-F — COMPOSITE markers. A candidate carrying one of
+# these is a prepared/mixed DISH, not a simple food:
+#   * joiners introduce a different ingredient ("X with Y", "X without Y",
+#     and the NEVO shorthands " w " = with, " wo " = without);
+#   * dish nouns name a composite product (soup, pie, lasagne, …).
+# A composite candidate is rejected UNLESS its HEAD concept (the food
+# BEFORE the first marker) equals the product concept — so "Hummus with
+# chickpeas" (head=hummus) is rejected for a chickpea product, while
+# "Ratatouille prepared wo meat" (head=ratatouille) still matches a
+# ratatouille product.
+_COMPOSITE_JOINERS = frozenset({"with", "without", "avec", "sans", "w", "wo"})
+_DISH_NOUNS = frozenset({
+    "soup", "stew", "casserole", "pie", "pizza", "lasagne", "lasagna",
+    "lasagnes", "curry", "gratin", "quiche", "sauce", "hummus", "tart",
+    "cake", "pudding", "salad", "smoothie", "bar", "biscuit", "spread",
+    "dish", "meal", "bolognaise", "bolognese", "wrap", "sandwich", "burger",
+})
 # Concepts that are fundamentally secondary ingredients — a candidate
 # whose head IS one of these can never be the primary match for a
 # product of a different concept (even if embeddings rank it highly).
 _QUALIFIER_CONCEPTS = frozenset({"oil", "olive", "garlic"})
 
-# Canonical concept → surface forms (FR + EN). Multi-word phrases are
-# matched with phrase preference so "beurre de cacahuete" resolves to
-# ``peanut_butter`` rather than ``butter``.
+# Canonical concept → surface forms (FR + EN + the inverted NEVO 2025
+# naming, e.g. "Peas chick", "Beans black", "Lentils red"). Multi-word
+# phrases are matched with phrase preference so "beurre de cacahuete"
+# resolves to ``peanut_butter`` rather than ``butter`` and "pois chiches"
+# resolves to ``chickpea`` rather than the bare head ``pois`` (Phase
+# Quality-V2-F).
 _CONCEPTS: dict[str, tuple[str, ...]] = {
     "peanut_butter": ("beurre de cacahuete", "beurre de cacahuetes", "peanut butter"),
-    "black_bean": ("haricot noir", "haricots noirs", "black bean", "black beans"),
-    "chickpea": ("pois chiche", "pois chiches", "chickpea", "chickpeas"),
-    "lentil": ("lentille", "lentilles", "lentil", "lentils"),
+    "black_bean": (
+        "haricot noir", "haricots noirs", "black bean", "black beans",
+        "beans black",  # NEVO inverted naming
+    ),
+    "chickpea": (
+        "pois chiche", "pois chiches", "chickpea", "chickpeas",
+        "peas chick", "kikkererwten",  # NEVO English + Dutch
+    ),
+    "lentil": (
+        "lentille", "lentilles", "lentilles corail", "lentil", "lentils",
+        "lentils red", "lentils green",  # NEVO inverted naming
+    ),
     "bean": ("haricot", "haricots", "bean", "beans"),
     "tofu": ("tofu",),
+    "tempeh": ("tempeh",),
+    "seitan": ("seitan",),
     "milk": ("lait", "milk"),
     "yoghurt": ("yaourt", "yogurt", "yoghurt"),
+    "quark": ("quark", "fromage blanc", "fresh cheese"),
     "cheese": ("fromage", "cheese"),
     "butter": ("beurre", "butter"),
     "oil": ("huile", "oil"),
     "olive": ("olive", "olives"),
     "garlic": ("ail", "garlic"),
     "ratatouille": ("ratatouille",),
-    "lasagne": ("lasagne", "lasagnes", "lasagna", "lasagnas"),
-    "pasta": ("pates", "pasta", "spaghetti", "macaroni"),
+    "pasta": ("pates", "pates alimentaires", "pasta", "spaghetti", "macaroni",
+              "penne"),
     "muesli": ("muesli", "granola"),
+    "rice": ("riz", "rice"),
     "potato": ("pomme de terre", "pommes de terre", "potato", "potatoes",
                "patate", "patates"),
     "apple": ("pomme", "pommes", "apple", "apples"),
@@ -96,24 +125,13 @@ def _primary_head(text: str) -> str | None:
     return toks[0] if toks else None
 
 
-def _has_qualifier(text: str) -> bool:
-    norm = _norm(text)
-    return any(f" {q} " in norm for q in _SECONDARY_QUALIFIERS)
-
-
-def concept_of(text: str) -> str | None:
-    """The canonical concept of a text's HEAD.
-
-    Scans every concept surface form; returns the concept whose form
-    appears earliest in the text (phrase preference on ties), i.e. the
-    concept of the leading/primary food — not a trailing secondary
-    ingredient. Returns ``None`` when nothing is recognised.
-    """
-    norm = _norm(text)
+def _concept_of_norm(norm_str: str) -> str | None:
+    """Concept of a normalised (``_norm``-padded) string. Phrase
+    preference on ties so the longest/earliest surface form wins."""
     best: tuple[int, int, str] | None = None  # (position, -length, concept)
     for concept, forms in _CONCEPTS.items():
         for form in forms:
-            idx = norm.find(f" {form} ")
+            idx = norm_str.find(f" {form} ")
             if idx == -1:
                 continue
             key = (idx, -len(form), concept)
@@ -122,85 +140,154 @@ def concept_of(text: str) -> str | None:
     return best[2] if best else None
 
 
+def concept_of(text: str) -> str | None:
+    """The canonical concept of a text (full text).
+
+    Used for PRODUCTS, where the meaningful food may be a trailing word
+    ("Soupe lentilles coco" → ``lentil``). For CANDIDATES use
+    :func:`_head_concept`, which ignores anything after a composite
+    marker so "Hummus with chickpeas" is recognised as a *dish* (head
+    ``hummus``), not as chickpeas."""
+    return _concept_of_norm(_norm(text))
+
+
+def _first_joiner_index(tokens: list[str]) -> int | None:
+    for i, tok in enumerate(tokens):
+        if tok in _COMPOSITE_JOINERS:
+            return i
+    return None
+
+
+def _has_dish_noun(tokens: list[str]) -> bool:
+    return any(tok in _DISH_NOUNS for tok in tokens)
+
+
+def _is_composite(text: str) -> bool:
+    """A candidate is composite if it names a prepared dish (a dish noun
+    anywhere) or joins a different ingredient ("X with/without Y")."""
+    toks = _norm(text).split()
+    return _has_dish_noun(toks) or _first_joiner_index(toks) is not None
+
+
+def _head_concept(text: str) -> str | None:
+    """Concept of the candidate's MAIN food.
+
+    * A DISH-NOUN candidate ("Apple pie without sugar", "Muesli bar",
+      "Soup with tomato", "Hummus with chickpeas") IS a prepared dish —
+      the leading word is only a modifier of the dish — so it has no
+      simple-food identity → ``None``.
+    * A JOINER-only candidate ("Ratatouille prepared wo meat", "Apple w
+      skin av") is the food BEFORE the joiner → its concept.
+    * A simple food, possibly with a preparation state ("Peas chick
+      boiled"), → its concept (whole text)."""
+    toks = _norm(text).split()
+    if _has_dish_noun(toks):
+        return None
+    j = _first_joiner_index(toks)
+    prefix = toks if j is None else toks[:j]
+    return _concept_of_norm(f" {' '.join(prefix)} ")
+
+
 def decide_candidate(product_name: str, candidate: NevoCandidate) -> NevoGateResult:
-    """Precision-first decision for one (product, candidate) pair."""
+    """Precision-first decision for one (product, candidate) pair.
+
+    Order: (1) qualifier-ingredient trap, (2) composite-dish rejection,
+    (3) concept (alias) match, (4) exact primary-head match, (5) weaker
+    literal-token match → REVIEW (never a silent high-confidence accept),
+    else abstain. A confident WRONG match is worse than no match."""
     p_head = _primary_head(product_name)
     if p_head is None:
         return NevoGateResult(False, 0.0, "No usable product head.", "abstain")
 
-    norm_cand = _norm(candidate.food_name_en)
     prod_concept = concept_of(product_name)
-    cand_concept = concept_of(candidate.food_name_en)
+    cand_head_concept = _head_concept(candidate.food_name_en)
+    cand_primary_head = _primary_head(candidate.food_name_en)
     cand_tokens = set(_significant_tokens(candidate.food_name_en))
-    cand_structural = any(f" {q} " in norm_cand for q in _STRUCTURAL_QUALIFIERS)
-    cand_has_qual = _has_qualifier(candidate.food_name_en)
-    prod_has_qual = _has_qualifier(product_name)
+    cand_is_composite = _is_composite(candidate.food_name_en)
 
-    # 1. Hard rejection: the candidate is a composite/prepared
-    #    description ("hummus with chickpeas", "coffee with milk", "apple
-    #    pie without butter", "potatoes mashed with milk", "salad with
-    #    oil") — never a clean head match for a simple product, even when
-    #    the qualifier ingredient equals the product.
-    if cand_structural:
-        return NevoGateResult(
-            False, 0.0,
-            "Candidate is a composite/prepared description (with/without/"
-            "mashed/sauce), not a simple food head.",
-            "rejected",
-        )
-    # 1b. Candidate is a secondary ingredient / qualifier the simple
-    #     product head lacks (e.g. 'Oil olive' for a non-oil product).
-    if cand_has_qual and not prod_has_qual and prod_concept != cand_concept:
-        return NevoGateResult(
-            False, 0.0,
-            "Candidate matches a secondary ingredient, not the product head.",
-            "rejected",
-        )
-    # 1c. The candidate IS fundamentally an oil/garlic/olive (a typical
-    #     secondary ingredient) but the product is a different concept.
-    #     Hard-reject regardless of qualifiers — this holds even when the
-    #     product name itself contains 'huile'/'olive' (e.g. "Ratatouille
-    #     à l'huile d'olive" must not match "Oil olive"). Embeddings can
-    #     surface such a candidate; the rule must still kill it.
+    # 1. Qualifier-ingredient trap: the candidate's HEAD is fundamentally
+    #    an oil/olive/garlic (a typical secondary ingredient) but the
+    #    product is a different concept. Hard-reject regardless of how the
+    #    embeddings ranked it ("Ratatouille à l'huile d'olive" must never
+    #    match "Oil olive").
     if (
-        cand_concept in _QUALIFIER_CONCEPTS
+        cand_head_concept in _QUALIFIER_CONCEPTS
         and prod_concept is not None
-        and prod_concept != cand_concept
+        and prod_concept != cand_head_concept
     ):
         return NevoGateResult(
             False, 0.0,
-            f"Candidate is a {cand_concept!r} (a secondary ingredient), not the "
-            f"product head {prod_concept!r}.",
+            f"Candidate is a {cand_head_concept!r} (a secondary ingredient), "
+            f"not the product concept {prod_concept!r}.",
             "rejected",
         )
 
-    # 2. Concept (alias) match across FR/EN — but only when the CANDIDATE
-    #    head is that concept (blocks 'milk' matching 'potatoes … milk').
-    if prod_concept is not None and prod_concept == cand_concept:
+    # 2. Composite/prepared DISH rejection (Phase Quality-V2-F). A
+    #    candidate with a joiner ("with/without/w/wo") or a dish noun
+    #    ("soup/pie/lasagne/…") is a mixed dish. It is rejected UNLESS its
+    #    head food is the SAME concept as the product (so "Ratatouille
+    #    prepared wo meat" still matches a ratatouille product, while
+    #    "Hummus with chickpeas" / "Apple pie without butter" /
+    #    "Potatoes mashed with milk" are rejected — the product is only a
+    #    secondary ingredient or absent). Simple preparation states
+    #    (boiled/canned/dried/…) are NOT composite markers.
+    if cand_is_composite and cand_head_concept != prod_concept:
         return NevoGateResult(
-            True, 0.96,
-            f"Concept match: {prod_concept!r}.",
-            "alias",
+            False, 0.0,
+            "Candidate is a composite/prepared dish whose main food differs "
+            f"from the product (head concept {cand_head_concept!r} != "
+            f"{prod_concept!r}); the product is only a secondary ingredient.",
+            "rejected",
         )
 
-    # 3. Exact literal head match — only safe when the product has no
-    #    more-specific concept. If the product DOES resolve to a concept
-    #    (e.g. 'peanut butter' → peanut_butter), a bare sub-token match
-    #    to a candidate that does not share that concept ('Biscuit
-    #    peanut') is rejected; the concept path (step 2) is the only
-    #    accept route for such products.
-    if p_head in cand_tokens:
-        if prod_concept is not None and cand_concept != prod_concept:
+    # 3. Concept (alias) match across FR/EN/NL + NEVO naming — the
+    #    candidate HEAD must be the product's concept ("Pois chiches" →
+    #    "Peas chick boiled", both ``chickpea``).
+    if prod_concept is not None and prod_concept == cand_head_concept:
+        return NevoGateResult(
+            True, 0.96, f"Concept match: {prod_concept!r}.", "alias",
+        )
+
+    # 4. Exact primary-head match — both names lead with the same head
+    #    token (same-language simple foods, e.g. "Tofu nature" ↔ "Tofu
+    #    unprepared"). Reject if the candidate carries a DIFFERENT mapped
+    #    concept.
+    if cand_primary_head is not None and p_head == cand_primary_head:
+        if (
+            prod_concept is not None
+            and cand_head_concept is not None
+            and cand_head_concept != prod_concept
+        ):
             return NevoGateResult(
                 False, 0.0,
-                f"Product resolves to concept {prod_concept!r}; candidate "
-                f"(head {p_head!r}, concept {cand_concept!r}) does not share it.",
+                f"Heads match but concepts differ ({prod_concept!r} != "
+                f"{cand_head_concept!r}).",
                 "rejected",
             )
         return NevoGateResult(True, 0.95, f"Exact head match: {p_head!r}.", "exact")
 
-    # 4. Otherwise: not safe for high confidence → abstain (a softer
-    #    'proxy' could be surfaced for review, but never auto-accepted).
+    # 5. Weaker literal-token match: the product head appears somewhere in
+    #    the candidate but is not its primary head. This is the
+    #    high-confidence-false-positive risk class (Phase Quality-V2-F /
+    #    PART D).
+    if p_head in cand_tokens:
+        # Product has a known concept the candidate doesn't share → reject.
+        if prod_concept is not None and cand_head_concept != prod_concept:
+            return NevoGateResult(
+                False, 0.0,
+                f"Product resolves to concept {prod_concept!r}; candidate "
+                f"(head concept {cand_head_concept!r}) does not share it.",
+                "rejected",
+            )
+        # No reliable concept/head agreement → REVIEW, never auto-accept.
+        return NevoGateResult(
+            False, 0.6,
+            f"Literal token {p_head!r} present but not the candidate head — "
+            "needs review, not auto-accept.",
+            "proxy", review_required=True,
+        )
+
+    # 6. Otherwise: not safe for high confidence → abstain.
     return NevoGateResult(
         False, 0.0,
         f"No safe head/concept match for {p_head!r} → abstain.",
@@ -234,11 +321,15 @@ def reject_secondary_ingredient(product_name: str, candidate: NevoCandidate) -> 
 
 
 def reject_with_without_trap(product_name: str, candidate: NevoCandidate) -> NevoGateResult:
-    prod_has = _has_qualifier(product_name)
-    cand_has = _has_qualifier(candidate.food_name_en)
-    if cand_has and not prod_has:
+    # A candidate that is a composite DISH whose head food differs from
+    # the product is a with/without trap (e.g. "Apple pie without butter"
+    # for a butter product).
+    prod_concept = concept_of(product_name)
+    if _is_composite(candidate.food_name_en) and _head_concept(
+        candidate.food_name_en
+    ) != prod_concept:
         return NevoGateResult(
-            False, 0.0, "Candidate adds a qualifier the simple product head lacks.",
+            False, 0.0, "Candidate is a composite dish with a different main food.",
             "rejected",
         )
-    return NevoGateResult(True, 0.9, "No with/without qualifier trap.", "exact")
+    return NevoGateResult(True, 0.9, "No with/without composite trap.", "exact")

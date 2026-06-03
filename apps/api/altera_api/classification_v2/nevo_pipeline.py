@@ -104,11 +104,13 @@ def decide_with_embeddings(
             continue
 
         rejected.append(trace)
-        # An *abstain* (no rule signal, but NOT a hard rejection) at high
-        # similarity is the only embedding-only path — and only to review.
+        # A 'proxy' (gate wants review — literal token present but not the
+        # head) OR an 'abstain' (no rule signal, not a hard rejection) at
+        # high similarity is the only embedding-only path — and only to
+        # review, never auto-accept.
         if (
             accepted_hit is None
-            and gate.match_type == "abstain"
+            and gate.match_type in ("abstain", "proxy")
             and sc.similarity >= embed_review_threshold
             and review_proxy is None
         ):

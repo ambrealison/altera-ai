@@ -49,6 +49,11 @@ from altera_api.classification_v2.evaluation import (
     nevo_gates,
     write_mismatches_csv,
 )
+from altera_api.classification_v2.nevo_diagnostics import (
+    build_diagnosis_rows,
+    print_console_diagnostics,
+    write_failure_reports,
+)
 from altera_api.classification_v2.nevo_eval_embeddings import (
     evaluate_nevo_embeddings,
     summarize_candidates,
@@ -205,10 +210,12 @@ def _run_model(
                 flush=True,
             )
 
+    decisions: list[tuple[dict[str, Any], Any]] = []
     m, rows = evaluate_nevo_embeddings(
         cases, references, provider,
         provider_name=provider_name, top_k=args.top_k,
         model=model, index=index, query_progress=query_progress,
+        decisions_sink=decisions,
     )
     cache.flush()
 
@@ -216,6 +223,17 @@ def _run_model(
     slug = model.replace(".", "_")
     write_candidates_csv(out_dir / f"nevo_candidates_{slug}.csv", rows)
     write_mismatches_csv(out_dir / f"nevo_mismatches_{slug}.csv", m.mismatches)
+
+    # Phase Quality-V2-F — focused failure reports + console diagnostics.
+    diag_rows = build_diagnosis_rows(decisions, references)
+    diag_counts = write_failure_reports(out_dir, model, diag_rows)
+    print_console_diagnostics(diag_rows)
+    print(
+        f"\n[model {model}] failure reports: "
+        + ", ".join(f"{k}={v}" for k, v in diag_counts.items()),
+        flush=True,
+    )
+
     tax = summarize_candidates(cases, rows, references)
     gates = nevo_gates(m)
     d = m.as_dict()

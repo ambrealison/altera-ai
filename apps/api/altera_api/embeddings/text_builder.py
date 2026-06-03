@@ -91,19 +91,72 @@ def build_wwf_example_text(data: dict[str, object]) -> str:
     return "\n".join(x for x in [base, *extra] if x)
 
 
+# Phase Quality-V2-F — canonical cross-language aliases for common simple
+# foods. NEVO's English names use inverted/Dutch-influenced wording
+# ("Peas chick", "Beans black", "Lentils red", "Quark") that does not lex-
+# match the everyday product wording ("chickpeas", "pois chiches", "black
+# beans", "fromage blanc"). Emitting these aliases in the reference text
+# pulls the right simple-food candidate higher in semantic retrieval. We
+# only enrich SIMPLE foods (matched by a token signature) and deliberately
+# avoid composite/prepared entries so we never raise false positives.
+_REFERENCE_ALIASES: tuple[tuple[frozenset[str], str], ...] = (
+    (frozenset({"peas", "chick"}), "chickpeas pois chiches kikkererwten garbanzo"),
+    (frozenset({"beans", "black"}), "black beans haricots noirs"),
+    (frozenset({"beans", "white"}), "white beans haricots blancs"),
+    (frozenset({"beans", "kidney"}), "kidney beans haricots rouges red beans"),
+    (frozenset({"lentils", "red"}), "red lentils lentilles corail lentilles rouges"),
+    (frozenset({"lentils", "green"}), "green lentils lentilles vertes"),
+    (frozenset({"peanut", "butter"}), "peanut butter beurre de cacahuete"),
+    (frozenset({"quark"}), "fromage blanc fresh cheese quark"),
+    (frozenset({"tofu"}), "tofu"),
+    (frozenset({"tempeh"}), "tempeh"),
+    (frozenset({"seitan"}), "seitan"),
+    (frozenset({"milk", "semi-skimmed"}), "lait demi-ecreme semi-skimmed milk"),
+    (frozenset({"milk", "whole"}), "lait entier whole milk"),
+    (frozenset({"yoghurt"}), "yaourt yoghurt plain yoghurt"),
+    (frozenset({"pasta"}), "pates pasta penne spaghetti macaroni"),
+    (frozenset({"rice"}), "riz rice"),
+    (frozenset({"ratatouille"}), "ratatouille"),
+    (frozenset({"muesli"}), "muesli granola"),
+    (frozenset({"tomatoes"}), "tomato tomate fraiche"),
+    (frozenset({"apple"}), "apple pomme"),
+)
+# Composite/prepared markers — never enrich these (a dish containing a
+# food must not gain the simple food's aliases).
+_REFERENCE_SKIP_TOKENS = frozenset({
+    "with", "without", "w", "wo", "soup", "stew", "pie", "pizza", "lasagne",
+    "curry", "sauce", "hummus", "cake", "biscuit", "bar", "spread", "salad",
+    "pudding", "smoothie", "gratin", "quiche", "tart",
+})
+
+
+def _reference_aliases(food_name_en: str) -> str | None:
+    tokens = {t for t in food_name_en.lower().replace("/", " ").split() if t}
+    if tokens & _REFERENCE_SKIP_TOKENS:
+        return None
+    for signature, aliases in _REFERENCE_ALIASES:
+        if signature <= tokens:
+            return aliases
+    return None
+
+
 def build_nevo_reference_text(data: dict[str, object]) -> str:
     """A NEVO reference food descriptor for candidate retrieval.
 
     Includes the English name plus, when present, the Dutch name
-    (``food_name_nl``), a French name (``food_name_fr``), aliases /
-    synonyms, and the food group — richer reference text improves
-    cross-language semantic retrieval (Phase Quality-V2-D)."""
+    (``food_name_nl``), a French name (``food_name_fr``), explicit
+    aliases/synonyms, auto-derived cross-language aliases for common
+    SIMPLE foods (Phase Quality-V2-F), and the food group — richer
+    reference text improves cross-language semantic retrieval."""
     _assert_no_commercial(data)
+    explicit_aliases = data.get("aliases") or data.get("synonym")
+    derived_aliases = _reference_aliases(str(data.get("food_name_en") or ""))
     lines = [
         _line("Food", data.get("food_name_en")),
         _line("Food (NL)", data.get("food_name_nl")),
         _line("Food (FR)", data.get("food_name_fr")),
-        _line("Aliases", data.get("aliases") or data.get("synonym")),
+        _line("Aliases", explicit_aliases),
+        _line("Also known as", derived_aliases),
         _line("Group", data.get("food_group")),
         _line("NEVO code", data.get("nevo_code")),
     ]

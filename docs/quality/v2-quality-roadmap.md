@@ -526,3 +526,89 @@ is a reranker (rank 2–20), better reference text/aliases/`top_k`
 - `voyage-4-lite` clearly worse than `voyage-4` on full NEVO → use
   `voyage-4` for NEVO only.
 - Do not activate V2 in production until the benchmark is understood.
+
+## Quality-V2-F results (rule fixes, fixture alignment, diagnostics)
+
+The first real full-NEVO `voyage-4-lite` run (commit `eb27579`) worked but
+did NOT pass the gates:
+
+```
+Model: voyage-4-lite   reference: full NEVO 2025 (2,328 foods)
+Coverage 71.4% · HC-FP 1 · Forbidden rejection 100% ·
+top1 60.7% · top5 71.4% · top20 71.4% · abstain 36.4% · gates=False
+Taxonomy: fixture_expected_not_in_reference 24 (of 28 should-match)
+```
+
+**Interpretation:** the infra works, but (a) ONE high-confidence false
+positive blocks activation, (b) the fixtures were not aligned with real
+NEVO 2025 — 24/28 expected references didn't exist in the CSV because the
+fixture used synthetic codes/names, and (c) multi-word concepts were lost:
+"Pois chiches" was split to the head `pois`, and NEVO's inverted names
+("Peas chick boiled") weren't recognised as chickpeas, so the right
+candidate was rejected/abstained.
+
+What V2-F changed:
+
+- **Multi-word concept / alias extraction.** Concepts now include NEVO's
+  inverted English names ("Peas chick", "Beans black", "Lentils red"),
+  Dutch ("kikkererwten"), and a `rice`/`quark`/`tempeh`/`seitan` concept.
+  "Pois chiches" → `chickpea` matches "Peas chick boiled" → `chickpea`.
+  Longest phrase still wins ("beurre de cacahuète" → `peanut_butter`,
+  never `butter`).
+- **Preparation state vs composite dish.** `boiled/cooked/canned/dried/
+  frozen/fresh/raw/…` are SAFE states — "Peas chick boiled" is eligible.
+  A composite is a JOINER ("with/without/w/wo") or a DISH NOUN
+  ("soup/pie/lasagne/bar/sauce/hummus/…"); it is rejected unless its HEAD
+  food shares the product concept — so "Hummus with chickpeas",
+  "Apple pie without sugar", "Muesli bar" reject, while "Ratatouille
+  prepared wo meat" still matches a ratatouille product. A candidate's
+  head concept ignores the trailing ingredient ("Hummus with chickpeas"
+  → head `hummus`, not chickpea).
+- **HC-FP hardening.** A literal head token that is not the candidate's
+  primary head no longer auto-accepts: if the product has a concept the
+  candidate doesn't share → reject; otherwise → REVIEW, never a
+  high-confidence accept. Confirmed 0 false positives on the full-NEVO
+  fake run; all fixture traps still rejected; `dangerous_incorrectly_
+  accepted` = 0.
+- **Fixture alignment.** Each should-match fixture now carries the real
+  NEVO 2025 code (e.g. Chickpeas → 1095 "Peas chick boiled") with the
+  concept name kept, and the not-in-reference check is concept-aware →
+  `fixture_expected_not_in_reference` drops **24 → 0**. A new validator,
+  `python -m altera_api.classification_v2.validate_nevo_fixtures`, reports
+  per-case alignment (code/name/concept exists, closest names, suggested
+  action) and never marks a should-abstain trap as a valid match.
+- **Failure diagnostics.** The benchmark now writes
+  `nevo_failures_<model>.csv`, `nevo_high_conf_false_positives_<model>.csv`,
+  `nevo_expected_missing_topk_<model>.csv`,
+  `nevo_fixture_expected_not_in_reference_<model>.csv`,
+  `nevo_abstains_<model>.csv` (each with the accepted candidate, top-1/5,
+  rejection reasons, taxonomy bucket) and prints the three highest-signal
+  sections to the console — no grepping the full candidate CSV.
+- **Reference text aliases.** `build_nevo_reference_text` adds
+  cross-language aliases for common SIMPLE foods (never composites) so the
+  right candidate ranks higher; still excludes all commercial fields.
+
+### Re-run the benchmark (PART G — same command, not in CI)
+
+```bash
+ALTERA_ENABLE_EMBEDDINGS=true VOYAGE_API_KEY=$VOYAGE_API_KEY \
+python -m altera_api.classification_v2.benchmark_nevo_embeddings \
+    --models voyage-4-lite --reference-source nevo --top-k 20 \
+    --batch-size 64 --cache-dir /tmp/altera-quality/cache \
+    --output-dir /tmp/altera-quality
+```
+
+Target after V2-F: **HC-FP = 0, forbidden = 100%, dangerous accepted = 0,
+`fixture_expected_not_in_reference` ≈ 0**, "Pois chiches" no longer
+abstains on `pois`. Coverage may move up or down as unsafe cases abstain —
+gates must be green. The HC-FP classes are closed in the rules + verified
+on the fake full-NEVO run; confirm HC-FP = 0 on the next real run via
+`nevo_high_conf_false_positives_voyage-4-lite.csv` (it should be header-only).
+
+### Reranker? (PART H)
+
+Hold the reranker until the post-fix real run shows the expected match is
+usually in top 2–20 with green gates but poor final ranking. If expected
+is still often missing from top-20, invest first in reference text /
+aliases / `top_k`; fixture alignment is now done. V1 stays the production
+default; this remains evaluator/dev-only.
