@@ -304,37 +304,61 @@ evaluator-only — V1 is the production default; a present
 `VOYAGE_API_KEY` does NOT change app behaviour; no route imports the
 embeddings stack.**
 
-### Run the real Voyage evaluation
+### Run the real Voyage evaluation (Render)
 
-The `voyageai` SDK is an OPTIONAL extra (not a runtime dependency).
-Install it where you run the eval (e.g. the Render shell):
+> **Hotfix (Quality-V2-D):** the benchmark now ships as a **package
+> module** and `voyageai` is a **backend dependency**, so it runs in the
+> Render runtime image with **no `pip install`, no `PYTHONPATH`, and no
+> dependence on the top-level `scripts/` directory**. The Render image
+> copies `altera_api/` but **NOT** `scripts/`, so always invoke the
+> package CLI (`python -m …`) on Render — the `scripts/*.py` files are
+> dev-checkout conveniences only.
+
+`voyageai` is in the main dependencies (`pyproject.toml` + `uv.lock`), so
+a Render deploy installs it automatically. It is still imported **lazily**
+— only when the Voyage provider is actually constructed (embeddings
+enabled + provider=voyage). App startup never imports it.
+
+Benchmark fake vs voyage-4 vs voyage-4-lite in one table — the canonical
+Render command:
 
 ```bash
-pip install voyageai          # or: uv pip install -e '.[eval]'
-```
-
-One real model (fails clearly if the key is missing):
-
-```bash
-ALTERA_ENABLE_EMBEDDINGS=true VOYAGE_API_KEY=... \
-.venv/bin/python scripts/evaluate_nevo_voyage.py \
-    --model voyage-4 --reference-source nevo --top-k 20
-```
-
-Benchmark fake vs voyage-4 vs voyage-4-lite in one table:
-
-```bash
-ALTERA_ENABLE_EMBEDDINGS=true VOYAGE_API_KEY=... \
-.venv/bin/python scripts/benchmark_nevo_embeddings.py \
+ALTERA_ENABLE_EMBEDDINGS=true VOYAGE_API_KEY=$VOYAGE_API_KEY \
+python -m altera_api.classification_v2.benchmark_nevo_embeddings \
     --models fake,voyage-4,voyage-4-lite \
-    --reference-source nevo --top-k 20 --price-per-1m 0.06
+    --reference-source nevo --top-k 20 \
+    --price-per-1m 0.06 --output-dir /tmp/altera-quality
+```
+
+One real model (hard-fails if the key/SDK is missing):
+
+```bash
+ALTERA_ENABLE_EMBEDDINGS=true VOYAGE_API_KEY=$VOYAGE_API_KEY \
+python -m altera_api.classification_v2.benchmark_nevo_embeddings \
+    --models voyage-4 --reference-source nevo --top-k 20 \
+    --require-voyage --output-dir /tmp/altera-quality
 ```
 
 Env vars: `VOYAGE_API_KEY`, `ALTERA_ENABLE_EMBEDDINGS=true`,
 `ALTERA_EMBEDDING_PROVIDER=voyage`, `ALTERA_EMBEDDING_MODEL=voyage-4`,
 optional `ALTERA_EMBEDDING_DIMENSIONS`. CSVs (candidates + mismatches)
-land in `local_data/quality/` (git-ignored). `--price-per-1m` is an
-estimate — set it to the model's real price for an accurate cost column.
+are written to **`--output-dir` (default `/tmp/altera-quality`)** — a
+writable temp dir, because `/app` is read-only in the Render image. They
+are not committed. `--price-per-1m` is an estimate — set it to the
+model's real price for an accurate cost column.
+
+Clear failure modes (no secrets printed):
+
+- voyageai missing → `voyageai package is not installed. Add it to
+  backend dependencies or install it in the runtime.`
+- key missing → `VOYAGE_API_KEY is required for embedding-provider=voyage.`
+- voyage requested with embeddings disabled → skipped with
+  `embeddings are disabled — set ALTERA_ENABLE_EMBEDDINGS=true …`
+  (or a non-zero exit under `--require-voyage`).
+
+From a **local dev checkout** the thin wrappers still work
+(`.venv/bin/python scripts/benchmark_nevo_embeddings.py …`), but they
+just delegate to the package module above.
 
 ### Benchmark table (fill the voyage rows from a Render run)
 

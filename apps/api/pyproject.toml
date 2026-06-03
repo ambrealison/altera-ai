@@ -17,6 +17,13 @@ dependencies = [
     "pyjwt[crypto]>=2.9",
     "supabase>=2.9",
     "openai>=2.37.0",
+    # Phase Quality-V2-D hotfix — present in the Render image so the
+    # offline NEVO Voyage benchmark (python -m
+    # altera_api.classification_v2.benchmark_nevo_embeddings) runs without
+    # a manual pip install. Imported LAZILY only by the Voyage embedding
+    # provider when embeddings are explicitly enabled + provider=voyage;
+    # app startup never imports it and V1 stays the default.
+    "voyageai>=0.3",
 ]
 
 [project.optional-dependencies]
@@ -26,14 +33,6 @@ dev = [
     "ruff>=0.7",
     "mypy>=1.13",
     "types-PyYAML>=6.0",
-]
-# Phase Quality-V2-D — OPTIONAL: only needed to run the real Voyage NEVO
-# evaluator (scripts/evaluate_nevo_voyage.py). NOT imported by the app
-# at runtime (V1 is the default; embeddings are off by default). Install
-# with `pip install voyageai` (or `uv pip install -e '.[eval]'`) in the
-# shell where you run the real-provider evaluation.
-eval = [
-    "voyageai>=0.3",
 ]
 
 [build-system]

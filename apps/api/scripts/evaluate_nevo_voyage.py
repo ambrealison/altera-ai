@@ -22,11 +22,14 @@ from __future__ import annotations
 
 import argparse
 import os
-import runpy
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from altera_api.classification_v2.benchmark_nevo_embeddings import (  # noqa: E402
+    main as benchmark_main,
+)
 
 
 def main() -> int:
@@ -37,36 +40,31 @@ def main() -> int:
     ap.add_argument("--fixture", default="altera_api/data/eval/nevo/nevo_dataset_embeddings.json")
     ap.add_argument("--top-k", type=int, default=20)
     ap.add_argument("--price-per-1m", type=float, default=0.06)
-    ap.add_argument("--out-dir", default="local_data/quality")
+    ap.add_argument("--output-dir", "--out-dir", dest="output_dir", default="/tmp/altera-quality")
     args = ap.parse_args()
 
     if not os.environ.get("VOYAGE_API_KEY"):
         print(
-            "FATAL: VOYAGE_API_KEY is not set. Export it (and "
-            "`pip install voyageai`) before running the real Voyage eval.",
+            "FATAL: VOYAGE_API_KEY is not set. Export it (and ensure the "
+            "voyageai SDK is installed) before running the real Voyage eval.",
             file=sys.stderr,
         )
         return 2
 
-    # Re-exec the benchmark harness with this single model + require-voyage.
+    # Delegate to the package benchmark for a SINGLE model, with
+    # --require-voyage so a missing key / SDK is a hard error.
     argv = [
-        "benchmark_nevo_embeddings.py",
         "--models", args.model,
         "--reference-source", args.reference_source,
         "--fixture", args.fixture,
         "--top-k", str(args.top_k),
         "--price-per-1m", str(args.price_per_1m),
-        "--out-dir", args.out_dir,
+        "--output-dir", args.output_dir,
         "--require-voyage",
     ]
     if args.reference:
         argv += ["--reference", args.reference]
-    sys.argv = argv
-    runpy.run_path(
-        str(Path(__file__).resolve().parent / "benchmark_nevo_embeddings.py"),
-        run_name="__main__",
-    )
-    return 0
+    return benchmark_main(argv)
 
 
 if __name__ == "__main__":

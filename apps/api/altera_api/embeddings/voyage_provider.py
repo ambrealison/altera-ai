@@ -32,8 +32,8 @@ def _default_client(api_key: str, timeout: float, max_retries: int) -> Any:
         import voyageai  # type: ignore
     except ImportError as exc:  # pragma: no cover - SDK optional
         raise EmbeddingProviderError(
-            "The 'voyageai' package is not installed. Install it to use the "
-            "voyage embedding provider, or set ALTERA_EMBEDDING_PROVIDER=fake."
+            "voyageai package is not installed. Add it to backend dependencies "
+            "or install it in the runtime."
         ) from exc
     return voyageai.Client(
         api_key=api_key, timeout=timeout, max_retries=max_retries
@@ -62,8 +62,7 @@ class VoyageEmbeddingProvider:
             key = api_key or os.environ.get("VOYAGE_API_KEY")
             if not key:
                 raise EmbeddingProviderError(
-                    "VOYAGE_API_KEY is required for the voyage embedding "
-                    "provider. Set it, or use ALTERA_EMBEDDING_PROVIDER=fake."
+                    "VOYAGE_API_KEY is required for embedding-provider=voyage."
                 )
             client = _default_client(key, timeout, max_retries)
         self._client = client

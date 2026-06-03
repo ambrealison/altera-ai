@@ -99,9 +99,12 @@ The provider abstraction now has a **real backend**:
 the `input_type` split — `document` for reference/corpus texts, `query`
 for product searches — and is constructed only when
 `ALTERA_ENABLE_EMBEDDINGS=true` + `ALTERA_EMBEDDING_PROVIDER=voyage`
-(with `VOYAGE_API_KEY`). The `voyageai` SDK is imported lazily and can
-be injected for tests, so the normal test suite never needs it and never
-hits the network.
+(with `VOYAGE_API_KEY`). The `voyageai` SDK is a backend dependency (so
+it ships in the Render image — see the Quality-V2-D hotfix), but it is
+imported **lazily** — only when the Voyage provider is actually
+constructed — and can be injected for tests, so the normal test suite
+never imports it, app startup never imports it, and neither hits the
+network.
 
 ### Cache
 
