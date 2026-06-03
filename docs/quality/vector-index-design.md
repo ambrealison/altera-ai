@@ -91,3 +91,34 @@ AI prompt policy in `ai/policy.py`.
 - The in-memory prototype is process-local and trivially disabled.
 - pgvector tables are additive; dropping the feature means not
   reading them — V1 is unaffected.
+
+## Quality-V2-C update — Voyage provider + NEVO vector index (offline)
+
+The provider abstraction now has a **real backend**:
+`VoyageEmbeddingProvider` (`embeddings/voyage_provider.py`). It honours
+the `input_type` split — `document` for reference/corpus texts, `query`
+for product searches — and is constructed only when
+`ALTERA_ENABLE_EMBEDDINGS=true` + `ALTERA_EMBEDDING_PROVIDER=voyage`
+(with `VOYAGE_API_KEY`). The `voyageai` SDK is imported lazily and can
+be injected for tests, so the normal test suite never needs it and never
+hits the network.
+
+### Cache
+
+`embedding_cache_key(provider, model, input_type, text)` keys vectors by
+all four parts: the same text embedded as `document` vs `query` is a
+different entry, and a provider/model change invalidates the cache.
+`NevoVectorIndex` uses an `InMemoryEmbeddingCache` so identical
+reference texts embed once.
+
+### NEVO vector index (prototype)
+
+`classification_v2/nevo_index.py` builds a cosine index over NEVO
+reference foods (`build` embeds reference texts as documents; `search`
+embeds the product query and returns the top-k nearest references).
+`classification_v2/nevo_pipeline.py` then gates those candidates with
+the V2 rules (`decide_with_embeddings`). Still in-memory + offline; the
+pgvector/persistent backend is Quality-V2-D.
+
+**Contract reaffirmed:** retrieval only proposes candidates; the rules
+decide, and a hard rejection can never be overridden by similarity.

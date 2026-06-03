@@ -183,3 +183,114 @@ and leave V1 default. Gate computation is unit-tested
   abstraction + an in-memory retriever, and/or NEVO vector candidate
   search, to cover the long-tail names the keyword rules miss — still
   offline-testable via the fake provider, V1 still default.
+
+## Quality-V2-C results (Voyage embeddings + NEVO vector search)
+
+V2-C adds a real embedding backend (**Voyage AI**) behind explicit
+flags and a NEVO **vector candidate search**. Embeddings *generate*
+candidates; the precision-first V2 rules still *decide*. **Offline by
+default — V1 is still the production default; no route imports the
+embeddings stack or Voyage; embeddings are disabled by default; the
+normal test suite makes no network calls.**
+
+### Enabling embeddings
+
+| Env var | Default | Meaning |
+| --- | --- | --- |
+| `ALTERA_ENABLE_EMBEDDINGS` | `false` | master switch for the env factory |
+| `ALTERA_EMBEDDING_PROVIDER` | `fake` | `fake` (offline) or `voyage` |
+| `ALTERA_EMBEDDING_MODEL` | `voyage-4-lite` | Voyage model name |
+| `ALTERA_EMBEDDING_DIMENSIONS` | _(unset)_ | optional output size |
+| `VOYAGE_API_KEY` | _(unset)_ | required only when provider=voyage |
+
+`get_embedding_provider()` returns the deterministic `FakeEmbeddingProvider`
+unless embeddings are enabled AND `voyage` is selected. The evaluator can
+also build a provider explicitly via `build_embedding_provider(name, …)`.
+There is **no silent fall-back**: selecting `voyage` without
+`VOYAGE_API_KEY` raises a clear `EmbeddingProviderError`.
+
+### Voyage provider behaviour
+
+`VoyageEmbeddingProvider` uses the Voyage retrieval contract:
+indexed/reference texts embed with `input_type="document"` and search
+queries with `input_type="query"`. The `voyageai` SDK is imported
+lazily (never a test-suite dependency); a client can be injected for
+tests. API failures surface as `EmbeddingProviderError` — never a silent
+fall-back to fake.
+
+### Privacy
+
+Reference and query texts are built by `embeddings/text_builder.py`,
+which **raises** on any commercial/physical field (sales, units, weight,
+price, margin, …). Only descriptor fields are ever embedded:
+product_name, retailer_category, ingredients_text, labels (query);
+food_name_en/fr, food group, NEVO code (reference).
+
+### NEVO vector pipeline
+
+`NevoVectorIndex` (cosine over reference embeddings) → top-k candidates
+→ each candidate gated by the V2 NEVO rules → first rule-confirmed
+candidate accepted (`embedding_plus_rule`); a high-similarity
+*abstain* may go to `proxy_review`; otherwise `no_match`. Embeddings can
+never override a hard rejection — a trap reference ("Oil olive",
+"Potatoes mashed with milk") is killed by the rules even when the index
+ranks it first. The decision carries match/no-match, confidence,
+`match_type` (exact|alias|embedding|embedding_plus_rule|proxy_review|
+no_match), review flag, top + rejected candidates with reasons,
+rationale, and the provider/model used.
+
+### Results (fake provider, offline, deterministic)
+
+NEVO rules+embeddings on the 33-case embeddings fixture (87 NEVO eval
+cases total across fixtures):
+
+- coverage **0.96**, high-confidence precision **1.00**
+- high-confidence false positives **0**
+- forbidden-match rejection **100%**
+- avg rank of the expected match **~2.5**
+
+### Run the evaluator
+
+Fake / offline (no key, deterministic):
+
+```bash
+.venv/bin/python scripts/evaluate_nevo_matching.py \
+    --matcher-version v2-embeddings --embedding-provider fake \
+    --fixture altera_api/data/eval/nevo/nevo_dataset_embeddings.json \
+    --candidates-csv /tmp/nevo_candidates.csv
+```
+
+Real Voyage (manual smoke — needs a key; not run in CI):
+
+```bash
+ALTERA_ENABLE_EMBEDDINGS=true VOYAGE_API_KEY=sk-... \
+.venv/bin/python scripts/evaluate_nevo_matching.py \
+    --matcher-version v2-embeddings --embedding-provider voyage \
+    --embedding-model voyage-4-lite --top-k 20
+```
+
+Put `VOYAGE_API_KEY` in your shell env (or a local, git-ignored `.env`)
+— never commit it.
+
+### Gates (V2-C)
+
+- Fake provider: deterministic tests pass; hard rejections always win;
+  forbidden-match rejection = 100%.
+- Voyage provider (when a key is present): high-confidence false
+  positives = 0 on trap fixtures; forbidden-match rejection = 100%;
+  coverage should improve vs rules-only. CI does **not** fail when the
+  key is absent — real-provider eval is a manual smoke command.
+
+### Why production still uses V1
+
+Nothing here is wired into an app route. Demos run V1; the embeddings
+stack is reachable only from the evaluator + tests, gated by env flags
+that default to fake/offline. V2 activation remains a later, staged
+opt-in once metrics clear the gates with the real provider.
+
+### Next phase recommendation
+
+- **Quality-V2-D:** persist embeddings (pgvector or an export artifact)
+  + a NEVO candidate-retrieval service, and a Voyage-backed run over the
+  full NEVO reference table; then extend vector retrieval to PT/WWF
+  example matching.

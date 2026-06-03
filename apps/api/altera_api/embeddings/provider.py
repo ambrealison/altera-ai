@@ -44,26 +44,57 @@ class EmbeddingProviderError(RuntimeError):
     """Raised when a real provider is requested but not configured."""
 
 
-def get_embedding_provider() -> EmbeddingProvider:
-    """Factory. Returns the fake provider unless embeddings are enabled
-    AND a real backend is configured. Importing a real SDK is deferred
-    so the normal test suite never needs it.
+def build_embedding_provider(
+    provider_name: str,
+    *,
+    model: str | None = None,
+    dimensions: int | None = None,
+) -> EmbeddingProvider:
+    """Construct a provider explicitly (used by the evaluator/CLI).
 
-    Phase Quality-V2-A: only the fake provider is wired. A real Voyage/
-    OpenAI provider is a placeholder for a later phase — this factory
-    raises a clear error rather than silently making network calls.
+    ``fake`` → deterministic offline provider (no network, no key).
+    ``voyage`` → real Voyage provider (requires ``VOYAGE_API_KEY``);
+    a missing key raises :class:`EmbeddingProviderError` — never a
+    silent fall-back to fake.
     """
-    from altera_api.quality_config import embeddings_enabled
+    name = (provider_name or "fake").strip().lower()
+    if name == "fake":
+        from altera_api.embeddings.fake_provider import FakeEmbeddingProvider
+
+        return FakeEmbeddingProvider()
+    if name == "voyage":
+        from altera_api.embeddings.voyage_provider import VoyageEmbeddingProvider
+        from altera_api.quality_config import DEFAULT_EMBEDDING_MODEL
+
+        return VoyageEmbeddingProvider(
+            model=model or DEFAULT_EMBEDDING_MODEL, dimensions=dimensions
+        )
+    raise EmbeddingProviderError(f"Unknown embedding provider: {provider_name!r}")
+
+
+def get_embedding_provider() -> EmbeddingProvider:
+    """Env-driven factory. Returns the deterministic fake provider
+    unless embeddings are enabled AND a real backend is selected.
+
+    Default-safe: with ``ALTERA_ENABLE_EMBEDDINGS`` unset/false this
+    returns the fake provider and never imports a vendor SDK or makes a
+    network call. When embeddings are enabled it honours
+    ``ALTERA_EMBEDDING_PROVIDER`` (fake | voyage).
+    """
+    from altera_api.quality_config import (
+        embedding_dimensions,
+        embedding_model,
+        embedding_provider_name,
+        embeddings_enabled,
+    )
 
     if not embeddings_enabled():
         from altera_api.embeddings.fake_provider import FakeEmbeddingProvider
 
         return FakeEmbeddingProvider()
 
-    # Embeddings explicitly enabled — a real provider would be selected
-    # here in a later phase (Voyage/OpenAI, behind its own API key env).
-    raise EmbeddingProviderError(
-        "Real embedding provider not yet implemented. Set "
-        "ALTERA_ENABLE_EMBEDDINGS=false to use the deterministic fake "
-        "provider, or wait for the V2 retrieval phase."
+    return build_embedding_provider(
+        embedding_provider_name(),
+        model=embedding_model(),
+        dimensions=embedding_dimensions(),
     )

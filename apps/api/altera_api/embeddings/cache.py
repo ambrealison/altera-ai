@@ -25,6 +25,24 @@ def embedding_key(model: str, text: str) -> str:
     return h.hexdigest()
 
 
+def embedding_cache_key(
+    provider: str, model: str, input_type: str, text: str
+) -> str:
+    """Phase Quality-V2-C — cache key over (provider, model, input_type,
+    text).
+
+    ``input_type`` matters: the same text embedded as a ``document`` vs
+    a ``query`` is a different vector for retrieval models, so they must
+    be cached separately. Including ``provider`` + ``model`` means a
+    provider/model change invalidates the cache (never serves stale
+    vectors)."""
+    h = hashlib.sha256()
+    for part in (provider, model, input_type, text):
+        h.update(part.encode("utf-8"))
+        h.update(b"\x00")
+    return h.hexdigest()
+
+
 class EmbeddingCache(Protocol):
     def get(self, key: str) -> list[float] | None: ...
     def set(self, key: str, vector: list[float]) -> None: ...

@@ -256,7 +256,19 @@ class NevoMetrics:
     false_positive_count: int = 0
     forbidden_rejected: int = 0
     forbidden_total: int = 0
+    # Phase Quality-V2-C — embeddings-pipeline extras (0 for rules-only).
+    embedding_calls: int = 0
+    expected_rank_sum: int = 0
+    expected_rank_count: int = 0
     mismatches: list[Mismatch] = field(default_factory=list)
+
+    @property
+    def avg_expected_rank(self) -> float | None:
+        return (
+            self.expected_rank_sum / self.expected_rank_count
+            if self.expected_rank_count
+            else None
+        )
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -277,6 +289,12 @@ class NevoMetrics:
             )
             if self.forbidden_total
             else None,
+            "avg_expected_rank": (
+                round(self.avg_expected_rank, 2)
+                if self.avg_expected_rank is not None
+                else None
+            ),
+            "embedding_calls": self.embedding_calls,
             "mismatch_count": len(self.mismatches),
         }
 

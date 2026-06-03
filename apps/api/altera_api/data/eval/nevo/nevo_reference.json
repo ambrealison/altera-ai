@@ -1,0 +1,185 @@
+{
+  "name": "NEVO reference foods (Quality-V2-C)",
+  "references": [
+    {
+      "nevo_code": "NEVO-TOFU",
+      "food_name_en": "Tofu",
+      "food_name_fr": "Tofu",
+      "food_group": "FG1"
+    },
+    {
+      "nevo_code": "NEVO-CHICKPEA",
+      "food_name_en": "Chickpeas",
+      "food_name_fr": "Pois chiches",
+      "food_group": "FG1"
+    },
+    {
+      "nevo_code": "NEVO-LENTIL",
+      "food_name_en": "Lentils",
+      "food_name_fr": "Lentilles",
+      "food_group": "FG1"
+    },
+    {
+      "nevo_code": "NEVO-REDLENTIL",
+      "food_name_en": "Red lentils",
+      "food_name_fr": "Lentilles corail",
+      "food_group": "FG1"
+    },
+    {
+      "nevo_code": "NEVO-BLACKBEAN",
+      "food_name_en": "Black beans",
+      "food_name_fr": "Haricots noirs",
+      "food_group": "FG1"
+    },
+    {
+      "nevo_code": "NEVO-BEAN",
+      "food_name_en": "Beans",
+      "food_name_fr": "Haricots",
+      "food_group": "FG1"
+    },
+    {
+      "nevo_code": "NEVO-PEANUTBUTTER",
+      "food_name_en": "Peanut butter",
+      "food_name_fr": "Beurre de cacahuete",
+      "food_group": "FG3"
+    },
+    {
+      "nevo_code": "NEVO-MILK",
+      "food_name_en": "Milk semi-skimmed",
+      "food_name_fr": "Lait demi-ecreme",
+      "food_group": "FG2"
+    },
+    {
+      "nevo_code": "NEVO-WHOLEMILK",
+      "food_name_en": "Milk whole",
+      "food_name_fr": "Lait entier",
+      "food_group": "FG2"
+    },
+    {
+      "nevo_code": "NEVO-YOGHURT",
+      "food_name_en": "Yoghurt plain",
+      "food_name_fr": "Yaourt nature",
+      "food_group": "FG2"
+    },
+    {
+      "nevo_code": "NEVO-CHEESE",
+      "food_name_en": "Cheese",
+      "food_name_fr": "Fromage",
+      "food_group": "FG2"
+    },
+    {
+      "nevo_code": "NEVO-QUARK",
+      "food_name_en": "Fresh cheese quark",
+      "food_name_fr": "Fromage blanc",
+      "food_group": "FG2"
+    },
+    {
+      "nevo_code": "NEVO-BUTTER",
+      "food_name_en": "Butter",
+      "food_name_fr": "Beurre",
+      "food_group": "FG3"
+    },
+    {
+      "nevo_code": "NEVO-OILSUN",
+      "food_name_en": "Oil sunflower",
+      "food_name_fr": "Huile de tournesol",
+      "food_group": "FG3"
+    },
+    {
+      "nevo_code": "NEVO-RATATOUILLE",
+      "food_name_en": "Ratatouille",
+      "food_name_fr": "Ratatouille",
+      "food_group": "FG4"
+    },
+    {
+      "nevo_code": "NEVO-TOMATO",
+      "food_name_en": "Tomato",
+      "food_name_fr": "Tomate",
+      "food_group": "FG4"
+    },
+    {
+      "nevo_code": "NEVO-APPLE",
+      "food_name_en": "Apple",
+      "food_name_fr": "Pomme",
+      "food_group": "FG4"
+    },
+    {
+      "nevo_code": "NEVO-POTATO",
+      "food_name_en": "Potatoes",
+      "food_name_fr": "Pommes de terre",
+      "food_group": "FG6"
+    },
+    {
+      "nevo_code": "NEVO-PASTA",
+      "food_name_en": "Pasta",
+      "food_name_fr": "Pates",
+      "food_group": "FG5"
+    },
+    {
+      "nevo_code": "NEVO-MUESLI",
+      "food_name_en": "Muesli",
+      "food_name_fr": "Muesli",
+      "food_group": "FG5"
+    },
+    {
+      "nevo_code": "NEVO-RICE",
+      "food_name_en": "Rice",
+      "food_name_fr": "Riz",
+      "food_group": "FG5"
+    },
+    {
+      "nevo_code": "NEVO-EDAMAME",
+      "food_name_en": "Soybeans green edamame",
+      "food_name_fr": "Edamame",
+      "food_group": "FG1"
+    },
+    {
+      "nevo_code": "NEVO-COCONUTMILK",
+      "food_name_en": "Coconut milk",
+      "food_name_fr": "Lait de coco",
+      "food_group": "FG3"
+    },
+    {
+      "nevo_code": "NEVO-OILOLIVE",
+      "food_name_en": "Oil olive",
+      "food_name_fr": "Huile d'olive",
+      "food_group": "FG3"
+    },
+    {
+      "nevo_code": "NEVO-GARLIC",
+      "food_name_en": "Garlic raw",
+      "food_name_fr": "Ail cru",
+      "food_group": "FG4"
+    },
+    {
+      "nevo_code": "NEVO-MASHEDMILK",
+      "food_name_en": "Potatoes mashed with milk",
+      "food_name_fr": "Puree de pommes de terre au lait",
+      "food_group": "FG6"
+    },
+    {
+      "nevo_code": "NEVO-APPLEPIE",
+      "food_name_en": "Apple pie without butter",
+      "food_name_fr": "Tarte aux pommes sans beurre",
+      "food_group": "FG7"
+    },
+    {
+      "nevo_code": "NEVO-PASTABOILED",
+      "food_name_en": "Pasta white boiled",
+      "food_name_fr": "Pates blanches cuites",
+      "food_group": "FG5"
+    },
+    {
+      "nevo_code": "NEVO-HUMMUS",
+      "food_name_en": "Hummus with chickpeas",
+      "food_name_fr": "Houmous aux pois chiches",
+      "food_group": "FG1"
+    },
+    {
+      "nevo_code": "NEVO-CHICKENPLAIN",
+      "food_name_en": "Chicken breast plain",
+      "food_name_fr": "Blanc de poulet nature",
+      "food_group": "FG1"
+    }
+  ]
+}

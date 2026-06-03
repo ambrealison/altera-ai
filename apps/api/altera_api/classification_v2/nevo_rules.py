@@ -39,6 +39,10 @@ _STRUCTURAL_QUALIFIERS = (
     "with", "without", "avec", "sans", "mashed", "mash", "puree", "sauce",
     "fried", "boiled",
 )
+# Concepts that are fundamentally secondary ingredients — a candidate
+# whose head IS one of these can never be the primary match for a
+# product of a different concept (even if embeddings rank it highly).
+_QUALIFIER_CONCEPTS = frozenset({"oil", "olive", "garlic"})
 
 # Canonical concept → surface forms (FR + EN). Multi-word phrases are
 # matched with phrase preference so "beurre de cacahuete" resolves to
@@ -150,6 +154,23 @@ def decide_candidate(product_name: str, candidate: NevoCandidate) -> NevoGateRes
         return NevoGateResult(
             False, 0.0,
             "Candidate matches a secondary ingredient, not the product head.",
+            "rejected",
+        )
+    # 1c. The candidate IS fundamentally an oil/garlic/olive (a typical
+    #     secondary ingredient) but the product is a different concept.
+    #     Hard-reject regardless of qualifiers — this holds even when the
+    #     product name itself contains 'huile'/'olive' (e.g. "Ratatouille
+    #     à l'huile d'olive" must not match "Oil olive"). Embeddings can
+    #     surface such a candidate; the rule must still kill it.
+    if (
+        cand_concept in _QUALIFIER_CONCEPTS
+        and prod_concept is not None
+        and prod_concept != cand_concept
+    ):
+        return NevoGateResult(
+            False, 0.0,
+            f"Candidate is a {cand_concept!r} (a secondary ingredient), not the "
+            f"product head {prod_concept!r}.",
             "rejected",
         )
 

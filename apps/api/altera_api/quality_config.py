@@ -44,6 +44,13 @@ _PIPELINE_ENV = "ALTERA_CLASSIFICATION_PIPELINE_VERSION"
 _MATCHER_ENV = "ALTERA_NEVO_MATCHER_VERSION"
 _EMBEDDINGS_ENV = "ALTERA_ENABLE_EMBEDDINGS"
 _V2_EVAL_ENV = "ALTERA_ENABLE_V2_EVALUATION"
+# Phase Quality-V2-C — embedding provider selection.
+_EMBEDDING_PROVIDER_ENV = "ALTERA_EMBEDDING_PROVIDER"
+_EMBEDDING_MODEL_ENV = "ALTERA_EMBEDDING_MODEL"
+_EMBEDDING_DIMENSIONS_ENV = "ALTERA_EMBEDDING_DIMENSIONS"
+
+#: Default Voyage model when the voyage provider is selected.
+DEFAULT_EMBEDDING_MODEL = "voyage-4-lite"
 
 
 def _parse_bool(raw: str | None, *, default: bool = False) -> bool:
@@ -79,6 +86,34 @@ def v2_evaluation_enabled() -> bool:
     return _parse_bool(os.environ.get(_V2_EVAL_ENV), default=False)
 
 
+def embedding_provider_name() -> str:
+    """Selected embedding provider. Defaults to ``fake`` (offline,
+    deterministic, no network). An unrecognised value falls back to
+    ``fake`` — fail safe."""
+    raw = (os.environ.get(_EMBEDDING_PROVIDER_ENV) or "").strip().lower()
+    return raw if raw in {"fake", "voyage"} else "fake"
+
+
+def embedding_model() -> str:
+    """Configured embedding model (default: the Voyage lite model).
+    Only consulted by the voyage provider; the fake provider ignores it."""
+    raw = (os.environ.get(_EMBEDDING_MODEL_ENV) or "").strip()
+    return raw or DEFAULT_EMBEDDING_MODEL
+
+
+def embedding_dimensions() -> int | None:
+    """Optional output dimension override (Voyage supports a few sizes).
+    ``None`` → the model's native dimension."""
+    raw = (os.environ.get(_EMBEDDING_DIMENSIONS_ENV) or "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
 def quality_config_summary() -> dict[str, str | bool]:
     """Diagnostic snapshot — handy for an admin endpoint or log line."""
     return {
@@ -86,4 +121,6 @@ def quality_config_summary() -> dict[str, str | bool]:
         "nevo_matcher_version": nevo_matcher_version().value,
         "embeddings_enabled": embeddings_enabled(),
         "v2_evaluation_enabled": v2_evaluation_enabled(),
+        "embedding_provider": embedding_provider_name(),
+        "embedding_model": embedding_model(),
     }
