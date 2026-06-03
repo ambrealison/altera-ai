@@ -294,3 +294,114 @@ opt-in once metrics clear the gates with the real provider.
   + a NEVO candidate-retrieval service, and a Voyage-backed run over the
   full NEVO reference table; then extend vector retrieval to PT/WWF
   example matching.
+
+## Quality-V2-D results (real Voyage harness + benchmark + full NEVO)
+
+V2-D makes the real Voyage NEVO evaluation runnable and benchmarkable
+(fake vs voyage models), against either the curated fixture reference or
+the **full NEVO 2025 reference** (2,327 foods). **Still offline/
+evaluator-only — V1 is the production default; a present
+`VOYAGE_API_KEY` does NOT change app behaviour; no route imports the
+embeddings stack.**
+
+### Run the real Voyage evaluation
+
+The `voyageai` SDK is an OPTIONAL extra (not a runtime dependency).
+Install it where you run the eval (e.g. the Render shell):
+
+```bash
+pip install voyageai          # or: uv pip install -e '.[eval]'
+```
+
+One real model (fails clearly if the key is missing):
+
+```bash
+ALTERA_ENABLE_EMBEDDINGS=true VOYAGE_API_KEY=... \
+.venv/bin/python scripts/evaluate_nevo_voyage.py \
+    --model voyage-4 --reference-source nevo --top-k 20
+```
+
+Benchmark fake vs voyage-4 vs voyage-4-lite in one table:
+
+```bash
+ALTERA_ENABLE_EMBEDDINGS=true VOYAGE_API_KEY=... \
+.venv/bin/python scripts/benchmark_nevo_embeddings.py \
+    --models fake,voyage-4,voyage-4-lite \
+    --reference-source nevo --top-k 20 --price-per-1m 0.06
+```
+
+Env vars: `VOYAGE_API_KEY`, `ALTERA_ENABLE_EMBEDDINGS=true`,
+`ALTERA_EMBEDDING_PROVIDER=voyage`, `ALTERA_EMBEDDING_MODEL=voyage-4`,
+optional `ALTERA_EMBEDDING_DIMENSIONS`. CSVs (candidates + mismatches)
+land in `local_data/quality/` (git-ignored). `--price-per-1m` is an
+estimate — set it to the model's real price for an accurate cost column.
+
+### Benchmark table (fill the voyage rows from a Render run)
+
+Fake rows below were produced offline in this phase. The voyage rows
+require the key and must be run on Render (or locally with the key).
+
+```
+Model           Coverage   High-conf FP   Forbidden rej   Expected top-5   Cost
+fake (fixture)     96.4%        0             100%            85.7%         $0
+fake (full NEVO)   21.4%        0             100%            25.0%         $0
+voyage-4           <run>        <run>         <run>           <run>         <run>
+voyage-4-lite      <run>        <run>         <run>           <run>         <run>
+```
+
+**Key offline finding:** the deterministic fake provider is keyword-bag
+similarity, so against the full 2,327-food NEVO set its coverage
+collapses to ~21% (27/28 expected matches fall outside top-20) — it is a
+plumbing/CI tool, not a real matcher. The safety gates still hold (0
+high-confidence false positives, 100% forbidden rejection): wrong fake
+retrievals abstain or go to review, never auto-accept. The real semantic
+lift is exactly what voyage-4 should provide on the full reference — run
+the benchmark to populate the table.
+
+### Gates (V2-D, enforced by the benchmark exit code)
+
+- forbidden-match rejection = 100%
+- high-confidence false positives = 0 (auto-accept wrong = 0; review-
+  level wrong is allowed — it is routed to a human, not auto-accepted)
+- no hard-rejected candidate may be accepted by embeddings
+- no production behaviour changed
+
+A gate hole found + fixed this phase: a product that resolves to a
+specific concept (e.g. *peanut butter* → `peanut_butter`) no longer
+accepts a bare sub-token literal match to an unrelated food
+(*Biscuit peanut*) — the concept path is the only accept route for such
+products (regression-tested).
+
+### Failure taxonomy (from the candidate CSV)
+
+`summarize_candidates` buckets each should-match case: expected at
+rank-1, rank 2–5, retrieved-but-rejected, missing-from-top-k, plus
+dangerous candidates that ranked high but were correctly rejected. On
+the full-NEVO fake run, "missing-from-top-k" dominates (keyword
+retrieval misses) — pointing to: bigger/better retrieval (real
+embeddings), more aliases, or a reranker. Re-run the taxonomy with
+voyage-4 to see which failures are retrieval vs rule vs fixture.
+
+### Recommendation
+
+- Run `voyage-4` and `voyage-4-lite` on the **full NEVO reference** and
+  compare top-5 / coverage / cost using the benchmark.
+- If `voyage-4-lite` matches `voyage-4` on top-k, prefer **lite** for
+  production-scale indexing (cheaper); keep `voyage-4` if it clearly
+  wins the hard FR/EN/NL semantic matches.
+- Either way: a present key changes nothing in production. Activation
+  stays a later staged opt-in once the real-provider gates pass.
+
+### Why production still uses V1
+
+`get_embedding_provider()` returns the fake provider unless
+`ALTERA_ENABLE_EMBEDDINGS=true`; adding `VOYAGE_API_KEY` alone does not
+enable embeddings (regression-tested). No app route imports the
+embeddings stack or Voyage. V1 remains the demo-safe default.
+
+### Next phase recommendation
+
+- **Quality-V2-E:** persist NEVO embeddings (pgvector or an export
+  artifact) so the index isn't rebuilt per run; add a reranker for the
+  rank 2–5 / missing-from-top-k tail; then extend vector retrieval to
+  PT/WWF example matching.

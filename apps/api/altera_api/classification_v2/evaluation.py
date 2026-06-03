@@ -260,6 +260,12 @@ class NevoMetrics:
     embedding_calls: int = 0
     expected_rank_sum: int = 0
     expected_rank_count: int = 0
+    # Phase Quality-V2-D — top-k recall buckets + token usage.
+    expected_in_top1: int = 0
+    expected_in_top5: int = 0
+    expected_in_top10: int = 0
+    expected_in_top20: int = 0
+    token_total: int = 0
     mismatches: list[Mismatch] = field(default_factory=list)
 
     @property
@@ -294,7 +300,24 @@ class NevoMetrics:
                 if self.avg_expected_rank is not None
                 else None
             ),
+            "expected_top1": (
+                round(self.expected_in_top1 / self.should_match_total, 4)
+                if self.should_match_total else None
+            ),
+            "expected_top5": (
+                round(self.expected_in_top5 / self.should_match_total, 4)
+                if self.should_match_total else None
+            ),
+            "expected_top10": (
+                round(self.expected_in_top10 / self.should_match_total, 4)
+                if self.should_match_total else None
+            ),
+            "expected_top20": (
+                round(self.expected_in_top20 / self.should_match_total, 4)
+                if self.should_match_total else None
+            ),
             "embedding_calls": self.embedding_calls,
+            "token_total": self.token_total,
             "mismatch_count": len(self.mismatches),
         }
 

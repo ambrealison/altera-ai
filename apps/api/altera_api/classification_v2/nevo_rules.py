@@ -183,15 +183,18 @@ def decide_candidate(product_name: str, candidate: NevoCandidate) -> NevoGateRes
             "alias",
         )
 
-    # 3. Exact literal head match.
+    # 3. Exact literal head match — only safe when the product has no
+    #    more-specific concept. If the product DOES resolve to a concept
+    #    (e.g. 'peanut butter' → peanut_butter), a bare sub-token match
+    #    to a candidate that does not share that concept ('Biscuit
+    #    peanut') is rejected; the concept path (step 2) is the only
+    #    accept route for such products.
     if p_head in cand_tokens:
-        # …unless the candidate is dominated by a different leading
-        # concept (e.g. product 'lait' vs candidate 'potatoes … milk').
-        if cand_concept is not None and prod_concept is not None and cand_concept != prod_concept:
+        if prod_concept is not None and cand_concept != prod_concept:
             return NevoGateResult(
                 False, 0.0,
-                f"Product head {p_head!r} is a secondary ingredient of a "
-                f"{cand_concept!r} candidate.",
+                f"Product resolves to concept {prod_concept!r}; candidate "
+                f"(head {p_head!r}, concept {cand_concept!r}) does not share it.",
                 "rejected",
             )
         return NevoGateResult(True, 0.95, f"Exact head match: {p_head!r}.", "exact")

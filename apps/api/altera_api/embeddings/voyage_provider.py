@@ -67,6 +67,10 @@ class VoyageEmbeddingProvider:
                 )
             client = _default_client(key, timeout, max_retries)
         self._client = client
+        # Phase Quality-V2-D — accumulate token usage across calls for
+        # cost reporting (Voyage responses expose ``total_tokens``).
+        self.total_tokens: int = 0
+        self.call_count: int = 0
 
     @property
     def model(self) -> str:
@@ -93,6 +97,10 @@ class VoyageEmbeddingProvider:
             raise EmbeddingProviderError(
                 "Voyage response has no 'embeddings' attribute."
             )
+        self.call_count += 1
+        tokens = getattr(resp, "total_tokens", None)
+        if isinstance(tokens, int):
+            self.total_tokens += tokens
         return [list(v) for v in embeddings]
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:

@@ -14,7 +14,10 @@ embedded.
 
 from __future__ import annotations
 
+import csv
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from altera_api.classification_v2.nevo_rules import NevoCandidate
@@ -25,6 +28,53 @@ from altera_api.embeddings.text_builder import (
     build_nevo_reference_text,
     build_product_text,
 )
+
+# Default full NEVO reference export shipped in the repo.
+_NEVO_CSV = (
+    Path(__file__).resolve().parents[1] / "data" / "reference" / "nevo2025.csv"
+)
+
+
+def load_nevo_reference(
+    source: str = "fixture",
+    *,
+    path: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    """Load NEVO reference foods for the vector index (Phase V2-D).
+
+    ``source="fixture"`` → the small curated reference JSON
+    (``--reference path`` to override). ``source="nevo"`` → the full
+    NEVO 2025 reference CSV shipped in the repo (2.3k foods), mapping the
+    English/Dutch names, synonym and food group. Reads only the
+    descriptor columns — no nutrition values are loaded into the index.
+    """
+    if source == "nevo":
+        csv_path = Path(path) if path else _NEVO_CSV
+        refs: list[dict[str, Any]] = []
+        with csv_path.open(encoding="utf-8", newline="") as fh:
+            for row in csv.DictReader(fh):
+                en = (row.get("Engelse naam/Food name") or "").strip()
+                nl = (row.get("Voedingsmiddelnaam/Dutch food name") or "").strip()
+                if not (en or nl):
+                    continue
+                refs.append(
+                    {
+                        "nevo_code": (row.get("NEVO-code") or "").strip(),
+                        "food_name_en": en or nl,
+                        "food_name_nl": nl,
+                        "synonym": (row.get("Synoniem") or "").strip() or None,
+                        "food_group": (row.get("Food group") or "").strip() or None,
+                    }
+                )
+        return refs
+
+    # fixture (default)
+    fixture = Path(path) if path else (
+        Path(__file__).resolve().parents[1]
+        / "data" / "eval" / "nevo" / "nevo_reference.json"
+    )
+    data = json.loads(Path(fixture).read_text(encoding="utf-8"))
+    return data.get("references", data if isinstance(data, list) else [])
 
 
 def build_nevo_query_text(product: dict[str, Any]) -> str:

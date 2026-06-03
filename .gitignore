@@ -20,6 +20,9 @@ build/
 .env.local
 .env.*.local
 
+# Local-only data + generated quality-eval artifacts (CSV/JSON outputs)
+local_data/
+
 # OS / editor
 .DS_Store
 .idea/

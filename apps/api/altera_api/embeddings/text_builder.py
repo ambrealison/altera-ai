@@ -92,11 +92,18 @@ def build_wwf_example_text(data: dict[str, object]) -> str:
 
 
 def build_nevo_reference_text(data: dict[str, object]) -> str:
-    """A NEVO reference food descriptor for candidate retrieval."""
+    """A NEVO reference food descriptor for candidate retrieval.
+
+    Includes the English name plus, when present, the Dutch name
+    (``food_name_nl``), a French name (``food_name_fr``), aliases /
+    synonyms, and the food group — richer reference text improves
+    cross-language semantic retrieval (Phase Quality-V2-D)."""
     _assert_no_commercial(data)
     lines = [
         _line("Food", data.get("food_name_en")),
+        _line("Food (NL)", data.get("food_name_nl")),
         _line("Food (FR)", data.get("food_name_fr")),
+        _line("Aliases", data.get("aliases") or data.get("synonym")),
         _line("Group", data.get("food_group")),
         _line("NEVO code", data.get("nevo_code")),
     ]

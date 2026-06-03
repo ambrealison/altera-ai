@@ -101,11 +101,20 @@ def evaluate_nevo_embeddings(
 
         if should_match and expected:
             m.should_match_total += 1
-            # Rank of the expected match among candidates.
+            # Rank of the expected match among candidates → rank stats +
+            # top-k recall buckets.
             for tr in decision.top_candidates:
                 if _same_food(expected, tr.nevo_code, tr.candidate_name):
                     m.expected_rank_sum += tr.rank
                     m.expected_rank_count += 1
+                    if tr.rank <= 1:
+                        m.expected_in_top1 += 1
+                    if tr.rank <= 5:
+                        m.expected_in_top5 += 1
+                    if tr.rank <= 10:
+                        m.expected_in_top10 += 1
+                    if tr.rank <= 20:
+                        m.expected_in_top20 += 1
                     break
             if decision.matched:
                 correct = _same_food(expected, decision.nevo_code, decision.food_name_en)
@@ -118,9 +127,10 @@ def evaluate_nevo_embeddings(
                     if high_conf:
                         m.high_confidence_total += 1
                         m.high_confidence_correct += 1
-                else:
-                    if high_conf:
-                        m.high_confidence_total += 1  # wrong high-confidence
+                elif high_conf:
+                    # A WRONG high-confidence (auto-accept) match — the
+                    # dangerous kind the safety gate forbids.
+                    m.high_confidence_total += 1
                     m.false_positive_count += 1
                     m.mismatches.append(
                         Mismatch(
@@ -180,7 +190,59 @@ def evaluate_nevo_embeddings(
                 )
 
     m.embedding_calls = index.embedding_calls
+    m.token_total = getattr(provider, "total_tokens", 0)
     return m, rows
+
+
+def summarize_candidates(
+    cases: list[dict[str, Any]], rows: list[dict[str, Any]]
+) -> dict[str, int]:
+    """Phase Quality-V2-D — failure taxonomy over the candidate trace.
+
+    Buckets each should-match case by where its expected match landed:
+    rank-1, rank 2–5, retrieved-but-rejected, missing-from-top-k; and
+    counts dangerous candidates that ranked high but were correctly
+    rejected (safety working as intended)."""
+    by_case: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        by_case.setdefault(r["fixture_id"], []).append(r)
+
+    tax = {
+        "expected_rank_1": 0,
+        "expected_rank_2_5": 0,
+        "expected_retrieved_but_rejected": 0,
+        "expected_missing_from_topk": 0,
+        "dangerous_ranked_high_but_rejected": 0,
+    }
+    for case in cases:
+        if not bool(case.get("should_match", case.get("expected_match") is not None)):
+            continue
+        expected = case.get("expected_match") or {}
+        exp_name = str(expected.get("food_name_en", "")).lower()
+        crows = by_case.get(str(case.get("id", "")), [])
+        found = None
+        for r in crows:
+            if str(r["candidate_name"]).lower() == exp_name:
+                found = r
+                break
+        if found is None:
+            tax["expected_missing_from_topk"] += 1
+        elif not found["accepted"]:
+            tax["expected_retrieved_but_rejected"] += 1
+        elif found["candidate_rank"] == 1:
+            tax["expected_rank_1"] += 1
+        elif found["candidate_rank"] <= 5:
+            tax["expected_rank_2_5"] += 1
+        # Forbidden candidates that ranked in the top 5 but were rejected.
+        forbidden = {f.lower() for f in case.get("forbidden_matches", [])}
+        for r in crows:
+            if (
+                str(r["candidate_name"]).lower() in forbidden
+                and r["candidate_rank"] <= 5
+                and not r["accepted"]
+            ):
+                tax["dangerous_ranked_high_but_rejected"] += 1
+    return tax
 
 
 def write_candidates_csv(path: str | Path, rows: list[dict[str, Any]]) -> None:
