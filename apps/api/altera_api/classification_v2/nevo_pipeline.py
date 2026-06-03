@@ -38,6 +38,7 @@ class CandidateTrace:
     accepted: bool
     match_type: str
     rejection_reason: str = ""
+    confidence: float = 0.0  # the gate's confidence for this candidate
 
 
 @dataclass(frozen=True)
@@ -61,10 +62,17 @@ def decide_with_embeddings(
     *,
     top_k: int | None = None,
     embed_review_threshold: float = _EMBED_REVIEW_THRESHOLD,
+    full_trace: bool = False,
 ) -> NevoDecision:
     """Decide a NEVO match for one product using vector candidates +
     rules. ``product`` carries descriptor fields only (no commercial
-    fields — enforced by the query-text builder)."""
+    fields — enforced by the query-text builder).
+
+    The decision is always first-accept (production-like short-circuit).
+    With ``full_trace=True`` the loop still records EVERY candidate's gate
+    result in ``top_candidates`` (it doesn't stop at the first accept),
+    so the evaluator can report full top-k recall and the rank-6–20
+    failure taxonomy. The returned decision is identical either way."""
     name = str(product.get("product_name", ""))
     query_text = build_nevo_query_text(product)
     scored = index.search(query_text, top_k=top_k)
@@ -72,6 +80,7 @@ def decide_with_embeddings(
     top: list[CandidateTrace] = []
     rejected: list[CandidateTrace] = []
     review_proxy: CandidateTrace | None = None
+    accepted_hit: tuple[CandidateTrace, float] | None = None  # (trace, confidence)
 
     for sc in scored:
         gate = gate_candidate(name, sc.candidate)
@@ -83,37 +92,47 @@ def decide_with_embeddings(
             accepted=gate.accepted,
             match_type=gate.match_type,
             rejection_reason="" if gate.accepted else gate.reason,
+            confidence=gate.confidence,
         )
         top.append(trace)
 
         if gate.accepted:
-            # Rule-confirmed embedding candidate → accept.
-            return NevoDecision(
-                matched=True,
-                nevo_code=sc.candidate.nevo_code,
-                food_name_en=sc.candidate.food_name_en,
-                confidence=gate.confidence,
-                match_type="embedding_plus_rule",
-                review_required=False,
-                rationale=(
-                    f"Vector candidate (rank {sc.rank}, sim {sc.similarity:.2f}) "
-                    f"confirmed by rule [{gate.match_type}]: {gate.reason}"
-                ),
-                provider=index.provider_name,
-                model=index.provider.model,
-                top_candidates=top,
-                rejected_candidates=rejected,
-            )
+            if accepted_hit is None:
+                accepted_hit = (trace, gate.confidence)
+                if not full_trace:
+                    break
+            continue
 
         rejected.append(trace)
         # An *abstain* (no rule signal, but NOT a hard rejection) at high
         # similarity is the only embedding-only path — and only to review.
         if (
-            gate.match_type == "abstain"
+            accepted_hit is None
+            and gate.match_type == "abstain"
             and sc.similarity >= embed_review_threshold
             and review_proxy is None
         ):
             review_proxy = trace
+
+    if accepted_hit is not None:
+        trace, confidence = accepted_hit
+        # Rule-confirmed embedding candidate → accept.
+        return NevoDecision(
+            matched=True,
+            nevo_code=trace.nevo_code,
+            food_name_en=trace.candidate_name,
+            confidence=confidence,
+            match_type="embedding_plus_rule",
+            review_required=False,
+            rationale=(
+                f"Vector candidate (rank {trace.rank}, sim {trace.similarity:.2f}) "
+                f"confirmed by rule [{trace.match_type}]."
+            ),
+            provider=index.provider_name,
+            model=index.provider.model,
+            top_candidates=top,
+            rejected_candidates=rejected,
+        )
 
     if review_proxy is not None:
         return NevoDecision(

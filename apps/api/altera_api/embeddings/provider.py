@@ -44,6 +44,13 @@ class EmbeddingProviderError(RuntimeError):
     """Raised when a real provider is requested but not configured."""
 
 
+class EmbeddingRateLimitError(EmbeddingProviderError):
+    """Phase Quality-V2-E — raised when the embedding backend signals a
+    rate limit (HTTP 429 / provider RateLimitError). Distinct from the
+    generic error so the benchmark can print a friendly message, keep the
+    on-disk cache intact, and exit non-zero without a traceback."""
+
+
 def build_embedding_provider(
     provider_name: str,
     *,

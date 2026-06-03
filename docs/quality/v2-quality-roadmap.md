@@ -360,17 +360,17 @@ From a **local dev checkout** the thin wrappers still work
 (`.venv/bin/python scripts/benchmark_nevo_embeddings.py …`), but they
 just delegate to the package module above.
 
-### Benchmark table (fill the voyage rows from a Render run)
+### Benchmark table — fixture reference (33 cases / 30 foods)
 
-Fake rows below were produced offline in this phase. The voyage rows
-require the key and must be run on Render (or locally with the key).
+Run on Render with the real key (V2-E update). **voyage-4-lite matches
+voyage-4 on the fixture** (perfect top-1/5/20) — so lite is the default.
 
 ```
-Model           Coverage   High-conf FP   Forbidden rej   Expected top-5   Cost
-fake (fixture)     96.4%        0             100%            85.7%         $0
-fake (full NEVO)   21.4%        0             100%            25.0%         $0
-voyage-4           <run>        <run>         <run>           <run>         <run>
-voyage-4-lite      <run>        <run>         <run>           <run>         <run>
+Model           Coverage   High-conf FP   Forbidden rej   top-1   top-5   top-20
+fake               96.4%        0             100%          60.7%   85.7%  100.0%
+voyage-4           96.4%        0             100%         100.0%  100.0%  100.0%
+voyage-4-lite      96.4%        0             100%         100.0%  100.0%  100.0%
+fake (full NEVO)   21.4%        0             100%             —    25.0%      —
 ```
 
 **Key offline finding:** the deterministic fake provider is keyword-bag
@@ -429,3 +429,100 @@ embeddings stack or Voyage. V1 remains the demo-safe default.
   artifact) so the index isn't rebuilt per run; add a reranker for the
   rank 2–5 / missing-from-top-k tail; then extend vector retrieval to
   PT/WWF example matching.
+
+## Quality-V2-E results (default lite + observable, resumable full NEVO)
+
+Phase V2-E makes the full-NEVO benchmark actually usable on Render and
+prepares the V2 embeddings matcher for *controlled* activation — still
+**offline / evaluator-only; V1 stays the production default; embeddings
+stay disabled by default; no route uses V2 or embeddings.**
+
+### Default embedding model: `voyage-4-lite`
+
+The fixture benchmark (above) showed `voyage-4-lite` equals `voyage-4`
+(perfect top-1/5/20, 0 high-conf FP, 100% forbidden rejection) at a lower
+price, so `ALTERA_EMBEDDING_MODEL` defaults to **`voyage-4-lite`**
+(`quality_config.DEFAULT_EMBEDDING_MODEL`). Override to `voyage-4` only if
+the full-NEVO run shows it is materially better on the hard FR/EN/NL
+matches. Embeddings stay off by default; a present `VOYAGE_API_KEY` alone
+does not enable them (regression-tested).
+
+### Stabilised full-NEVO benchmark
+
+The full reference (~2.3k foods) used to print `[done] fake` and then go
+silent. It is now **batched, observable, and resumable**:
+
+- **Batching** — references embed in `--batch-size` (default 64) chunks:
+  one provider call per batch, not per food.
+- **Progress** (printed + flushed): model start, reference + batch counts,
+  `docs batch X/Y · n/total · elapsed`, cache hits/misses, then
+  `evaluating N queries` with periodic query progress, then `[done]`.
+- **Resumable cache** (`--cache-dir`, default `/tmp/altera-quality/cache`)
+  — a `FileEmbeddingCache` keyed by provider/model/input_type/dimensions/
+  text_hash, flushed every batch via an atomic temp-file replace. An
+  interrupted run re-runs the SAME command and embeds nothing already
+  cached. Documents and queries are separate entries (input_type in key).
+- **Limit flags** — `--limit-references N` / `--limit-cases N` for fast
+  smokes.
+- **Friendly rate limits** — a Voyage 429 raises `EmbeddingRateLimitError`;
+  the CLI prints a friendly "re-run to resume" message, keeps the cache,
+  and exits non-zero (full traceback only with `--debug`).
+
+Recommended full run on Render:
+
+```bash
+ALTERA_ENABLE_EMBEDDINGS=true VOYAGE_API_KEY=$VOYAGE_API_KEY \
+python -m altera_api.classification_v2.benchmark_nevo_embeddings \
+    --models voyage-4-lite --reference-source nevo --top-k 20 \
+    --batch-size 64 --cache-dir /tmp/altera-quality/cache \
+    --output-dir /tmp/altera-quality
+```
+
+Quick smoke (subset, still real Voyage):
+
+```bash
+ALTERA_ENABLE_EMBEDDINGS=true VOYAGE_API_KEY=$VOYAGE_API_KEY \
+python -m altera_api.classification_v2.benchmark_nevo_embeddings \
+    --models voyage-4-lite --reference-source nevo \
+    --limit-references 200 --limit-cases 10 --top-k 20 \
+    --batch-size 64 --output-dir /tmp/altera-quality
+```
+
+This real Voyage run is **not** part of CI — CI only runs the fake path.
+
+### Controlled NEVO matcher factory
+
+`get_nevo_matcher(version)` (`classification_v2/nevo_matcher.py`) is the
+single selection layer, driven by `ALTERA_NEVO_MATCHER_VERSION`
+(`v1` | `v2-rules` | `v2-embeddings`, **default `v1`**):
+
+- `v1` — the production AI matcher (`nutrition_matcher.propose_match`).
+- `v2-rules` — the offline precision-first gate (no embeddings, anywhere).
+- `v2-embeddings` — V2 rules + the vector index; **requires
+  `ALTERA_ENABLE_EMBEDDINGS=true`** in production (else it raises — never a
+  silent fake fallback). Offline evaluation passes `evaluator_mode=True`.
+
+No production route imports this factory, so selecting a non-V1 matcher is
+an explicit opt-in. Default and unknown values resolve to `v1`.
+
+### Richer candidate CSV + failure taxonomy
+
+The candidate CSV now also carries `match_type`, `confidence`, `model`,
+`provider`, and records the **full top-k** ranking per case (not just the
+top 5). The taxonomy gained `expected_rank_6_20`,
+`dangerous_incorrectly_accepted` (must be 0 — a real safety failure),
+`no_safe_reference`, and `fixture_expected_not_in_reference` (the expected
+food is not in the loaded NEVO reference at all — a coverage/fixture gap,
+distinct from a retrieval miss). Together these say whether the next win
+is a reranker (rank 2–20), better reference text/aliases/`top_k`
+(missing-from-top-k), or fixture/reference coverage.
+
+### Decide next step from the full-NEVO voyage-4-lite run (PART G)
+
+- HC-FP = 0 and forbidden = 100% but top-1/top-5 low while top-20 high →
+  **Quality-V2-F: add a reranker.**
+- expected often missing from top-20 → **Quality-V2-F: improve NEVO
+  reference text + aliases + raise `top_k`.**
+- `voyage-4-lite` clearly worse than `voyage-4` on full NEVO → use
+  `voyage-4` for NEVO only.
+- Do not activate V2 in production until the benchmark is understood.

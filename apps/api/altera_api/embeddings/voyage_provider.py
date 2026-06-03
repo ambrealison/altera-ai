@@ -23,7 +23,23 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from altera_api.embeddings.provider import EmbeddingProviderError, InputType
+from altera_api.embeddings.provider import (
+    EmbeddingProviderError,
+    EmbeddingRateLimitError,
+    InputType,
+)
+
+
+def _is_rate_limit(exc: Exception) -> bool:
+    """Detect a rate-limit/429 across SDK versions without importing the
+    SDK error classes (kept dependency-light + testable with a mock)."""
+    name = type(exc).__name__.lower()
+    if "ratelimit" in name or "toomanyrequests" in name:
+        return True
+    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    if status == 429:
+        return True
+    return "429" in str(exc) or "rate limit" in str(exc).lower()
 
 
 def _default_client(api_key: str, timeout: float, max_retries: int) -> Any:
@@ -88,6 +104,11 @@ class VoyageEmbeddingProvider:
         try:
             resp = self._client.embed(texts, **kwargs)
         except Exception as exc:  # surface clearly — no silent fallback
+            if _is_rate_limit(exc):
+                raise EmbeddingRateLimitError(
+                    "Voyage rate limit hit (429). Cached batches are kept; "
+                    "re-run the same command to resume from the cache."
+                ) from exc
             raise EmbeddingProviderError(
                 f"Voyage embedding call failed ({type(exc).__name__}: {exc})."
             ) from exc

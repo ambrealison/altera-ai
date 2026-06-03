@@ -16,12 +16,13 @@ import math
 class FakeEmbeddingProvider:
     """Deterministic, offline embedding provider for tests + dev."""
 
-    def __init__(self, dimensions: int = 64) -> None:
+    def __init__(self, dimensions: int = 64, *, model: str = "fake-deterministic-v1") -> None:
         self._dims = dimensions
+        self._model = model
 
     @property
     def model(self) -> str:
-        return "fake-deterministic-v1"
+        return self._model
 
     @property
     def dimensions(self) -> int:

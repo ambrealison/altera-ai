@@ -108,20 +108,45 @@ network.
 
 ### Cache
 
-`embedding_cache_key(provider, model, input_type, text)` keys vectors by
-all four parts: the same text embedded as `document` vs `query` is a
-different entry, and a provider/model change invalidates the cache.
-`NevoVectorIndex` uses an `InMemoryEmbeddingCache` so identical
-reference texts embed once.
+`embedding_cache_key(provider, model, input_type, text, dimensions)` keys
+vectors by all five parts: the same text embedded as `document` vs
+`query` is a different entry (documents and queries are separate caches),
+and a provider/model/dimensions change invalidates the cache. Two
+backends implement the `EmbeddingCache` protocol (`get`/`set`/`flush`):
 
-### NEVO vector index (prototype)
+- `InMemoryEmbeddingCache` — process-local; identical texts embed once.
+- `FileEmbeddingCache` (Quality-V2-E) — a **persistent, resumable** JSON
+  cache, flushed every `autosave_every` writes (and on `flush`) via an
+  atomic temp-file replace, with `hits`/`misses` counters. An interrupted
+  full-NEVO run resumes from disk without re-embedding completed batches.
+
+### NEVO vector index
 
 `classification_v2/nevo_index.py` builds a cosine index over NEVO
-reference foods (`build` embeds reference texts as documents; `search`
-embeds the product query and returns the top-k nearest references).
-`classification_v2/nevo_pipeline.py` then gates those candidates with
-the V2 rules (`decide_with_embeddings`). Still in-memory + offline; the
-pgvector/persistent backend is Quality-V2-D.
+reference foods. `build` embeds reference texts as documents **in
+`batch_size` batches** (one provider call per batch, de-duplicating
+repeated texts and serving cache hits first), emitting `BuildProgress`
+events so a long run is observable. `search` embeds the product query and
+returns the top-k nearest references. `NevoVectorIndex.load_or_build(...)`
+reuses a (persistent) cache: a second run over the same references/model
+embeds nothing; a model/provider/dimensions or reference-text change
+re-embeds only the affected entries.
+
+`classification_v2/nevo_pipeline.py` then gates those candidates with the
+V2 rules (`decide_with_embeddings`; `full_trace=True` records the full
+top-k ranking for the evaluator). The pgvector/persistent table backend
+is a later phase; the file cache covers the per-run/dev need today.
+
+### Controlled matcher selection (Quality-V2-E)
+
+`classification_v2/nevo_matcher.get_nevo_matcher(version)` selects
+`v1` (production AI matcher) | `v2-rules` (offline gate) | `v2-embeddings`
+(rules + vector index), driven by `ALTERA_NEVO_MATCHER_VERSION` and
+**defaulting to `v1`**. `v2-embeddings` requires
+`ALTERA_ENABLE_EMBEDDINGS=true` in production (no silent fake fallback;
+`evaluator_mode=True` opts into the fake offline). No route imports it —
+selecting a non-V1 matcher is an explicit, evaluator/dev-only action.
 
 **Contract reaffirmed:** retrieval only proposes candidates; the rules
-decide, and a hard rejection can never be overridden by similarity.
+decide, and a hard rejection can never be overridden by similarity. This
+remains evaluator/dev-only — V1 is the production default.

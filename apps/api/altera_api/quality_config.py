@@ -50,6 +50,13 @@ _EMBEDDING_MODEL_ENV = "ALTERA_EMBEDDING_MODEL"
 _EMBEDDING_DIMENSIONS_ENV = "ALTERA_EMBEDDING_DIMENSIONS"
 
 #: Default Voyage model when the voyage provider is selected.
+#: Phase Quality-V2-E: voyage-4-lite matched voyage-4 on the fixture
+#: benchmark (top1/top5/top20 = 100%, 0 high-conf FP, 100% forbidden
+#: rejection) at a lower price, so it is the recommended default. Override
+#: with ALTERA_EMBEDDING_MODEL=voyage-4 only if the full-NEVO benchmark
+#: shows voyage-4 is materially better. (Embeddings remain disabled by
+#: default; this model name is only consulted when the voyage provider is
+#: explicitly enabled.)
 DEFAULT_EMBEDDING_MODEL = "voyage-4-lite"
 
 

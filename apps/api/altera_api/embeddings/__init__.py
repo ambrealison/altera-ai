@@ -7,6 +7,7 @@ the normal test suite. Not used by any production route yet.
 
 from altera_api.embeddings.cache import (
     EmbeddingCache,
+    FileEmbeddingCache,
     InMemoryEmbeddingCache,
     embedding_cache_key,
     embedding_key,
@@ -18,6 +19,7 @@ from altera_api.embeddings.fake_provider import (
 from altera_api.embeddings.provider import (
     EmbeddingProvider,
     EmbeddingProviderError,
+    EmbeddingRateLimitError,
     build_embedding_provider,
     get_embedding_provider,
 )
@@ -26,6 +28,7 @@ from altera_api.embeddings.voyage_provider import VoyageEmbeddingProvider
 __all__ = [
     "EmbeddingProvider",
     "EmbeddingProviderError",
+    "EmbeddingRateLimitError",
     "get_embedding_provider",
     "build_embedding_provider",
     "FakeEmbeddingProvider",
@@ -33,6 +36,7 @@ __all__ = [
     "cosine_similarity",
     "EmbeddingCache",
     "InMemoryEmbeddingCache",
+    "FileEmbeddingCache",
     "embedding_key",
     "embedding_cache_key",
 ]

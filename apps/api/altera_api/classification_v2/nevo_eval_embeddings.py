@@ -10,19 +10,23 @@ rank, embedding-call count) and a per-candidate trace CSV.
 from __future__ import annotations
 
 import csv
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from altera_api.classification_v2.evaluation import Mismatch, NevoMetrics
-from altera_api.classification_v2.nevo_index import NevoVectorIndex
+from altera_api.classification_v2.nevo_index import BuildProgressFn, NevoVectorIndex
 from altera_api.classification_v2.nevo_pipeline import decide_with_embeddings
 from altera_api.classification_v2.nevo_rules import (
     NevoCandidate,
     concept_of,
     gate_candidate,
 )
-from altera_api.embeddings.cache import InMemoryEmbeddingCache
+from altera_api.embeddings.cache import EmbeddingCache, InMemoryEmbeddingCache
 from altera_api.embeddings.provider import EmbeddingProvider
+
+#: A query-progress callback receives (queries_done, queries_total).
+QueryProgressFn = Callable[[int, int], None]
 
 
 def _query(case: dict[str, Any]) -> dict[str, Any]:
@@ -49,7 +53,7 @@ def _same_food(expected: dict[str, Any], code: str | None, name: str | None) -> 
 CANDIDATES_CSV_COLUMNS = [
     "fixture_id", "product_name", "expected_match", "candidate_rank",
     "candidate_name", "similarity", "accepted", "rejection_reason",
-    "final_decision",
+    "final_decision", "match_type", "confidence", "model", "provider",
 ]
 
 
@@ -61,30 +65,45 @@ def evaluate_nevo_embeddings(
     provider_name: str = "fake",
     top_k: int = 20,
     auto_accept_threshold: float = 0.90,
+    cache: EmbeddingCache | None = None,
+    batch_size: int = 64,
+    build_progress: BuildProgressFn | None = None,
+    query_progress: QueryProgressFn | None = None,
+    model: str | None = None,
+    index: NevoVectorIndex | None = None,
 ) -> tuple[NevoMetrics, list[dict[str, Any]]]:
     """Run the rules+embeddings NEVO pipeline over a fixture.
 
     Returns ``(metrics, candidate_rows)`` — candidate_rows feed the
-    candidates CSV.
-    """
-    index = NevoVectorIndex(
-        provider=provider, provider_name=provider_name, top_k=top_k,
-        cache=InMemoryEmbeddingCache(),
-    )
-    index.build(references)
+    candidates CSV. References are embedded in ``batch_size`` batches via
+    a (possibly persistent) ``cache``; ``build_progress`` /
+    ``query_progress`` make a long full-NEVO run observable. A prebuilt
+    ``index`` may be passed in (the CLI builds it first so it can report
+    cache hits/misses between the build and query phases)."""
+    if index is None:
+        index = NevoVectorIndex.load_or_build(
+            references,
+            provider=provider, provider_name=provider_name, top_k=top_k,
+            cache=cache if cache is not None else InMemoryEmbeddingCache(),
+            batch_size=batch_size, progress=build_progress,
+        )
+    model_name = model or provider.model
 
     m = NevoMetrics(matcher_version="v2-embeddings")
     rows: list[dict[str, Any]] = []
 
-    for case in cases:
+    total_cases = len(cases)
+    for ci, case in enumerate(cases):
         m.total += 1
         name = case.get("product_name", "")
         expected = case.get("expected_match")
         should_match = bool(case.get("should_match", expected is not None))
-        decision = decide_with_embeddings(_query(case), index, top_k=top_k)
+        decision = decide_with_embeddings(
+            _query(case), index, top_k=top_k, full_trace=True
+        )
 
-        # Candidate trace rows (top 5).
-        for tr in decision.top_candidates[:5]:
+        # Full candidate trace rows (up to top_k) for the candidate CSV.
+        for tr in decision.top_candidates:
             rows.append(
                 {
                     "fixture_id": str(case.get("id", "")),
@@ -96,6 +115,10 @@ def evaluate_nevo_embeddings(
                     "accepted": tr.accepted,
                     "rejection_reason": tr.rejection_reason,
                     "final_decision": decision.match_type,
+                    "match_type": tr.match_type,
+                    "confidence": tr.confidence,
+                    "model": model_name,
+                    "provider": provider_name,
                 }
             )
 
@@ -189,58 +212,109 @@ def evaluate_nevo_embeddings(
                     )
                 )
 
+        if query_progress is not None:
+            query_progress(ci + 1, total_cases)
+
     m.embedding_calls = index.embedding_calls
     m.token_total = getattr(provider, "total_tokens", 0)
     return m, rows
 
 
 def summarize_candidates(
-    cases: list[dict[str, Any]], rows: list[dict[str, Any]]
+    cases: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+    references: list[dict[str, Any]] | None = None,
 ) -> dict[str, int]:
-    """Phase Quality-V2-D — failure taxonomy over the candidate trace.
+    """Phase Quality-V2-D/E — failure taxonomy over the candidate trace.
 
-    Buckets each should-match case by where its expected match landed:
-    rank-1, rank 2–5, retrieved-but-rejected, missing-from-top-k; and
-    counts dangerous candidates that ranked high but were correctly
-    rejected (safety working as intended)."""
+    Buckets each should-match case to point at the next improvement:
+      * ``expected_rank_1`` / ``expected_rank_2_5`` / ``expected_rank_6_20``
+        — where the right reference landed (a reranker helps 2–20).
+      * ``expected_retrieved_but_rejected`` — retrieval found it but a rule
+        killed it (rule/alias problem).
+      * ``expected_missing_from_topk`` — in the reference table but not in
+        top-k (retrieval recall / reference-text / top_k problem).
+      * ``fixture_expected_not_in_reference`` — the expected food isn't in
+        the loaded NEVO reference at all (reference-coverage / fixture gap;
+        only computed when ``references`` is provided).
+      * ``no_safe_reference`` — a should-match case with no expected match
+        specified (nothing correct to retrieve).
+      * ``dangerous_ranked_high_but_rejected`` — a forbidden candidate
+        ranked top-5 but was correctly killed (safety working).
+      * ``dangerous_incorrectly_accepted`` — a forbidden candidate that was
+        ACCEPTED (a real safety failure; should always be 0).
+    """
     by_case: dict[str, list[dict[str, Any]]] = {}
     for r in rows:
         by_case.setdefault(r["fixture_id"], []).append(r)
 
+    ref_names: set[str] | None = None
+    ref_codes: set[str] | None = None
+    if references is not None:
+        ref_names = {str(r.get("food_name_en", "")).lower() for r in references}
+        ref_codes = {
+            str(r.get("nevo_code", "")) for r in references if r.get("nevo_code")
+        }
+
     tax = {
         "expected_rank_1": 0,
         "expected_rank_2_5": 0,
+        "expected_rank_6_20": 0,
         "expected_retrieved_but_rejected": 0,
         "expected_missing_from_topk": 0,
+        "fixture_expected_not_in_reference": 0,
+        "no_safe_reference": 0,
         "dangerous_ranked_high_but_rejected": 0,
+        "dangerous_incorrectly_accepted": 0,
     }
     for case in cases:
         if not bool(case.get("should_match", case.get("expected_match") is not None)):
             continue
         expected = case.get("expected_match") or {}
         exp_name = str(expected.get("food_name_en", "")).lower()
+        exp_code = str(expected.get("nevo_code", ""))
         crows = by_case.get(str(case.get("id", "")), [])
-        found = None
-        for r in crows:
-            if str(r["candidate_name"]).lower() == exp_name:
-                found = r
-                break
-        if found is None:
-            tax["expected_missing_from_topk"] += 1
-        elif not found["accepted"]:
-            tax["expected_retrieved_but_rejected"] += 1
-        elif found["candidate_rank"] == 1:
-            tax["expected_rank_1"] += 1
-        elif found["candidate_rank"] <= 5:
-            tax["expected_rank_2_5"] += 1
-        # Forbidden candidates that ranked in the top 5 but were rejected.
+
+        if not exp_name and not exp_code:
+            tax["no_safe_reference"] += 1
+        else:
+            in_reference = True
+            if ref_names is not None:
+                in_reference = (
+                    (bool(exp_name) and exp_name in ref_names)
+                    or (bool(exp_code) and exp_code in (ref_codes or set()))
+                )
+                if not in_reference:
+                    tax["fixture_expected_not_in_reference"] += 1
+
+            found = None
+            for r in crows:
+                if str(r["candidate_name"]).lower() == exp_name:
+                    found = r
+                    break
+            if found is None:
+                # A genuine retrieval miss only when the food IS in the
+                # reference table; otherwise it's a coverage gap (counted
+                # above), not something better retrieval could fix.
+                if in_reference:
+                    tax["expected_missing_from_topk"] += 1
+            elif not found["accepted"]:
+                tax["expected_retrieved_but_rejected"] += 1
+            elif found["candidate_rank"] == 1:
+                tax["expected_rank_1"] += 1
+            elif found["candidate_rank"] <= 5:
+                tax["expected_rank_2_5"] += 1
+            elif found["candidate_rank"] <= 20:
+                tax["expected_rank_6_20"] += 1
+
+        # Forbidden candidates: rejected-when-high (safe) vs accepted (bad).
         forbidden = {f.lower() for f in case.get("forbidden_matches", [])}
         for r in crows:
-            if (
-                str(r["candidate_name"]).lower() in forbidden
-                and r["candidate_rank"] <= 5
-                and not r["accepted"]
-            ):
+            if str(r["candidate_name"]).lower() not in forbidden:
+                continue
+            if r["accepted"]:
+                tax["dangerous_incorrectly_accepted"] += 1
+            elif r["candidate_rank"] <= 5:
                 tax["dangerous_ranked_high_but_rejected"] += 1
     return tax
 
