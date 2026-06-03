@@ -769,3 +769,47 @@ potential high-risk disagreements to inspect, and the CSV path.
 This is the evidence to decide a future controlled activation — it changes
 no production behaviour: V1 remains the default, embeddings stay disabled
 by default, and no route imports V2/embeddings.
+
+## Quality-V2-J — NEVO V2 concepts for real FR retailer products
+
+The V2-I shadow comparison on a real French project surfaced V1 false
+positives (Sauce Tomate → "Beans white baked in tomato sauce", Chocolat
+Noir → "Milk chocolate-flavoured", Pois Chiches → "Peas green dried",
+Maïs Doux → "Corn starch", Café/Thé → "Biscuit Cafe noir", Corn Flakes →
+"Chicken schnitzel … w corn flakes") and V2 false negatives (Chocolat,
+Thon, Maïs Doux, Jus d'Orange, Café, Thé all `no_match` despite the right
+food sitting in the top-5). V2-J adds the missing concepts and improves the
+shadow interpretation. Still evaluator/dev-only; no rules wired to routes;
+V1 default; embeddings off by default; gates stay green.
+
+New concepts (FR product forms + EN/NEVO reference names): `chocolate`,
+`tuna`, `sweet_corn`, `corn_flakes`, `orange_juice`, `coffee`, `tea`,
+`soup`, `tomato_sauce`. So e.g. "Chocolat Noir" → "Chocolate dark", "Thon
+… au Naturel" → "Tuna in water tinned", "Maïs Doux" → "Sweetcorn tinned",
+"Corn Flakes" → "Breakfast cereal Cornflakes", "Jus d'Orange Pulpe" →
+"Juice orange w pulp", "Café …" → "Coffee prepared", "Thé Noir Earl Grey"
+→ "Tea prepared".
+
+Ingredient-token traps stay rejected by the existing composite/dish-noun
+head logic — a dish whose MAIN food differs from the product never matches:
+"Beans white baked in tomato sauce" (head = beans), "Chicken schnitzel
+breaded w corn flakes" (head = chicken), "Biscuit Cafe noir" (head =
+biscuit/dish) all reject. Sweet corn deliberately excludes bare
+"corn"/"maïs" so "Corn starch"/"Corn flour" never read as sweet corn. A
+gate hole was also closed: an exact head-token match (e.g. "Corn Flakes"
+head `corn` vs "Corn starch") is now rejected when the product resolves to
+a concept the candidate does not share — only the concept path can accept
+such products. Soup and tomato-sauce products resolve to a concept but
+abstain (their only NEVO references are dish-noun composites) — safe, no
+false positive.
+
+Shadow interpretation (`compare_nevo_v1_v2`):
+- New risk bucket `v2_better_than_v1` — V2 matched the product's OWN concept
+  while V1 matched a different concept or nothing.
+- New note "V1 likely false positive" — when V1's reference concept
+  conflicts with the product's concept.
+- Summary now also prints "V2 better than V1" and "V1 likely false
+  positives" counts.
+
+Gates unchanged: HC-FP 0, forbidden rejection 100%, dangerous_incorrectly_
+accepted 0 on the full-NEVO fake benchmark.

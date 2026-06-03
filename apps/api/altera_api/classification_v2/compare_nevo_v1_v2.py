@@ -92,11 +92,30 @@ def agreement_bucket(
     return "disagreement_needs_review"
 
 
+def _v1_off_concept(product_name: str | None, v1_name: str | None) -> bool:
+    """True when the product resolves to a concept that V1's reference does
+    NOT share — i.e. V1 likely matched the wrong food (a false positive)."""
+    pc = concept_of(product_name or "")
+    if not v1_name or pc is None:
+        return False
+    return concept_of(v1_name) != pc
+
+
+def _v2_on_concept(
+    product_name: str | None, v2_name: str | None, v2_matched: bool
+) -> bool:
+    """True when V2 matched a reference that shares the product's concept."""
+    pc = concept_of(product_name or "")
+    return bool(v2_matched) and pc is not None and concept_of(v2_name or "") == pc
+
+
 def risk_bucket(
     *,
     agreement: str,
+    product_name: str | None,
     v1_name: str | None,
     v2_name: str | None,
+    v2_matched: bool,
     v2_review_required: bool,
 ) -> str:
     if agreement == "same_code":
@@ -108,6 +127,12 @@ def risk_bucket(
     if v2_review_required:
         # V2 surfaced a review-only candidate — a human will confirm it.
         return "v2_review_only"
+    # Phase Quality-V2-J — when V2 matched the product's OWN concept while V1
+    # matched a different concept (or nothing), V2 is the better answer.
+    if _v2_on_concept(product_name, v2_name, v2_matched) and (
+        _v1_off_concept(product_name, v1_name) or agreement == "v2_only"
+    ):
+        return "v2_better_than_v1"
     if agreement in ("v2_only", "disagreement_needs_review"):
         # V2 auto-accepted a food V1 didn't (or a different one) → inspect.
         return "v2_potential_false_positive"
@@ -182,9 +207,17 @@ def build_comparison_rows(
             v2_matched=v2["matched"], v2_code=v2["code"], v2_name=v2["name"],
         )
         risk = risk_bucket(
-            agreement=agreement, v1_name=v1["name"], v2_name=v2["name"],
-            v2_review_required=v2["review_required"],
+            agreement=agreement, product_name=p.product_name,
+            v1_name=v1["name"], v2_name=v2["name"],
+            v2_matched=v2["matched"], v2_review_required=v2["review_required"],
         )
+        note_parts: list[str] = []
+        if _v1_off_concept(p.product_name, v1["name"]):
+            note_parts.append(
+                f"V1 likely false positive (V1 concept "
+                f"{concept_of(v1['name'])!r} != product concept "
+                f"{concept_of(p.product_name)!r})"
+            )
         rows.append(
             {
                 "product_id": str(p.id),
@@ -207,7 +240,7 @@ def build_comparison_rows(
                 "v2_rejection_reasons_summary": v2["rejections"],
                 "agreement_bucket": agreement,
                 "risk_bucket": risk,
-                "notes": "",
+                "notes": " ;; ".join(note_parts),
             }
         )
     return rows
@@ -231,6 +264,8 @@ def print_summary(rows: list[dict[str, Any]], csv_path: Path) -> None:
 
     v2_auto = sum(1 for r in rows if r["v2_outcome"] == "match")
     v2_review = sum(1 for r in rows if r["v2_outcome"] == "review")
+    v2_better = sum(1 for r in rows if r["risk_bucket"] == "v2_better_than_v1")
+    v1_fp = sum(1 for r in rows if r["notes"].startswith("V1 likely false positive"))
     high_risk = sum(
         1 for r in rows
         if r["risk_bucket"] in ("v2_potential_false_positive", "manual_inspection_needed")
@@ -245,6 +280,8 @@ def print_summary(rows: list[dict[str, Any]], csv_path: Path) -> None:
     print("-" * 72)
     print(f"  V2 auto_accept                {v2_auto:>6}")
     print(f"  V2 review_required            {v2_review:>6}")
+    print(f"  V2 better than V1             {v2_better:>6}")
+    print(f"  V1 likely false positives     {v1_fp:>6}")
     print(f"  potential high-risk to inspect {high_risk:>5}")
     print("=" * 72)
     print(f"CSV: {csv_path}")

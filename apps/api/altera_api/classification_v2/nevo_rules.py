@@ -98,6 +98,26 @@ _CONCEPTS: dict[str, tuple[str, ...]] = {
                "patate", "patates"),
     "apple": ("pomme", "pommes", "apple", "apples"),
     "tomato": ("tomate", "tomates", "tomato", "tomatoes"),
+    # Phase Quality-V2-J — real FR retailer foods. FR product forms + the
+    # EN/NEVO reference names so a French product resolves to the same
+    # concept as its English NEVO entry. Ingredient-token traps are NOT
+    # added here — they are handled by the composite/dish-noun head logic
+    # (e.g. "Beans white baked in tomato sauce", "Chicken schnitzel … w
+    # corn flakes", "Biscuit Cafe noir" all have a non-matching head).
+    "chocolate": ("chocolat", "chocolate"),
+    "tuna": ("thon", "tuna"),
+    # sweet corn ONLY — never bare "corn"/"mais" (that would swallow
+    # "Corn starch"/"Corn flour"); requires the sweet/doux qualifier.
+    "sweet_corn": ("mais doux", "sweetcorn", "sweet corn", "corn sweet"),
+    "corn_flakes": ("corn flakes", "cornflakes"),
+    "orange_juice": ("jus d orange", "jus orange", "juice orange", "orange juice"),
+    "coffee": ("cafe", "coffee"),
+    # tea: avoid the bare English word "the" (too common); use FR phrases
+    # + EN tea words.
+    "tea": ("the noir", "the vert", "the glace", "the infusion", "earl grey",
+            "tea", "green tea", "black tea"),
+    "soup": ("soupe", "veloute", "soup"),
+    "tomato_sauce": ("sauce tomate", "sauce tomato", "tomato sauce"),
 }
 
 
@@ -249,18 +269,18 @@ def decide_candidate(product_name: str, candidate: NevoCandidate) -> NevoGateRes
         )
 
     # 4. Exact primary-head match — both names lead with the same head
-    #    token (same-language simple foods, e.g. "Tofu nature" ↔ "Tofu
-    #    unprepared"). Reject if the candidate carries a DIFFERENT mapped
-    #    concept.
+    #    token (same-language simple foods with no mapped concept, e.g.
+    #    "Date" ↔ "Date dried"). If the PRODUCT resolves to a concept, a
+    #    bare head-token match is only safe via the concept path (step 3);
+    #    a candidate that does not share that concept — including one with
+    #    NO concept at all ("Corn Flakes" head 'corn' vs "Corn starch") —
+    #    is rejected here (Phase Quality-V2-J).
     if cand_primary_head is not None and p_head == cand_primary_head:
-        if (
-            prod_concept is not None
-            and cand_head_concept is not None
-            and cand_head_concept != prod_concept
-        ):
+        if prod_concept is not None:
             return NevoGateResult(
                 False, 0.0,
-                f"Heads match but concepts differ ({prod_concept!r} != "
+                f"Heads match ({p_head!r}) but the candidate does not share the "
+                f"product concept {prod_concept!r} (candidate concept "
                 f"{cand_head_concept!r}).",
                 "rejected",
             )

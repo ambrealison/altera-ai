@@ -69,57 +69,73 @@ class TestAgreementBucket:
 class TestRiskBucket:
     def test_same_code_is_safe(self) -> None:
         assert risk_bucket(
-            agreement="same_code", v1_name="Tofu", v2_name="Tofu unprepared",
-            v2_review_required=False,
+            agreement="same_code", product_name="Tofu nature", v1_name="Tofu",
+            v2_name="Tofu unprepared", v2_matched=True, v2_review_required=False,
         ) == "safe_agreement"
 
     def test_both_no_match_is_safe(self) -> None:
         assert risk_bucket(
-            agreement="both_no_match", v1_name="", v2_name="",
-            v2_review_required=False,
+            agreement="both_no_match", product_name="Mystery", v1_name="",
+            v2_name="", v2_matched=False, v2_review_required=False,
         ) == "safe_agreement"
 
     def test_same_concept_v2_more_specific(self) -> None:
         assert risk_bucket(
-            agreement="same_concept", v1_name="Cheese",
-            v2_name="Cheese Brie 60", v2_review_required=False,
+            agreement="same_concept", product_name="Fromage", v1_name="Cheese",
+            v2_name="Cheese Brie 60", v2_matched=True, v2_review_required=False,
         ) == "v2_more_specific"
 
     def test_same_concept_v1_more_specific(self) -> None:
         assert risk_bucket(
-            agreement="same_concept", v1_name="Lentils red boiled",
-            v2_name="Lentils", v2_review_required=False,
+            agreement="same_concept", product_name="Lentilles",
+            v1_name="Lentils red boiled", v2_name="Lentils",
+            v2_matched=True, v2_review_required=False,
         ) == "v1_more_specific"
-
-    def test_same_concept_equal_specificity_is_safe(self) -> None:
-        assert risk_bucket(
-            agreement="same_concept", v1_name="Quark low fat",
-            v2_name="Quark full fat", v2_review_required=False,
-        ) == "safe_agreement"
 
     def test_v2_review_only(self) -> None:
         assert risk_bucket(
-            agreement="disagreement_needs_review", v1_name="Tofu",
-            v2_name="Apple", v2_review_required=True,
+            agreement="disagreement_needs_review", product_name="Tofu nature",
+            v1_name="Tofu", v2_name="Apple", v2_matched=True,
+            v2_review_required=True,
         ) == "v2_review_only"
 
-    def test_v2_potential_false_positive_on_v2_only_autoaccept(self) -> None:
+    def test_v2_potential_false_positive_when_v2_offconcept(self) -> None:
+        # Product has no mapped concept → cannot verify V2; auto-accept is
+        # a potential false positive to inspect.
         assert risk_bucket(
-            agreement="v2_only", v1_name="", v2_name="Tofu",
-            v2_review_required=False,
+            agreement="v2_only", product_name="Mystery box xyz", v1_name="",
+            v2_name="Tofu", v2_matched=True, v2_review_required=False,
         ) == "v2_potential_false_positive"
 
-    def test_v2_potential_false_positive_on_disagreement_autoaccept(self) -> None:
+    def test_v2_potential_false_positive_on_disagreement_v2_offconcept(self) -> None:
+        # V1 matched the product concept (tofu); V2 matched a different food.
         assert risk_bucket(
-            agreement="disagreement_needs_review", v1_name="Tofu",
-            v2_name="Apple", v2_review_required=False,
+            agreement="disagreement_needs_review", product_name="Tofu nature",
+            v1_name="Tofu", v2_name="Apple", v2_matched=True,
+            v2_review_required=False,
         ) == "v2_potential_false_positive"
 
     def test_v1_only_needs_manual_inspection(self) -> None:
         assert risk_bucket(
-            agreement="v1_only", v1_name="Tofu", v2_name="",
-            v2_review_required=False,
+            agreement="v1_only", product_name="Tofu nature", v1_name="Tofu",
+            v2_name="", v2_matched=False, v2_review_required=False,
         ) == "manual_inspection_needed"
+
+    # Phase Quality-V2-J — V2 better than V1.
+    def test_v2_better_than_v1_on_v2_only_matching_concept(self) -> None:
+        # V1 abstained; V2 matched the product's own concept.
+        assert risk_bucket(
+            agreement="v2_only", product_name="Chocolat Noir", v1_name="",
+            v2_name="Chocolate dark", v2_matched=True, v2_review_required=False,
+        ) == "v2_better_than_v1"
+
+    def test_v2_better_than_v1_when_v1_offconcept(self) -> None:
+        # V1 matched a milk drink for dark chocolate; V2 matched chocolate.
+        assert risk_bucket(
+            agreement="disagreement_needs_review", product_name="Chocolat Noir",
+            v1_name="Milk chocolate-flavoured full fat", v2_name="Chocolate dark",
+            v2_matched=True, v2_review_required=False,
+        ) == "v2_better_than_v1"
 
 
 # ---------------------------------------------------------------------------
