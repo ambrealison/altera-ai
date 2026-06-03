@@ -52,8 +52,9 @@ def _same_food(expected: dict[str, Any], code: str | None, name: str | None) -> 
 
 CANDIDATES_CSV_COLUMNS = [
     "fixture_id", "product_name", "expected_match", "candidate_rank",
-    "candidate_name", "similarity", "accepted", "rejection_reason",
-    "final_decision", "match_type", "confidence", "model", "provider",
+    "candidate_name", "candidate_code", "similarity", "accepted",
+    "rejection_reason", "final_decision", "match_type", "confidence",
+    "model", "provider",
 ]
 
 
@@ -114,6 +115,7 @@ def evaluate_nevo_embeddings(
                     "expected_match": (expected or {}).get("food_name_en", ""),
                     "candidate_rank": tr.rank,
                     "candidate_name": tr.candidate_name,
+                    "candidate_code": tr.nevo_code,
                     "similarity": tr.similarity,
                     "accepted": tr.accepted,
                     "rejection_reason": tr.rejection_reason,
@@ -299,9 +301,15 @@ def summarize_candidates(
                 if not in_reference:
                     tax["fixture_expected_not_in_reference"] += 1
 
+            # Find the expected food among candidates using the SAME
+            # code-aware / concept-aware matching as the metrics + focused
+            # failure reports (a fixture label "Chickpeas" matches the real
+            # NEVO candidate "Peas chick boiled" via code 1095 / the
+            # chickpea concept). Matching only by exact name made every
+            # expected look "missing from top-k" on the real NEVO run.
             found = None
             for r in crows:
-                if str(r["candidate_name"]).lower() == exp_name:
+                if _same_food(expected, r.get("candidate_code"), r.get("candidate_name")):
                     found = r
                     break
             if found is None:

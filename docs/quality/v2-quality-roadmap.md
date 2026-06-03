@@ -612,3 +612,24 @@ usually in top 2–20 with green gates but poor final ranking. If expected
 is still often missing from top-20, invest first in reference text /
 aliases / `top_k`; fixture alignment is now done. V1 stays the production
 default; this remains evaluator/dev-only.
+
+### Confirmed green after V2-F (+ taxonomy hotfix)
+
+The full-NEVO `voyage-4-lite` rerun after V2-F passes the gates:
+
+```
+Coverage 100% · HC-FP 0 · Forbidden rejection 100% ·
+top1 85.7% · top5 96.4% · top20 100% · gates=True
+All focused failure CSVs = 0 rows.
+```
+
+Hotfix: `summarize_candidates` now finds the expected food among
+candidates with the SAME code-aware/concept-aware matching as the metrics
+and the focused failure reports (via `_same_food` on each candidate's
+`nevo_code` + concept), instead of an exact fixture-label name compare.
+Previously the printed taxonomy showed a stale `expected_missing_from_topk:
+24` on the real run because the fixture label ("Chickpeas") never string-
+equals the real NEVO candidate label ("Peas chick boiled") even though
+they share `nevo_code` 1095 / the chickpea concept. The candidate CSV +
+rows now also carry `candidate_code`. Taxonomy rank buckets are now
+consistent with `top1/top5/top20` and with the (header-only) failure CSVs.

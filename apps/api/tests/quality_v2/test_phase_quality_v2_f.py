@@ -279,6 +279,87 @@ class TestReferenceText:
 
 
 # ---------------------------------------------------------------------------
+# Hotfix — taxonomy uses code/concept-aware matching (label != NEVO label).
+# ---------------------------------------------------------------------------
+class TestTaxonomyCodeConceptAware:
+    """The fixture label ("Chickpeas") differs from the real NEVO candidate
+    label ("Peas chick boiled"); the taxonomy must still find the expected
+    food by nevo_code / concept, not report it missing-from-top-k."""
+
+    def _rows(self, *, cand_name, cand_code, rank=1, accepted=True):
+        return [
+            {
+                "fixture_id": "t1", "product_name": "Pois chiches",
+                "expected_match": "Chickpeas", "candidate_rank": rank,
+                "candidate_name": cand_name, "candidate_code": cand_code,
+                "similarity": 0.9, "accepted": accepted, "rejection_reason": "",
+                "final_decision": "embedding_plus_rule", "match_type": "alias",
+                "confidence": 0.96, "model": "voyage-4-lite", "provider": "voyage",
+            }
+        ]
+
+    def test_code_match_with_different_label_is_rank_1(self) -> None:
+        cases = [{"id": "t1", "product_name": "Pois chiches",
+                  "expected_match": {"food_name_en": "Chickpeas", "nevo_code": "1095"},
+                  "should_match": True}]
+        rows = self._rows(cand_name="Peas chick boiled", cand_code="1095")
+        refs = [{"food_name_en": "Peas chick boiled", "nevo_code": "1095"}]
+        tax = summarize_candidates(cases, rows, refs)
+        assert tax["expected_rank_1"] == 1
+        assert tax["expected_missing_from_topk"] == 0
+        assert tax["fixture_expected_not_in_reference"] == 0
+
+    def test_concept_match_without_code_match_is_found(self) -> None:
+        # Synthetic expected code that does NOT equal the candidate code —
+        # only the chickpea concept links them.
+        cases = [{"id": "t1", "product_name": "Pois chiches",
+                  "expected_match": {"food_name_en": "Chickpeas",
+                                     "nevo_code": "NEVO-CHICKPEA"},
+                  "should_match": True}]
+        rows = self._rows(cand_name="Peas chick canned", cand_code="3185", rank=3)
+        refs = [{"food_name_en": "Peas chick canned", "nevo_code": "3185"}]
+        tax = summarize_candidates(cases, rows, refs)
+        assert tax["expected_rank_2_5"] == 1
+        assert tax["expected_missing_from_topk"] == 0
+
+    def test_genuinely_unrelated_candidate_is_missing(self) -> None:
+        cases = [{"id": "t1", "product_name": "Pois chiches",
+                  "expected_match": {"food_name_en": "Chickpeas", "nevo_code": "1095"},
+                  "should_match": True}]
+        rows = self._rows(cand_name="Wheat bread white", cand_code="999")
+        refs = [{"food_name_en": "Peas chick boiled", "nevo_code": "1095"}]
+        tax = summarize_candidates(cases, rows, refs)
+        # Expected IS in the reference but retrieval returned an unrelated
+        # food → genuine retrieval miss.
+        assert tax["expected_missing_from_topk"] == 1
+        assert tax["expected_rank_1"] == 0
+
+    def test_taxonomy_matches_topk_metrics_on_aligned_run(self) -> None:
+        # Simulate a perfect-retrieval real run: every expected food is
+        # retrieved at rank 1 under its NEVO label. Taxonomy rank-1 count
+        # must equal the should-match total (consistent with top1=100%).
+        cases = load_fixture(_FIXTURE)
+        should = [c for c in cases if c.get("should_match", bool(c.get("expected_match")))]
+        rows = []
+        for c in should:
+            em = c["expected_match"]
+            rows.append({
+                "fixture_id": str(c["id"]), "product_name": c["product_name"],
+                "expected_match": em["food_name_en"], "candidate_rank": 1,
+                "candidate_name": em.get("nevo_reference_name", em["food_name_en"]),
+                "candidate_code": em["nevo_code"], "similarity": 0.95,
+                "accepted": True, "rejection_reason": "",
+                "final_decision": "embedding_plus_rule", "match_type": "alias",
+                "confidence": 0.96, "model": "voyage-4-lite", "provider": "voyage",
+            })
+        refs = load_nevo_reference("nevo")
+        tax = summarize_candidates(should, rows, refs)
+        assert tax["expected_rank_1"] == len(should)
+        assert tax["expected_missing_from_topk"] == 0
+        assert tax["fixture_expected_not_in_reference"] == 0
+
+
+# ---------------------------------------------------------------------------
 # Safety — production stays on V1; routes don't import V2.
 # ---------------------------------------------------------------------------
 class TestSafety:
