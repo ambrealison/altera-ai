@@ -724,3 +724,48 @@ forbidden rejection 100%, coverage 100%, and top20 100%. There is no
 a future run shows `needs_reranker` cases (a different-concept food
 accepted above the right one) or genuine ranking noise. V1 remains the
 production default; embeddings stay disabled by default; evaluator/dev-only.
+
+## Quality-V2-I — read-only V1-vs-V2 shadow comparison on real project rows
+
+A STRICTLY READ-ONLY CLI to compare the production V1 NEVO matcher against
+the V2 embeddings matcher on a real project's products, before any
+activation decision. It reads the project, its products and the NEVO
+reference and writes only comparison CSVs under `/tmp/altera-quality`; it
+never calls a store write method (no enrichment records, classifications,
+runs, review items, or product updates — proven by a read-only store spy in
+the tests).
+
+```bash
+ALTERA_ENABLE_EMBEDDINGS=true VOYAGE_API_KEY=$VOYAGE_API_KEY \
+python -m altera_api.classification_v2.compare_nevo_v1_v2 \
+    --project-id <uuid> --output-dir /tmp/altera-quality \
+    --top-k 20 --cache-dir /tmp/altera-quality/cache
+```
+
+Also: `--limit-products N`, `--batch-size 64`, `--embedding-model
+voyage-4-lite`, `--reference-source nevo|fixture`, `--require-voyage`,
+`--debug`.
+
+- **V1** = the current production deterministic `NevoProvider` path
+  (exact EN/NL name → fuzzy token overlap → food-group average). No LLM
+  call, no cost, no writes. (The optional AI-assisted fallback is not
+  invoked in shadow mode.)
+- **V2** = the embeddings matcher in evaluator/dev mode. It uses the real
+  Voyage provider only when `ALTERA_ENABLE_EMBEDDINGS=true` (+
+  `VOYAGE_API_KEY`); otherwise it falls back to the deterministic FAKE
+  provider. A present `VOYAGE_API_KEY` alone enables nothing. Only the
+  product descriptor (name / category / ingredients / labels) is embedded
+  — never a commercial field.
+
+The CSV rows carry the V1 + V2 outcomes/references/confidence, the V2 top-5
+candidates and rejection reasons, plus an `agreement_bucket`
+(`same_code` / `same_concept` / `v1_only` / `v2_only` / `both_no_match` /
+`disagreement_needs_review`) and a `risk_bucket` (`safe_agreement` /
+`v2_more_specific` / `v1_more_specific` / `v2_review_only` /
+`v2_potential_false_positive` / `manual_inspection_needed`). The console
+prints the bucket counts, V2 auto-accept vs review counts, the number of
+potential high-risk disagreements to inspect, and the CSV path.
+
+This is the evidence to decide a future controlled activation — it changes
+no production behaviour: V1 remains the default, embeddings stay disabled
+by default, and no route imports V2/embeddings.
