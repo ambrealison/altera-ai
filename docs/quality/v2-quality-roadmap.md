@@ -633,3 +633,45 @@ equals the real NEVO candidate label ("Peas chick boiled") even though
 they share `nevo_code` 1095 / the chickpea concept. The candidate CSV +
 rows now also carry `candidate_code`. Taxonomy rank buckets are now
 consistent with `top1/top5/top20` and with the (header-only) failure CSVs.
+
+## Quality-V2-G — rank-miss inspection (before any reranker)
+
+The green full-NEVO `voyage-4-lite` run leaves a small, safe tail:
+`expected_rank_2_5 = 3`, `expected_rank_6_20 = 1`,
+`expected_retrieved_but_rejected = 2` (HC-FP 0, forbidden 100%,
+top20 100%). Before deciding on a reranker, V2-G adds two focused reports
+(no rules/gate change, still evaluator/dev-only) so we can see exactly
+what each tail case is:
+
+- `nevo_rank_misses_<model>.csv` — the expected food was retrieved and
+  accepted but not at rank 1 (mirrors `expected_rank_2_5 +
+  expected_rank_6_20`).
+- `nevo_expected_retrieved_but_rejected_<model>.csv` — the expected food
+  was retrieved in the top-k but the rules rejected it (mirrors
+  `expected_retrieved_but_rejected`).
+
+Each row carries the expected candidate (name/code/rank/similarity/
+rejection reason), the accepted candidate (name/code/rank/similarity/
+match_type/confidence + `accepted_same_concept_as_expected`), the top-5
+context (names/codes/similarities), and a heuristic `diagnosis_bucket`:
+
+- `harmless_equivalent` — a same-concept food was still accepted; coverage
+  is fine, no action.
+- `expected_too_specific` — a broader same-concept food was accepted; the
+  fixture expected a more specific variant.
+- `rule_too_strict` — the rules rejected the only good candidate and
+  nothing equivalent was accepted (candidate gate to revisit).
+- `true_ranking_issue` — a different-concept food was accepted while the
+  expected was present (embedding mis-rank).
+- `fixture_should_change` — the expected entry resolves to a different food
+  per the rules (fixture/reference fix).
+- `needs_reranker` — the right food is present but ranked below
+  different-concept noise; a reranker would lift it to rank 1.
+
+The console prints both sections after the failure diagnostics. Counts are
+asserted to mirror the taxonomy. **Interpretation drives PART H:** only if
+the real run's rank-misses are dominated by `needs_reranker` (right food
+present, just ranked low, gates green) is a reranker the next step; if they
+are `harmless_equivalent` / `expected_too_specific` / `fixture_should_
+change`, no reranker is warranted. The reranker is still NOT implemented;
+V1 remains the production default and embeddings stay disabled by default.

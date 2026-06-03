@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from altera_api.classification_v2.nevo_eval_embeddings import _same_food
-from altera_api.classification_v2.nevo_rules import concept_of
+from altera_api.classification_v2.nevo_rules import _significant_tokens, concept_of
 
 FAILURE_CSV_COLUMNS = [
     "fixture_id", "product_name", "expected_match", "expected_nevo_code",
@@ -249,4 +249,215 @@ def print_console_diagnostics(rows: list[dict[str, Any]]) -> None:
         print(
             f"  {r['fixture_id']} | {r['product_name']} | exp {r['expected_match']!r}"
             f" | closest: {r['top_5_candidate_names']}"
+        )
+
+
+# ===========================================================================
+# Phase Quality-V2-G — rank-miss inspection (before any reranker).
+#
+# Two focused reports over should-match cases where the expected reference
+# WAS retrieved in the top-k but is not rank-1 (rank-miss) or was rejected
+# by the rules (retrieved-but-rejected). Each row carries the expected
+# candidate, the accepted candidate, the top-5 context, and a heuristic
+# ``diagnosis_bucket`` so we can tell harmless equivalents apart from real
+# ranking problems — and decide whether a reranker is actually warranted.
+# ===========================================================================
+RANK_INSPECTION_CSV_COLUMNS = [
+    "fixture_id", "product_name", "expected_name", "expected_code",
+    "expected_rank", "expected_candidate_name", "expected_candidate_code",
+    "expected_similarity", "expected_rejection_reason",
+    "accepted_candidate_name", "accepted_candidate_code",
+    "accepted_candidate_rank", "accepted_candidate_similarity",
+    "accepted_match_type", "accepted_confidence",
+    "accepted_same_concept_as_expected", "top_5_candidate_names",
+    "top_5_candidate_codes", "top_5_similarities", "diagnosis_bucket", "notes",
+]
+
+#: All diagnosis buckets a rank-miss / rejected case can fall into.
+DIAGNOSIS_BUCKETS = (
+    "harmless_equivalent",     # a same-concept food was accepted; coverage fine
+    "expected_too_specific",   # accepted a broader same-concept food
+    "rule_too_strict",         # rule rejected the only good candidate
+    "true_ranking_issue",      # an unrelated food ranks #1 (embeddings mis-rank)
+    "fixture_should_change",   # expected resolves to a different food per rules
+    "needs_reranker",          # right food present below rejected same-concept noise
+)
+
+
+def _is_broader(accepted_name: str, expected_name: str) -> bool:
+    a = set(_significant_tokens(accepted_name))
+    b = set(_significant_tokens(expected_name))
+    return bool(a) and a < b
+
+
+def _diagnosis_bucket(
+    *,
+    exp_trace: Any,
+    accepted_trace: Any,
+    accepted_same_concept: bool,
+) -> str:
+    """Heuristic, advisory classification (see ``DIAGNOSIS_BUCKETS``)."""
+    if exp_trace is None:
+        return "true_ranking_issue"
+
+    if not exp_trace.accepted:
+        # The expected candidate was rejected by the rules.
+        if accepted_same_concept:
+            # …but an equivalent same-concept food WAS accepted → the
+            # rejection of this (usually composite) variant is correct.
+            return "harmless_equivalent"
+        reason = (exp_trace.rejection_reason or "").lower()
+        if (
+            "composite" in reason or "prepared dish" in reason
+            or "secondary ingredient" in reason
+        ):
+            return "rule_too_strict"
+        return "fixture_should_change"
+
+    # The expected candidate was ACCEPTED, but at rank > 1.
+    if not accepted_same_concept:
+        # A different-concept food (or nothing) was accepted while the
+        # expected was present → the embedding ranking is genuinely off.
+        return "true_ranking_issue"
+    if (
+        accepted_trace is not None
+        and accepted_trace.rank < exp_trace.rank
+        and accepted_trace.candidate_name != exp_trace.candidate_name
+    ):
+        # A different same-concept food ranked above and was accepted.
+        if _is_broader(accepted_trace.candidate_name, exp_trace.candidate_name):
+            return "expected_too_specific"
+        return "harmless_equivalent"
+    # The right food itself was accepted, just ranked below different-
+    # concept noise → a reranker would lift it to rank 1.
+    return "needs_reranker"
+
+
+def _rank_inspection_row(
+    case: dict[str, Any], decision: Any, exp_trace: Any, top: list[Any],
+) -> dict[str, Any]:
+    expected = case.get("expected_match") or {}
+    accepted_trace = None
+    if decision.matched:
+        for tr in top:
+            if tr.candidate_name == decision.food_name_en and tr.accepted:
+                accepted_trace = tr
+                break
+    accepted_same_concept = (
+        _same_food(expected, decision.nevo_code, decision.food_name_en)
+        if decision.matched else False
+    )
+    top5 = top[:5]
+    bucket = _diagnosis_bucket(
+        exp_trace=exp_trace, accepted_trace=accepted_trace,
+        accepted_same_concept=accepted_same_concept,
+    )
+    return {
+        "fixture_id": str(case.get("id", "")),
+        "product_name": case.get("product_name", ""),
+        "expected_name": expected.get("food_name_en", ""),
+        "expected_code": expected.get("nevo_code", ""),
+        "expected_rank": exp_trace.rank,
+        "expected_candidate_name": exp_trace.candidate_name,
+        "expected_candidate_code": exp_trace.nevo_code,
+        "expected_similarity": exp_trace.similarity,
+        "expected_rejection_reason": (
+            "" if exp_trace.accepted else exp_trace.rejection_reason
+        ),
+        "accepted_candidate_name": decision.food_name_en if decision.matched else "",
+        "accepted_candidate_code": decision.nevo_code if decision.matched else "",
+        "accepted_candidate_rank": accepted_trace.rank if accepted_trace else "",
+        "accepted_candidate_similarity": (
+            accepted_trace.similarity if accepted_trace else ""
+        ),
+        "accepted_match_type": decision.match_type,
+        "accepted_confidence": round(decision.confidence, 4),
+        "accepted_same_concept_as_expected": accepted_same_concept,
+        "top_5_candidate_names": " | ".join(t.candidate_name for t in top5),
+        "top_5_candidate_codes": " | ".join(str(t.nevo_code) for t in top5),
+        "top_5_similarities": " | ".join(f"{t.similarity:.3f}" for t in top5),
+        "diagnosis_bucket": bucket,
+        "notes": case.get("notes", ""),
+    }
+
+
+def inspect_rank_misses(
+    records: list[tuple[dict[str, Any], Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return ``(rank_miss_rows, retrieved_but_rejected_rows)``.
+
+    Uses the SAME first-``_same_food`` expected-candidate selection as the
+    taxonomy, so the row counts equal the taxonomy's
+    ``expected_rank_2_5 + expected_rank_6_20`` and
+    ``expected_retrieved_but_rejected``."""
+    rank_miss: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for case, decision in records:
+        expected = case.get("expected_match") or {}
+        should_match = bool(case.get("should_match", bool(expected)))
+        if not should_match or not expected:
+            continue
+        top = list(getattr(decision, "top_candidates", []))
+        exp_trace = None
+        for tr in top:
+            if _same_food(expected, tr.nevo_code, tr.candidate_name):
+                exp_trace = tr
+                break
+        if exp_trace is None:
+            continue  # missing-from-top-k — covered by the other reports
+        if not exp_trace.accepted:
+            rejected.append(_rank_inspection_row(case, decision, exp_trace, top))
+        elif exp_trace.rank > 1:
+            rank_miss.append(_rank_inspection_row(case, decision, exp_trace, top))
+    return rank_miss, rejected
+
+
+def write_rank_inspection_reports(
+    out_dir: str | Path, model: str,
+    rank_miss_rows: list[dict[str, Any]],
+    rejected_rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    slug = model.replace(".", "_")
+    files = {
+        f"nevo_rank_misses_{slug}.csv": rank_miss_rows,
+        f"nevo_expected_retrieved_but_rejected_{slug}.csv": rejected_rows,
+    }
+    counts: dict[str, int] = {}
+    for fname, subset in files.items():
+        with (out / fname).open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=RANK_INSPECTION_CSV_COLUMNS)
+            w.writeheader()
+            for r in subset:
+                w.writerow(r)
+        counts[fname] = len(subset)
+    return counts
+
+
+def print_rank_inspection(
+    rank_miss_rows: list[dict[str, Any]],
+    rejected_rows: list[dict[str, Any]],
+) -> None:
+    print("\nExpected retrieved but not rank-1 (rank misses):")
+    if not rank_miss_rows:
+        print("  (none)")
+    for r in rank_miss_rows:
+        print(
+            f"  {r['fixture_id']} | {r['product_name']} | exp {r['expected_name']!r}"
+            f" @ rank {r['expected_rank']} (sim {r['expected_similarity']}) | "
+            f"accepted {r['accepted_candidate_name']!r} "
+            f"(rank {r['accepted_candidate_rank']}, same_concept="
+            f"{r['accepted_same_concept_as_expected']}) | {r['diagnosis_bucket']}"
+        )
+
+    print("\nExpected retrieved but rejected by rules:")
+    if not rejected_rows:
+        print("  (none)")
+    for r in rejected_rows:
+        print(
+            f"  {r['fixture_id']} | {r['product_name']} | exp {r['expected_name']!r}"
+            f" @ rank {r['expected_rank']} | rejected: "
+            f"{r['expected_rejection_reason']} | accepted "
+            f"{r['accepted_candidate_name']!r} | {r['diagnosis_bucket']}"
         )

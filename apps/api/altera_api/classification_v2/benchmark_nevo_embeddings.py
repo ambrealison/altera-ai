@@ -51,8 +51,11 @@ from altera_api.classification_v2.evaluation import (
 )
 from altera_api.classification_v2.nevo_diagnostics import (
     build_diagnosis_rows,
+    inspect_rank_misses,
     print_console_diagnostics,
+    print_rank_inspection,
     write_failure_reports,
+    write_rank_inspection_reports,
 )
 from altera_api.classification_v2.nevo_eval_embeddings import (
     evaluate_nevo_embeddings,
@@ -228,9 +231,19 @@ def _run_model(
     diag_rows = build_diagnosis_rows(decisions, references)
     diag_counts = write_failure_reports(out_dir, model, diag_rows)
     print_console_diagnostics(diag_rows)
+
+    # Phase Quality-V2-G — inspect rank-misses + retrieved-but-rejected
+    # (pre-reranker analysis; counts mirror the taxonomy's rank-2–20 +
+    # retrieved-but-rejected buckets).
+    rank_miss_rows, rejected_rows = inspect_rank_misses(decisions)
+    rank_counts = write_rank_inspection_reports(
+        out_dir, model, rank_miss_rows, rejected_rows
+    )
+    print_rank_inspection(rank_miss_rows, rejected_rows)
+
     print(
-        f"\n[model {model}] failure reports: "
-        + ", ".join(f"{k}={v}" for k, v in diag_counts.items()),
+        f"\n[model {model}] reports: "
+        + ", ".join(f"{k}={v}" for k, v in {**diag_counts, **rank_counts}.items()),
         flush=True,
     )
 
