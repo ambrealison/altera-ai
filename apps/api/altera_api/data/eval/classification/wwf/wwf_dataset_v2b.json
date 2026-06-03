@@ -1,0 +1,970 @@
+{
+  "name": "WWF eval dataset V2-B",
+  "methodology": "wwf",
+  "cases": [
+    {
+      "id": "wwf-1",
+      "product_name": "Filet de poulet",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-2",
+      "product_name": "Steak de boeuf",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-3",
+      "product_name": "Jambon blanc",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-4",
+      "product_name": "Sardines a l'huile",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "seafood not FG3 oil",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-5",
+      "product_name": "Thon en boite",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-6",
+      "product_name": "Oeufs frais",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-7",
+      "product_name": "Lentilles corail",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-8",
+      "product_name": "Pois chiches",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-9",
+      "product_name": "Amandes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-10",
+      "product_name": "Tofu nature",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-11",
+      "product_name": "Steak vegetal",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-12",
+      "product_name": "Chicken breast",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-13",
+      "product_name": "Almonds",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-14",
+      "product_name": "Lait demi-ecreme",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-15",
+      "product_name": "Yaourt nature",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-16",
+      "product_name": "Fromage rape",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-17",
+      "product_name": "Creme fraiche",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-18",
+      "product_name": "Boisson avoine",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "plant drink",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-19",
+      "product_name": "Lait d'amande",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-20",
+      "product_name": "Yaourt soja",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-21",
+      "product_name": "Fromage vegetal noix de cajou",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "plant cheese not FG1 nuts",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-22",
+      "product_name": "Oat drink",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-23",
+      "product_name": "Soy yoghurt",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG2",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-24",
+      "product_name": "Huile d'olive",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG3",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-25",
+      "product_name": "Margarine",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG3",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-26",
+      "product_name": "Beurre doux",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "animal fat",
+      "expected_wwf": {
+        "wwf_food_group": "FG3",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-27",
+      "product_name": "Beurre de cacahuete",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "peanut not animal fat",
+      "expected_wwf": {
+        "wwf_food_group": "FG3",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-28",
+      "product_name": "Peanut butter",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG3",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-29",
+      "product_name": "Carottes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-30",
+      "product_name": "Pommes golden",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-31",
+      "product_name": "Tomates",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-32",
+      "product_name": "Mangue",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-33",
+      "product_name": "Epinards",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-34",
+      "product_name": "Champignons de Paris",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-35",
+      "product_name": "Ratatouille",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "simple veg dish not composite",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-36",
+      "product_name": "Compote de pommes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-37",
+      "product_name": "Myrtilles",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-38",
+      "product_name": "Frozen vegetables",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG4",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-39",
+      "product_name": "Riz basmati",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG5",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-40",
+      "product_name": "Pates penne",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG5",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-41",
+      "product_name": "Pain complet",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG5",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-42",
+      "product_name": "Muesli avoine fruits graines",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "cereal not FG1 nuts/seeds",
+      "expected_wwf": {
+        "wwf_food_group": "FG5",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-43",
+      "product_name": "Granola",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG5",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-44",
+      "product_name": "Quinoa",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG5",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-45",
+      "product_name": "Flocons d'avoine",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG5",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-46",
+      "product_name": "Whole wheat bread",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG5",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-47",
+      "product_name": "Pommes de terre",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG6",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-48",
+      "product_name": "Patate douce",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG6",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-49",
+      "product_name": "Sweet potato",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG6",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-50",
+      "product_name": "Biscuits sables beurre",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "animal snack not FG3 butter",
+      "expected_wwf": {
+        "wwf_food_group": "FG7",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-51",
+      "product_name": "Chocolat noir",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG7",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-52",
+      "product_name": "Chips",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG7",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-53",
+      "product_name": "Cookies",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG7",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-54",
+      "product_name": "Glace vanille",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG7",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-55",
+      "product_name": "Gateau au chocolat",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG7",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-56",
+      "product_name": "Ice cream",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG7",
+        "wwf_is_composite": false
+      }
+    },
+    {
+      "id": "wwf-57",
+      "product_name": "Curry poulet riz",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "meat_based"
+      }
+    },
+    {
+      "id": "wwf-58",
+      "product_name": "Curry pois chiches epinards",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "vegan"
+      }
+    },
+    {
+      "id": "wwf-59",
+      "product_name": "Sushi saumon avocat",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "seafood_based"
+      }
+    },
+    {
+      "id": "wwf-60",
+      "product_name": "Pizza jambon",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "meat_based"
+      }
+    },
+    {
+      "id": "wwf-61",
+      "product_name": "Lasagnes a la viande",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "meat_based"
+      }
+    },
+    {
+      "id": "wwf-62",
+      "product_name": "Quiche lorraine lardons",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "meat_based"
+      }
+    },
+    {
+      "id": "wwf-63",
+      "product_name": "Tarte epinards feta",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "vegetarian"
+      }
+    },
+    {
+      "id": "wwf-64",
+      "product_name": "Bowl tofu riz legumes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "vegan"
+      }
+    },
+    {
+      "id": "wwf-65",
+      "product_name": "Sandwich thon crudites",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "seafood_based"
+      }
+    },
+    {
+      "id": "wwf-66",
+      "product_name": "Gratin de legumes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "vegan"
+      }
+    },
+    {
+      "id": "wwf-67",
+      "product_name": "Wrap poulet crudites",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "meat_based"
+      }
+    },
+    {
+      "id": "wwf-68",
+      "product_name": "Chicken curry with rice",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_wwf": {
+        "wwf_food_group": "FG1",
+        "wwf_is_composite": true,
+        "wwf_composite_step1_bucket": "meat_based"
+      }
+    }
+  ]
+}

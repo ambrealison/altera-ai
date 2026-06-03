@@ -1,19 +1,22 @@
-"""Phase Quality-V2-A — minimal NEVO matching V2 rules (skeleton).
+"""Phase Quality-V2-A/B — NEVO matching V2: precision-first gating.
 
-Precision-first candidate gating. These rules don't perform the actual
-NEVO lookup (that's V1's job today + the embeddings retriever later);
-they encode the *guardrails* that keep a match high-confidence:
+Offline only — NOT production-wired. These rules do not perform the
+actual NEVO lookup; they *gate* a candidate so a match is only
+high-confidence when it is safe. The governing principle: a confident
+WRONG match is worse than no match — abstaining/review beats it.
 
-1. ``head_match_required`` — high confidence needs the candidate's
-   food head to match the product head (not a secondary ingredient).
-2. ``reject_secondary_ingredient`` — a candidate that only matches a
-   minor/secondary ingredient ("à l'huile d'olive", "ail & persil")
-   is rejected for a simple-head product.
-3. ``reject_with_without_trap`` — "with X" / "without X" / "à l'huile"
-   variants are rejected for a simple food head that has no such
-   qualifier.
+The gate decides, for a (product_name, candidate) pair, one of:
+  * exact  — product head literally equals the candidate head.
+  * alias  — product and candidate map to the same canonical concept
+             across FR/EN (pois chiches ↔ chickpeas, lait ↔ milk, …).
+  * proxy  — plausible but not head-exact → review_required, NOT
+             high-confidence.
+  * rejected / abstain — secondary-ingredient traps, with/without
+             qualifiers, or unrelated concepts.
 
-Philosophy: abstaining is better than a confident wrong match.
+Every decision carries a trace (candidate, accepted, match_type,
+confidence, reason) so the evaluator + a future review UI can explain
+why a candidate was accepted or rejected.
 """
 
 from __future__ import annotations
@@ -22,19 +25,47 @@ from dataclasses import dataclass
 
 from altera_api.classification_v2.pt_rules import _norm
 
-# Secondary-ingredient / qualifier phrases that should NOT drive a
-# high-confidence match for a simple food head.
+# Secondary-ingredient / qualifier phrases that must NOT drive a
+# high-confidence match for a simple product head.
 _SECONDARY_QUALIFIERS = (
-    "huile",
-    "olive",
-    "ail",
-    "persil",
-    "with",
-    "without",
-    "sans",
-    "avec",
-    "sauce",
+    "huile", "olive", "ail", "persil", "with", "without", "sans", "avec",
+    "sauce", "mashed", "puree", "boiled", "fried",
 )
+# STRUCTURAL qualifiers describe a composite/prepared candidate
+# ("X with Y", "X without Y", "mashed", "sauce"). A candidate carrying
+# one is never a clean head match for a simple product — reject it even
+# when the product name itself contains an ingredient word.
+_STRUCTURAL_QUALIFIERS = (
+    "with", "without", "avec", "sans", "mashed", "mash", "puree", "sauce",
+    "fried", "boiled",
+)
+
+# Canonical concept → surface forms (FR + EN). Multi-word phrases are
+# matched with phrase preference so "beurre de cacahuete" resolves to
+# ``peanut_butter`` rather than ``butter``.
+_CONCEPTS: dict[str, tuple[str, ...]] = {
+    "peanut_butter": ("beurre de cacahuete", "beurre de cacahuetes", "peanut butter"),
+    "black_bean": ("haricot noir", "haricots noirs", "black bean", "black beans"),
+    "chickpea": ("pois chiche", "pois chiches", "chickpea", "chickpeas"),
+    "lentil": ("lentille", "lentilles", "lentil", "lentils"),
+    "bean": ("haricot", "haricots", "bean", "beans"),
+    "tofu": ("tofu",),
+    "milk": ("lait", "milk"),
+    "yoghurt": ("yaourt", "yogurt", "yoghurt"),
+    "cheese": ("fromage", "cheese"),
+    "butter": ("beurre", "butter"),
+    "oil": ("huile", "oil"),
+    "olive": ("olive", "olives"),
+    "garlic": ("ail", "garlic"),
+    "ratatouille": ("ratatouille",),
+    "lasagne": ("lasagne", "lasagnes", "lasagna", "lasagnas"),
+    "pasta": ("pates", "pasta", "spaghetti", "macaroni"),
+    "muesli": ("muesli", "granola"),
+    "potato": ("pomme de terre", "pommes de terre", "potato", "potatoes",
+               "patate", "patates"),
+    "apple": ("pomme", "pommes", "apple", "apples"),
+    "tomato": ("tomate", "tomates", "tomato", "tomatoes"),
+}
 
 
 @dataclass(frozen=True)
@@ -48,6 +79,8 @@ class NevoGateResult:
     accepted: bool
     confidence: float
     reason: str
+    match_type: str = "none"  # exact | alias | proxy | rejected | abstain
+    review_required: bool = False
 
 
 def _significant_tokens(text: str) -> list[str]:
@@ -55,95 +88,133 @@ def _significant_tokens(text: str) -> list[str]:
 
 
 def _primary_head(text: str) -> str | None:
-    """The product's PRIMARY head token — the first significant word.
-
-    For "Ratatouille à l'huile d'olive" the primary head is
-    ``ratatouille``; ``huile`` / ``olive`` are qualifiers that must NOT
-    drive a match. Matching on the primary head (not any of the first
-    few tokens) is what blocks the "Oil olive" trap.
-    """
     toks = _significant_tokens(text)
     return toks[0] if toks else None
 
 
-def head_match_required(
-    product_name: str, candidate: NevoCandidate
-) -> NevoGateResult:
-    """High confidence only when the product's PRIMARY head token
-    appears among the candidate's tokens. Precision-first: a candidate
-    that only matches a qualifier/secondary token is rejected."""
+def _has_qualifier(text: str) -> bool:
+    norm = _norm(text)
+    return any(f" {q} " in norm for q in _SECONDARY_QUALIFIERS)
+
+
+def concept_of(text: str) -> str | None:
+    """The canonical concept of a text's HEAD.
+
+    Scans every concept surface form; returns the concept whose form
+    appears earliest in the text (phrase preference on ties), i.e. the
+    concept of the leading/primary food — not a trailing secondary
+    ingredient. Returns ``None`` when nothing is recognised.
+    """
+    norm = _norm(text)
+    best: tuple[int, int, str] | None = None  # (position, -length, concept)
+    for concept, forms in _CONCEPTS.items():
+        for form in forms:
+            idx = norm.find(f" {form} ")
+            if idx == -1:
+                continue
+            key = (idx, -len(form), concept)
+            if best is None or key < best:
+                best = key
+    return best[2] if best else None
+
+
+def decide_candidate(product_name: str, candidate: NevoCandidate) -> NevoGateResult:
+    """Precision-first decision for one (product, candidate) pair."""
     p_head = _primary_head(product_name)
     if p_head is None:
-        return NevoGateResult(False, 0.0, "No usable product head — abstain.")
-    c_tokens = set(_significant_tokens(candidate.food_name_en))
-    if p_head in c_tokens:
-        return NevoGateResult(True, 0.95, f"Primary head match: {p_head!r}")
+        return NevoGateResult(False, 0.0, "No usable product head.", "abstain")
+
+    norm_cand = _norm(candidate.food_name_en)
+    prod_concept = concept_of(product_name)
+    cand_concept = concept_of(candidate.food_name_en)
+    cand_tokens = set(_significant_tokens(candidate.food_name_en))
+    cand_structural = any(f" {q} " in norm_cand for q in _STRUCTURAL_QUALIFIERS)
+    cand_has_qual = _has_qualifier(candidate.food_name_en)
+    prod_has_qual = _has_qualifier(product_name)
+
+    # 1. Hard rejection: the candidate is a composite/prepared
+    #    description ("hummus with chickpeas", "coffee with milk", "apple
+    #    pie without butter", "potatoes mashed with milk", "salad with
+    #    oil") — never a clean head match for a simple product, even when
+    #    the qualifier ingredient equals the product.
+    if cand_structural:
+        return NevoGateResult(
+            False, 0.0,
+            "Candidate is a composite/prepared description (with/without/"
+            "mashed/sauce), not a simple food head.",
+            "rejected",
+        )
+    # 1b. Candidate is a secondary ingredient / qualifier the simple
+    #     product head lacks (e.g. 'Oil olive' for a non-oil product).
+    if cand_has_qual and not prod_has_qual and prod_concept != cand_concept:
+        return NevoGateResult(
+            False, 0.0,
+            "Candidate matches a secondary ingredient, not the product head.",
+            "rejected",
+        )
+
+    # 2. Concept (alias) match across FR/EN — but only when the CANDIDATE
+    #    head is that concept (blocks 'milk' matching 'potatoes … milk').
+    if prod_concept is not None and prod_concept == cand_concept:
+        return NevoGateResult(
+            True, 0.96,
+            f"Concept match: {prod_concept!r}.",
+            "alias",
+        )
+
+    # 3. Exact literal head match.
+    if p_head in cand_tokens:
+        # …unless the candidate is dominated by a different leading
+        # concept (e.g. product 'lait' vs candidate 'potatoes … milk').
+        if cand_concept is not None and prod_concept is not None and cand_concept != prod_concept:
+            return NevoGateResult(
+                False, 0.0,
+                f"Product head {p_head!r} is a secondary ingredient of a "
+                f"{cand_concept!r} candidate.",
+                "rejected",
+            )
+        return NevoGateResult(True, 0.95, f"Exact head match: {p_head!r}.", "exact")
+
+    # 4. Otherwise: not safe for high confidence → abstain (a softer
+    #    'proxy' could be surfaced for review, but never auto-accepted).
     return NevoGateResult(
-        False,
-        0.0,
-        f"Primary product head {p_head!r} not in candidate — reject.",
+        False, 0.0,
+        f"No safe head/concept match for {p_head!r} → abstain.",
+        "abstain",
     )
 
 
-def reject_secondary_ingredient(
-    product_name: str, candidate: NevoCandidate
-) -> NevoGateResult:
-    """Reject a candidate whose name is a secondary ingredient of the
-    product (e.g. product 'Ratatouille à l'huile d'olive' must NOT match
-    NEVO 'Oil olive')."""
-    cand = _norm(candidate.food_name_en)
-    if any(f" {q} " in cand for q in _SECONDARY_QUALIFIERS):
-        # Candidate is itself a qualifier/secondary food; only accept if
-        # the product's PRIMARY head literally is that food.
-        p_head = _primary_head(product_name)
-        c_tokens = set(_significant_tokens(candidate.food_name_en))
-        if p_head is None or p_head not in c_tokens:
-            return NevoGateResult(
-                False,
-                0.0,
-                "Candidate is a secondary ingredient, not the product head.",
-            )
-    return NevoGateResult(True, 0.9, "Not a secondary-ingredient trap.")
+def gate_candidate(product_name: str, candidate: NevoCandidate) -> NevoGateResult:
+    """Public entry point used by the evaluator + tests."""
+    return decide_candidate(product_name, candidate)
 
 
-def reject_with_without_trap(
-    product_name: str, candidate: NevoCandidate
-) -> NevoGateResult:
-    """For a simple product head with no qualifier, reject candidates
-    that add a 'with/without/à l'huile' qualifier."""
-    prod = _norm(product_name)
-    cand = _norm(candidate.food_name_en)
-    prod_has_qualifier = any(f" {q} " in prod for q in _SECONDARY_QUALIFIERS)
-    cand_has_qualifier = any(f" {q} " in cand for q in _SECONDARY_QUALIFIERS)
-    if cand_has_qualifier and not prod_has_qualifier:
+# Backwards-compatible individual gates (kept for the Quality-V2-A
+# tests). Each returns a NevoGateResult; ``gate_candidate`` above is the
+# integrated decision.
+def head_match_required(product_name: str, candidate: NevoCandidate) -> NevoGateResult:
+    p_head = _primary_head(product_name)
+    if p_head is None:
+        return NevoGateResult(False, 0.0, "No usable product head — abstain.", "abstain")
+    if p_head in set(_significant_tokens(candidate.food_name_en)):
+        return NevoGateResult(True, 0.95, f"Primary head match: {p_head!r}", "exact")
+    return NevoGateResult(
+        False, 0.0, f"Primary product head {p_head!r} not in candidate — reject.",
+        "rejected",
+    )
+
+
+def reject_secondary_ingredient(product_name: str, candidate: NevoCandidate) -> NevoGateResult:
+    r = decide_candidate(product_name, candidate)
+    return r
+
+
+def reject_with_without_trap(product_name: str, candidate: NevoCandidate) -> NevoGateResult:
+    prod_has = _has_qualifier(product_name)
+    cand_has = _has_qualifier(candidate.food_name_en)
+    if cand_has and not prod_has:
         return NevoGateResult(
-            False,
-            0.0,
-            "Candidate adds a qualifier the simple product head lacks.",
+            False, 0.0, "Candidate adds a qualifier the simple product head lacks.",
+            "rejected",
         )
-    return NevoGateResult(True, 0.9, "No with/without qualifier trap.")
-
-
-# All gates must pass for a high-confidence accept; the lowest
-# confidence among passing gates is the resulting score.
-NEVO_GATES = [
-    head_match_required,
-    reject_secondary_ingredient,
-    reject_with_without_trap,
-]
-
-
-def gate_candidate(
-    product_name: str, candidate: NevoCandidate
-) -> NevoGateResult:
-    """Run all gates; reject on the first failure, else return the
-    minimum-confidence passing result."""
-    min_conf = 1.0
-    reasons: list[str] = []
-    for gate in NEVO_GATES:
-        r = gate(product_name, candidate)
-        if not r.accepted:
-            return r
-        min_conf = min(min_conf, r.confidence)
-        reasons.append(r.reason)
-    return NevoGateResult(True, min_conf, "; ".join(reasons))
+    return NevoGateResult(True, 0.9, "No with/without qualifier trap.", "exact")

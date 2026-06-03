@@ -124,12 +124,22 @@ class TestRuleEngine:
         assert out.trace.winning_rule_id == out.result.rule_id
         assert len(out.trace.entries) >= 1
 
-    def test_engine_abstains_when_no_rule_matches(self) -> None:
+    def test_engine_abstains_on_empty_name(self) -> None:
+        # Phase Quality-V2-B — readable names now always get a (low-
+        # confidence, review) classification so ``unknown_readable`` is
+        # 0; only an empty/unusable name abstains.
         engine = RuleEngine(PT_RULES, name="pt")
-        out = engine.evaluate(ProductInput(product_name="zzzz gizmo"))
+        out = engine.evaluate(ProductInput(product_name="   "))
         assert not out.result.matched
         assert out.result.rule_id == "abstain"
         assert out.result.review_required
+
+    def test_engine_routes_unknown_readable_to_review(self) -> None:
+        engine = RuleEngine(PT_RULES, name="pt")
+        out = engine.evaluate(ProductInput(product_name="zzzz gizmo"))
+        assert out.result.matched  # readable → classified for review
+        assert out.result.review_required
+        assert out.result.confidence < 0.6
 
     def test_rules_are_deterministic(self) -> None:
         engine = RuleEngine(PT_RULES)

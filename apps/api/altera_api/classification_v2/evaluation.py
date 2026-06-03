@@ -75,6 +75,8 @@ class ClassificationMetrics:
     review_count: int = 0
     abstain_count: int = 0
     wrong_accepted: int = 0
+    unknown_readable: int = 0  # readable name left with no category (abstain)
+    failed: int = 0            # empty/unusable name
     mismatches: list[Mismatch] = field(default_factory=list)
     # WWF-specific
     composite_flag_correct: int = 0
@@ -108,7 +110,14 @@ class ClassificationMetrics:
             "review_rate": round(self.review_rate, 4),
             "abstain_count": self.abstain_count,
             "wrong_accepted": self.wrong_accepted,
+            "unknown_readable": self.unknown_readable,
+            "failed": self.failed,
             "composite_flag_correct": self.composite_flag_correct,
+            "composite_flag_accuracy": (
+                round(self.composite_flag_correct / self.total, 4)
+                if self.total
+                else None
+            ),
             "composite_bucket_accuracy": (
                 round(
                     self.composite_bucket_correct / self.composite_bucket_total,
@@ -184,6 +193,12 @@ def evaluate_classification(
             m.correct += 1
         if not act_group:
             m.abstain_count += 1
+            # A readable product name left without a category is an
+            # "unknown readable"; an empty/unusable name is "failed".
+            if product.product_name and product.product_name.strip():
+                m.unknown_readable += 1
+            else:
+                m.failed += 1
         if review:
             m.review_count += 1
 
@@ -372,5 +387,173 @@ def write_mismatches_csv(path: str | Path, mismatches: list[Mismatch]) -> None:
                     "pipeline_version": mm.pipeline_version,
                     "notes": mm.notes,
                     "top_candidates": mm.top_candidates,
+                }
+            )
+
+
+# ---------------------------------------------------------------------------
+# V1 vs V2 comparison (Phase Quality-V2-B)
+# ---------------------------------------------------------------------------
+@dataclass
+class CaseDelta:
+    """One fixture case under both pipelines."""
+
+    fixture_id: str
+    product_name: str
+    expected: str
+    v1_actual: str
+    v2_actual: str
+    kind: str  # "improvement" | "regression" | "both_correct" | "both_wrong"
+
+
+def _per_case_predictions(
+    task: str, cases: list[dict[str, Any]], pipeline_version: PipelineVersion
+) -> dict[str, tuple[str, str, bool]]:
+    """Map fixture_id → (expected, actual, correct) for one pipeline."""
+    group_key = "pt_group" if task == "pt" else "wwf_food_group"
+    expected_key = "expected_pt" if task == "pt" else "expected_wwf"
+    predict = _v2_predict if pipeline_version is PipelineVersion.V2 else _v1_predict
+    out: dict[str, tuple[str, str, bool]] = {}
+    for case in cases:
+        exp = (case.get(expected_key) or {}).get(group_key)
+        if exp is None:
+            continue
+        cls, _conf, _review, _rid = predict(task, _product_input(case))
+        act = cls.get(group_key)
+        out[str(case.get("id", ""))] = (str(exp), str(act or "—"), act == exp)
+    return out
+
+
+@dataclass
+class ClassificationComparison:
+    task: str
+    v1: ClassificationMetrics
+    v2: ClassificationMetrics
+    deltas: list[CaseDelta] = field(default_factory=list)
+
+    @property
+    def improvements(self) -> list[CaseDelta]:
+        return [d for d in self.deltas if d.kind == "improvement"]
+
+    @property
+    def regressions(self) -> list[CaseDelta]:
+        return [d for d in self.deltas if d.kind == "regression"]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "task": self.task,
+            "v1": self.v1.as_dict(),
+            "v2": self.v2.as_dict(),
+            "delta_accuracy": round(self.v2.accuracy - self.v1.accuracy, 4),
+            "improvements": len(self.improvements),
+            "regressions": len(self.regressions),
+        }
+
+
+def compare_classification(
+    task: str,
+    cases: list[dict[str, Any]],
+    *,
+    auto_accept_threshold: float = 0.90,
+) -> ClassificationComparison:
+    v1 = evaluate_classification(
+        task, cases, pipeline_version=PipelineVersion.V1,
+        auto_accept_threshold=auto_accept_threshold,
+    )
+    v2 = evaluate_classification(
+        task, cases, pipeline_version=PipelineVersion.V2,
+        auto_accept_threshold=auto_accept_threshold,
+    )
+    p1 = _per_case_predictions(task, cases, PipelineVersion.V1)
+    p2 = _per_case_predictions(task, cases, PipelineVersion.V2)
+    name_by_id = {str(c.get("id", "")): c.get("product_name", "") for c in cases}
+    deltas: list[CaseDelta] = []
+    for fid in p1.keys() & p2.keys():
+        exp, a1, c1 = p1[fid]
+        _exp2, a2, c2 = p2[fid]
+        if c1 and c2:
+            kind = "both_correct"
+        elif not c1 and not c2:
+            kind = "both_wrong"
+        elif c2 and not c1:
+            kind = "improvement"
+        else:
+            kind = "regression"
+        deltas.append(CaseDelta(fid, name_by_id.get(fid, ""), exp, a1, a2, kind))
+    return ClassificationComparison(task=task, v1=v1, v2=v2, deltas=deltas)
+
+
+# ---------------------------------------------------------------------------
+# Quality gates (Phase Quality-V2-B) — offline, non-CI-failing.
+# A gate that fails means: do NOT activate V2; keep V1 default.
+# ---------------------------------------------------------------------------
+def pt_gates(cmp: ClassificationComparison) -> dict[str, bool]:
+    v1, v2 = cmp.v1, cmp.v2
+    gates = {
+        "v2_accuracy_ge_v1": v2.accuracy >= v1.accuracy,
+        "v2_wrong_accepted_le_v1": v2.wrong_accepted <= v1.wrong_accepted,
+        "unknown_readable_zero": v2.unknown_readable == 0,
+    }
+    gates["passed"] = all(gates.values())
+    return gates
+
+
+def wwf_gates(cmp: ClassificationComparison) -> dict[str, bool]:
+    v1, v2 = cmp.v1, cmp.v2
+    v1_bucket = (
+        v1.composite_bucket_correct / v1.composite_bucket_total
+        if v1.composite_bucket_total else 0.0
+    )
+    v2_bucket = (
+        v2.composite_bucket_correct / v2.composite_bucket_total
+        if v2.composite_bucket_total else 0.0
+    )
+    gates = {
+        "v2_food_group_accuracy_ge_v1": v2.accuracy >= v1.accuracy,
+        "v2_composite_bucket_accuracy_ge_v1": v2_bucket >= v1_bucket,
+        "v2_wrong_accepted_le_v1": v2.wrong_accepted <= v1.wrong_accepted,
+        "unknown_readable_zero": v2.unknown_readable == 0,
+    }
+    gates["passed"] = all(gates.values())
+    return gates
+
+
+def nevo_gates(v2: NevoMetrics) -> dict[str, bool]:
+    """NEVO V2 gates — V1 has no offline matcher, so these are absolute:
+    zero high-confidence false positives + 100% forbidden rejection.
+    Coverage may be lower than V1 (precision-first) and is informational."""
+    forbidden_ok = (
+        v2.forbidden_total == 0 or v2.forbidden_rejected == v2.forbidden_total
+    )
+    gates = {
+        "high_confidence_false_positives_zero": v2.false_positive_count == 0,
+        "forbidden_rejection_100": forbidden_ok,
+    }
+    gates["passed"] = all(gates.values())
+    return gates
+
+
+IMPROVEMENTS_CSV_COLUMNS = [
+    "fixture_id", "product_name", "expected", "v1_actual", "v2_actual", "kind",
+]
+
+
+def write_improvements_csv(path: str | Path, deltas: list[CaseDelta]) -> None:
+    """Cases where V1 and V2 disagree (improvements + regressions)."""
+    import csv
+
+    rows = [d for d in deltas if d.kind in ("improvement", "regression")]
+    with Path(path).open("w", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=IMPROVEMENTS_CSV_COLUMNS)
+        w.writeheader()
+        for d in rows:
+            w.writerow(
+                {
+                    "fixture_id": d.fixture_id,
+                    "product_name": d.product_name,
+                    "expected": d.expected,
+                    "v1_actual": d.v1_actual,
+                    "v2_actual": d.v2_actual,
+                    "kind": d.kind,
                 }
             )

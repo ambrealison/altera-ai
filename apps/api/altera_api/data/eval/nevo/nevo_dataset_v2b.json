@@ -1,0 +1,881 @@
+{
+  "name": "NEVO eval dataset V2-B",
+  "cases": [
+    {
+      "id": "nv-1",
+      "product_name": "Tofu nature",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-TOFU",
+        "food_name_en": "Tofu"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-2",
+      "product_name": "Pois chiches",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-CHICKPEA",
+        "food_name_en": "Chickpeas"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-3",
+      "product_name": "Lentilles corail",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-LENTIL",
+        "food_name_en": "Lentils"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-4",
+      "product_name": "Haricots noirs",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-BLACKBEAN",
+        "food_name_en": "Black beans"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-5",
+      "product_name": "Beurre de cacahuete",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-PEANUTBUTTER",
+        "food_name_en": "Peanut butter"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-6",
+      "product_name": "Lait demi-ecreme",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-MILK",
+        "food_name_en": "Milk semi-skimmed"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-7",
+      "product_name": "Yaourt nature",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-YOGHURT",
+        "food_name_en": "Yoghurt"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-8",
+      "product_name": "Fromage rape",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-CHEESE",
+        "food_name_en": "Cheese"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-9",
+      "product_name": "Ratatouille",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-RATATOUILLE",
+        "food_name_en": "Ratatouille"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-10",
+      "product_name": "Pates penne",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-PASTA",
+        "food_name_en": "Pasta"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-11",
+      "product_name": "Muesli",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-MUESLI",
+        "food_name_en": "Muesli"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-12",
+      "product_name": "Chickpeas",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-CHICKPEA",
+        "food_name_en": "Chickpeas"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-13",
+      "product_name": "Tofu block",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-TOFU",
+        "food_name_en": "Tofu"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-14",
+      "product_name": "Red lentils",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-LENTIL",
+        "food_name_en": "Lentils"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-15",
+      "product_name": "Milk",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-MILK",
+        "food_name_en": "Milk semi-skimmed"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-16",
+      "product_name": "Peanut butter",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-PEANUTBUTTER",
+        "food_name_en": "Peanut butter"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-17",
+      "product_name": "Plain yogurt",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-YOGHURT",
+        "food_name_en": "Yoghurt"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-18",
+      "product_name": "Cheese slices",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact match",
+      "expected_match": {
+        "nevo_code": "NEVO-CHEESE",
+        "food_name_en": "Cheese"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-19",
+      "product_name": "Ratatouille a l'huile d'olive",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": true,
+      "notes": "match expected + forbidden traps rejected",
+      "expected_match": {
+        "nevo_code": "NEVO-RATATOUILLE",
+        "food_name_en": "Ratatouille"
+      },
+      "forbidden_matches": [
+        "Oil olive"
+      ],
+      "should_match": true
+    },
+    {
+      "id": "nv-20",
+      "product_name": "Ratatouille ail et persil",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": true,
+      "notes": "match expected + forbidden traps rejected",
+      "expected_match": {
+        "nevo_code": "NEVO-RATATOUILLE",
+        "food_name_en": "Ratatouille"
+      },
+      "forbidden_matches": [
+        "Garlic raw"
+      ],
+      "should_match": true
+    },
+    {
+      "id": "nv-21",
+      "product_name": "Lait demi-ecreme",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": true,
+      "notes": "match expected + forbidden traps rejected",
+      "expected_match": {
+        "nevo_code": "NEVO-MILK",
+        "food_name_en": "Milk semi-skimmed"
+      },
+      "forbidden_matches": [
+        "Potatoes mashed with milk"
+      ],
+      "should_match": true
+    },
+    {
+      "id": "nv-22",
+      "product_name": "Beurre doux",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": true,
+      "notes": "match expected + forbidden traps rejected",
+      "expected_match": {
+        "nevo_code": "NEVO-BUTTER",
+        "food_name_en": "Butter"
+      },
+      "forbidden_matches": [
+        "Apple pie without butter"
+      ],
+      "should_match": true
+    },
+    {
+      "id": "nv-23",
+      "product_name": "Beurre de cacahuete",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": true,
+      "notes": "match expected + forbidden traps rejected",
+      "expected_match": {
+        "nevo_code": "NEVO-PEANUTBUTTER",
+        "food_name_en": "Peanut butter"
+      },
+      "forbidden_matches": [
+        "Butter"
+      ],
+      "should_match": true
+    },
+    {
+      "id": "nv-24",
+      "product_name": "Pois chiches",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": true,
+      "notes": "match expected + forbidden traps rejected",
+      "expected_match": {
+        "nevo_code": "NEVO-CHICKPEA",
+        "food_name_en": "Chickpeas"
+      },
+      "forbidden_matches": [
+        "Hummus with chickpeas"
+      ],
+      "should_match": true
+    },
+    {
+      "id": "nv-25",
+      "product_name": "Tofu nature",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": true,
+      "notes": "match expected + forbidden traps rejected",
+      "expected_match": {
+        "nevo_code": "NEVO-TOFU",
+        "food_name_en": "Tofu"
+      },
+      "forbidden_matches": [
+        "Soup with tofu"
+      ],
+      "should_match": true
+    },
+    {
+      "id": "nv-26",
+      "product_name": "Plat cuisine maison",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "ambiguous → abstain; forbidden rejected",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Garlic raw",
+        "Oil olive"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-27",
+      "product_name": "Buddha bowl",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "ambiguous → abstain; forbidden rejected",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Rice boiled"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-28",
+      "product_name": "Lasagnes bolognaise",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "ambiguous → abstain; forbidden rejected",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Pasta white boiled"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-29",
+      "product_name": "Assortiment apero",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "ambiguous → abstain; forbidden rejected",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Peanuts roasted"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-30",
+      "product_name": "Lait entier",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": false,
+      "notes": "secondary-ingredient forbidden traps",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Coffee with milk",
+        "Tea with milk",
+        "Cereal with milk"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-31",
+      "product_name": "Beurre demi-sel",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": false,
+      "notes": "secondary-ingredient forbidden traps",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Cake with butter",
+        "Toast without butter"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-32",
+      "product_name": "Huile de tournesol",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": false,
+      "notes": "secondary-ingredient forbidden traps",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Salad with oil"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-33",
+      "product_name": "Ail frais",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": false,
+      "notes": "secondary-ingredient forbidden traps",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Bread with garlic"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-34",
+      "product_name": "Tomate",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": false,
+      "notes": "secondary-ingredient forbidden traps",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Pasta with tomato sauce"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-35",
+      "product_name": "Pomme",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": false,
+      "notes": "secondary-ingredient forbidden traps",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Apple pie without sugar"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-36",
+      "product_name": "Riz",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": false,
+      "notes": "secondary-ingredient forbidden traps",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Chicken with rice"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-37",
+      "product_name": "Oignon",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": false,
+      "notes": "secondary-ingredient forbidden traps",
+      "expected_match": null,
+      "forbidden_matches": [
+        "Soup with onion"
+      ],
+      "should_match": false
+    },
+    {
+      "id": "nv-38",
+      "product_name": "Yaourt grec",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-YOGHURT",
+        "food_name_en": "Yoghurt"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-39",
+      "product_name": "Yogurt",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-YOGHURT",
+        "food_name_en": "Yoghurt"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-40",
+      "product_name": "Fromage de chevre",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-CHEESE",
+        "food_name_en": "Cheese"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-41",
+      "product_name": "Cheese",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-CHEESE",
+        "food_name_en": "Cheese"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-42",
+      "product_name": "Beurre",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-BUTTER",
+        "food_name_en": "Butter"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-43",
+      "product_name": "Butter",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-BUTTER",
+        "food_name_en": "Butter"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-44",
+      "product_name": "Lentilles vertes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-LENTIL",
+        "food_name_en": "Lentils"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-45",
+      "product_name": "Haricots rouges",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-BEAN",
+        "food_name_en": "Beans"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-46",
+      "product_name": "Pois chiche",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-CHICKPEA",
+        "food_name_en": "Chickpeas"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-47",
+      "product_name": "Tofu ferme",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-TOFU",
+        "food_name_en": "Tofu"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-48",
+      "product_name": "Peanut butter natural",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-PEANUTBUTTER",
+        "food_name_en": "Peanut butter"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-49",
+      "product_name": "Whole milk",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-MILK",
+        "food_name_en": "Milk semi-skimmed"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-50",
+      "product_name": "Granola maison",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-MUESLI",
+        "food_name_en": "Muesli"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-51",
+      "product_name": "Spaghetti",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "safe alias/exact",
+      "expected_match": {
+        "nevo_code": "NEVO-PASTA",
+        "food_name_en": "Pasta"
+      },
+      "forbidden_matches": [],
+      "should_match": true
+    },
+    {
+      "id": "nv-52",
+      "product_name": "Yaourt nature",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": true,
+      "notes": "match + forbidden trap",
+      "expected_match": {
+        "nevo_code": "NEVO-YOGHURT",
+        "food_name_en": "Yoghurt"
+      },
+      "forbidden_matches": [
+        "Cake with yoghurt"
+      ],
+      "should_match": true
+    },
+    {
+      "id": "nv-53",
+      "product_name": "Fromage rape",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": true,
+      "notes": "match + forbidden trap",
+      "expected_match": {
+        "nevo_code": "NEVO-CHEESE",
+        "food_name_en": "Cheese"
+      },
+      "forbidden_matches": [
+        "Gratin with cheese"
+      ],
+      "should_match": true
+    },
+    {
+      "id": "nv-54",
+      "product_name": "Tomate fraiche",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": true,
+      "notes": "match + forbidden trap",
+      "expected_match": {
+        "nevo_code": "NEVO-TOMATO",
+        "food_name_en": "Tomato"
+      },
+      "forbidden_matches": [
+        "Soup with tomato"
+      ],
+      "should_match": true
+    }
+  ]
+}

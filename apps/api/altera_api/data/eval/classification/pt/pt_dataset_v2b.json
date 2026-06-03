@@ -1,0 +1,851 @@
+{
+  "name": "PT eval dataset V2-B",
+  "methodology": "protein_tracker",
+  "cases": [
+    {
+      "id": "pt-1",
+      "product_name": "Filet de poulet",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-2",
+      "product_name": "Steak de boeuf",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-3",
+      "product_name": "Cotelettes d'agneau",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-4",
+      "product_name": "Saumon fume",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-5",
+      "product_name": "Thon en boite",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-6",
+      "product_name": "Crevettes roses",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-7",
+      "product_name": "Jambon blanc",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-8",
+      "product_name": "Oeufs frais",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-9",
+      "product_name": "Yaourt nature",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-10",
+      "product_name": "Fromage rape",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-11",
+      "product_name": "Lait demi-ecreme",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-12",
+      "product_name": "Chicken breast",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-13",
+      "product_name": "Cheddar cheese",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-14",
+      "product_name": "Greek yoghurt",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-15",
+      "product_name": "Smoked salmon",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-16",
+      "product_name": "Lentilles corail",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-17",
+      "product_name": "Pois chiches secs",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-18",
+      "product_name": "Tofu nature",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-19",
+      "product_name": "Tempeh bio",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-20",
+      "product_name": "Seitan nature",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-21",
+      "product_name": "Houmous",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-22",
+      "product_name": "Falafels",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-23",
+      "product_name": "Edamame",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-24",
+      "product_name": "Steak vegetal",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-25",
+      "product_name": "Burger haricots noirs",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-26",
+      "product_name": "Tofu block",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-27",
+      "product_name": "Red lentils",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-28",
+      "product_name": "Black bean burger",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-29",
+      "product_name": "Wrap falafel houmous",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "central plant protein, no animal",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-30",
+      "product_name": "Soupe lentilles coco",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-31",
+      "product_name": "Chili sin carne",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-32",
+      "product_name": "Bowl tofu riz legumes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-33",
+      "product_name": "Curry pois chiches epinards",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-34",
+      "product_name": "Salade quinoa edamame",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-35",
+      "product_name": "Lentil soup",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-36",
+      "product_name": "Muesli avoine fruits graines",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": true,
+      "notes": "snack/cereal not core",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-37",
+      "product_name": "Granola",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-38",
+      "product_name": "Chips nature",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-39",
+      "product_name": "Chocolat noir",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-40",
+      "product_name": "Biscuits sables",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-41",
+      "product_name": "Riz basmati",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-42",
+      "product_name": "Pates penne",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-43",
+      "product_name": "Pain complet",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-44",
+      "product_name": "Pommes golden",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-45",
+      "product_name": "Bananes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-46",
+      "product_name": "Carottes",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-47",
+      "product_name": "Huile d'olive",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-48",
+      "product_name": "Confiture de fraise",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-49",
+      "product_name": "Pizza legumes vegan",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "no central plant protein",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-50",
+      "product_name": "Olive oil",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-51",
+      "product_name": "Dark chocolate",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "easy",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_non_core"
+      }
+    },
+    {
+      "id": "pt-52",
+      "product_name": "Pizza jambon",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "composite_products"
+      }
+    },
+    {
+      "id": "pt-53",
+      "product_name": "Quiche lorraine",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "composite_products"
+      }
+    },
+    {
+      "id": "pt-54",
+      "product_name": "Lasagnes a la viande",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "composite_products"
+      }
+    },
+    {
+      "id": "pt-55",
+      "product_name": "Curry poulet riz",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "composite_products"
+      }
+    },
+    {
+      "id": "pt-56",
+      "product_name": "Sandwich thon",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "composite_products"
+      }
+    },
+    {
+      "id": "pt-57",
+      "product_name": "Sushi saumon avocat",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "composite_products"
+      }
+    },
+    {
+      "id": "pt-58",
+      "product_name": "Chili con carne",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "composite_products"
+      }
+    },
+    {
+      "id": "pt-59",
+      "product_name": "Cassoulet",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "composite_products"
+      }
+    },
+    {
+      "id": "pt-60",
+      "product_name": "Tuna sandwich",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "composite_products"
+      }
+    },
+    {
+      "id": "pt-61",
+      "product_name": "Croquettes chat poulet",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "pet food in scope, animal protein",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-62",
+      "product_name": "Patee chien boeuf",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "animal_core"
+      }
+    },
+    {
+      "id": "pt-63",
+      "product_name": "Croquettes chien tofu",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "hard",
+      "should_auto_accept": false,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "plant_based_core"
+      }
+    },
+    {
+      "id": "pt-64",
+      "product_name": "Litiere pour chat",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "pet accessory",
+      "expected_pt": {
+        "pt_group": "out_of_scope"
+      }
+    },
+    {
+      "id": "pt-65",
+      "product_name": "Jouet pour chien",
+      "retailer_category": null,
+      "ingredients_text": null,
+      "labels": null,
+      "difficulty": "medium",
+      "should_auto_accept": true,
+      "notes": "",
+      "expected_pt": {
+        "pt_group": "out_of_scope"
+      }
+    }
+  ]
+}
