@@ -1048,11 +1048,14 @@ def enrichment_record_from_row(row: dict) -> NutritionEnrichmentRecord:
         created_by=UUID(row["created_by"]) if row.get("created_by") else None,
         # Phase 33I-AI — default for rows from before migration 0033.
         match_method=row.get("match_method") or "deterministic",
+        # Phase Quality-V2-V — provenance; absent/NULL for pre-0037 + V1 rows.
+        source_version=row.get("source_version"),
+        source_metadata=row.get("source_metadata"),
     )
 
 
 def enrichment_record_to_row(record: NutritionEnrichmentRecord) -> dict:
-    return {
+    row = {
         "product_id": str(record.product_id),
         "nutrient": record.nutrient,
         "original_value": (
@@ -1070,6 +1073,14 @@ def enrichment_record_to_row(record: NutritionEnrichmentRecord) -> dict:
         "created_by": str(record.created_by) if record.created_by else None,
         "match_method": record.match_method,
     }
+    # Phase Quality-V2-V — only emit provenance columns when set, so V1 writes
+    # stay byte-for-byte identical and never depend on migration 0037 having
+    # been applied (the columns may not exist yet in older environments).
+    if record.source_version is not None:
+        row["source_version"] = record.source_version
+    if record.source_metadata is not None:
+        row["source_metadata"] = record.source_metadata
+    return row
 
 
 # ---------------------------------------------------------------------------

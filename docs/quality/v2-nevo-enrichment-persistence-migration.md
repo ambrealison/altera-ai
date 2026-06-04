@@ -1,5 +1,12 @@
 # NEVO V2 enrichment persistence — Supabase migration design (Quality-V2-U)
 
+> **Update (Quality-V2-V):** Option 2 is now **scaffolded in code**. Migration
+> `0037_quality_v2v_nevo_enrichment_provenance.sql` adds the additive nullable
+> `source_version` + `source_metadata` columns; `NutritionEnrichmentRecord` and
+> the mapper carry them (omitted from V1 writes). **No apply path writes V2
+> rows**, V2 is still not activated, and `match_method` is untouched. See the
+> Quality-V2-V section in `v2-quality-roadmap.md`.
+
 **Status: DESIGN ONLY. No migration is applied; no apply path writes the DB.**
 This document specifies the minimal, reversible schema + model changes needed
 to *later* persist NEVO **V2** enrichment records safely. Nothing here changes

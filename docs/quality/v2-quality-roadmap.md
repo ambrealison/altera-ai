@@ -1322,3 +1322,33 @@ manual / never-overwrite-V1 / V1-default constraints — is in
 **Result.** A clear migration recommendation with reversible draft SQL, with no
 DB writes, no migration file added, no code change, and the apply path still
 `blocked_pending_schema_migration`.
+
+## Phase Quality-V2-V — provenance field support (model/store only, no apply)
+
+Implements the Option 2 scaffolding from the V2-U design so a future (still
+gated) apply can persist V2-tagged records. **No apply path, no V2 activation,
+no route wiring, V1 default, embeddings off.**
+
+- **Migration (Part A):** `0037_quality_v2v_nevo_enrichment_provenance.sql` adds
+  `source_version text` + `source_metadata jsonb`, both **additive and
+  nullable**, with `add column if not exists`. It does **not** touch the
+  `match_method` CHECK, does not backfill, and carries rollback notes in
+  comments. `source_version` is left as open text (no CHECK) so a future
+  `v3_*` engine needs no enum migration.
+- **Model (Part B):** `NutritionEnrichmentRecord` gains
+  `source_version: str | None = None` and `source_metadata: dict | None = None`
+  (plus `SOURCE_VERSION_V1` / `SOURCE_VERSION_V2_EMBEDDINGS` constants).
+- **Mapper / store (Part B/C):** `enrichment_record_from_row` reads both with
+  `None` defaults (pre-0037 / V1 rows). `enrichment_record_to_row` **omits**
+  the two keys when `None`, so V1 writes are byte-for-byte unchanged and never
+  depend on migration 0037 having been applied. Postgres `add_enrichment_record`
+  and `select *` reads need no change.
+- **API / frontend (Part D):** no response model exposes the new fields, so the
+  API and `apps/web/lib/api.ts` are intentionally left unchanged. A V2 row will
+  be `source='nevo'`, `match_method='ai_assisted'`,
+  `source_version='v2_embeddings'`, with metadata in `source_metadata`.
+
+**Result.** The model and store can carry V2 provenance; the migration file
+exists but is additive-only and unapplied-by-writes; existing tests stay green
+(3502 passed); no production behaviour change; the apply path
+(`nevo_v2_enrich --apply`) still refuses.

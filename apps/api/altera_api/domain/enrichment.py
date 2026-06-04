@@ -17,7 +17,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import Field
@@ -26,6 +26,13 @@ from altera_api.domain.common import DomainBase
 
 #: Confidence score in the closed interval [0, 1].
 Confidence = Annotated[Decimal, Field(ge=Decimal("0"), le=Decimal("1"))]
+
+#: ``source_version`` tags (Phase Quality-V2-V). Orthogonal to ``match_method``:
+#: ``match_method`` records HOW the reference was picked; ``source_version``
+#: records WHICH matching engine produced the record. Left as plain strings (no
+#: DB CHECK) so a future ``v3_*`` engine needs no enum migration.
+SOURCE_VERSION_V1 = "v1"
+SOURCE_VERSION_V2_EMBEDDINGS = "v2_embeddings"
 
 
 class NutritionEnrichmentSource(StrEnum):
@@ -101,3 +108,13 @@ class NutritionEnrichmentRecord(DomainBase):
     # "manual"        — Altera staff entered the value via the manual
     #                   enrichment endpoint.
     match_method: str = "deterministic"
+    # Phase Quality-V2-V — optional provenance for non-V1 enrichment engines.
+    # Both default to None for every existing (V1/legacy) record and for rows
+    # written before migration 0037; the DB columns are additive + nullable.
+    # "v1" / None — legacy deterministic+AI-shortlist pipeline.
+    # "v2_embeddings" — NEVO V2 embeddings retrieval + concept-gate.
+    source_version: str | None = None
+    # Audit-only JSON (provider/model/top_k/matcher_confidence/
+    # nutrition_safety_action/review_package_id/apply_plan_id/…). Protein values
+    # NEVER come from here — always from the matched reference row.
+    source_metadata: dict[str, Any] | None = None
