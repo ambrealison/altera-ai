@@ -120,12 +120,36 @@ _REFERENCE_ALIASES: tuple[tuple[frozenset[str], str], ...] = (
     (frozenset({"muesli"}), "muesli granola"),
     (frozenset({"tomatoes"}), "tomato tomate fraiche"),
     (frozenset({"apple"}), "apple pomme"),
+    # Phase Quality-V2-L — pull the right candidate higher for real FR
+    # retailer products (cross-language; simple foods only).
+    (frozenset({"hummus"}), "hummus houmous"),
+    (frozenset({"tuna"}), "tuna thon thon au naturel"),
+    (frozenset({"salmon"}), "salmon saumon smoked salmon saumon fume"),
+    (frozenset({"cod"}), "cod cabillaud morue"),
+    (frozenset({"shrimps"}), "shrimps crevettes prawns shrimp"),
+    (frozenset({"prawns"}), "prawns crevettes shrimps"),
+    (frozenset({"brioche"}), "brioche"),
+    (frozenset({"sorbet"}), "sorbet"),
+    (frozenset({"quinoa"}), "quinoa"),
+    (frozenset({"creme", "fraiche"}), "creme fraiche"),
+    (frozenset({"margarine"}), "margarine"),
+    (frozenset({"ham"}), "ham jambon"),
+    (frozenset({"chicken", "fillet"}), "chicken fillet poulet blanc de poulet"),
+    (frozenset({"egg", "whole"}), "egg oeufs oeuf"),
+    (frozenset({"honey"}), "honey miel"),
+    (frozenset({"jam"}), "jam confiture"),
+    (frozenset({"sugar"}), "sugar sucre"),
+    (frozenset({"couscous"}), "couscous semoule taboule"),
+    (frozenset({"peas", "green"}), "green peas petits pois"),
+    (frozenset({"spinach"}), "spinach epinards"),
+    (frozenset({"sweetcorn"}), "sweetcorn mais doux sweet corn"),
+    (frozenset({"cornflakes"}), "cornflakes corn flakes"),
 )
 # Composite/prepared markers — never enrich these (a dish containing a
 # food must not gain the simple food's aliases).
 _REFERENCE_SKIP_TOKENS = frozenset({
     "with", "without", "w", "wo", "soup", "stew", "pie", "pizza", "lasagne",
-    "curry", "sauce", "hummus", "cake", "biscuit", "bar", "spread", "salad",
+    "curry", "sauce", "cake", "biscuit", "bar", "spread", "salad",
     "pudding", "smoothie", "gratin", "quiche", "tart",
 })
 

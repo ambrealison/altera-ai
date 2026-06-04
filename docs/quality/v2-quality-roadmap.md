@@ -855,3 +855,44 @@ v1_only materially down, potential-high-risk down, v2_better_than_v1 up —
 with no new unsafe accepts. (Run on Render with ALTERA_ENABLE_EMBEDDINGS=
 true + VOYAGE_API_KEY for the cross-language retrieval that the offline fake
 can't reproduce.)
+
+## Quality-V2-L — targeted coverage pass + œ normalization
+
+The 100-product shadow run after V2-K was already good (V2 auto_accept 51,
+v1_only 30, high-risk 0, v2_better 17). V2-L reduces the remaining obvious
+review-only false negatives while keeping precision-first safety.
+Evaluator/dev-only; V1 default; embeddings off; no route imports
+V2/embeddings; gates green (HC-FP 0, forbidden 100%, dangerous 0).
+
+Part A — normalization: `_norm` now expands the Latin ligatures that NFKD
+leaves and the ASCII fold dropped (`œ`/`Œ`→`oe`, `æ`/`Æ`→`ae`), so
+"Œufs Plein Air" resolves to `egg` (it was normalised to "ufs" and
+no-matched).
+
+Part B — new safe concepts (FR product forms + EN/NEVO reference names):
+`cod` (cabillaud/morue), `shrimp` (crevettes/prawns/shrimps), `bacon`
+(lardons), `brioche`, `ice_cream` (glace), `green_peas` (petits pois),
+`spinach` (épinards); `taboule` → the `couscous` base (its safe proxy).
+`"crackers"` added to the dish-noun set so "Prawn crackers"/"rice cracker
+mix" never match a shrimp/rice product. Reference-text aliases extended
+(hummus↔houmous, tuna↔thon, salmon↔saumon, cod↔cabillaud, etc.) to pull
+the right candidate higher in retrieval; `hummus` removed from the
+alias-skip set now that it's a product concept.
+
+Parts C/D — policy abstains kept (documented in tests): beverages
+(eau/eau pétillante), ambiguous juice drinks (nectar), cleaning/household
+(liquide vaisselle, nettoyant, essuie-tout, shampooing), pet
+(litière, croquettes) resolve to NO concept → abstain, never forced into
+NEVO. Generic `tomato_sauce`/`soup` resolve to a concept but their only
+NEVO references are dish-noun composites, so they stay review/abstain
+(never auto-accept the bean/dish trap). A composite salad
+("Salade César Poulet") never auto-accepts a "Salad …" dish reference.
+
+Traps held: prawn-crackers, salad-dish, bacon-bits-in-sausage, tea-glacé ≠
+ice-cream, corn-starch, beans-in-tomato-sauce.
+
+Expected on the next 100-product Render run: V2 auto_accept up further,
+v1_only down further, potential-high-risk stays 0, v2_better_than_v1 up or
+stable, policy abstains unchanged — no unsafe accepts. (Run on Render with
+ALTERA_ENABLE_EMBEDDINGS=true + VOYAGE_API_KEY for the cross-language
+retrieval the offline fake can't reproduce.)

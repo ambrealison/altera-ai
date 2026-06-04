@@ -51,6 +51,10 @@ _DISH_NOUNS = frozenset({
     "lasagnes", "curry", "gratin", "quiche", "sauce", "tart",
     "cake", "pudding", "salad", "smoothie", "bar", "biscuit", "spread",
     "dish", "meal", "bolognaise", "bolognese", "wrap", "sandwich", "burger",
+    # Phase Quality-V2-L — "crackers" is a snack form; a head with it
+    # ("Prawn crackers", "Japanese rice cracker mix") is not the leading
+    # food, so it must not match a shrimp/rice product.
+    "cracker", "crackers",
 })
 # Phase Quality-V2-K — ``hummus`` is BOTH a product and a trap-ingredient.
 # It is a concept (so "Houmous" matches "Hummus natural"), not a dish noun;
@@ -130,8 +134,9 @@ _CONCEPTS: dict[str, tuple[str, ...]] = {
     "vinaigrette": ("vinaigrette",),
     "crisps": ("chips", "crisps"),
     "quinoa": ("quinoa",),
-    # semolina ≈ couscous (both wheat semolina); never bare "ble".
-    "couscous": ("couscous", "semoule", "semolina"),
+    # semolina ≈ couscous (both wheat semolina); never bare "ble". Taboulé
+    # is a couscous salad → the couscous base is its safe NEVO proxy.
+    "couscous": ("couscous", "semoule", "semolina", "taboule"),
     # wheat flour only — NEVER bare "flour"/"corn" (that would swallow
     # "Flour corn"/"Corn starch").
     "wheat_flour": ("farine", "farine de ble", "flour wheat", "wheat flour"),
@@ -152,6 +157,17 @@ _CONCEPTS: dict[str, tuple[str, ...]] = {
     "almond_drink": ("boisson amande", "lait amande", "drink almond",
                      "almond drink", "almond milk"),
     "sorbet": ("sorbet",),
+    # Phase Quality-V2-L — more real FR retailer foods.
+    "cod": ("cabillaud", "morue", "cod"),
+    "shrimp": ("crevette", "crevettes", "shrimp", "shrimps", "prawn", "prawns"),
+    "bacon": ("lardons", "lardon", "bacon"),
+    "brioche": ("brioche",),
+    # FR "glace" leads → ice cream; "Thé/Café glacé" keep their drink concept
+    # (earlier-position phrase form wins).
+    "ice_cream": ("glace", "glace vanille", "creme glacee", "ice cream"),
+    "green_peas": ("petits pois", "petit pois", "pois verts", "peas green",
+                   "green peas"),
+    "spinach": ("epinard", "epinards", "spinach"),
 }
 
 

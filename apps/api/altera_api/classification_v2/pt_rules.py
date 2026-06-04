@@ -34,11 +34,16 @@ from altera_api.classification_v2.models import RuleResult
 from altera_api.classification_v2.rule_engine import ProductInput, Rule
 
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
+# Phase Quality-V2-L — Latin ligatures don't decompose under NFKD and are
+# silently dropped by the ASCII fold below ("Œufs" → "ufs"), so expand them
+# first ("œufs" → "oeufs", "nœud" → "noeud", "œsophage" → "oesophage").
+_LIGATURES = str.maketrans({"œ": "oe", "Œ": "oe", "æ": "ae", "Æ": "ae"})
 
 
 def _norm(s: str | None) -> str:
     if not s:
         return ""
+    s = s.translate(_LIGATURES)
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
     return " " + _NON_ALNUM.sub(" ", s.lower()).strip() + " "
 
