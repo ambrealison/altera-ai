@@ -938,3 +938,42 @@ down, v1_only down, potential-high-risk stays 0, v2_better_than_v1 stable
 or up — no unsafe accepts. (Run on Render with ALTERA_ENABLE_EMBEDDINGS=true
 + VOYAGE_API_KEY; the query-alias injection now also lifts the right
 candidate into the offline fake's top-k.)
+
+## Quality-V2-N — shadow comparison → readiness/decision artifact
+
+The shadow comparison is now an internal decision artifact, not another
+alias pass. Still strictly read-only (no DB writes); V1 default; embeddings
+off by default; no route imports V2/embeddings.
+
+Alongside `nevo_v1_v2_comparison_<project>.csv` the CLI writes:
+- **`nevo_v1_v2_comparison_<project>.json`** — project_id, product_count,
+  top_k, provider/model, generated_at, agreement_bucket_counts,
+  risk_bucket_counts, v2_auto_accept_count, v2_review_required_count,
+  v2_better_than_v1_count, v1_likely_false_positive_count,
+  potential_high_risk_count, recommendation + recommendation_reasons +
+  recommendation_threshold + admin_opt_in_gates.
+- **filtered CSVs**: `nevo_v2_better_than_v1_<project>.csv`,
+  `nevo_v2_review_only_<project>.csv`, `nevo_v2_high_risk_<project>.csv`.
+
+`potential_high_risk_count` counts ONLY `v2_potential_false_positive` (a V2
+auto-accept that is neither concept- nor head-consistent with the product);
+`v1_only` (V2 missed it) is a coverage gap, not a V2 risk, so it is excluded
+— matching the "potential high-risk 0" the real runs report.
+
+Recommendation (`--recommendation-threshold auto|conservative`, default
+auto):
+- any `potential_high_risk` > 0 → **keep_off**;
+- else ≥50 products + `v2_better_than_v1` > 0 + ≥50% auto-accepted (≥60%
+  under `conservative`) → **admin_opt_in_candidate**;
+- else → **internal_shadow_ok**.
+
+The console prints the recommendation, its reasons, and the admin-opt-in
+gate checklist (potential_high_risk_zero, v2_better_than_v1_positive,
+v1_default_unchanged, embeddings_cli_only). Flags
+`--write-summary-json` / `--write-filtered-csvs` (both default on, with
+`--no-…` opposites).
+
+On the V2-M 100-product real run (auto_accept 66, v2_better 25, high-risk 0)
+this yields **admin_opt_in_candidate** — i.e. the data now clearly says
+whether a project is an admin-opt-in candidate, while V1 stays the default
+and nothing is activated.

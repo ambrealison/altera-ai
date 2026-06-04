@@ -25,7 +25,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import traceback
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -279,35 +281,186 @@ def write_comparison_csv(path: str | Path, rows: list[dict[str, Any]]) -> None:
             w.writerow(r)
 
 
-def print_summary(rows: list[dict[str, Any]], csv_path: Path) -> None:
-    n = len(rows)
+# ---------------------------------------------------------------------------
+# Phase Quality-V2-N — readiness summary + recommendation.
+# ---------------------------------------------------------------------------
+_AGREEMENT_BUCKETS = (
+    "same_code", "same_concept", "v1_only", "v2_only", "both_no_match",
+    "disagreement_needs_review",
+)
+_RISK_BUCKETS = (
+    "safe_agreement", "v2_more_specific", "v1_more_specific", "v2_review_only",
+    "v2_better_than_v1", "v2_potential_false_positive", "manual_inspection_needed",
+)
+#: filtered CSV name → row predicate.
+_FILTERED_SPECS: dict[str, Any] = {
+    "nevo_v2_better_than_v1": lambda r: r["risk_bucket"] == "v2_better_than_v1",
+    "nevo_v2_review_only": lambda r: r["v2_outcome"] == "review",
+    "nevo_v2_high_risk": lambda r: r["risk_bucket"] == "v2_potential_false_positive",
+}
 
-    def count_ag(b: str) -> int:
-        return sum(1 for r in rows if r["agreement_bucket"] == b)
+
+def _recommendation(
+    *,
+    product_count: int,
+    potential_high_risk: int,
+    v2_better: int,
+    v2_auto_accept: int,
+    threshold: str,
+) -> tuple[str, list[str]]:
+    """Decide keep_off | internal_shadow_ok | admin_opt_in_candidate.
+
+    A high-risk V2 accept blocks everything. Admin-opt-in needs a
+    meaningful corpus (≥50 products), real V2 wins, and at least
+    ``min_ratio`` of products auto-accepted (0.5 auto / 0.6 conservative).
+    Otherwise the run is safe for internal shadow review only."""
+    reasons: list[str] = []
+    if potential_high_risk > 0:
+        reasons.append(
+            f"{potential_high_risk} potential high-risk V2 accept(s) present"
+        )
+        return "keep_off", reasons
+
+    min_ratio = 0.6 if threshold == "conservative" else 0.5
+    auto_ok = product_count > 0 and v2_auto_accept >= min_ratio * product_count
+    if product_count >= 50 and v2_better > 0 and auto_ok:
+        reasons.append("no high-risk V2 accepts")
+        reasons.append(f"{v2_better} V2-better-than-V1 wins")
+        reasons.append(
+            f"{v2_auto_accept}/{product_count} auto-accepted "
+            f"(≥{int(min_ratio * 100)}%) over ≥50 products"
+        )
+        return "admin_opt_in_candidate", reasons
+
+    if product_count < 50:
+        reasons.append(f"only {product_count} products inspected (<50)")
+    if v2_better == 0:
+        reasons.append("no V2-better-than-V1 wins")
+    if not auto_ok:
+        reasons.append(
+            f"auto-accept {v2_auto_accept}/{product_count} below "
+            f"{int(min_ratio * 100)}%"
+        )
+    reasons.append("no high-risk V2 accepts — safe for internal shadow review")
+    return "internal_shadow_ok", reasons
+
+
+def build_summary(
+    rows: list[dict[str, Any]],
+    *,
+    project_id: str,
+    top_k: int,
+    provider: str,
+    model: str,
+    generated_at: str | None,
+    threshold: str = "auto",
+) -> dict[str, Any]:
+    n = len(rows)
+    ag = {b: 0 for b in _AGREEMENT_BUCKETS}
+    rk = {b: 0 for b in _RISK_BUCKETS}
+    for r in rows:
+        ag[r["agreement_bucket"]] = ag.get(r["agreement_bucket"], 0) + 1
+        rk[r["risk_bucket"]] = rk.get(r["risk_bucket"], 0) + 1
 
     v2_auto = sum(1 for r in rows if r["v2_outcome"] == "match")
     v2_review = sum(1 for r in rows if r["v2_outcome"] == "review")
-    v2_better = sum(1 for r in rows if r["risk_bucket"] == "v2_better_than_v1")
-    v1_fp = sum(1 for r in rows if r["notes"].startswith("V1 likely false positive"))
-    high_risk = sum(
-        1 for r in rows
-        if r["risk_bucket"] in ("v2_potential_false_positive", "manual_inspection_needed")
-    )
+    v2_better = rk["v2_better_than_v1"]
+    v1_fp = sum(1 for r in rows if "V1 likely false positive" in r["notes"])
+    # "potential high risk" = a V2 auto-accept that is NOT concept/head
+    # consistent with the product. v1_only (V2 missed it) is a coverage gap,
+    # not a V2 risk, so it is NOT counted here.
+    potential_high_risk = rk["v2_potential_false_positive"]
 
+    recommendation, reasons = _recommendation(
+        product_count=n, potential_high_risk=potential_high_risk,
+        v2_better=v2_better, v2_auto_accept=v2_auto, threshold=threshold,
+    )
+    return {
+        "project_id": project_id,
+        "product_count": n,
+        "top_k": top_k,
+        "provider": provider,
+        "model": model,
+        "generated_at": generated_at,
+        "agreement_bucket_counts": ag,
+        "risk_bucket_counts": rk,
+        "v2_auto_accept_count": v2_auto,
+        "v2_review_required_count": v2_review,
+        "v2_better_than_v1_count": v2_better,
+        "v1_likely_false_positive_count": v1_fp,
+        "potential_high_risk_count": potential_high_risk,
+        "recommendation": recommendation,
+        "recommendation_threshold": threshold,
+        "recommendation_reasons": reasons,
+        "admin_opt_in_gates": {
+            "potential_high_risk_zero": potential_high_risk == 0,
+            "v2_better_than_v1_positive": v2_better > 0,
+            "v1_default_unchanged": True,    # this tool never changes the default
+            "embeddings_cli_only": True,     # no production route uses V2/embeddings
+        },
+    }
+
+
+def write_summary_json(path: str | Path, summary: dict[str, Any]) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def write_filtered_csvs(
+    out_dir: str | Path, project_id: str, rows: list[dict[str, Any]]
+) -> dict[str, int]:
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    counts: dict[str, int] = {}
+    for stem, pred in _FILTERED_SPECS.items():
+        fname = f"{stem}_{project_id}.csv"
+        subset = [r for r in rows if pred(r)]
+        with (out / fname).open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=COMPARISON_CSV_COLUMNS)
+            w.writeheader()
+            for r in subset:
+                w.writerow(r)
+        counts[fname] = len(subset)
+    return counts
+
+
+def print_summary(
+    summary: dict[str, Any],
+    csv_path: Path,
+    *,
+    json_path: Path | None = None,
+    filtered_counts: dict[str, int] | None = None,
+) -> None:
+    ag = summary["agreement_bucket_counts"]
     print("\n" + "=" * 72)
-    print(f"NEVO V1-vs-V2 shadow comparison — {n} products inspected")
+    print(
+        f"NEVO V1-vs-V2 shadow comparison — {summary['product_count']} "
+        "products inspected"
+    )
     print("-" * 72)
-    for b in ("same_code", "same_concept", "v1_only", "v2_only",
-              "both_no_match", "disagreement_needs_review"):
-        print(f"  {b:28} {count_ag(b):>6}")
+    for b in _AGREEMENT_BUCKETS:
+        print(f"  {b:28} {ag[b]:>6}")
     print("-" * 72)
-    print(f"  V2 auto_accept                {v2_auto:>6}")
-    print(f"  V2 review_required            {v2_review:>6}")
-    print(f"  V2 better than V1             {v2_better:>6}")
-    print(f"  V1 likely false positives     {v1_fp:>6}")
-    print(f"  potential high-risk to inspect {high_risk:>5}")
+    print(f"  V2 auto_accept                {summary['v2_auto_accept_count']:>6}")
+    print(f"  V2 review_required            {summary['v2_review_required_count']:>6}")
+    print(f"  V2 better than V1             {summary['v2_better_than_v1_count']:>6}")
+    print(f"  V1 likely false positives     {summary['v1_likely_false_positive_count']:>6}")
+    print(f"  potential high-risk           {summary['potential_high_risk_count']:>6}")
+    print("-" * 72)
+    print(f"  RECOMMENDATION: {summary['recommendation']}")
+    for reason in summary["recommendation_reasons"]:
+        print(f"    - {reason}")
+    print("  Admin opt-in gates:")
+    for gate, ok in summary["admin_opt_in_gates"].items():
+        print(f"    [{'x' if ok else ' '}] {gate}")
     print("=" * 72)
-    print(f"CSV: {csv_path}")
+    print(f"CSV:  {csv_path}")
+    if json_path is not None:
+        print(f"JSON: {json_path}")
+    if filtered_counts:
+        for fname, count in filtered_counts.items():
+            print(f"      {fname} ({count} rows)")
     print("Read-only — no database writes were made.")
 
 
@@ -353,6 +506,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--reference", default=None)
     ap.add_argument("--require-voyage", action="store_true")
     ap.add_argument("--debug", action="store_true")
+    # Phase Quality-V2-N — readiness artifacts.
+    ap.add_argument(
+        "--write-summary-json", action=argparse.BooleanOptionalAction, default=True,
+        help="write nevo_v1_v2_comparison_<project>.json (default: on).",
+    )
+    ap.add_argument(
+        "--write-filtered-csvs", action=argparse.BooleanOptionalAction, default=True,
+        help="write per-bucket filtered CSVs (default: on).",
+    )
+    ap.add_argument(
+        "--recommendation-threshold", choices=["auto", "conservative"],
+        default="auto",
+        help="'auto' = ≥50% auto-accept; 'conservative' = ≥60% (default: auto).",
+    )
     return ap
 
 
@@ -434,7 +601,22 @@ def main(argv: list[str] | None = None, *, store: Any = None) -> int:
     out_dir = Path(args.output_dir)
     csv_path = out_dir / f"nevo_v1_v2_comparison_{project_id}.csv"
     write_comparison_csv(csv_path, rows)
-    print_summary(rows, csv_path)
+
+    summary = build_summary(
+        rows, project_id=str(project_id), top_k=args.top_k,
+        provider=provider_name, model=args.embedding_model,
+        generated_at=datetime.now(UTC).isoformat(),
+        threshold=args.recommendation_threshold,
+    )
+    json_path: Path | None = None
+    if args.write_summary_json:
+        json_path = out_dir / f"nevo_v1_v2_comparison_{project_id}.json"
+        write_summary_json(json_path, summary)
+    filtered_counts: dict[str, int] | None = None
+    if args.write_filtered_csvs:
+        filtered_counts = write_filtered_csvs(out_dir, str(project_id), rows)
+
+    print_summary(summary, csv_path, json_path=json_path, filtered_counts=filtered_counts)
     return 0
 
 
