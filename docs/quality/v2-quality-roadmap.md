@@ -1140,3 +1140,53 @@ stricter — the remaining suspicious rows are downgraded (rice-drink, vinegar,
 jam, puree) or flagged for a human (oil blends, flavoured snacks). All safety
 gates stay green: HC-FP=0, forbidden=100%, dangerous=0; V1 default; embeddings
 off; no route imports V2/safety; `--apply` gated; no DB writes.
+
+## Phase Quality-V2-R — internal review workflow package
+
+The V2-Q dry-run produced 48 `would_enrich` and 52 manual-review rows across
+five CSVs, but nothing told a reviewer *what to do* with a row or *how urgent*
+it was. This phase adds a pure annotation layer (`nevo_review_workflow.py`,
+imported only by the dry-run CLI — no DB, no routes, no Supabase) that turns the
+proposals into a workable human-approval package. The matcher and the stage-1/2
+safety actions are unchanged.
+
+**Per-row annotation (Part A/B).** Every proposal gets three computed fields:
+
+- `suggested_action` — `approve_auto_candidate`, `review_state_mismatch`,
+  `review_proxy_too_broad`, `review_generic_proxy`, `review_no_match`,
+  `reject_non_food`, `reject_policy_excluded`, or `needs_manual_nevo_search`.
+- `review_priority` — `P0` high-risk / never auto (a non-food or pet item the
+  matcher nonetheless *accepted*), `P1` likely useful but needs confirmation,
+  `P2` safe abstain / optional (high-confidence auto candidate, or a no-match
+  with no plausible candidates), `P3` non-food / policy excluded.
+- `review_bucket` — which tab/CSV the row belongs to.
+
+Policy classification: a recognized food concept always wins; otherwise
+explicit pet (`chien`, `chat`, `litiere`, `croquette`…) or household/hygiene
+(`vaisselle`, `lessive`, `shampooing`…) markers classify it; an unknown,
+unflagged product defaults to *food* so it routes to a manual NEVO search rather
+than being wrongly rejected.
+
+**Filtered CSVs (Part A).** Each bucket CSV now carries the computed
+`review_priority` / `suggested_action` plus the blank reviewer columns
+`manual_decision` (allowed: `approve`, `reject`, `replace`, `needs_more_info`),
+`reviewer_notes`, `approved_nevo_code`, `approved_nevo_name`,
+`approved_protein_g_per_100g`.
+
+**Consolidated package (Part C).** A single
+`nevo_v2_enrich_review_package_<project>.xlsx` (via `openpyxl`) with tabs
+`Summary`, `Auto_Ready`, `Needs_Review`, `State_Mismatch`, `Proxy_Too_Broad`,
+`No_Match`, `Non_Food_Policy`, `Instructions`. If `openpyxl` is unavailable it
+falls back to one consolidated CSV with a leading `review_bucket` column. The
+Instructions tab documents the `manual_decision` vocabulary and the priority
+scheme.
+
+**Summary JSON (Part D).** Adds `review_bucket_counts`,
+`suggested_action_counts`, `review_priority_counts`, `review_package_path`, and
+an `instructions_summary`.
+
+**Result.** A reviewer opens one artifact, reads `suggested_action` /
+`review_priority`, and records `approve` / `reject` / `replace` /
+`needs_more_info` per row — ready to drive a future, still-gated apply path. No
+DB writes; existing proposals and safety actions unchanged; V1 default;
+embeddings off; routes clean.

@@ -65,6 +65,15 @@ from altera_api.classification_v2.nevo_nutrition_safety import (
 from altera_api.classification_v2.nevo_nutrition_safety import (
     base_safety_action as _safety_action,  # noqa: F401  (re-export: stage-1 gate)
 )
+from altera_api.classification_v2.nevo_review_workflow import (
+    INSTRUCTIONS,
+    REVIEW_BUCKETS,
+    REVIEW_EXTRA_COLUMNS,
+    REVIEW_PRIORITIES,
+    REVIEWER_BLANK_COLUMNS,
+    SUGGESTED_ACTIONS,
+    annotate,
+)
 from altera_api.embeddings.provider import (
     EmbeddingProviderError,
     build_embedding_provider,
@@ -83,13 +92,12 @@ PROPOSAL_CSV_COLUMNS = [
     "would_persist", "top_5_candidates", "rejection_reasons_summary", "notes",
 ]
 
-# Blank columns appended to the filtered review-package CSVs so a human can
-# triage each row (Quality-V2-Q Part A).
-REVIEWER_COLUMNS = [
-    "manual_decision", "reviewer_notes", "approved_nevo_code",
-    "approved_nevo_name",
-]
-FILTERED_REVIEW_COLUMNS = PROPOSAL_CSV_COLUMNS + REVIEWER_COLUMNS
+# Columns appended to the filtered review-package CSVs so a human can triage
+# each row (Quality-V2-Q Part A + Quality-V2-R): computed review_priority /
+# suggested_action plus blank reviewer columns.
+FILTERED_REVIEW_COLUMNS = PROPOSAL_CSV_COLUMNS + list(REVIEW_EXTRA_COLUMNS)
+# Consolidated workbook/CSV carries the bucket label up front for easy sorting.
+CONSOLIDATED_REVIEW_COLUMNS = ["review_bucket", *FILTERED_REVIEW_COLUMNS]
 
 #: (artifact key, filename template, row predicate). Buckets are mutually
 #: exclusive (the actions are), so a row lands in at most one bucket.
@@ -209,11 +217,26 @@ def write_proposals_csv(path: str | Path, rows: list[dict[str, Any]]) -> None:
             w.writerow(r)
 
 
+def _review_row(row: dict[str, Any], *, include_bucket: bool = False) -> dict[str, Any]:
+    """Augment a proposal row with computed review fields + blank reviewer
+    columns (Quality-V2-R). The proposal itself is never mutated."""
+    ann = annotate(row)
+    out = dict(row)
+    for col in REVIEWER_BLANK_COLUMNS:
+        out[col] = ""
+    out["review_priority"] = ann["review_priority"]
+    out["suggested_action"] = ann["suggested_action"]
+    if include_bucket:
+        out["review_bucket"] = ann["review_bucket"]
+    return out
+
+
 def write_filtered_review_csvs(
     out_dir: str | Path, project_id: str, rows: list[dict[str, Any]]
 ) -> dict[str, dict[str, Any]]:
     """Write one CSV per review bucket (Part A). Each row carries all proposal
-    columns plus blank reviewer columns. Returns ``{key: {path, count}}``."""
+    columns, computed review_priority/suggested_action, and blank reviewer
+    columns. Returns ``{key: {path, count}}``."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     artifacts: dict[str, dict[str, Any]] = {}
@@ -224,10 +247,78 @@ def write_filtered_review_csvs(
             w = csv.DictWriter(fh, fieldnames=FILTERED_REVIEW_COLUMNS)
             w.writeheader()
             for r in selected:
-                row = {**r, **dict.fromkeys(REVIEWER_COLUMNS, "")}
-                w.writerow(row)
+                w.writerow(_review_row(r))
         artifacts[key] = {"path": str(path), "count": len(selected)}
     return artifacts
+
+
+_PACKAGE_TABS = (
+    ("Auto_Ready", "auto_ready"),
+    ("Needs_Review", "needs_review"),
+    ("State_Mismatch", "state_mismatch"),
+    ("Proxy_Too_Broad", "proxy_too_broad"),
+    ("No_Match", "no_match"),
+    ("Non_Food_Policy", "non_food_policy"),
+)
+
+
+def _write_review_workbook(
+    path: Path, augmented: list[dict[str, Any]], summary: dict[str, Any]
+) -> None:
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Summary"
+    ws.append(["metric", "value"])
+    for key in ("product_count", "matcher_match_count", "enrich_ready_count",
+                "manual_review_required_count"):
+        ws.append([key, summary.get(key)])
+    for label, mapping in (
+        ("bucket", summary["review_bucket_counts"]),
+        ("priority", summary["review_priority_counts"]),
+        ("action", summary["suggested_action_counts"]),
+    ):
+        for k, v in mapping.items():
+            ws.append([f"{label}:{k}", v])
+
+    for title, bucket in _PACKAGE_TABS:
+        sheet = wb.create_sheet(title)
+        sheet.append(list(CONSOLIDATED_REVIEW_COLUMNS))
+        for r in augmented:
+            if r["review_bucket"] == bucket:
+                sheet.append([r.get(c, "") for c in CONSOLIDATED_REVIEW_COLUMNS])
+
+    instructions = wb.create_sheet("Instructions")
+    for line in INSTRUCTIONS:
+        instructions.append([line])
+    wb.save(path)
+
+
+def write_review_package(
+    out_dir: str | Path, project_id: str, rows: list[dict[str, Any]],
+    summary: dict[str, Any],
+) -> str:
+    """Write a consolidated review workbook (xlsx via openpyxl) or, if openpyxl
+    is unavailable, a single consolidated CSV with a ``review_bucket`` column.
+    Returns the artifact path."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    augmented = [_review_row(r, include_bucket=True) for r in rows]
+    try:
+        import openpyxl  # noqa: F401
+    except ImportError:
+        path = out / f"nevo_v2_enrich_review_package_{project_id}.csv"
+        with path.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=CONSOLIDATED_REVIEW_COLUMNS)
+            w.writeheader()
+            for r in augmented:
+                w.writerow({c: r.get(c, "") for c in CONSOLIDATED_REVIEW_COLUMNS})
+        return str(path)
+
+    path = out / f"nevo_v2_enrich_review_package_{project_id}.xlsx"
+    _write_review_workbook(path, augmented, summary)
+    return str(path)
 
 
 def build_dry_run_summary(
@@ -245,6 +336,15 @@ def build_dry_run_summary(
         a: sum(1 for r in rows if r["nutrition_safety_action"] == a)
         for a in NUTRITION_SAFETY_ACTIONS
     }
+    # Quality-V2-R — per-row review annotations (advisory; no DB writes).
+    annotations = [annotate(r) for r in rows]
+    review_bucket_counts = dict.fromkeys(REVIEW_BUCKETS, 0)
+    suggested_action_counts = dict.fromkeys(SUGGESTED_ACTIONS, 0)
+    review_priority_counts = dict.fromkeys(REVIEW_PRIORITIES, 0)
+    for ann in annotations:
+        review_bucket_counts[ann["review_bucket"]] += 1
+        suggested_action_counts[ann["suggested_action"]] += 1
+        review_priority_counts[ann["review_priority"]] += 1
     # A few concrete examples of state/proxy mismatches that were downgraded
     # despite a concept-correct matcher result (Part D observability).
     skipped_examples = [
@@ -279,6 +379,11 @@ def build_dry_run_summary(
         "manual_review_required_count": (
             len(rows) - nutrition_safety_counts["would_enrich"]
         ),
+        # Quality-V2-R — review-workflow accounting.
+        "review_bucket_counts": review_bucket_counts,
+        "suggested_action_counts": suggested_action_counts,
+        "review_priority_counts": review_priority_counts,
+        "instructions_summary": INSTRUCTIONS[0],
         "skipped_examples": skipped_examples,
     }
 
@@ -438,6 +543,10 @@ def main(argv: list[str] | None = None, *, store: Any = None) -> int:
     summary["filtered_artifacts"] = write_filtered_review_csvs(
         out_dir, str(project_id), rows
     )
+    # Quality-V2-R Part C — consolidated review workbook (xlsx or CSV fallback).
+    summary["review_package_path"] = write_review_package(
+        out_dir, str(project_id), rows, summary
+    )
     json_path = out_dir / f"nevo_v2_enrich_proposals_{project_id}.json"
     json_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False),
                          encoding="utf-8")
@@ -471,6 +580,15 @@ def main(argv: list[str] | None = None, *, store: Any = None) -> int:
         f"  => enrich_ready={summary['enrich_ready_count']}  "
         f"manual_review_required={summary['manual_review_required_count']}"
     )
+    print("-" * 64)
+    print("REVIEW PRIORITY (P0 never-auto … P3 non-food/policy):")
+    for prio, count in summary["review_priority_counts"].items():
+        print(f"  {prio:4} {count:>6}")
+    print("SUGGESTED ACTION:")
+    for action, count in summary["suggested_action_counts"].items():
+        if count:
+            print(f"  {action:28} {count:>6}")
+    print(f"Consolidated review package: {summary['review_package_path']}")
     print("-" * 64)
     print(f"CSV:  {csv_path}")
     print(f"JSON: {json_path}")
