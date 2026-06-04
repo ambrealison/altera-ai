@@ -1237,3 +1237,55 @@ needs_more_info) → `ready_for_apply_planning`.
 **Result.** A filled CSV review package is validated offline into a clear
 go/no-go report — with no DB writes, no `openpyxl` requirement in the Render
 runtime, V1 default, embeddings off, and routes clean.
+
+## Phase Quality-V2-T — apply PLANNING (read-only, still no DB writes)
+
+With the dry-run → review-package → validator pipeline in place, this phase
+produces the *apply plan*: an explicit, machine-readable description of what a
+future DB-write phase WOULD do, and why it is still blocked. Nothing here
+writes to the DB, imports a route, activates V2, or adds a Supabase migration —
+it only *documents* the migration a real apply would require.
+
+**Validator `--project-id` (Part A).** A copied/renamed sample
+(`nevo_v2_enrich_review_package_FILLED_SAMPLE_<uuid>.csv`) would otherwise infer
+a noisy project id (`FILLED_SAMPLE_<uuid>`). `validate_nevo_v2_review_package`
+now accepts `--project-id <uuid>` to override the inferred id in the summary and
+in all output filenames; filename inference still works when the flag is
+omitted.
+
+**Plan generator (Part B).** New read-only CLI
+`plan_nevo_v2_apply.py` reads the validator's `approved_candidates` CSV +
+`validation_summary` JSON and writes plan artifacts only. It **refuses**
+`blocked_by_errors` (returns 2, writes nothing) and **refuses**
+`review_incomplete` unless `--allow-incomplete` is passed (then it plans only
+the apply-ready rows and records a `blocked_reason`).
+
+    python -m altera_api.classification_v2.plan_nevo_v2_apply \
+        --approved-candidates .../nevo_v2_review_approved_candidates_<id>.csv \
+        --validation-summary  .../nevo_v2_review_validation_summary_<id>.json \
+        --output-dir /tmp/altera-quality --project-id <uuid>
+
+**Plan artifacts (Part C).** `nevo_v2_apply_plan_<project>.json` and
+`...csv`. The JSON carries `project_id`, `generated_at`,
+`source_approved_candidates`, `source_validation_summary`,
+`validation_recommendation`, `apply_ready_count`, `planned_operation_count`,
+`blocked_reason`, and `db_apply_status = blocked_pending_schema_migration`. Each
+operation records `product_id`, `product_name`, `approved_nevo_code` /
+`approved_nevo_name` / `approved_protein_g_per_100g`, `source`
+(`existing|replacement`), `planned_operation = create_v2_enrichment_record`,
+`requires_schema_migration = true`, `proposed_match_method = v2_embeddings`,
+`proposed_source_tag = nevo_v2_embeddings`, and `overwrite_existing_v1 = false`
+/ `overwrite_manual = false`.
+
+**Migration requirements (Part D).** The plan JSON states
+`schema_migration_required: true` with the reason (the enrichment-records DB
+CHECK allows match_method only in deterministic/ai_assisted/manual/none, so V2
+writes need a V2-specific source/method tag first), two recommended migration
+options (add a `v2_embeddings` match_method value, or add
+`source_version`/`source_metadata` JSONB columns), and a rollback plan (stay on
+V1 / do not apply; delete V2-tagged rows if ever applied).
+
+**Result.** We can generate an apply plan from the filled-sample approved
+candidates; the plan states unambiguously that a DB apply is blocked until the
+documented migration lands. No DB writes, no production behaviour change, V1
+default, embeddings off, routes clean.

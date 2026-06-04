@@ -383,6 +383,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--input", required=True,
                     help="filled review package (.csv primary, .xlsx optional)")
     ap.add_argument("--output-dir", default="/tmp/altera-quality")
+    ap.add_argument(
+        "--project-id", default=None,
+        help="override the project id inferred from the filename (use this when "
+             "validating a renamed/copied sample package).",
+    )
     return ap
 
 
@@ -394,10 +399,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FATAL: {exc}")
         return 2
 
-    project_id = infer_project_id(args.input) or "unknown"
+    resolved_project_id = args.project_id or infer_project_id(args.input)
+    project_id = resolved_project_id or "unknown"
     result = validate_package(
-        rows, input_path=str(args.input),
-        project_id=infer_project_id(args.input),
+        rows, input_path=str(args.input), project_id=resolved_project_id,
     )
     paths = write_artifacts(args.output_dir, project_id, result)
 
