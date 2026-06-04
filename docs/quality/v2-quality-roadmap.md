@@ -1400,3 +1400,36 @@ skipped_existing_manual | skipped_existing_v2 | error`).
 **Result.** A V2 apply CLI that is safe by construction: dry-run by default,
 double-gated for writes, schema-aware, and overwrite-proof. V1/default app
 behaviour is unchanged; the old `nevo_v2_enrich --apply` still refuses.
+
+## Phase Quality-V2-X — apply-readiness checker + tiny first rehearsal
+
+The Render apply dry-run confirmed the CLI reads the plan and writes nothing,
+and that migration 0037 is not yet applied
+(`provenance_columns_present: false`). This phase adds the operational safety
+net for the first real apply.
+
+**Readiness checker (Part A).** New read-only CLI
+`check_nevo_v2_apply_readiness.py` writes
+`nevo_v2_apply_readiness_<project>.{json,csv}` with a `ready` boolean and a
+checklist: `provenance_columns_present` (migration 0037 probe),
+`plan_project_matches`, `approved_count_matches_plan`,
+`validation_recommendation`, `db_apply_status_expected`, `no_overwrite_flags`,
+`v1_default_unchanged`, `embeddings_off` (warn-only), and `routes_clean`. It also
+reports per-product `conflicts` (writable / existing_manual / existing_v1 /
+existing_v2) so you can see exactly which approved rows would be skipped. It
+makes no DB writes; exit code 0 = ready, 1 = not ready, 2 = bad input.
+
+**Runbook (Part B).** `docs/quality/nevo-v2-first-apply-runbook.md` — the exact
+ordered sequence: confirm V1 default → apply 0037 → run the readiness checker →
+(regen artifacts if needed) → apply dry-run → inspect would_write/skips/errors →
+confirmed apply on a tiny `--limit-apply` sample → re-read DB rows and verify
+`source_version`/`source_metadata` → verify app/API/export unchanged → rollback
+(stop / delete V2 rows / drop columns).
+
+**Tiny rehearsal (Part C).** `apply_nevo_v2_plan` gains `--limit-apply N`: apply
+only the first N planned operations (default: no limit; respected in dry-run
+too). The result JSON records `limit_apply`.
+
+**Result.** Before the migration the checker says **not ready**; after it, it can
+say **ready**; and the first confirmed apply can be scoped to a single row. No
+production route changes; V1 default, embeddings off, routes clean.

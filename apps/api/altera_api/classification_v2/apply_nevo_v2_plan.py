@@ -293,6 +293,7 @@ def summarize(
     confirmation_present: bool, columns_present: bool, plan_json: str,
     approved_candidates: str, validation_summary: str | None,
     blocked_reason: str | None, generated_at: str | None,
+    limit_apply: int | None = None,
 ) -> dict[str, Any]:
     def n(status: str) -> int:
         return sum(1 for r in results if r["status"] == status)
@@ -303,6 +304,7 @@ def summarize(
         "dry_run": dry_run,
         "confirmation_present": confirmation_present,
         "provenance_columns_present": columns_present,
+        "limit_apply": limit_apply,
         "plan_json": plan_json,
         "approved_candidates": approved_candidates,
         "validation_summary": validation_summary,
@@ -357,6 +359,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--allow-incomplete-apply", action="store_true",
                     help="permit applying a review_incomplete plan that was "
                          "generated with --allow-incomplete")
+    ap.add_argument(
+        "--limit-apply", type=int, default=None,
+        help="apply only the first N planned operations (for a tiny first "
+             "rehearsal). Default: no limit. Respected in dry-run too.",
+    )
     ap.add_argument("--matcher-version", default="v2-embeddings")
     ap.add_argument("--embedding-provider", default=None)
     ap.add_argument("--embedding-model", default=None)
@@ -426,8 +433,12 @@ def main(argv: list[str] | None = None, *, store: Any = None,
         ),
     }
 
+    # Part C — tiny first rehearsal: apply only the first N planned operations.
+    limit = args.limit_apply
+    approved_to_apply = approved[:limit] if limit is not None else approved
+
     results = apply_plan(
-        approved=approved, store=store, metadata_base=metadata_base,
+        approved=approved_to_apply, store=store, metadata_base=metadata_base,
         write=effective_write, now_iso=generated_at,
     )
     summary = summarize(
@@ -436,7 +447,7 @@ def main(argv: list[str] | None = None, *, store: Any = None,
         columns_present=columns_present, plan_json=str(args.plan_json),
         approved_candidates=str(args.approved_candidates),
         validation_summary=summary_path, blocked_reason=blocked_reason,
-        generated_at=generated_at,
+        generated_at=generated_at, limit_apply=limit,
     )
     paths = write_artifacts(args.output_dir, args.project_id, summary, results)
 
