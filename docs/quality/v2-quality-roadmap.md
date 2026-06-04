@@ -1289,3 +1289,36 @@ V1 / do not apply; delete V2-tagged rows if ever applied).
 candidates; the plan states unambiguously that a DB apply is blocked until the
 documented migration lands. No DB writes, no production behaviour change, V1
 default, embeddings off, routes clean.
+
+## Phase Quality-V2-U — Supabase migration design (no apply yet)
+
+The one remaining blocker for a future DB apply is the
+`nutrition_enrichment_records.match_method` CHECK, which allows only
+`deterministic | ai_assisted | manual | none`. This phase **designs** the
+minimal, reversible schema + model change to persist V2-tagged records — it
+writes **no migration file** (`supabase/migrations/` is untouched), changes no
+code, and does not unblock the apply path.
+
+Inspected (Part A): the table DDL (`0025`), the CHECK history (`0033`, `0035`),
+the `NutritionEnrichmentRecord` model + `NutritionMatchMethod` enum, the
+mapper/store write path, and every `match_method` consumer (protein_tracker
+AI-assisted counts, coverage.py disclosure, routes.py response/writes, the
+single `api.ts` TS union).
+
+Compared (Part B): **Option 1** — add a `v2_embeddings` value to the
+`match_method` CHECK; **Option 2** — keep `match_method` as-is and add additive
+nullable `source_version` + `source_metadata (JSONB)` columns. **Recommendation:
+Option 2** — safest rollback (drop nullable columns vs re-tightening a CHECK
+with live rows), full provenance (provider/model/top_k/review-package id),
+no enum churn for V3, zero forced reader changes, and honest semantics
+(`match_method` = how picked; `source_version` = which engine). A V2 row records
+`match_method='ai_assisted'` + `source_version='v2_embeddings'`.
+
+The full spec — draft SQL (`0037`, not applied), affected models/store/reports,
+tests-when-it-lands, rollback SQL, no-backfill policy, and the never-overwrite-
+manual / never-overwrite-V1 / V1-default constraints — is in
+`docs/quality/v2-nevo-enrichment-persistence-migration.md`.
+
+**Result.** A clear migration recommendation with reversible draft SQL, with no
+DB writes, no migration file added, no code change, and the apply path still
+`blocked_pending_schema_migration`.
