@@ -32,7 +32,11 @@ from uuid import UUID
 
 from altera_api.classification_v2.nevo_index import NevoVectorIndex, load_nevo_reference
 from altera_api.classification_v2.nevo_matcher import get_nevo_matcher
-from altera_api.classification_v2.nevo_rules import _significant_tokens, concept_of
+from altera_api.classification_v2.nevo_rules import (
+    _primary_head,
+    _significant_tokens,
+    concept_of,
+)
 from altera_api.embeddings.cache import FileEmbeddingCache, InMemoryEmbeddingCache
 from altera_api.embeddings.provider import (
     EmbeddingProviderError,
@@ -109,6 +113,15 @@ def _v2_on_concept(
     return bool(v2_matched) and pc is not None and concept_of(v2_name or "") == pc
 
 
+def _heads_agree(product_name: str | None, v2_name: str | None) -> bool:
+    """True when the product and V2's reference lead with the same head
+    token (e.g. "Biscuits Apéritif" ↔ "Biscuits assorted") — a safe exact
+    match even when neither resolves to a mapped concept."""
+    ph = _primary_head(product_name or "")
+    ch = _primary_head(v2_name or "")
+    return ph is not None and ph == ch
+
+
 def risk_bucket(
     *,
     agreement: str,
@@ -127,14 +140,22 @@ def risk_bucket(
     if v2_review_required:
         # V2 surfaced a review-only candidate — a human will confirm it.
         return "v2_review_only"
-    # Phase Quality-V2-J — when V2 matched the product's OWN concept while V1
-    # matched a different concept (or nothing), V2 is the better answer.
-    if _v2_on_concept(product_name, v2_name, v2_matched) and (
-        _v1_off_concept(product_name, v1_name) or agreement == "v2_only"
+    # Phase Quality-V2-J/K — a V2 auto-accept is gate-validated: it shares
+    # the product's concept OR exactly matches its head token. Such a match,
+    # where V1 matched a different concept (or nothing), is a V2 win — not a
+    # potential false positive.
+    v2_consistent = bool(v2_matched) and (
+        _v2_on_concept(product_name, v2_name, v2_matched)
+        or _heads_agree(product_name, v2_name)
+    )
+    if v2_consistent and (
+        _v1_off_concept(product_name, v1_name)
+        or agreement in ("v2_only", "disagreement_needs_review")
     ):
         return "v2_better_than_v1"
-    if agreement in ("v2_only", "disagreement_needs_review"):
-        # V2 auto-accepted a food V1 didn't (or a different one) → inspect.
+    if v2_matched and not v2_consistent:
+        # V2 accepted something that is neither concept- nor head-consistent
+        # with the product (rare given the gate) → inspect.
         return "v2_potential_false_positive"
     return "manual_inspection_needed"  # e.g. v1_only (V2 missed it)
 
@@ -212,6 +233,8 @@ def build_comparison_rows(
             v2_matched=v2["matched"], v2_review_required=v2["review_required"],
         )
         note_parts: list[str] = []
+        if risk == "v2_better_than_v1":
+            note_parts.append("V2 own-concept match")
         if _v1_off_concept(p.product_name, v1["name"]):
             note_parts.append(
                 f"V1 likely false positive (V1 concept "

@@ -813,3 +813,45 @@ Shadow interpretation (`compare_nevo_v1_v2`):
 
 Gates unchanged: HC-FP 0, forbidden rejection 100%, dangerous_incorrectly_
 accepted 0 on the full-NEVO fake benchmark.
+
+## Quality-V2-K — expand real-catalog coverage + sharper shadow risk buckets
+
+The 100-product shadow run after V2-J still had many safe abstains / v1_only
+rows (missing real FR aliases) and 6 "potential high-risk" rows that were
+actually safe V2 wins. V2-K expands the concept catalogue and refines the
+shadow risk labelling. Evaluator/dev-only; V1 default; embeddings off; no
+route imports V2/embeddings; gates green.
+
+Part A — ~22 new concepts (FR product forms + EN/NEVO reference names):
+`mustard`, `vinegar` (+balsamic), `vinaigrette`, `crisps` (chips), `quinoa`,
+`couscous` (semolina), `wheat_flour`, `sugar`, `bread`, `honey`, `jam`,
+`mozzarella`, `feta`, `creme_fraiche`, `margarine`, `ham`, `chicken`, `egg`,
+`salmon`, `hummus`, `almond_drink`, `sorbet`. Notes:
+- `mozzarella`/`feta` use phrase forms ("cheese mozzarella"/"cheese feta")
+  so they beat the bare `cheese` concept at the same position.
+- `hummus` moved from dish-noun to a CONCEPT, so "Houmous" matches "Hummus
+  natural" while "Hummus with chickpeas" still rejects for a chickpea
+  product via the JOINER head logic (head = hummus != chickpea).
+- `sweet_corn`/`wheat_flour` deliberately exclude bare "corn"/"flour" so
+  "Corn starch"/"Flour corn" never read as the food.
+
+Traps stay rejected: tomato-sauce ≠ beans-in-tomato-sauce, corn-flakes ≠
+chicken-schnitzel, vinegar ≠ salad dressing, margarine ≠ egg-fried-in-
+margarine (egg head wins), corn-flakes ≠ corn-starch (exact-head closed in
+V2-J). HC-FP 0, forbidden 100%, dangerous_incorrectly_accepted 0 on the
+full-NEVO fake benchmark.
+
+Part B — shadow risk buckets (`compare_nevo_v1_v2`): a V2 auto-accept is
+gate-validated (it shares the product's concept OR exactly matches its head
+token), so a V2 match where V1 differs/abstains is now `v2_better_than_v1`
+(with note "V2 own-concept match"), not `v2_potential_false_positive`. The
+latter is reserved for a V2 accept that is neither concept- nor head-
+consistent with the product (rare). This reclassifies the six high-risk
+rows (chips, quinoa, margarine, crème fraîche, sorbet, biscuits apéritif)
+to wins.
+
+Expected effect on the next 100-product Render run: V2 auto_accept up,
+v1_only materially down, potential-high-risk down, v2_better_than_v1 up —
+with no new unsafe accepts. (Run on Render with ALTERA_ENABLE_EMBEDDINGS=
+true + VOYAGE_API_KEY for the cross-language retrieval that the offline fake
+can't reproduce.)

@@ -111,7 +111,12 @@ class TestPreparationVsComposite:
         assert _g("Ratatouille", "Ratatouille prepared wo meat").accepted
 
     def test_head_concept_ignores_trailing_ingredient(self) -> None:
-        assert _head_concept("Hummus with chickpeas") is None
+        # The head is the leading food, not the trailing ingredient. After
+        # V2-K, "hummus" is its own concept (the dish head), so a chickpea
+        # product still rejects "Hummus with chickpeas" because the head
+        # concept (hummus) != the product concept (chickpea).
+        assert _head_concept("Hummus with chickpeas") == "hummus"
+        assert not _g("Pois chiches", "Hummus with chickpeas").accepted
         assert _head_concept("Apple pie without sugar") is None
         assert _head_concept("Peas chick boiled") == "chickpea"
 

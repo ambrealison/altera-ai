@@ -48,10 +48,14 @@ _PREPARATION_STATES = frozenset({
 _COMPOSITE_JOINERS = frozenset({"with", "without", "avec", "sans", "w", "wo"})
 _DISH_NOUNS = frozenset({
     "soup", "stew", "casserole", "pie", "pizza", "lasagne", "lasagna",
-    "lasagnes", "curry", "gratin", "quiche", "sauce", "hummus", "tart",
+    "lasagnes", "curry", "gratin", "quiche", "sauce", "tart",
     "cake", "pudding", "salad", "smoothie", "bar", "biscuit", "spread",
     "dish", "meal", "bolognaise", "bolognese", "wrap", "sandwich", "burger",
 })
+# Phase Quality-V2-K — ``hummus`` is BOTH a product and a trap-ingredient.
+# It is a concept (so "Houmous" matches "Hummus natural"), not a dish noun;
+# the "Hummus with chickpeas" trap is still rejected for a chickpea product
+# via the JOINER ("with") head logic (head = hummus != chickpea).
 # Concepts that are fundamentally secondary ingredients — a candidate
 # whose head IS one of these can never be the primary match for a
 # product of a different concept (even if embeddings rank it highly).
@@ -118,6 +122,36 @@ _CONCEPTS: dict[str, tuple[str, ...]] = {
             "tea", "green tea", "black tea"),
     "soup": ("soupe", "veloute", "soup"),
     "tomato_sauce": ("sauce tomate", "sauce tomato", "tomato sauce"),
+    # Phase Quality-V2-K — more real FR retailer foods. Same rules: FR
+    # product forms + EN/NEVO reference names; traps stay rejected by the
+    # composite/dish-noun head logic and by precise (non-bare) forms.
+    "mustard": ("moutarde", "mustard"),
+    "vinegar": ("vinaigre", "vinegar", "balsamique", "balsamic"),
+    "vinaigrette": ("vinaigrette",),
+    "crisps": ("chips", "crisps"),
+    "quinoa": ("quinoa",),
+    # semolina ≈ couscous (both wheat semolina); never bare "ble".
+    "couscous": ("couscous", "semoule", "semolina"),
+    # wheat flour only — NEVER bare "flour"/"corn" (that would swallow
+    # "Flour corn"/"Corn starch").
+    "wheat_flour": ("farine", "farine de ble", "flour wheat", "wheat flour"),
+    "sugar": ("sucre", "sugar"),
+    "bread": ("pain", "pain de mie", "pain complet", "bread"),
+    "honey": ("miel", "honey"),
+    "jam": ("confiture", "jam"),
+    # phrase forms beat the bare "cheese" concept at the same position.
+    "mozzarella": ("mozzarella", "cheese mozzarella"),
+    "feta": ("feta", "cheese feta"),
+    "creme_fraiche": ("creme fraiche",),
+    "margarine": ("margarine",),
+    "ham": ("jambon", "ham"),
+    "chicken": ("poulet", "chicken"),
+    "egg": ("oeuf", "oeufs", "egg"),
+    "salmon": ("saumon", "salmon"),
+    "hummus": ("houmous", "hummus"),
+    "almond_drink": ("boisson amande", "lait amande", "drink almond",
+                     "almond drink", "almond milk"),
+    "sorbet": ("sorbet",),
 }
 
 
