@@ -160,11 +160,11 @@ class TestDryRun:
         assert summary["persisted_writes"] == 0
         assert summary["matcher_version"] == "v2-embeddings"
         assert summary["embedding_provider"] == "fake"
-        assert "safety_action_counts" in summary
+        assert "nutrition_safety_counts" in summary
         out = capsys.readouterr().out
         assert "DRY-RUN" in out and "no database writes" in out.lower()
         # Tofu (NEVO-TOFU has a protein value) → would_enrich.
-        assert summary["safety_action_counts"]["would_enrich"] >= 1
+        assert summary["nutrition_safety_counts"]["would_enrich"] >= 1
         # Only read methods were called.
         assert set(store.reads) <= {
             "get_project", "list_products_for_project", "list_nevo_entries"

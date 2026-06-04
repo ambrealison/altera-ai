@@ -1020,3 +1020,67 @@ to review).
 
 This makes the admin opt-in real (an admin can intentionally dry-run V2 NEVO)
 while making accidental production activation impossible.
+
+## Phase Quality-V2-P — nutrition-enrichment safety layer (dry-run only)
+
+A concept-correct matcher match can still be a **nutrition-wrong** source:
+dry vs cooked (pasta/rice/couscous/lentils/legumes/quinoa), canned vs dried,
+instant/powder/cappuccino vs brewed coffee/tea, plain vs sweetened tea, and a
+processing *proxy* (syrup / concentrate / essence / aroma / rinse / extract)
+vs a whole food. The V2 matcher only decides *food concept*; it does not
+decide whether the matched reference is in the same physical state as the
+product. Enriching protein from "Pasta boiled" onto a dry pasta pack, or from
+"Apple syrup" onto a compote, is a real data-quality hazard.
+
+So this phase adds a **second stage** that runs **only** inside the
+`nevo_v2_enrich` dry-run proposals. It is in a dedicated module
+(`classification_v2/nevo_nutrition_safety.py`), imported by the CLI only — **no
+route imports it**, it changes **no matcher gate**, and it **writes nothing**.
+
+**Two distinct outcomes per proposal (Part A).** Each row now reports the
+matcher outcome (`matcher_outcome` ∈ `match|review|no_match`,
+`matcher_confidence`) *and*, separately, the nutrition decision
+(`nutrition_safety_action` + `nutrition_safety_reason`). The CSV/JSON make it
+explicit that **matcher-accepted ≠ safe-to-enrich-nutrition**. The six actions
+are:
+
+- `would_enrich` — high-confidence concept match, has a real protein value,
+  *and* physical states are aligned.
+- `route_to_review` — matcher review-level / confidence `< 0.90`.
+- `skip_no_match` — matcher produced no candidate.
+- `skip_no_nutrition_value` — matched reference has no protein value.
+- `skip_state_mismatch` — concept-correct but wrong physical state
+  (dry↔cooked, cooked↔dried/raw, or processed/instant/sweetened beverage vs
+  plain/whole).
+- `skip_proxy_too_broad` — reference is a processing proxy (syrup, concentrate,
+  essence, aroma, rinse, extract…), not a whole-food nutrition source.
+
+**State rules (Part B).** A packaged staple with no explicit state is treated
+as *dry*. For state-sensitive concepts (`pasta, rice, couscous, lentil, bean,
+black_bean, chickpea, green_peas, quinoa, sweet_corn`): a *cooked* reference
+against a dry/packaged product → skip; a *dried/raw* reference against a
+*cooked* product → skip. **Canned is not treated as a cooked/dried conflict**,
+so canned legumes/fish/sweetcorn stay enrichable. For `coffee`/`tea`, a
+reference carrying a beverage-processing marker (`instant, powder, soluble,
+cappuccino, sweetened, sugar, herbal, prepared, brewed, latte, mix`) that the
+product does not → skip. Proxy words trigger `skip_proxy_too_broad` for any
+concept. Worked examples that now correctly skip: Lentilles Cuites→Lentils
+dried, Pâtes (dry)→Pasta boiled, Café Capsules/Grains→Coffee instant/Cappuccino
+instant, Thé Noir→Tea herbal sweetened instant, Compote→Apple syrup/rinse.
+
+**Aligned positives stay `would_enrich` (Part C):** Chocolate dark, Yoghurt
+Greek full fat, Chickpeas/Beans canned, Tuna in water tinned, Sweetcorn tinned,
+Orange juice with pulp, Muesli/Cornflakes.
+
+**Observability (Part D).** The dry-run console and JSON now report both
+stages: `matcher_outcome_counts` + `matcher_match_count`, the full
+`nutrition_safety_counts` (all six actions) + `nutrition_would_enrich`, and a
+list of `skipped_examples` (product, reference, action, reason) for the rows
+downgraded on a state/proxy mismatch. The old single `safety_action_counts`
+key is removed.
+
+**Result.** On the same dry-run, matcher matches stay unchanged, but
+`would_enrich` drops to only the nutrition-safe rows — every risky row is
+routed to review/skip with a clear reason. No matcher regression, no
+production behaviour change: V1 stays default, embeddings stay off, no route
+touches V2, and `--apply` remains gated.

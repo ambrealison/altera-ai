@@ -57,6 +57,14 @@ from altera_api.classification_v2.nevo_matcher import (
     get_nevo_matcher,
     resolve_nevo_matcher_version,
 )
+from altera_api.classification_v2.nevo_nutrition_safety import (
+    _AUTO_ACCEPT_THRESHOLD,
+    NUTRITION_SAFETY_ACTIONS,
+    nutrition_safety_action,
+)
+from altera_api.classification_v2.nevo_nutrition_safety import (
+    base_safety_action as _safety_action,  # noqa: F401  (re-export: stage-1 gate)
+)
 from altera_api.embeddings.provider import (
     EmbeddingProviderError,
     build_embedding_provider,
@@ -66,34 +74,19 @@ from altera_api.quality_config import DEFAULT_EMBEDDING_MODEL, embeddings_enable
 
 _DEFAULT_OUTPUT_DIR = "/tmp/altera-quality"
 _DEFAULT_CACHE_DIR = "/tmp/altera-quality/cache"
-_AUTO_ACCEPT_THRESHOLD = 0.90
 
 PROPOSAL_CSV_COLUMNS = [
     "product_id", "product_name", "matcher_version", "embedding_provider",
-    "embedding_model", "outcome", "nevo_code", "nevo_food_name",
-    "enriched_protein_g_per_100g", "confidence", "match_type",
-    "review_required", "safety_action", "would_persist",
-    "top_5_candidates", "rejection_reasons_summary", "notes",
+    "embedding_model", "matcher_outcome", "matcher_confidence", "nevo_code",
+    "nevo_food_name", "enriched_protein_g_per_100g", "match_type",
+    "review_required", "nutrition_safety_action", "nutrition_safety_reason",
+    "would_persist", "top_5_candidates", "rejection_reasons_summary", "notes",
 ]
 
 
 def _protein_of(entry: Any) -> float | None:
     val = getattr(entry, "protein_g_per_100g", None)
     return float(val) if val is not None else None
-
-
-def _safety_action(*, matched: bool, review_required: bool, protein: float | None,
-                   confidence: float) -> str:
-    """What the V2 result WOULD do on a (gated) write path — precision-first:
-    only a high-confidence accept with a real nutrition value would enrich;
-    everything else routes to review or is skipped (never an unsafe write)."""
-    if not matched:
-        return "skip_no_match"
-    if review_required or confidence < _AUTO_ACCEPT_THRESHOLD:
-        return "route_to_review"
-    if protein is None:
-        return "skip_no_nutrition_value"
-    return "would_enrich"
 
 
 def _proposal_v1(product: Any, nevo: NevoProvider) -> dict[str, Any]:
@@ -145,11 +138,14 @@ def build_proposals(
         else:
             d = _proposal_v2(p, matcher, nevo_by_code, top_k)
             emb_provider, emb_model = provider_name, model
-        action = _safety_action(
+        # Stage 2 — nutrition safety (state/beverage/proxy) layered on the
+        # matcher result. Matcher-accepted does NOT imply safe-to-enrich.
+        action, reason = nutrition_safety_action(
             matched=d["matched"], review_required=d["review_required"],
-            protein=d["protein"], confidence=d["confidence"],
+            confidence=d["confidence"], protein=d["protein"],
+            product_name=p.product_name, ref_name=d["food"],
         )
-        outcome = (
+        matcher_outcome = (
             "no_match" if not d["matched"]
             else ("review" if d["review_required"] else "match")
         )
@@ -160,16 +156,17 @@ def build_proposals(
                 "matcher_version": version,
                 "embedding_provider": emb_provider,
                 "embedding_model": emb_model,
-                "outcome": outcome,
+                "matcher_outcome": matcher_outcome,
+                "matcher_confidence": d["confidence"],
                 "nevo_code": d["code"],
                 "nevo_food_name": d["food"],
                 "enriched_protein_g_per_100g": (
                     d["protein"] if d["protein"] is not None else ""
                 ),
-                "confidence": d["confidence"],
                 "match_type": d["match_type"],
                 "review_required": d["review_required"],
-                "safety_action": action,
+                "nutrition_safety_action": action,
+                "nutrition_safety_reason": reason,
                 "would_persist": action == "would_enrich",
                 "top_5_candidates": d["top_5"],
                 "rejection_reasons_summary": d["rejections"],
@@ -193,9 +190,31 @@ def build_dry_run_summary(
     rows: list[dict[str, Any]], *, project_id: str, version: str,
     provider: str, model: str, top_k: int, generated_at: str | None,
 ) -> dict[str, Any]:
-    actions = ("would_enrich", "route_to_review", "skip_no_match",
-               "skip_no_nutrition_value")
-    counts = {a: sum(1 for r in rows if r["safety_action"] == a) for a in actions}
+    # Stage 1 — what the MATCHER decided (concept correctness).
+    matcher_outcome_counts = {
+        o: sum(1 for r in rows if r["matcher_outcome"] == o)
+        for o in ("match", "review", "no_match")
+    }
+    # Stage 2 — what the NUTRITION-safety policy decided. A matcher "match"
+    # does NOT imply it is safe to enrich nutrition from it.
+    nutrition_safety_counts = {
+        a: sum(1 for r in rows if r["nutrition_safety_action"] == a)
+        for a in NUTRITION_SAFETY_ACTIONS
+    }
+    # A few concrete examples of state/proxy mismatches that were downgraded
+    # despite a concept-correct matcher result (Part D observability).
+    skipped_examples = [
+        {
+            "product_name": r["product_name"],
+            "nevo_food_name": r["nevo_food_name"],
+            "matcher_outcome": r["matcher_outcome"],
+            "nutrition_safety_action": r["nutrition_safety_action"],
+            "nutrition_safety_reason": r["nutrition_safety_reason"],
+        }
+        for r in rows
+        if r["nutrition_safety_action"]
+        in ("skip_state_mismatch", "skip_proxy_too_broad")
+    ][:10]
     return {
         "project_id": project_id,
         "product_count": len(rows),
@@ -206,7 +225,11 @@ def build_dry_run_summary(
         "safety_mode": "dry_run",
         "persisted_writes": 0,
         "generated_at": generated_at,
-        "safety_action_counts": counts,
+        "matcher_match_count": matcher_outcome_counts["match"],
+        "matcher_outcome_counts": matcher_outcome_counts,
+        "nutrition_would_enrich": nutrition_safety_counts["would_enrich"],
+        "nutrition_safety_counts": nutrition_safety_counts,
+        "skipped_examples": skipped_examples,
     }
 
 
@@ -365,10 +388,27 @@ def main(argv: list[str] | None = None, *, store: Any = None) -> int:
     json_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False),
                          encoding="utf-8")
 
-    counts = summary["safety_action_counts"]
     print("-" * 64)
-    for action, count in counts.items():
-        print(f"  {action:24} {count:>6}")
+    print("STAGE 1 — matcher outcome (concept correctness):")
+    for outcome, count in summary["matcher_outcome_counts"].items():
+        print(f"  {outcome:28} {count:>6}")
+    print("STAGE 2 — nutrition safety (a matcher 'match' is NOT, by itself,")
+    print("          safe to enrich nutrition from):")
+    for action, count in summary["nutrition_safety_counts"].items():
+        print(f"  {action:28} {count:>6}")
+    print(
+        f"  => matcher matches={summary['matcher_match_count']}  "
+        f"nutrition would_enrich={summary['nutrition_would_enrich']}"
+    )
+    if summary["skipped_examples"]:
+        print("-" * 64)
+        print("Examples downgraded on physical-state / proxy mismatch:")
+        for ex in summary["skipped_examples"]:
+            print(
+                f"  [{ex['nutrition_safety_action']}] "
+                f"{ex['product_name']!r} vs {ex['nevo_food_name']!r}"
+            )
+            print(f"      {ex['nutrition_safety_reason']}")
     print("-" * 64)
     print(f"CSV:  {csv_path}")
     print(f"JSON: {json_path}")
