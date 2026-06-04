@@ -1430,6 +1430,21 @@ class PostgresRepository:
             enrichment_record_to_row(record)
         ).execute()
 
+    def has_enrichment_provenance_columns(self) -> bool:
+        """True iff migration 0037 has been applied (the V2 provenance columns
+        exist). Used by the gated V2 apply CLI to refuse writes when the schema
+        is not ready. Read-only probe; never mutates."""
+        try:
+            (
+                self._rls.table("nutrition_enrichment_records")
+                .select("source_version,source_metadata")
+                .limit(1)
+                .execute()
+            )
+        except Exception:  # noqa: BLE001 — any client/PostgREST error => absent
+            return False
+        return True
+
     def get_enrichment_records_for_product(
         self, product_id: UUID
     ) -> list[NutritionEnrichmentRecord]:

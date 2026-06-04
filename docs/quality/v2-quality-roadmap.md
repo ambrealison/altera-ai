@@ -1352,3 +1352,51 @@ no route wiring, V1 default, embeddings off.**
 exists but is additive-only and unapplied-by-writes; existing tests stay green
 (3502 passed); no production behaviour change; the apply path
 (`nevo_v2_enrich --apply`) still refuses.
+
+## Phase Quality-V2-W — explicit, guarded NEVO V2 apply CLI
+
+The first code path that can persist V2-tagged enrichment records —
+`apply_nevo_v2_plan.py` — designed to be impossible to trigger by accident. It
+is **not** imported by any route; V1 stays default and embeddings stay off.
+
+    python -m altera_api.classification_v2.apply_nevo_v2_plan \
+        --plan-json .../nevo_v2_apply_plan_<id>.json \
+        --approved-candidates .../nevo_v2_review_approved_candidates_<id>.csv \
+        --project-id <uuid>                 # default DRY-RUN, writes nothing
+        # add --confirm-apply-v2 to write (only if migration 0037 columns exist)
+
+**Preconditions (Part A).** Refuses (rc 2, no artifacts) unless: plan
+`project_id` matches `--project-id`; `schema_migration_required` is true and
+`db_apply_status == blocked_pending_schema_migration`; no overwrite flags set on
+the plan or any operation; approved-candidate count equals
+`planned_operation_count`; and the validation recommendation is
+`ready_for_apply_planning` (or `review_incomplete` only when the plan was
+generated with `--allow-incomplete` **and** the operator passes
+`--allow-incomplete-apply`). Any validation `error_count > 0` also refuses.
+
+**Guards (Part D).** Default is dry-run; a write needs **both**
+`--confirm-apply-v2` **and** the live `source_version`/`source_metadata` columns
+(probed via `PostgresStore.has_enrichment_provenance_columns()`). With
+confirmation but missing columns it writes nothing and returns 2.
+
+**Write behaviour (Part B).** For each approved candidate it inspects the
+product's existing protein records and: skips `skipped_existing_manual` (never
+overwrite manual), `skipped_existing_v1` (never overwrite a V1 value),
+`skipped_existing_v2` (idempotent — no overwrite flag exists yet); otherwise it
+builds a `NutritionEnrichmentRecord` with `source='nevo'`,
+`match_method='ai_assisted'`, `source_version='v2_embeddings'`,
+`enriched_value=approved_protein`, a conservative confidence, and
+`source_metadata` carrying matcher_version / embedding provider+model / top_k /
+plan + approved-candidates + validation-summary + review-package paths /
+manual_decision / candidate_source / `applied_by_cli=true`.
+
+**Artifacts (Part C).** Always writes `nevo_v2_apply_result_<project>.{json,csv}`
+with `total_planned`, `written_count`, `would_write_count`,
+`skipped_existing_count` (v2), `skipped_manual_count`, `skipped_v1_count`,
+`error_count`, `dry_run`, `confirmation_present`, `provenance_columns_present`,
+and a per-row status (`would_write | written | skipped_existing_v1 |
+skipped_existing_manual | skipped_existing_v2 | error`).
+
+**Result.** A V2 apply CLI that is safe by construction: dry-run by default,
+double-gated for writes, schema-aware, and overwrite-proof. V1/default app
+behaviour is unchanged; the old `nevo_v2_enrich --apply` still refuses.
