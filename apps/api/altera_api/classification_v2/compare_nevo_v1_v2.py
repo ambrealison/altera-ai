@@ -292,11 +292,17 @@ _RISK_BUCKETS = (
     "safe_agreement", "v2_more_specific", "v1_more_specific", "v2_review_only",
     "v2_better_than_v1", "v2_potential_false_positive", "manual_inspection_needed",
 )
-#: filtered CSV name → row predicate.
+#: filtered CSV name → row predicate. Phase Quality-V2-N hotfix — these are
+#: keyed on ``risk_bucket`` (NOT ``v2_outcome``). A "no_match" V2 decision
+#: still carries review_required=True, so a v1_only row (V1 matched, V2 not)
+#: lands in the ``v2_review_only`` risk bucket while its v2_outcome is
+#: "no_match" — filtering on outcome wrongly dropped those rows.
 _FILTERED_SPECS: dict[str, Any] = {
     "nevo_v2_better_than_v1": lambda r: r["risk_bucket"] == "v2_better_than_v1",
-    "nevo_v2_review_only": lambda r: r["v2_outcome"] == "review",
-    "nevo_v2_high_risk": lambda r: r["risk_bucket"] == "v2_potential_false_positive",
+    "nevo_v2_review_only": lambda r: r["risk_bucket"] == "v2_review_only",
+    "nevo_v2_high_risk": lambda r: r["risk_bucket"] in (
+        "v2_potential_false_positive", "manual_inspection_needed"
+    ),
 }
 
 

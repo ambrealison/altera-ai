@@ -256,6 +256,67 @@ class TestCli:
 
 
 # ---------------------------------------------------------------------------
+# Hotfix — review-only filtered CSV is keyed on risk_bucket, not v2_outcome.
+# A v1_only row (V1 matched, V2 no_match) lands in the v2_review_only risk
+# bucket (the no_match decision still carries review_required=True) while its
+# v2_outcome is "no_match" — so filtering on outcome wrongly dropped them.
+# ---------------------------------------------------------------------------
+class TestReviewOnlyFilterHotfix:
+    def _rows(self):
+        rows = []
+        # 25 V2 wins (auto-accept).
+        rows += [_row("v2_only", "v2_better_than_v1",
+                      notes="V2 own-concept match") for _ in range(25)]
+        # 35 exact-code agreements (auto-accept).
+        rows += [_row("same_code", "safe_agreement") for _ in range(35)]
+        # 15 v1_only rows: V2 produced no match → risk_bucket "v2_review_only"
+        # but v2_outcome == "no_match" (the real-run scenario).
+        rows += [_row("v1_only", "v2_review_only", v2_outcome="no_match")
+                 for _ in range(15)]
+        return rows
+
+    def test_summary_counts(self) -> None:
+        s = build_summary(
+            self._rows(), project_id="p1", top_k=20, provider="voyage",
+            model="voyage-4-lite", generated_at=None,
+        )
+        assert s["risk_bucket_counts"]["v2_review_only"] == 15
+        # No row has v2_outcome == "review" → review_required count is 0.
+        assert s["v2_review_required_count"] == 0
+        assert s["v2_better_than_v1_count"] == 25
+        assert s["potential_high_risk_count"] == 0
+        assert s["recommendation"] == "admin_opt_in_candidate"
+
+    def test_filtered_csv_row_counts_match_buckets(self, tmp_path) -> None:
+        rows = self._rows()
+        counts = write_filtered_csvs(tmp_path, "p1", rows)
+        # review_only CSV now contains the 15 risk_bucket==v2_review_only rows
+        # even though none had v2_outcome == "review".
+        assert counts["nevo_v2_review_only_p1.csv"] == 15
+        assert counts["nevo_v2_better_than_v1_p1.csv"] == 25
+        assert counts["nevo_v2_high_risk_p1.csv"] == 0
+        # Console-reported counts == actual written data rows (lines - header).
+        for fname, expected in counts.items():
+            lines = (tmp_path / fname).read_text().splitlines()
+            assert len(lines) - 1 == expected, fname
+
+    def test_high_risk_includes_manual_inspection(self, tmp_path) -> None:
+        rows = [
+            _row("disagreement_needs_review", "v2_potential_false_positive"),
+            _row("v1_only", "manual_inspection_needed", v2_outcome="no_match"),
+            _row("v2_only", "v2_better_than_v1"),
+        ]
+        counts = write_filtered_csvs(tmp_path, "p2", rows)
+        assert counts["nevo_v2_high_risk_p2.csv"] == 2  # both risk buckets
+
+    def test_high_risk_header_only_when_zero(self, tmp_path) -> None:
+        rows = [_row("v2_only", "v2_better_than_v1") for _ in range(5)]
+        counts = write_filtered_csvs(tmp_path, "p3", rows)
+        assert counts["nevo_v2_high_risk_p3.csv"] == 0
+        assert len((tmp_path / "nevo_v2_high_risk_p3.csv").read_text().splitlines()) == 1
+
+
+# ---------------------------------------------------------------------------
 # Safety.
 # ---------------------------------------------------------------------------
 class TestSafety:
