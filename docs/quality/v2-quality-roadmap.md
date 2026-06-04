@@ -1190,3 +1190,50 @@ an `instructions_summary`.
 `needs_more_info` per row — ready to drive a future, still-gated apply path. No
 DB writes; existing proposals and safety actions unchanged; V1 default;
 embeddings off; routes clean.
+
+## Phase Quality-V2-S — validate a filled review package (read-only)
+
+The Render runtime has no `openpyxl`, so the review package ships as the CSV
+fallback. Once a reviewer fills the `manual_decision` (and, for replacements,
+the `approved_*`) columns, we need to validate those decisions OFFLINE before
+any future apply planning. This phase adds
+`validate_nevo_v2_review_package.py` — a strictly read-only CLI that reads ONE
+filled CSV (or XLSX, only if `openpyxl` is present) and writes a small report.
+It never touches the DB, imports no route, and is not a runtime dependency.
+
+    python -m altera_api.classification_v2.validate_nevo_v2_review_package \
+        --input /tmp/altera-quality/nevo_v2_enrich_review_package_<id>.csv \
+        --output-dir /tmp/altera-quality
+
+**CSV is the primary path.** XLSX is read (across all non-meta sheets) only
+when `openpyxl` is installed; an `.xlsx` input without it fails with a clear
+message pointing at the CSV. `openpyxl` stays out of the required runtime deps.
+
+**Decision validation (Part A).** `manual_decision ∈ {approve, reject, replace,
+needs_more_info, blank}` (blank = pending). `replace` requires
+`approved_nevo_code` + `approved_nevo_name`; `approve` of the existing candidate
+requires `nevo_code` + `nevo_food_name` + `enriched_protein_g_per_100g`;
+`approve` of a no-match requires an `approved_nevo_code`;
+`approved_protein_g_per_100g` must be numeric if present; `reject` /
+`needs_more_info` / blank need no approved fields.
+
+**Risk-aware validation (Part B).** Errors: a `P0` row approved; a non-food /
+policy-excluded row approved without an explicit `OVERRIDE` in `reviewer_notes`;
+a no-match approved without a replacement code. Warnings: approving a
+`skip_state_mismatch`, `skip_proxy_too_broad`, or `route_to_review` /
+generic-proxy row as-is; approving a non-food via `OVERRIDE`. Auto-ready rows
+approve cleanly.
+
+**Artifacts (Part C).** `nevo_v2_review_validation_summary_<project>.json`,
+`..._errors_<project>.csv`, `..._warnings_<project>.csv`, and
+`nevo_v2_review_approved_candidates_<project>.csv` (effective code/name/protein
++ `source` = existing|replacement). The summary carries `input_path`,
+`project_id` (inferred from the filename), decision counts, `error_count`,
+`warning_count`, `apply_ready_count` (approve/replace with no errors),
+`blocked_count` (rows with errors), and a `recommendation`:
+`blocked_by_errors` (any error) → `review_incomplete` (pending /
+needs_more_info) → `ready_for_apply_planning`.
+
+**Result.** A filled CSV review package is validated offline into a clear
+go/no-go report — with no DB writes, no `openpyxl` requirement in the Render
+runtime, V1 default, embeddings off, and routes clean.
