@@ -1084,3 +1084,59 @@ key is removed.
 routed to review/skip with a clear reason. No matcher regression, no
 production behaviour change: V1 stays default, embeddings stay off, no route
 touches V2, and `--apply` remains gated.
+
+## Phase Quality-V2-Q — dry-run review package + final nutrition-safety filters
+
+After V2-P, a full 100-product V2 dry-run gave matcher `match 66 / no_match 34`
+and nutrition `would_enrich 56` with `skip_state_mismatch 9` +
+`skip_proxy_too_broad 1`. The two-stage model held (dry-vs-cooked pasta, compote
+vs apple-syrup, cooked-vs-dried lentils, coffee capsules vs instant, black tea
+vs sweetened-prepared, dry quinoa/couscous/peas vs boiled all downgraded). But a
+handful of `would_enrich` rows were still nutrition-risky — e.g. rice grain →
+*rice drink*, cider vinegar → *balsamic*, rapeseed oil → *Becel blend*, instant
+mousseline → *prepared mash with milk/margarine*, apricot jam → *rose-hip jam*,
+and flavoured snacks → *unflavoured* references.
+
+**Final filters (Part B).** Added to `nevo_nutrition_safety.py` (still stage-2
+only, still no matcher-gate change, still no writes), evaluated in order after
+the existing proxy-word check:
+
+- **Rice / whole-food vs drink** — a non-beverage product matched to a
+  `drink`/`boisson` reference → `skip_proxy_too_broad` (rice grain ≠ rice
+  drink). Actual beverage concepts (almond drink, juice, coffee, tea) are
+  exempt.
+- **Vinegar variety** — cider/balsamic/wine/white/rice/sherry/raspberry types;
+  product type ≠ reference type → `skip_proxy_too_broad`. A reference with no
+  recognizable type stays a generic proxy (enrich).
+- **Jam fruit** — apricot/strawberry/.../rose-hip varieties; wrong fruit →
+  `skip_proxy_too_broad`.
+- **Oil** — a pure oil matched to a branded blend/margarine (`blend`,
+  `margarine`, `becel`, `spread`…) or to a *different* oil type →
+  `route_to_review` (a generic vegetable oil is left to the reviewer).
+- **Instant potato puree** — a dry/dehydrated puree (`mousseline`, `flakes`,
+  `instant`, `powder`…) matched to a prepared mash with added
+  `milk`/`margarine`/`butter`/`cream` → `skip_state_mismatch`.
+- **Generic snack proxy** — a flavoured/specific cracker/crisp/chips/tortilla
+  matched to a generic/unflavoured snack reference → `route_to_review` (the
+  flavoured product carries descriptive tokens the reference lacks). It is
+  *flagged*, never silently auto-enriched; a plain snack → unflavoured snack
+  still enriches.
+
+**Review package (Part A).** The dry-run now writes one CSV per bucket beside
+the master proposals file:
+`nevo_v2_enrich_{would_enrich,state_mismatch,proxy_too_broad,no_match,review}_<project>.csv`.
+Each carries every proposal column plus blank reviewer columns
+(`manual_decision`, `reviewer_notes`, `approved_nevo_code`,
+`approved_nevo_name`). Buckets are mutually exclusive. The console prints a
+per-bucket row count.
+
+**Summary (Part C).** The JSON adds `filtered_artifacts` (path + count per
+bucket), `enrich_ready_count` (= `would_enrich` after the final filters), and
+`manual_review_required_count` (= everything not auto-enriched). The console
+prints both headline numbers.
+
+**Result.** Matcher counts can stay 66, but `nutrition_would_enrich` is now
+stricter — the remaining suspicious rows are downgraded (rice-drink, vinegar,
+jam, puree) or flagged for a human (oil blends, flavoured snacks). All safety
+gates stay green: HC-FP=0, forbidden=100%, dangerous=0; V1 default; embeddings
+off; no route imports V2/safety; `--apply` gated; no DB writes.

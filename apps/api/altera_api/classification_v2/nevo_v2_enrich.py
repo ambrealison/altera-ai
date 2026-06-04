@@ -83,6 +83,29 @@ PROPOSAL_CSV_COLUMNS = [
     "would_persist", "top_5_candidates", "rejection_reasons_summary", "notes",
 ]
 
+# Blank columns appended to the filtered review-package CSVs so a human can
+# triage each row (Quality-V2-Q Part A).
+REVIEWER_COLUMNS = [
+    "manual_decision", "reviewer_notes", "approved_nevo_code",
+    "approved_nevo_name",
+]
+FILTERED_REVIEW_COLUMNS = PROPOSAL_CSV_COLUMNS + REVIEWER_COLUMNS
+
+#: (artifact key, filename template, row predicate). Buckets are mutually
+#: exclusive (the actions are), so a row lands in at most one bucket.
+_FILTERED_REVIEW_SPECS = (
+    ("would_enrich", "nevo_v2_enrich_would_enrich_{pid}.csv",
+     lambda r: r["nutrition_safety_action"] == "would_enrich"),
+    ("state_mismatch", "nevo_v2_enrich_state_mismatch_{pid}.csv",
+     lambda r: r["nutrition_safety_action"] == "skip_state_mismatch"),
+    ("proxy_too_broad", "nevo_v2_enrich_proxy_too_broad_{pid}.csv",
+     lambda r: r["nutrition_safety_action"] == "skip_proxy_too_broad"),
+    ("no_match", "nevo_v2_enrich_no_match_{pid}.csv",
+     lambda r: r["matcher_outcome"] == "no_match"),
+    ("review", "nevo_v2_enrich_review_{pid}.csv",
+     lambda r: r["nutrition_safety_action"] == "route_to_review"),
+)
+
 
 def _protein_of(entry: Any) -> float | None:
     val = getattr(entry, "protein_g_per_100g", None)
@@ -186,6 +209,27 @@ def write_proposals_csv(path: str | Path, rows: list[dict[str, Any]]) -> None:
             w.writerow(r)
 
 
+def write_filtered_review_csvs(
+    out_dir: str | Path, project_id: str, rows: list[dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    """Write one CSV per review bucket (Part A). Each row carries all proposal
+    columns plus blank reviewer columns. Returns ``{key: {path, count}}``."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    artifacts: dict[str, dict[str, Any]] = {}
+    for key, template, predicate in _FILTERED_REVIEW_SPECS:
+        selected = [r for r in rows if predicate(r)]
+        path = out / template.format(pid=project_id)
+        with path.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=FILTERED_REVIEW_COLUMNS)
+            w.writeheader()
+            for r in selected:
+                row = {**r, **dict.fromkeys(REVIEWER_COLUMNS, "")}
+                w.writerow(row)
+        artifacts[key] = {"path": str(path), "count": len(selected)}
+    return artifacts
+
+
 def build_dry_run_summary(
     rows: list[dict[str, Any]], *, project_id: str, version: str,
     provider: str, model: str, top_k: int, generated_at: str | None,
@@ -229,6 +273,12 @@ def build_dry_run_summary(
         "matcher_outcome_counts": matcher_outcome_counts,
         "nutrition_would_enrich": nutrition_safety_counts["would_enrich"],
         "nutrition_safety_counts": nutrition_safety_counts,
+        # Part C — headline review accounting. enrich_ready is what would be
+        # auto-enriched after the final filters; everything else needs a human.
+        "enrich_ready_count": nutrition_safety_counts["would_enrich"],
+        "manual_review_required_count": (
+            len(rows) - nutrition_safety_counts["would_enrich"]
+        ),
         "skipped_examples": skipped_examples,
     }
 
@@ -384,6 +434,10 @@ def main(argv: list[str] | None = None, *, store: Any = None) -> int:
         provider=provider_name, model=model, top_k=args.top_k,
         generated_at=datetime.now(UTC).isoformat(),
     )
+    # Part A — filtered review-package CSVs (one per bucket, reviewer columns).
+    summary["filtered_artifacts"] = write_filtered_review_csvs(
+        out_dir, str(project_id), rows
+    )
     json_path = out_dir / f"nevo_v2_enrich_proposals_{project_id}.json"
     json_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False),
                          encoding="utf-8")
@@ -409,6 +463,14 @@ def main(argv: list[str] | None = None, *, store: Any = None) -> int:
                 f"{ex['product_name']!r} vs {ex['nevo_food_name']!r}"
             )
             print(f"      {ex['nutrition_safety_reason']}")
+    print("-" * 64)
+    print("REVIEW PACKAGE (one CSV per bucket, with reviewer columns):")
+    for key, info in summary["filtered_artifacts"].items():
+        print(f"  {key:18} {info['count']:>6}  {info['path']}")
+    print(
+        f"  => enrich_ready={summary['enrich_ready_count']}  "
+        f"manual_review_required={summary['manual_review_required_count']}"
+    )
     print("-" * 64)
     print(f"CSV:  {csv_path}")
     print(f"JSON: {json_path}")
