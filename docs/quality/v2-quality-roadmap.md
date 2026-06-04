@@ -896,3 +896,45 @@ v1_only down further, potential-high-risk stays 0, v2_better_than_v1 up or
 stable, policy abstains unchanged — no unsafe accepts. (Run on Render with
 ALTERA_ENABLE_EMBEDDINGS=true + VOYAGE_API_KEY for the cross-language
 retrieval the offline fake can't reproduce.)
+
+## Quality-V2-M — final coverage pass + query-alias retrieval injection
+
+After V2-L the 100-product shadow run was strong (V2 auto_accept 58,
+v1_only 23, v2_better 20, high-risk 0). V2-M targets the remaining obvious
+review-only rows. Evaluator/dev-only; V1 default; embeddings off; no route
+imports V2/embeddings; gates green (HC-FP 0, forbidden 100%, dangerous 0).
+
+Part A — final concepts (FR product forms + EN/NEVO names): `tortilla_crisps`
+(tortillas maïs → "Crisps tortilla"), `tortilla_wrap` (tortillas blé →
+"Wrap/tortilla wheat"), `chocolate_hazelnut_spread` (pâte à tartiner →
+"Spread chocolate hazelnut"), `madeleine` (kept review/abstain — only a
+cake-bar reference exists), plus `puree mousseline` → the `potato` concept.
+
+New mechanism — **self-product exception**: a few concepts ARE prepared/
+spread products whose NEVO name legitimately carries a dish noun
+("Spread chocolate hazelnut", "Wrap/tortilla wheat", "Salad dressing
+vinaigrette"). For those allow-listed concepts only, a dish-noun candidate
+keeps its concept head, so the matching product matches it — while a
+DIFFERENT-concept product still doesn't (a dark-chocolate BAR never matches
+a chocolate SPREAD; a vinaigrette never matches plain vinegar).
+
+Part B — **query-alias injection**: when a product resolves to a concept,
+`build_nevo_query_text` appends a canonical English+FR phrase
+(`CONCEPT_QUERY_ALIASES`, e.g. green_peas → "green peas peas green petits
+pois", cod → "cod cabillaud fish") so the vector retriever surfaces the
+right cross-language NEVO candidate (fixing rows where the top-5 was
+baby-biscuits / lemon / mint instead of the food). This is RETRIEVAL
+RANKING only — the precision-first gate still decides, and the phrase is a
+function of the concept, never a commercial field.
+
+Parts C/D — policy abstains kept: beverages, ambiguous juice drinks
+(nectar), cleaning/household, pet (litière, croquettes, **pâtée chien**)
+resolve to no concept → abstain. Traps held: vinegar≠vinaigrette,
+cod≠lemon/croissant, taboulé≠mint, petits-pois≠baby-biscuit, pâte-à-
+tartiner≠cocoa/chocolate-bar, tortillas≠corn-starch/wheat-flour.
+
+Expected on the next 100-product Render run: V2 auto_accept up / review-only
+down, v1_only down, potential-high-risk stays 0, v2_better_than_v1 stable
+or up — no unsafe accepts. (Run on Render with ALTERA_ENABLE_EMBEDDINGS=true
++ VOYAGE_API_KEY; the query-alias injection now also lifts the right
+candidate into the offline fake's top-k.)

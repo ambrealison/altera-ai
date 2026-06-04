@@ -103,7 +103,7 @@ _CONCEPTS: dict[str, tuple[str, ...]] = {
     "muesli": ("muesli", "granola"),
     "rice": ("riz", "rice"),
     "potato": ("pomme de terre", "pommes de terre", "potato", "potatoes",
-               "patate", "patates"),
+               "patate", "patates", "puree mousseline", "pommes mousseline"),
     "apple": ("pomme", "pommes", "apple", "apples"),
     "tomato": ("tomate", "tomates", "tomato", "tomatoes"),
     # Phase Quality-V2-J — real FR retailer foods. FR product forms + the
@@ -168,7 +168,26 @@ _CONCEPTS: dict[str, tuple[str, ...]] = {
     "green_peas": ("petits pois", "petit pois", "pois verts", "peas green",
                    "green peas"),
     "spinach": ("epinard", "epinards", "spinach"),
+    # Phase Quality-V2-M — final real FR retailer foods.
+    "tortilla_crisps": ("tortilla chips", "chips tortilla", "crisps tortilla",
+                        "tortillas mais", "tortilla mais"),
+    "tortilla_wrap": ("tortilla ble", "tortillas ble", "tortilla wheat",
+                      "wrap tortilla wheat", "galette de ble"),
+    "chocolate_hazelnut_spread": ("pate a tartiner", "cacao noisette",
+                                  "spread chocolate hazelnut",
+                                  "chocolate hazelnut spread", "nutella"),
+    "madeleine": ("madeleine", "madeleines"),
 }
+
+# Phase Quality-V2-M — concepts that ARE a prepared/spread product whose
+# NEVO name legitimately carries a dish noun ("Spread chocolate hazelnut",
+# "Wrap/tortilla wheat", "Salad dressing vinaigrette"). For these — and
+# ONLY these — a dish-noun candidate keeps its concept head (so the
+# matching product matches it), instead of being treated as headless. A
+# chocolate BAR still won't match a chocolate SPREAD (different concept).
+_SELF_PRODUCT_CONCEPTS = frozenset({
+    "chocolate_hazelnut_spread", "tortilla_wrap", "vinaigrette",
+})
 
 
 @dataclass(frozen=True)
@@ -221,6 +240,39 @@ def concept_of(text: str) -> str | None:
     return _concept_of_norm(_norm(text))
 
 
+# Phase Quality-V2-M — once a product's concept is detected, the embedded
+# QUERY text is augmented with this canonical English+FR phrase so the
+# vector retriever surfaces the right NEVO candidate (cross-language: a
+# French "Petits Pois" query otherwise retrieves unrelated foods). This
+# changes RETRIEVAL RANKING only — the precision-first gate still decides,
+# so it can never turn an unsafe candidate into an accept. No commercial
+# field is involved (the phrase is a function of the concept, not the row).
+CONCEPT_QUERY_ALIASES: dict[str, str] = {
+    "green_peas": "green peas peas green petits pois",
+    "cod": "cod cabillaud fish fillet",
+    "couscous": "couscous semolina tabbouleh taboule salad",
+    "chocolate_hazelnut_spread": "spread chocolate hazelnut pate a tartiner",
+    "tortilla_crisps": "crisps tortilla tortilla chips",
+    "tortilla_wrap": "wrap tortilla wheat",
+    "egg": "egg eggs whole egg oeufs",
+    "potato": "potato potatoes mashed puree",
+    "spinach": "spinach epinards",
+    "shrimp": "shrimps prawns crevettes",
+    "tuna": "tuna thon",
+    "salmon": "salmon smoked saumon",
+    "brioche": "brioche",
+    "ice_cream": "ice cream dairy glace",
+    "vinaigrette": "salad dressing vinaigrette",
+    "madeleine": "madeleine cake",
+}
+
+
+def concept_query_phrase(text: str) -> str | None:
+    """Canonical retrieval phrase for a product's concept (or ``None``)."""
+    concept = concept_of(text)
+    return CONCEPT_QUERY_ALIASES.get(concept) if concept else None
+
+
 def _first_joiner_index(tokens: list[str]) -> int | None:
     for i, tok in enumerate(tokens):
         if tok in _COMPOSITE_JOINERS:
@@ -252,7 +304,11 @@ def _head_concept(text: str) -> str | None:
       boiled"), → its concept (whole text)."""
     toks = _norm(text).split()
     if _has_dish_noun(toks):
-        return None
+        # Self-product exception (Phase Quality-V2-M): a dish-noun candidate
+        # that IS one of the allow-listed prepared/spread products keeps its
+        # concept head, so the matching product can match it.
+        full = _concept_of_norm(_norm(text))
+        return full if full in _SELF_PRODUCT_CONCEPTS else None
     j = _first_joiner_index(toks)
     prefix = toks if j is None else toks[:j]
     return _concept_of_norm(f" {' '.join(prefix)} ")

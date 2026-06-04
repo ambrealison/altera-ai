@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from altera_api.classification_v2.nevo_rules import NevoCandidate
+from altera_api.classification_v2.nevo_rules import NevoCandidate, concept_query_phrase
 from altera_api.embeddings.cache import (
     EmbeddingCache,
     InMemoryEmbeddingCache,
@@ -111,8 +111,18 @@ def build_nevo_query_text(product: dict[str, Any]) -> str:
     Delegates to ``build_product_text``, which (a) raises
     ``ForbiddenEmbeddingField`` if ANY commercial/physical field is
     present in the input, and (b) emits only the allowed descriptor
-    lines (name, retailer category, ingredients, labels)."""
-    return build_product_text(product)
+    lines (name, retailer category, ingredients, labels).
+
+    Phase Quality-V2-M: when the product resolves to a known concept, a
+    canonical concept phrase is appended so the vector retriever surfaces
+    the right cross-language NEVO candidate (retrieval ranking only — the
+    gate still decides, and the phrase is a function of the concept, not of
+    any commercial field)."""
+    text = build_product_text(product)
+    phrase = concept_query_phrase(str(product.get("product_name", "")))
+    if phrase:
+        text = f"{text}\nConcept: {phrase}"
+    return text
 
 
 @dataclass
