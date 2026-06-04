@@ -977,3 +977,46 @@ On the V2-M 100-product real run (auto_accept 66, v2_better 25, high-risk 0)
 this yields **admin_opt_in_candidate** — i.e. the data now clearly says
 whether a project is an admin-opt-in candidate, while V1 stays the default
 and nothing is activated.
+
+## Quality-V2-O — admin/internal NEVO V2 opt-in (dry-run, still not default)
+
+A strictly controlled, admin-only path to run NEVO V2 over a project and see
+exactly what it WOULD enrich — with zero production impact. V1 stays the
+production default; embeddings stay disabled by default; no app route imports
+or uses V2/embeddings; rollback is trivial (unset
+`ALTERA_NEVO_MATCHER_VERSION` or set `v1`).
+
+Activation (Part A): `ALTERA_NEVO_MATCHER_VERSION` (or `--matcher-version`)
+selects `v1` (default) | `v2-embeddings`. `v2-embeddings` runs ONLY when
+`ALTERA_ENABLE_EMBEDDINGS=true` (+ `VOYAGE_API_KEY` for real Voyage),
+enforced via `get_nevo_matcher`; otherwise it fails clearly — a present
+`VOYAGE_API_KEY` alone enables nothing, and there is no silent fake provider
+(the deterministic fake is dev/CI-only via the explicit `--evaluator-fake`
+flag). `v2-rules` has no candidate generator and is rejected.
+
+CLI (Part B/C/E): `python -m altera_api.classification_v2.nevo_v2_enrich`.
+It is a CLI, not a route. Default is **DRY-RUN**: reads project + products +
+NEVO reference, writes enrichment PROPOSALS
+(`nevo_v2_enrich_proposals_<project>.csv` + `.json`) and persists nothing.
+Each proposal carries the observability metadata — matcher_version,
+embedding_provider/model, outcome, nevo_code, nevo_food_name, the looked-up
+`enriched_protein_g_per_100g`, confidence, match_type, review_required,
+top-5 candidates, rejection summary, and a precision-first `safety_action`
+(`would_enrich` only for a high-confidence accept that has a real nutrition
+value; otherwise `route_to_review` / `skip_no_match` /
+`skip_no_nutrition_value`). The console prints the activation line
+(matcher/provider/model/safety_mode=dry_run) and the action counts.
+
+Write path (Part D) — **intentionally not implemented; gated.** Persisting
+V2-tagged enrichment records would need a Supabase migration to add a V2
+`match_method`/source tag (the DB CHECK allows only
+`deterministic|ai_assisted|manual|none`), which is out of scope. So `--apply`
+is accepted but **refuses with a clear message and writes nothing** (checked
+before any work) — the explicit opt-in surface exists with zero write risk.
+When a future phase adds the migration, the apply path can be enabled with
+the documented safety rules (require `--apply`, default dry-run, V2-tagged
+records, never overwrite manual/V1 unless `--overwrite-v1`, route uncertain
+to review).
+
+This makes the admin opt-in real (an admin can intentionally dry-run V2 NEVO)
+while making accidental production activation impossible.
