@@ -1465,3 +1465,45 @@ emits the JSON. Nothing bulk is implemented; V2 still writes total protein only
 **Result.** A clear pass/warn/fail post-apply audit (the pilot's 49 records
 verify as `pass`), plus a documented 30k roadmap. No production behaviour
 change, no new writes, V1 default, embeddings off, routes clean.
+
+## Phase Quality-V2-Z — derive plant/animal split from V2 total protein
+
+V2 wrote total protein only, so the UI plant/animal columns stay blank. The
+Protein Tracker already classifies each product; for the headline groups the
+split is unambiguous. This phase derives the split and (since the schema already
+supports it) ships a guarded apply.
+
+**Part A — schema fits.** The split is surfaced to the calculation as **sibling
+ENRICHED enrichment records** — `nutrient='plant_protein_pct'` +
+`'animal_protein_pct'` with the SAME `source=nevo` as the V2 total
+(`enrichment/selection.py:_sibling_value`). So no migration is needed beyond
+0037; the split records reuse `source_version` (set to `v2_embeddings_split`).
+PT groups live in `domain/protein_tracker.py:ProteinTrackerGroup`.
+
+**Part B — policy** (`nevo_v2_protein_split.py`, pure): `animal_core` → animal =
+total / plant = 0; `plant_based_core` / `plant_based_non_core` → plant = total /
+animal = 0; `composite_products` / `unknown` / `out_of_scope` → **needs_review**
+(no auto split). A manual override on the product → `skip_manual_override`
+(manual always wins); no classification → `skip_missing_class`.
+
+**Part C — proposals (dry-run, no writes).**
+`propose_nevo_v2_protein_split.py` reads the V2 total-protein records + each
+product's PT classification and writes
+`nevo_v2_protein_split_proposals_<project>.{csv,json}` with
+`total_protein_g_per_100g`, `pt_group`, proposed plant/animal, `split_action`
+(`would_split | needs_review | skip_missing_class | skip_manual_override`), and
+`split_reason`. No DB writes.
+
+**Part D — guarded apply.** Because the schema supports it,
+`apply_nevo_v2_protein_split.py` mirrors the V2-W safety posture: dry-run
+default; a write needs `--confirm-apply-split` AND the 0037 columns; never
+overwrites a manual record, never re-writes an existing split. For each
+`would_split` it writes the two sibling records (`source=nevo`,
+`source_version=v2_embeddings_split`, `match_method=ai_assisted`), so
+`plant + animal == total` and the calculation uses a true split. Result:
+`nevo_v2_split_apply_result_<project>.{json,csv}`.
+
+**Result.** Split proposals are generated for the applied V2 records; safe rows
+(animal_core / plant groups) are clearly `would_split`; mixed/unknown are
+`needs_review` (never auto-split); manual overrides are skipped. No production
+behaviour change; V1 default, embeddings off, routes clean.
