@@ -20,7 +20,16 @@ from altera_api.classification_v2.nevo_rules import _norm, concept_of
 
 # --- vocabularies ---------------------------------------------------------
 
-#: Pet food / accessories — excluded by policy (never a human-food source).
+# Pet food / accessories markers. NOTE (Quality-V2-AA): this is a REVIEW-STAGE
+# hint only — it routes a pet product to a human (``reject_policy_excluded`` /
+# P3) because pet items are often outside the retailer's nutrition scope. It is
+# NOT a hard exclusion of pet FOOD from enrichment. In this business context pet
+# food IS food: once a reviewer approves a pet-food match, it can receive total
+# protein and a plant/animal split via the Protein Tracker classification (the
+# split pipeline in ``nevo_v2_protein_split`` is PT-group driven and pet-agnostic
+# — e.g. ``Croquettes Chat`` with pt_group=animal_core → animal=total, plant=0).
+# See docs/quality/nevo-v2-petfood-policy.md. The frozenset is left unchanged to
+# avoid destabilising the established review-stage safety gates.
 _PET_MARKERS = frozenset({
     "chat", "chats", "chien", "chiens", "chiot", "chaton", "litiere",
     "croquette", "croquettes", "patee", "animal", "animaux", "aquarium",

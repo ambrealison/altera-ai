@@ -143,7 +143,8 @@ def apply_splits(
 def summarize(results: list[dict[str, Any]], *, project_id: str,
               dry_run: bool, confirmation_present: bool, columns_present: bool,
               proposals_path: str, blocked_reason: str | None,
-              generated_at: str | None) -> dict[str, Any]:
+              generated_at: str | None, limit_apply: int | None = None,
+              ) -> dict[str, Any]:
     def n(status: str) -> int:
         return sum(1 for r in results if r["status"] == status)
 
@@ -155,10 +156,12 @@ def summarize(results: list[dict[str, Any]], *, project_id: str,
         "provenance_columns_present": columns_present,
         "proposals": proposals_path,
         "blocked_reason": blocked_reason,
+        "limit_apply": limit_apply,
         "total_would_split": len(results),
         "would_write_count": n("would_write"),
-        "written_pairs_count": n("written"),
-        "records_written_count": n("written") * 2,
+        # Standardized keys (Quality-V2-AA Part E) — match the console output.
+        "written_pairs": n("written"),
+        "records_written": n("written") * 2,
         "skipped_existing_split_count": n("skipped_existing_split"),
         "skipped_manual_count": n("skipped_manual"),
         "error_count": n("error"),
@@ -247,6 +250,7 @@ def main(argv: list[str] | None = None, *, store: Any = None,
         confirmation_present=bool(args.confirm_apply_split),
         columns_present=columns_present, proposals_path=str(args.proposals),
         blocked_reason=blocked_reason, generated_at=generated_at,
+        limit_apply=args.limit_apply,
     )
     paths = write_artifacts(args.output_dir, _s(args.project_id), summary,
                             results)
@@ -256,8 +260,8 @@ def main(argv: list[str] | None = None, *, store: Any = None,
     print(f"  project={summary['project_id']} "
           f"would_split={summary['total_would_split']} "
           f"provenance_columns_present={columns_present}")
-    print(f"  written_pairs={summary['written_pairs_count']} "
-          f"records_written={summary['records_written_count']} "
+    print(f"  written_pairs={summary['written_pairs']} "
+          f"records_written={summary['records_written']} "
           f"would_write={summary['would_write_count']} "
           f"skipped_existing_split={summary['skipped_existing_split_count']} "
           f"skipped_manual={summary['skipped_manual_count']} "

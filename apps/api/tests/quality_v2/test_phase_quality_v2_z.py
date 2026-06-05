@@ -227,8 +227,10 @@ class TestSplitApply:
             assert r.source_metadata["split_apply_path"] is True
         s = json.loads(
             (tmp_path / "nevo_v2_split_apply_result_ap.json").read_text())
-        assert s["written_pairs_count"] == 1
-        assert s["records_written_count"] == 2
+        assert s["written_pairs"] == 1
+        assert s["records_written"] == 2
+        assert s["limit_apply"] is None
+        assert s["confirmation_present"] is True
 
     def test_confirm_but_missing_columns_writes_nothing(self, tmp_path) -> None:
         a = uuid4()

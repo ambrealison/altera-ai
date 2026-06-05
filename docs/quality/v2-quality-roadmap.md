@@ -1507,3 +1507,43 @@ overwrites a manual record, never re-writes an existing split. For each
 (animal_core / plant groups) are clearly `would_split`; mixed/unknown are
 `needs_review` (never auto-split); manual overrides are skipped. No production
 behaviour change; V1 default, embeddings off, routes clean.
+
+## Phase Quality-V2-AA — split audit + app check + pet-food-is-food
+
+The progressive split apply landed (39 `would_split` → 19 new pairs + 20
+already-split = 38 records; 10 `needs_review` untouched). This phase verifies it,
+adds an app-check, and clarifies pet-food policy.
+
+**Split audit (Part A/B).** `audit_nevo_v2_protein_split.py` (read-only) compares
+the DB split records to the proposals and writes
+`nevo_v2_split_audit_<project>.{json,csv}` +
+`nevo_v2_split_audit_anomalies_<project>.csv`. It checks every `would_split` has
+exactly one plant + one animal record, `plant + animal == total` (±0.01), tags
+(source=nevo / match_method=ai_assisted / source_version=v2_embeddings_split /
+unit=g_per_100g / metadata present), no duplicates, no split on a
+`needs_review`/skip product, and no manual/V1 conflict. Emits `audit_status`
+(pass/warn/fail) → `recommendation` (`split_apply_verified` /
+`investigate_split_anomalies` / `rollback_split_recommended`); exits 0/1/2.
+
+**App check (Part C).** The audit also writes
+`nevo_v2_split_app_check_<project>.csv` (product, total/plant/animal,
+plant+animal, pt_group, `expected_ui_status` = `split_shown` /
+`total_only_needs_review` / `total_only`) so the UI state can be eyeballed.
+
+**Pet food is food (Part D).** `docs/quality/nevo-v2-petfood-policy.md` +
+a clarified comment on `_PET_MARKERS`: pet food is food for nutrition enrichment.
+The split pipeline is PT-group driven and pet-agnostic, so `Croquettes Chat`
+(`animal_core`) splits normally (animal=total, plant=0) and is never an anomaly;
+composite pet food stays `needs_review`. The review-stage `reject_policy_excluded`
+hint is left unchanged (no destabilising the established gates).
+
+**Result-key consistency (Part E).** `apply_nevo_v2_protein_split` result JSON
+now exposes `written_pairs` / `records_written` (matching the console) plus
+`limit_apply`, alongside `would_write_count` / `skipped_*_count` / `error_count`
+/ `dry_run` / `confirmation_present`.
+
+**Result.** The split audit on the current project returns
+`pass / split_apply_verified` (39 products with valid plant+animal split, 10
+`needs_review` with none); pet food is handled and documented as valid food. No
+production behaviour change; no new writes; V1 default, embeddings off, routes
+clean.
