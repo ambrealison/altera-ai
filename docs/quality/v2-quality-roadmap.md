@@ -1433,3 +1433,35 @@ too). The result JSON records `limit_apply`.
 **Result.** Before the migration the checker says **not ready**; after it, it can
 say **ready**; and the first confirmed apply can be scoped to a single row. No
 production route changes; V1 default, embeddings off, routes clean.
+
+## Phase Quality-V2-Y — post-apply audit + 30k readiness baseline
+
+The first real apply landed: 49 V2 records (`source_version=v2_embeddings`,
+`source=nevo`, `match_method=ai_assisted`, `nutrient=protein_pct`,
+`unit=g_per_100g`), no V1/manual conflicts, idempotent re-run
+(`existing_v2=49, writable=0`). This phase adds the read-only verification and
+the scaling design.
+
+**Post-apply audit (Part A/B).** New read-only CLI `audit_nevo_v2_apply.py`
+reads the project's enrichment records + products, compares them to the approved
+candidates / plan, and writes `nevo_v2_apply_audit_<project>.{json,csv}` +
+`nevo_v2_apply_audit_anomalies_<project>.csv`. It verifies every V2 record's
+tags (source / match_method / source_version / nutrient / unit / metadata
+present), detects duplicate V2 rows per product, manual/V1 coexistence
+(overwrite check), approved candidates missing from the DB, and unexpected V2
+rows with no approved candidate. It emits `audit_status` (pass / warn / fail) →
+`recommendation` (`pilot_apply_verified` / `investigate_anomalies` /
+`rollback_recommended`) and exits 0 / 1 / 2. No DB writes.
+
+**30k scale baseline (Part C).** `nevo_v2_scale_baseline.scale_baseline_report()`
++ `docs/quality/nevo-v2-30k-scale-baseline.md` define the retailer-scale plan:
+deduplication + canonical product key, batch embedding cache reuse, P0–P3 review
+prioritisation (large dedup groups first), a no-match → rules feedback loop,
+chunked apply with per-chunk re-audit and stop-on-anomaly, the monitoring
+metrics, and the exact next artifacts. `audit_nevo_v2_apply --write-scale-baseline`
+emits the JSON. Nothing bulk is implemented; V2 still writes total protein only
+(plant/animal split stays blank → classification-assumption fallback).
+
+**Result.** A clear pass/warn/fail post-apply audit (the pilot's 49 records
+verify as `pass`), plus a documented 30k roadmap. No production behaviour
+change, no new writes, V1 default, embeddings off, routes clean.
