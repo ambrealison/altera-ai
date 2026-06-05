@@ -508,6 +508,9 @@ export interface NutritionValidationRow {
     | "missing"
     | "excluded";
   reason: string | null;
+  // Quality-V2-AB — friendly matched-NEVO label for V2-applied rows
+  // (e.g. "NEVO V2: Muesli w fruit/seeds"). Optional; null for other rows.
+  source_display_label?: string | null;
 }
 
 export interface NutritionValidationsResponse {

@@ -289,9 +289,9 @@ export function NutritionTable({
                 >
                   <td className="py-2.5 pl-4 pr-3 font-medium text-forest-900">
                     {row.product_name}
-                    {row.reason && (
+                    {(row.source_display_label ?? row.reason) && (
                       <div className="mt-0.5 text-xs text-ink-soft">
-                        {row.reason}
+                        {row.source_display_label ?? row.reason}
                       </div>
                     )}
                   </td>

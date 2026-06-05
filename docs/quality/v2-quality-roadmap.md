@@ -1580,3 +1580,39 @@ returns `pass / split_apply_verified` for the 49/39/39 state; a stale CSV warns
 instead of false-failing; real corruptions (unexpected/duplicate/broken-pair/sum-
 mismatch/bad-tags/missing-metadata) still fail. No DB writes; no production
 behaviour change.
+
+## Phase Quality-V2-AB — show matched NEVO food, not the generic apply label
+
+The UI showed "NEVO V2 apply (approved review package)" as a product's
+nutrition subtitle. **Part A trace:** that string is the V2 apply
+``rationale`` (`apply_nevo_v2_plan.py`) → mapper ``rationale`` →
+`routes.py:_nutrition_row_fields` (`reason = protein_rec.rationale[:200]`;
+`reference_name`/`reference_code` were never populated for enrichment) →
+`_nutrition-table.tsx` renders `row.reason`. **Part B:** the matched NEVO food
+already lives in ``source_metadata.approved_nevo_name`` on totals; split records
+had no name.
+
+**Part D — display.** `routes.py` adds `_v2_display_from_metadata()` and a new
+optional `source_display_label` field on `NutritionValidationRow`, populating it
+(+ `reference_name`/`reference_code`) from `source_metadata` — prefers
+`display_label`, else `nevo_food_name`/`parent_nevo_food_name`/`approved_nevo_name`,
+deriving `"NEVO V2: <name>"`. It works **pre- and post-backfill**. V1/retailer/
+manual rows get `None` (frontend falls back to `reason` — unchanged). The
+frontend renders `row.source_display_label ?? row.reason`.
+
+**Part C — backfill.** `backfill_nevo_v2_display_metadata.py` (guarded, dry-run
+default, `--confirm-backfill-display-metadata`) normalises `source_metadata`:
+totals get `nevo_food_name`/`nevo_code`/`display_label="NEVO V2: <name>"`,
+splits get `parent_nevo_food_name`/`parent_nevo_code`/`display_label="NEVO V2
+split: <name>"`. It updates **only** `source_metadata` via the new scoped
+`PostgresStore.update_enrichment_source_metadata` (NEVO-only, source_metadata
+column only); never touches manual/V1/non-NEVO records; idempotent.
+
+**Part E — audit.** `audit_nevo_v2_display_metadata.py` (read-only) verifies
+every V2 total/split record has a non-generic `display_label` + name, and that
+no manual record carries V2 display metadata → `pass/warn/fail`.
+
+**Result.** The app shows "NEVO V2: Muesli w fruit/seeds" instead of the generic
+label (immediately, from `approved_nevo_name`; the backfill cleans the keys and
+adds split parent names). No protein/split value changes, no matcher change, no
+new route activates V2, V1 default, embeddings off. Full suite 3593 passed.

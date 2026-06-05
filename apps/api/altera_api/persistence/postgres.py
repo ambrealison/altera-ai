@@ -1445,6 +1445,26 @@ class PostgresRepository:
             return False
         return True
 
+    def update_enrichment_source_metadata(
+        self, *, product_id: UUID, nutrient: str, source_version: str,
+        source_metadata: dict,
+    ) -> int:
+        """Quality-V2-AB — update ONLY ``source_metadata`` on the V2 enrichment
+        record(s) for one product+nutrient+source_version. Scoped to
+        ``source='nevo'`` so it can never touch a manual or a V1 record, and
+        only the metadata column is written (values/method/version untouched).
+        Returns the number of rows updated."""
+        res = (
+            self._rls.table("nutrition_enrichment_records")
+            .update({"source_metadata": source_metadata})
+            .eq("product_id", str(product_id))
+            .eq("nutrient", nutrient)
+            .eq("source_version", source_version)
+            .eq("source", "nevo")
+            .execute()
+        )
+        return len(res.data or [])
+
     def get_enrichment_records_for_product(
         self, product_id: UUID
     ) -> list[NutritionEnrichmentRecord]:

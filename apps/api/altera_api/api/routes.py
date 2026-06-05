@@ -2482,6 +2482,11 @@ class NutritionValidationRow(BaseModel):
     reference_code: str | None
     status: str                          # ready | needs_review | missing | excluded
     reason: str | None                   # short rationale for missing/needs_review
+    # Quality-V2-AB — human-friendly matched-reference label for V2-applied
+    # records (e.g. "NEVO V2: Muesli w fruit/seeds"). Optional + backward
+    # compatible: None for V1/retailer/manual rows (frontend falls back to
+    # ``reason``). Derived from ``source_metadata``; never affects values.
+    source_display_label: str | None = None
 
 
 class NutritionValidationsResponse(BaseModel):
@@ -2489,6 +2494,29 @@ class NutritionValidationsResponse(BaseModel):
     total: int
     counts_by_status: dict[str, int]
     counts_by_source: dict[str, int]
+
+
+def _v2_display_from_metadata(record: Any) -> dict[str, Any] | None:
+    """Quality-V2-AB — surface the approved NEVO food for a V2-applied record.
+
+    Reads ``source_metadata`` (works pre- and post-display-backfill): prefers
+    an explicit ``display_label``, else the matched NEVO food name/code under
+    any of the known keys. Returns None for non-V2 / no-metadata records so V1
+    behaviour is unchanged."""
+    md = getattr(record, "source_metadata", None)
+    if not isinstance(md, dict):
+        return None
+    name = (md.get("nevo_food_name") or md.get("parent_nevo_food_name")
+            or md.get("approved_nevo_name"))
+    code = (md.get("nevo_code") or md.get("parent_nevo_code")
+            or md.get("approved_nevo_code"))
+    label = md.get("display_label")
+    if not label and name:
+        label = f"NEVO V2: {name}"
+    if not (label or name):
+        return None
+    return {"reference_name": name or None, "reference_code": code or None,
+            "display_label": label or None}
 
 
 def _nutrition_row_fields(
@@ -2567,6 +2595,7 @@ def _nutrition_row_fields(
     confidence: float | None = None
     reference_name: str | None = None
     reference_code: str | None = None
+    source_display_label: str | None = None
     status = "missing"
     reason: str | None = None
     final_protein = retailer_pct
@@ -2600,7 +2629,14 @@ def _nutrition_row_fields(
         )
         match_method = protein_rec.match_method
         confidence = float(protein_rec.confidence) if protein_rec.confidence else None
-        # Try to extract the reference name from the rationale.
+        # Quality-V2-AB — for V2-applied records, surface the matched NEVO food
+        # name/code + a friendly label instead of the generic apply rationale.
+        _display = _v2_display_from_metadata(protein_rec)
+        if _display is not None:
+            reference_name = _display["reference_name"]
+            reference_code = _display["reference_code"]
+            source_display_label = _display["display_label"]
+        # Try to extract the reference name from the rationale (fallback).
         if protein_rec.rationale:
             reason = protein_rec.rationale[:200]
         if plant_rec is not None and animal_rec is not None:
@@ -2659,6 +2695,7 @@ def _nutrition_row_fields(
         "reference_code": reference_code,
         "status": status,
         "reason": reason,
+        "source_display_label": source_display_label,
     }
 
 
