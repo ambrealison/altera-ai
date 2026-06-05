@@ -1660,3 +1660,39 @@ matching, commercial data is excluded (no sensitive value reaches any output),
 and auto-ready / needs-review / no-match / high-risk groups are produced for
 human review. No DB writes; no production behaviour change. Full suite 3606
 passed.
+
+## Phase Quality-V2-AD — project-level batch dry-run from an existing project
+
+We don't have a retailer CSV on Render yet, so `nevo_v2_project_batch_dry_run.py`
+runs the same V2-AC batch/dedup/matching/reporting on the products already in an
+Altera project (read-only). It also compares the batch match against the
+project's already-applied V2 records.
+
+**Read-only loading (Part B).** Loads the project + products + enrichment
+records via read-only store methods only (never add/update/delete). It reads
+**only** identification fields (`product_name`, `brand`, `retailer_category`,
+`ingredients_text`, `labels`) — never `items_sold` or any commercial field.
+
+**Reuse (Part C).** Imports `canonical_key`, `_safe_fields_used`, `_match_group`,
+`batch_bucket`, `_build_matcher`, `_write_csv` from `nevo_v2_batch_dry_run`;
+dedups products by the same canonical key.
+
+**Existing-V2 comparison (Part D).** Per product:
+`existing_v2_total_record` / `existing_v2_split_record` /
+`existing_v2_nevo_code` / `existing_v2_nevo_name` (from the project's V2
+records) + `batch_nevo_code` / `batch_nevo_name` (this run) +
+`batch_matches_existing_v2` (`true|false|unknown`). Summary adds
+`existing_v2_total_count`, `existing_v2_split_product_count`,
+`batch_matches_existing_v2_count`, `batch_differs_from_existing_v2_count`,
+`existing_v2_missing_from_batch_count`.
+
+**Artifacts (Part E/F).**
+`nevo_v2_project_batch_{summary,results,dedup_groups,auto_ready,needs_review,no_match,high_risk}_<project>_<run>` —
+results are per-product (so the existing-V2 comparison is faithful); console
+prints the project/dedup/bucket/existing-V2 counts and paths.
+
+**Result.** The project-level batch dry-run runs read-only on the pilot project
+(no retailer CSV needed), excludes commercial fields, produces the batch
+artifacts, and reports where the batch agrees/differs from the applied V2
+records. No DB writes; V1 default; embeddings off; routes clean. Full suite 3616
+passed.
