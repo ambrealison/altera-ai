@@ -1739,3 +1739,41 @@ high-risk.
 existing-V2 comparison intact (`existing_v2_total=49`, `matches=48`, `differs=1`).
 No matcher change, no DB writes, V1 default, embeddings off, routes clean. Full
 suite 3631 passed.
+
+## Phase Quality-V2-AF — batch review import + correction loop
+
+Closes the human-correction loop on the project/batch dry-run: batch outputs →
+consolidated review package → reviewer decisions → validation → approved /
+gold / alias-rule candidates. Two read-only CLIs; no apply plan (that's later);
+no DB writes; V1 default; embeddings off; routes clean.
+
+**Builder (Part A/B/C).** `build_nevo_v2_batch_review_package.py` merges the
+`safety_downgrade` + `needs_review` + `no_match` + `existing_v2_diffs` bucket
+CSVs (auto-discovering the newest matching files for a project, or via explicit
+flags) into one `nevo_v2_batch_review_package_<project>_<run>.csv` with blank
+reviewer columns (`manual_decision`, `reviewer_notes`, `approved_*`,
+`alias_candidate`, `rule_candidate`, `gold_case_decision`). `auto_ready` and
+`policy_excluded` are excluded by default (`--include-policy-excluded` adds the
+latter); `true_high_risk` rows, if present, get priority `P0`. Priorities:
+`true_high_risk→P0`, diff/safety_downgrade/needs_review→`P1`, `no_match`→`P2`
+(with candidates) / `P3` (without), `policy_excluded→P3`. On the pilot the
+package has 14 + 4 + 34 + 1 = **53 rows**.
+
+**Validator (Part D/E).** `validate_nevo_v2_batch_review_package.py` checks the
+filled decisions (`approve_existing_candidate` / `approve_existing_v2` /
+`replace` / `reject` / `needs_more_info` / `out_of_scope` / blank=pending):
+replace needs `approved_*`; approve-existing-candidate needs the batch code/name;
+approve-existing-v2 needs the existing code/name; a `P0` approve needs an
+`OVERRIDE` note; a safety-downgrade approved as-is warns unless
+`OVERRIDE_SAFE_STATE` / `OVERRIDE_SAFE_PROXY` is present; an existing-V2-diff
+approve of a `safety_downgraded_current_batch` warns. It writes errors /
+warnings, **approved candidates** (resolved to `effective_*` + `source` =
+`batch_candidate | existing_v2 | replacement`), a **gold candidates** JSON (every
+non-pending row with `should_auto_enrich` / `should_review`), and an
+**alias/rule candidates** CSV (`status=proposed`). Recommendation:
+`blocked_by_errors` → `review_incomplete` → `ready_for_apply_planning_later`
+(approved candidates present) → `ready_for_gold_import`.
+
+**Result.** A partially-filled review package validates into the correction-loop
+outputs ready for a future gold-dataset import / apply-planning phase — no apply
+plan created here, no DB writes, no production change. Full suite 3649 passed.
