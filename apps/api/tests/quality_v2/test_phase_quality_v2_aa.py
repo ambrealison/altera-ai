@@ -126,18 +126,18 @@ class TestSplitAudit:
         assert s["missing_split_count"] == 0
         assert s["sum_mismatch_count"] == 0
 
-    def test_missing_split_warns(self, tmp_path) -> None:
+    def test_broken_pair_fails(self, tmp_path) -> None:
         props, records, ids = self._clean_inputs(tmp_path, "miss")
-        # drop the animal record for product a.
+        # drop the animal record for product a → a BROKEN pair (plant only).
         records = [r for r in records
                    if not (r.product_id == ids[0]
                            and r.nutrient == "animal_protein_pct")]
         rc = _run(tmp_path, "miss", props, _Store(records))
-        assert rc == 1
+        assert rc == 2
         s = _audit_json(tmp_path, "miss")
-        assert s["audit_status"] == "warn"
+        assert s["audit_status"] == "fail"
         assert s["missing_split_count"] == 1
-        assert s["recommendation"] == "investigate_split_anomalies"
+        assert s["recommendation"] == "rollback_split_recommended"
 
     def test_unexpected_split_on_needs_review_fails(self, tmp_path) -> None:
         props, records, ids = self._clean_inputs(tmp_path, "unx")

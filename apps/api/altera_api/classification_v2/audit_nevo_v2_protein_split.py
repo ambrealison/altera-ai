@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from altera_api.classification_v2 import propose_nevo_v2_protein_split as propose
 from altera_api.classification_v2.apply_nevo_v2_plan import (
     ApplyError,
     _read_csv,
@@ -112,7 +113,7 @@ def audit_split(
         anomalies.append({"product_id": pid, "product_name": name_of.get(pid, ""),
                           "anomaly": anomaly, "detail": detail})
 
-    matched = missing = unexpected = sum_mismatch = 0
+    matched = missing = not_applied = unexpected = sum_mismatch = 0
     audit_rows: list[dict[str, Any]] = []
     for p in proposals:
         pid = _s(p.get("product_id"))
@@ -125,11 +126,19 @@ def audit_split(
 
         status = "ok"
         if action == "would_split":
-            if not plants or not animals:
+            if not plants and not animals:
+                # Neither half present — simply not applied yet (warn, not a
+                # corruption): does not break plant==animal==applied.
+                not_applied += 1
+                status = "not_applied"
+                flag(pid, "not_applied_split",
+                     "would_split but no split records yet")
+            elif not plants or not animals:
+                # Exactly one half present — a BROKEN pair (real corruption).
                 missing += 1
                 status = "missing_split"
                 flag(pid, "missing_split",
-                     f"plant={len(plants)} animal={len(animals)}")
+                     f"broken pair: plant={len(plants)} animal={len(animals)}")
             else:
                 matched += 1
                 if total is not None and plant_val is not None and animal_val is not None:
@@ -200,10 +209,13 @@ def audit_split(
     needs_review = sum(1 for p in proposals
                        if _s(p.get("split_action")) == "needs_review")
 
+    # Hard failures = real corruption. A broken pair (missing) fails; a
+    # not-yet-applied would_split only warns. A stale/missing proposal CSV is
+    # NEVER a fail on its own (handled by reconstruction upstream).
     fail = (unexpected or len(duplicate_products) or sum_mismatch
             or manual_conflict or v1_conflict
-            or sum(invalid.values()))
-    status = "fail" if fail else ("warn" if missing else "pass")
+            or sum(invalid.values()) or missing)
+    status = "fail" if fail else ("warn" if not_applied else "pass")
     recommendation = {"fail": "rollback_split_recommended",
                       "warn": "investigate_split_anomalies",
                       "pass": "split_apply_verified"}[status]
@@ -219,6 +231,7 @@ def audit_split(
             1 for r in v2_split if getattr(r, "nutrient", None) == "animal_protein_pct"),
         "matched_would_split_count": matched,
         "missing_split_count": missing,
+        "not_applied_split_count": not_applied,
         "unexpected_split_count": unexpected,
         "duplicate_split_count": len(duplicate_products),
         "sum_mismatch_count": sum_mismatch,
@@ -259,19 +272,6 @@ def _app_check_rows(proposals: list[dict[str, Any]],
     return rows
 
 
-def _load(store: Any, project_key: Any) -> tuple[list[Any], dict[str, str]]:
-    records = list(store.list_enrichment_records_for_project(project_key))
-    names: dict[str, str] = {}
-    lister = getattr(store, "list_products_for_project", None)
-    if callable(lister):
-        try:
-            for p in lister(project_key):
-                names[_s(getattr(p, "id", ""))] = _s(getattr(p, "product_name", ""))
-        except Exception:  # noqa: BLE001
-            names = {}
-    return records, names
-
-
 def write_artifacts(out_dir: str | Path, project_id: str, summary: dict[str, Any],
                     audit_rows, anomalies, app_check) -> dict[str, str]:
     out = Path(out_dir)
@@ -307,19 +307,65 @@ def build_arg_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument("--project-id", required=True)
-    ap.add_argument("--proposals", required=True)
+    ap.add_argument(
+        "--proposals", default=None,
+        help="original split-proposals CSV. Optional: if missing/lost (volatile "
+             "/tmp) the audit reconstructs the proposals from the DB.",
+    )
+    ap.add_argument(
+        "--reconstruct-proposals-from-db", action="store_true",
+        help="ignore --proposals and reconstruct eligibility from the DB "
+             "(current V2 totals + PT classification + the same split policy).",
+    )
     ap.add_argument("--output-dir", default="/tmp/altera-quality")
     return ap
+
+
+def _decisions(proposals: list[dict[str, Any]]) -> dict[str, str]:
+    return {_s(p.get("product_id")): _s(p.get("split_action")) for p in proposals}
+
+
+def _resolve_proposals(
+    *, proposals_arg: str | None, reconstruct: bool, store: Any,
+    project_key: Any,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, str], str, bool]:
+    """Return ``(records, effective_proposals, names, proposal_source,
+    mismatch)``.
+
+    Reconstruction from the DB policy (current V2 totals + PT classification +
+    the split policy) is the safe source of truth and is used whenever the
+    original CSV is missing/lost or ``--reconstruct`` is given. When a CSV IS
+    supplied and the DB can be classified, a disagreement is treated as a
+    proposal-mismatch WARNING (never a hard fail) and the reconstruction wins.
+    If the DB has no classification to reconstruct from, the supplied CSV is
+    trusted unchanged (backward compatible)."""
+    records, classifications, names = propose._load_state(store, project_key)
+    reconstructed = propose.build_proposals(
+        records=records, classifications=classifications, names=names)
+    reconstruction_available = bool(classifications)
+
+    supplied: list[dict[str, Any]] | None = None
+    if proposals_arg and not reconstruct and Path(proposals_arg).exists():
+        try:
+            supplied = _read_csv(proposals_arg, "split proposals")
+        except ApplyError:
+            supplied = None
+
+    if reconstruct or supplied is None:
+        return records, reconstructed, names, "reconstructed", False
+    if not reconstruction_available:
+        # No DB classification to reconstruct from → trust the supplied CSV.
+        return records, supplied, names, "original", False
+    if _decisions(supplied) == _decisions(reconstructed):
+        return records, supplied, names, "original", False
+    # A stale/regenerated CSV disagrees with the live policy — never fail on
+    # that alone: audit against the reconstruction and warn.
+    return records, reconstructed, names, "regenerated", True
 
 
 def main(argv: list[str] | None = None, *, store: Any = None,
          generated_at: str | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
-    try:
-        proposals = _read_csv(args.proposals, "split proposals")
-    except ApplyError as exc:
-        print(f"FATAL: {exc}")
-        return 2
     if store is None:
         from altera_api.api.store_factory import get_store
 
@@ -333,17 +379,41 @@ def main(argv: list[str] | None = None, *, store: Any = None,
     except (ValueError, TypeError):
         project_key = args.project_id
 
-    records, names = _load(store, project_key)
+    records, proposals, names, proposal_source, mismatch = _resolve_proposals(
+        proposals_arg=args.proposals,
+        reconstruct=args.reconstruct_proposals_from_db, store=store,
+        project_key=project_key,
+    )
     summary, audit_rows, anomalies, app_check = audit_split(
         records=records, proposals=proposals, names=names)
-    summary = {"project_id": _s(args.project_id), "generated_at": generated_at,
-               **summary}
+    summary = {
+        "project_id": _s(args.project_id), "generated_at": generated_at,
+        "proposal_source": proposal_source,
+        "reconstructed_proposals_count": len(proposals),
+        "proposal_mismatch_warning": mismatch,
+        **summary,
+    }
     paths = write_artifacts(args.output_dir, _s(args.project_id), summary,
                             audit_rows, anomalies, app_check)
+    # Traceability: persist the reconstructed proposals whenever they drove the
+    # audit (no original CSV, --reconstruct, or a stale CSV).
+    if proposal_source != "original":
+        recon_path = (Path(args.output_dir)
+                      / f"nevo_v2_protein_split_reconstructed_proposals_"
+                        f"{_s(args.project_id)}.csv")
+        recon_path.parent.mkdir(parents=True, exist_ok=True)
+        with recon_path.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=propose.PROPOSAL_CSV_COLUMNS)
+            w.writeheader()
+            for r in proposals:
+                w.writerow({c: r.get(c, "") for c in propose.PROPOSAL_CSV_COLUMNS})
+        paths["reconstructed_proposals_csv"] = str(recon_path)
 
     print("# NEVO V2 split audit (READ-ONLY — no database writes)")
     print(f"  project={summary['project_id']} status={summary['audit_status']} "
           f"recommendation={summary['recommendation']}")
+    print(f"  proposal_source={summary['proposal_source']} "
+          f"proposal_mismatch_warning={summary['proposal_mismatch_warning']}")
     print(f"  v2_protein={summary['total_v2_protein_count']} "
           f"would_split={summary['proposal_would_split_count']} "
           f"needs_review={summary['proposal_needs_review_count']} "

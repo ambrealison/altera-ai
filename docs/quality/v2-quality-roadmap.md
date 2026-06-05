@@ -1547,3 +1547,36 @@ now exposes `written_pairs` / `records_written` (matching the console) plus
 `needs_review` with none); pet food is handled and documented as valid food. No
 production behaviour change; no new writes; V1 default, embeddings off, routes
 clean.
+
+### Quality-V2-AA hotfix — robust split audit after /tmp artifact loss
+
+`/tmp/altera-quality` is volatile on Render: after a new pod the original split
+proposal CSV is gone. Regenerating it returned `would_split=0 / needs_review=49`
+and the audit then **false-failed** (`unexpected_split=39`,
+`rollback_split_recommended`).
+
+**Part A — root cause / fix.** `propose_nevo_v2_protein_split` downgraded
+`would_split → needs_review` for any product that *already had* a split, making
+proposals non-idempotent (after apply, all 39 became `needs_review`). Removed the
+downgrade: the proposal now reflects the POLICY decision only and is idempotent
+(animal_core/plant groups stay `would_split` whether or not a split exists).
+Idempotency is enforced at apply time (apply skips products with an existing
+split), not in the proposal.
+
+**Part B/C/D — audit reconstruction fallback.** `--proposals` is now optional and
+`--reconstruct-proposals-from-db` added. The audit reconstructs eligibility from
+the live DB (current V2 totals + PT classification + the same split policy) and
+uses it as the source of truth whenever the CSV is missing/lost or stale. A
+supplied CSV that disagrees with the reconstruction is a `proposal_mismatch_warning`
+— never a hard fail. New summary fields: `proposal_source`
+(`original|regenerated|reconstructed`), `reconstructed_proposals_count`,
+`proposal_mismatch_warning`; a reconstructed-proposals CSV is written for
+traceability. A would_split product missing **one** half is a broken pair → fail;
+missing **both** is "not applied yet" → warn (consistent with the
+`plant==animal==applied` pass condition).
+
+**Result.** From a fresh pod with no `/tmp` CSV, the audit reconstructs and
+returns `pass / split_apply_verified` for the 49/39/39 state; a stale CSV warns
+instead of false-failing; real corruptions (unexpected/duplicate/broken-pair/sum-
+mismatch/bad-tags/missing-metadata) still fail. No DB writes; no production
+behaviour change.

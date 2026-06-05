@@ -20,7 +20,6 @@ from uuid import UUID
 from altera_api.classification_v2.apply_nevo_v2_plan import _s
 from altera_api.classification_v2.nevo_v2_protein_split import (
     SPLIT_ACTIONS,
-    has_existing_split,
     is_manual,
     is_v2_total_protein,
     split_proposal,
@@ -54,17 +53,18 @@ def build_proposals(
         clf = classifications.get(pid)
         pt_group = getattr(clf, "pt_group", None) if clf is not None else None
         manual = any(is_manual(r) for r in recs)
-        existing_split = has_existing_split(recs)
 
+        # Quality-V2-AA hotfix — the proposal reflects the POLICY decision only
+        # and is IDEMPOTENT: existing ``v2_embeddings_split`` sibling records do
+        # NOT downgrade would_split → needs_review (that made regenerated
+        # proposals diverge from the pre-apply ones after /tmp loss, and the
+        # audit then false-flagged every valid split as unexpected). Idempotency
+        # is enforced at APPLY time (apply skips products that already have a
+        # split), not here.
         proposal = split_proposal(
             pt_group=pt_group, total_protein=total,
             has_manual_override=manual, has_classification=clf is not None,
         )
-        # A would_split that already has a split is informational, not a new
-        # proposal — flag it as needs_review so apply won't duplicate.
-        if proposal["action"] == "would_split" and existing_split:
-            proposal = {"action": "needs_review", "plant": None, "animal": None,
-                        "reason": "product already has a plant/animal split"}
 
         rows.append({
             "product_id": pid,
