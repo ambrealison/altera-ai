@@ -1616,3 +1616,47 @@ no manual record carries V2 display metadata → `pass/warn/fail`.
 label (immediately, from `approved_nevo_name`; the backfill cleans the keys and
 adds split parent names). No protein/split value changes, no matcher change, no
 new route activates V2, V1 default, embeddings off. Full suite 3593 passed.
+
+## Phase Quality-V2-AC — 30k retailer batch dry-run with deduplication
+
+The pilot was 49 rows; retailers send ~30k. `nevo_v2_batch_dry_run.py` is the
+industrial dry-run that must run before any bulk apply: it reads a raw retailer
+CSV and produces a deduplicated, sensitive-column-excluded, **DB-free** matching
+report. No route imports it; V1 stays default; embeddings off by default.
+
+**Data minimisation (Part B/G).** Columns whose names contain any of
+`volume / sales / revenue / turnover / price / margin / units sold / quantity
+sold / market share / sellout / sell in / sell through / store count /
+distribution / velocity` are detected and **excluded** from the embedding text
+and from every output artifact — the embedding text builder
+(`build_nevo_query_text`) is a second backstop that raises on commercial fields.
+A redacted `nevo_v2_batch_sensitive_columns_<run>.csv` (column_name /
+detected_reason / action=excluded) names only the columns, never their values.
+The run fails (`insufficient_product_fields`) only if no product-identification
+column is found.
+
+**Dedup (Part C).** A deterministic `canonical_product_key` (sha1 of normalised
+product_name|brand|category|ingredients-hash|pack-size — safe fields only)
+groups near-duplicate rows; `nevo_v2_batch_dedup_groups_<run>.csv` carries the
+representative, `duplicate_count`, `raw_row_indices` (mapping back to raw rows),
+and `safe_fields_used`.
+
+**Matching (Part D).** Each unique product is matched via the existing V2
+embeddings retrieval + concept gate + nutrition-safety policy (no DB; reuses the
+persistent reference cache). Non-food products are `policy_excluded` (pet food
+is food). Results carry `v2_outcome`, `safety_action`, nevo code/name, top-5
+candidates/codes/similarities, rejection summary, `review_priority`,
+`suggested_action`.
+
+**Review packages + summary (Part E/F).** Filtered CSVs (`auto_ready`,
+`needs_review`, `no_match`, `high_risk`) with blank reviewer columns, plus a
+summary JSON with raw/unique counts, `dedupe_reduction_pct`, bucket counts,
+`estimated_rows_covered_by_auto_ready` / `estimated_rows_needing_review`, and a
+`recommendation` (`ready_for_human_review` / `investigate_high_risk` /
+`insufficient_product_fields`).
+
+**Result.** A retailer CSV can be dry-run end-to-end: 30k rows dedupe before
+matching, commercial data is excluded (no sensitive value reaches any output),
+and auto-ready / needs-review / no-match / high-risk groups are produced for
+human review. No DB writes; no production behaviour change. Full suite 3606
+passed.
