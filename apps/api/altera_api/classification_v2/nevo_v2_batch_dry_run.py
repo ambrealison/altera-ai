@@ -76,12 +76,18 @@ DEDUP_CSV_COLUMNS = [
 ]
 SENSITIVE_CSV_COLUMNS = ["column_name", "detected_reason", "action"]
 
+#: (filename slug, partition bucket). ``high_risk`` is kept as a back-compat
+#: alias of ``true_high_risk``.
 _REVIEW_PACKAGES = (
     ("auto_ready", "auto_ready"),
+    ("safety_downgrade", "safety_downgrade"),
     ("needs_review", "needs_review"),
     ("no_match", "no_match"),
-    ("high_risk", "high_risk"),
+    ("true_high_risk", "true_high_risk"),
+    ("high_risk", "true_high_risk"),
 )
+_PARTITION_BUCKETS = ("auto_ready", "safety_downgrade", "needs_review",
+                      "no_match", "true_high_risk")
 
 
 def _norm_col(name: str) -> str:
@@ -218,7 +224,9 @@ def _match_group(group: dict[str, Any], *, matcher: Any, top_k: int,
         "rejection_summary": "",
     }
 
-    if classify_product_policy(name) == "non_food":
+    policy = classify_product_policy(name)
+    base["policy"] = policy
+    if policy == "non_food":
         action, reason = "skip_no_match", "non-food / out of nutrition scope"
         row = {**base, "v2_outcome": "policy_excluded", "safety_action": action,
                "nutrition_safety_reason": reason, "matcher_outcome": "no_match",
@@ -269,17 +277,57 @@ def _match_group(group: dict[str, Any], *, matcher: Any, top_k: int,
     return row
 
 
+# Quality-V2-AE — bucket semantics. The partition is
+# {auto_ready, safety_downgrade, needs_review, no_match, true_high_risk};
+# policy_excluded is counted separately (it folds into no_match here).
+#
+#  * safety_downgrade = the matcher accepted a candidate, but the nutrition
+#    safety policy correctly PREVENTS an auto-enrichment (dry pasta vs cooked,
+#    compote vs syrup, …). These are review items, NOT dangerous auto-writes.
+#  * true_high_risk = a row that WOULD auto-enrich (would_enrich) yet is on a
+#    non-food product — i.e. a genuinely dangerous auto-write. Pet food is food
+#    (it stays auto_ready / safety_downgrade like any food).
+_SAFETY_DOWNGRADE_ACTIONS = frozenset({
+    "skip_state_mismatch", "skip_proxy_too_broad", "skip_no_nutrition_value",
+})
+
+
 def batch_bucket(row: dict[str, Any]) -> str:
-    if row["v2_outcome"] == "auto_accept" and row["safety_action"] == "would_enrich":
-        return "auto_ready"
-    if (row.get("review_priority") == "P0"
-            or row["safety_action"] in ("skip_proxy_too_broad",
-                                        "skip_state_mismatch")):
-        return "high_risk"
-    if (row["v2_outcome"] in ("no_match", "policy_excluded")
-            or row["safety_action"] == "skip_no_match"):
+    outcome = row["v2_outcome"]
+    action = row["safety_action"]
+    if outcome == "auto_accept" and action == "would_enrich":
+        # A would-enrich on a non-food is the only genuinely dangerous case.
+        return "true_high_risk" if row.get("policy") == "non_food" else "auto_ready"
+    if outcome in ("no_match", "policy_excluded") or action == "skip_no_match":
         return "no_match"
-    return "needs_review"
+    if action in _SAFETY_DOWNGRADE_ACTIONS:
+        return "safety_downgrade"
+    return "needs_review"  # matcher review-level (route_to_review)
+
+
+#: diff_bucket values. ``harmless_equivalent`` / ``safer_existing_v2`` need a
+#: human judgement (the same food under a different code, or the existing being
+#: the safer choice) and are left for the reviewer; the auto-assigned ones are
+#: derived from the current batch's own safety/confidence below.
+DIFF_BUCKETS = (
+    "harmless_equivalent", "safer_existing_v2", "current_batch_better",
+    "needs_manual_review", "safety_downgraded_current_batch",
+)
+
+
+def diff_bucket(row: dict[str, Any]) -> str:
+    """Classify a product where the batch match differs from the applied V2."""
+    if row.get("safety_action") != "would_enrich":
+        # The current batch is itself downgraded / no-match → the existing V2
+        # record should stand; this is not a reason to change anything.
+        return "safety_downgraded_current_batch"
+    try:
+        conf = float(row.get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        conf = 0.0
+    # A clean, high-confidence alternative is worth a closer look; otherwise a
+    # human decides whether it's equivalent / safer / better.
+    return "current_batch_better" if conf >= 0.97 else "needs_manual_review"
 
 
 def build_summary(
@@ -289,16 +337,17 @@ def build_summary(
 ) -> dict[str, Any]:
     buckets = [batch_bucket(r) for r in results]
     by_bucket = {b: [r for r, bk in zip(results, buckets, strict=True) if bk == b]
-                 for b in ("auto_ready", "needs_review", "no_match", "high_risk")}
+                 for b in _PARTITION_BUCKETS}
     policy_excluded = sum(1 for r in results if r["v2_outcome"] == "policy_excluded")
 
-    def rows_in(bucket: str) -> int:
-        return sum(r["duplicate_count"] for r in by_bucket[bucket])
+    def rows_in(*names: str) -> int:
+        return sum(r["duplicate_count"] for b in names for r in by_bucket[b])
 
     unique = len(groups)
     dedupe_pct = round((1 - unique / raw_count) * 100, 2) if raw_count else 0.0
-    high_risk = len(by_bucket["high_risk"])
-    recommendation = ("investigate_high_risk" if high_risk
+    true_high_risk = len(by_bucket["true_high_risk"])
+    # Quality-V2-AE — investigate_high_risk only for TRUE high-risk rows.
+    recommendation = ("investigate_high_risk" if true_high_risk
                       else "ready_for_human_review")
     return {
         "run_id": run_id,
@@ -315,12 +364,16 @@ def build_summary(
         "embedding_model": model,
         "top_k": top_k,
         "auto_ready_count": len(by_bucket["auto_ready"]),
+        "safety_downgrade_count": len(by_bucket["safety_downgrade"]),
         "needs_review_count": len(by_bucket["needs_review"]),
         "no_match_count": len(by_bucket["no_match"]),
         "policy_excluded_count": policy_excluded,
-        "high_risk_count": high_risk,
+        "true_high_risk_count": true_high_risk,
+        # back-compat alias (now correctly = true high-risk only).
+        "high_risk_count": true_high_risk,
         "estimated_rows_covered_by_auto_ready": rows_in("auto_ready"),
-        "estimated_rows_needing_review": rows_in("needs_review") + rows_in("high_risk"),
+        "estimated_rows_needing_review": rows_in(
+            "safety_downgrade", "needs_review", "true_high_risk"),
         "dedupe_reduction_pct": dedupe_pct,
         "recommendation": recommendation,
     }
@@ -488,10 +541,11 @@ def main(argv: list[str] | None = None) -> int:
           f"dedupe_reduction={summary['dedupe_reduction_pct']}%")
     print(f"  sensitive_columns_excluded={summary['sensitive_columns_detected']}")
     print(f"  auto_ready={summary['auto_ready_count']} "
+          f"safety_downgrade={summary['safety_downgrade_count']} "
           f"needs_review={summary['needs_review_count']} "
           f"no_match={summary['no_match_count']} "
-          f"high_risk={summary['high_risk_count']} "
-          f"policy_excluded={summary['policy_excluded_count']}")
+          f"policy_excluded={summary['policy_excluded_count']} "
+          f"true_high_risk={summary['true_high_risk_count']}")
     print(f"  recommendation={summary['recommendation']}")
     print(f"  Summary JSON: {paths['summary_json']}")
     print("DRY-RUN — no database writes were made.")

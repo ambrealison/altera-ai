@@ -1696,3 +1696,46 @@ prints the project/dedup/bucket/existing-V2 counts and paths.
 artifacts, and reports where the batch agrees/differs from the applied V2
 records. No DB writes; V1 default; embeddings off; routes clean. Full suite 3616
 passed.
+
+## Phase Quality-V2-AE — fix high-risk semantics + safety-downgrade diagnostics
+
+On the pilot project the batch reported `high_risk_count=14`, but those 14 rows
+were all **nutrition-safety downgrades** (`skip_state_mismatch` /
+`skip_proxy_too_broad` / `route_to_review` — e.g. cooked lentils vs dried, rice
+vs rice-drink, cider vs balsamic). Those are correctly *prevented* from
+auto-enrichment, not dangerous auto-applies. The bug was in `batch_bucket`,
+which lumped the safety skips into "high_risk".
+
+**Corrected bucket semantics (Part A).** The partition is now
+`{auto_ready, safety_downgrade, needs_review, no_match, true_high_risk}`
+(policy_excluded counted separately, folded into no_match):
+- `auto_ready` = matcher accepted + `would_enrich` (and not a non-food).
+- `safety_downgrade` = matcher accepted but nutrition safety blocks auto-enrich
+  (`skip_state_mismatch` / `skip_proxy_too_broad` / `skip_no_nutrition_value`).
+- `needs_review` = matcher review-level (`route_to_review`).
+- `no_match` = no candidate accepted (+ `policy_excluded`).
+- `true_high_risk` = a `would_enrich` on a **non-food** — the only genuinely
+  dangerous auto-write. **Pet food is food** (stays `auto_ready`).
+
+**Recommendation (Part C).** `investigate_high_risk` only when
+`true_high_risk_count > 0`; otherwise `ready_for_human_review`. On the pilot:
+`true_high_risk_count=0`, `safety_downgrade_count=14`,
+`recommendation=ready_for_human_review`.
+
+**Artifacts/diagnostics (Part B/D/E).** Summary adds `safety_downgrade_count` and
+`true_high_risk_count` (with `high_risk_count` kept as a back-compat alias of
+`true_high_risk`). New per-bucket files
+`nevo_v2_(project_)batch_{safety_downgrade,true_high_risk}_*.csv` (the old
+`high_risk` file remains as an alias = true high-risk). The project batch adds
+`nevo_v2_project_batch_existing_v2_diffs_<project>_<run>.csv` with a
+`diff_bucket` (`harmless_equivalent | safer_existing_v2 | current_batch_better |
+needs_manual_review | safety_downgraded_current_batch`) — the oil case
+(`Huile de Colza`: existing `Oil vegetable av` vs batch `Oil Becel Blend`,
+`route_to_review`) classifies as `safety_downgraded_current_batch`, not
+high-risk.
+
+**Result.** On the pilot project the batch reports `true_high_risk_count=0`,
+`safety_downgrade_count=14`, `recommendation=ready_for_human_review`, with the
+existing-V2 comparison intact (`existing_v2_total=49`, `matches=48`, `differs=1`).
+No matcher change, no DB writes, V1 default, embeddings off, routes clean. Full
+suite 3631 passed.

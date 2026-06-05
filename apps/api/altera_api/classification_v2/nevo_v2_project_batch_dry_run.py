@@ -47,7 +47,41 @@ PROJECT_DEDUP_COLUMNS = [
     "product_ids", "safe_fields_used",
 ]
 
-_REVIEW_PACKAGES = ("auto_ready", "needs_review", "no_match", "high_risk")
+# Partition buckets (Quality-V2-AE). ``high_risk`` file is a back-compat alias
+# of ``true_high_risk``.
+_PARTITION_BUCKETS = ("auto_ready", "safety_downgrade", "needs_review",
+                      "no_match", "true_high_risk")
+_REVIEW_PACKAGE_FILES = (
+    ("auto_ready", "auto_ready"), ("safety_downgrade", "safety_downgrade"),
+    ("needs_review", "needs_review"), ("no_match", "no_match"),
+    ("true_high_risk", "true_high_risk"), ("high_risk", "true_high_risk"),
+)
+
+DIFF_CSV_COLUMNS = [
+    "product_name", "existing_v2_nevo_code", "existing_v2_nevo_name",
+    "batch_nevo_code", "batch_nevo_name", "safety_action", "suggested_action",
+    "confidence", "top_5_candidate_names", "diff_bucket",
+]
+
+
+def _diff_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Products with an applied V2 record the batch did NOT reproduce."""
+    out: list[dict[str, Any]] = []
+    for r in results:
+        if r["existing_v2_total_record"] and r["batch_matches_existing_v2"] != "true":
+            out.append({
+                "product_name": r["product_name"],
+                "existing_v2_nevo_code": r["existing_v2_nevo_code"],
+                "existing_v2_nevo_name": r["existing_v2_nevo_name"],
+                "batch_nevo_code": r["batch_nevo_code"],
+                "batch_nevo_name": r["batch_nevo_name"],
+                "safety_action": r["safety_action"],
+                "suggested_action": r["suggested_action"],
+                "confidence": r["confidence"],
+                "top_5_candidate_names": r["top_5_candidate_names"],
+                "diff_bucket": ac.diff_bucket(r),
+            })
+    return out
 
 
 def _product_descriptor(product: Any) -> dict[str, Any]:
@@ -158,7 +192,8 @@ def build_summary(*, project_id: str, run_id: str, raw_count: int,
     unique = len(groups)
     dedupe_pct = round((1 - unique / raw_count) * 100, 2) if raw_count else 0.0
     by_bucket = {b: sum(1 for r in results if r["_bucket"] == b)
-                 for b in _REVIEW_PACKAGES}
+                 for b in _PARTITION_BUCKETS}
+    true_high_risk = by_bucket["true_high_risk"]
     return {
         "project_id": project_id,
         "run_id": run_id,
@@ -174,9 +209,11 @@ def build_summary(*, project_id: str, run_id: str, raw_count: int,
         "embedding_model": model,
         "top_k": top_k,
         "auto_ready_count": by_bucket["auto_ready"],
+        "safety_downgrade_count": by_bucket["safety_downgrade"],
         "needs_review_count": by_bucket["needs_review"],
         "no_match_count": by_bucket["no_match"],
-        "high_risk_count": by_bucket["high_risk"],
+        "true_high_risk_count": true_high_risk,
+        "high_risk_count": true_high_risk,  # back-compat alias
         "policy_excluded_count": sum(
             1 for r in results if r["v2_outcome"] == "policy_excluded"),
         "existing_v2_total_count": sum(
@@ -190,7 +227,9 @@ def build_summary(*, project_id: str, run_id: str, raw_count: int,
         "existing_v2_missing_from_batch_count": sum(
             1 for r in results
             if r["existing_v2_total_record"] and not r["batch_nevo_code"]),
-        "recommendation": ("investigate_high_risk" if by_bucket["high_risk"]
+        "existing_v2_diff_count": len(_diff_rows(results)),
+        # Quality-V2-AE — investigate only for TRUE high-risk auto-applies.
+        "recommendation": ("investigate_high_risk" if true_high_risk
                            else "ready_for_human_review"),
     }
 
@@ -224,12 +263,17 @@ def write_artifacts(out_dir: str | Path, project_id: str, run_id: str, *,
     paths["dedup_groups_csv"] = str(p)
 
     review_cols = PROJECT_RESULT_COLUMNS + list(REVIEWER_BLANK_COLUMNS)
-    for bucket in _REVIEW_PACKAGES:
+    for fname, bucket in _REVIEW_PACKAGE_FILES:
         sel = [{**r, **dict.fromkeys(REVIEWER_BLANK_COLUMNS, "")}
                for r in results if r["_bucket"] == bucket]
-        p = out / f"nevo_v2_project_batch_{bucket}_{suffix}.csv"
+        p = out / f"nevo_v2_project_batch_{fname}_{suffix}.csv"
         ac._write_csv(p, review_cols, sel)
-        paths[f"{bucket}_csv"] = str(p)
+        paths[f"{fname}_csv"] = str(p)
+
+    # Part D — existing-V2 diff diagnostics.
+    p = out / f"nevo_v2_project_batch_existing_v2_diffs_{suffix}.csv"
+    ac._write_csv(p, DIFF_CSV_COLUMNS, _diff_rows(results))
+    paths["existing_v2_diffs_csv"] = str(p)
     return paths
 
 
@@ -307,14 +351,16 @@ def main(argv: list[str] | None = None, *, store: Any = None) -> int:
           f"unique={summary['unique_product_count']} "
           f"dedupe_reduction={summary['dedupe_reduction_pct']}%")
     print(f"  auto_ready={summary['auto_ready_count']} "
+          f"safety_downgrade={summary['safety_downgrade_count']} "
           f"needs_review={summary['needs_review_count']} "
           f"no_match={summary['no_match_count']} "
-          f"high_risk={summary['high_risk_count']} "
-          f"policy_excluded={summary['policy_excluded_count']}")
+          f"policy_excluded={summary['policy_excluded_count']} "
+          f"true_high_risk={summary['true_high_risk_count']}")
     print(f"  existing_v2_total={summary['existing_v2_total_count']} "
           f"existing_v2_split={summary['existing_v2_split_product_count']} "
           f"matches_existing_v2={summary['batch_matches_existing_v2_count']} "
-          f"differs_existing_v2={summary['batch_differs_from_existing_v2_count']}")
+          f"differs_existing_v2={summary['batch_differs_from_existing_v2_count']} "
+          f"existing_v2_diffs={summary['existing_v2_diff_count']}")
     print(f"  recommendation={summary['recommendation']}")
     for label, key in (("Summary JSON", "summary_json"),
                        ("Results CSV", "results_csv"),

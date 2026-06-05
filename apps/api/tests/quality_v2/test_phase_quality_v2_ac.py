@@ -150,9 +150,10 @@ class TestBatchRun:
         assert s["dedupe_reduction_pct"] == 40.0
         assert set(s["sensitive_columns_detected"]) == set(_SENSITIVE_COLS)
         assert s["embedding_provider"] == "fake"
-        # every unique product lands in exactly one of the four buckets.
-        assert (s["auto_ready_count"] + s["needs_review_count"]
-                + s["no_match_count"] + s["high_risk_count"]) == 3
+        # every unique product lands in exactly one partition bucket.
+        assert (s["auto_ready_count"] + s["safety_downgrade_count"]
+                + s["needs_review_count"] + s["no_match_count"]
+                + s["true_high_risk_count"]) == 3
         # the non-food product is policy-excluded.
         assert s["policy_excluded_count"] == 1
         assert s["recommendation"] in ("ready_for_human_review",
