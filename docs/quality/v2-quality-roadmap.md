@@ -1893,3 +1893,73 @@ turns it back into the canonical package CSV; (5)
 signed download URLs — no more cat/base64 from `/tmp`. No nutrition DB writes, no
 matcher activation, no commercial-data exposure. ruff clean; V2-AH tests (16)
 pass.
+
+## Phase Quality-V2-AI — persistent FR/DE multilingual NEVO reference
+
+Manual product-level review (V2-AF/AG/AH) is a calibration tool, not a scaling
+strategy: retailers send ~30k rows whose names are mostly French/German while
+NEVO food names are English/abbreviated. The next quality jump is a *persistent*
+multilingual reference — FR/DE names + search aliases materialized ONCE into a
+generated artifact, then loaded/cached like any other NEVO reference. We never
+translate per search. The original NEVO name/code/nutrition stay canonical; the
+multilingual layer is additive and is used by V2 retrieval only behind an
+explicit CLI flag. V1 stays default; embeddings stay off; no route imports it; no
+DB writes. Only the public NEVO English name is translated — never retailer
+commercial data.
+
+**Why persistent columns beat per-search translation.** Translating inside every
+completion is slow, non-deterministic, costs tokens per row, and can silently
+collapse a food state on a given call. Materializing FR/DE once gives a stable,
+reviewable, cache-keyable artifact: the same reference → the same embeddings →
+reproducible retrieval, and a human/LLM can correct a translation once and it
+sticks.
+
+**Schema (Part B).** `nevo_reference_multilingual.csv`: `nevo_code`,
+`nevo_food_name`, `protein_g_per_100g` (preserved exactly) + new additive fields
+`nevo_food_name_fr`, `nevo_food_name_de`, `search_aliases_fr/de/en`
+(semicolon-separated), `translation_source`
+(generated_llm|manual|imported|unavailable), `translation_review_status`
+(unreviewed|auto_validated|needs_review|reviewed), `translation_notes`.
+
+**Generation (Part C).** `generate_nevo_multilingual_reference.py` →
+`nevo_reference_multilingual.csv` + summary JSON + review-sample CSV. The
+deterministic translator (`--no-llm`, default) uses a curated FR/DE table for
+known foods (auto_validated) and a state-preserving compositional fallback
+(needs_review); an LLM seam is provided. **State/form is never collapsed**: a
+post-step appends any FR/DE marker that a curated/base translation would have
+dropped — "Lentils dried" → *lentilles sèches / getrocknete Linsen*, "Rice drink"
+→ *boisson de riz / Reisdrink*, "Coffee instant powder" → *café instantané en
+poudre / löslicher Kaffee Pulver*, "Oil rapeseed" → *huile de colza / Rapsöl*,
+"Vinegar Balsamic" → *vinaigre balsamique / Balsamico-Essig*, "Milk powder" →
+*lait en poudre / Milch Pulver*. Supports `--resume-from-existing` +
+`--only-missing`.
+
+**Validation (Part D).** `validate_nevo_multilingual_reference.py` checks: codes
+preserved (optional baseline), no duplicate code, no missing original name,
+nutrition unchanged, FR/DE coverage, aliases free of commercial words
+(whole-word, so "beans" does not trip on "ean"), and no state collapse
+(drink/dried/cooked/instant/powder + oil/vinegar type). Writes a summary
+(`recommendation`: ready_for_retrieval_experiment | needs_translation_review |
+blocked_by_high_risk_translation_issues) + issues CSV.
+
+**Embedding text + retrieval (Parts E/F).** `build_multilingual_reference_text`
+emits `<original> | FR: <fr>; <aliases> | DE: <de>; <aliases> | EN aliases:
+<aliases>` (original first, empty fields stripped, aliases de-duplicated, length
+bounded; original-only when no multilingual fields). `NevoVectorIndex.build`
+gained an optional `text_builder` (default = baseline, behaviour unchanged).
+`compare_nevo_v1_v2`, `nevo_v2_batch_dry_run`, and `nevo_v2_project_batch_dry_run`
+gained `--multilingual-reference PATH`: off by default; when set, the index uses
+the multilingual builder and a **reference-specific embedding cache** (file slug
+includes `ml-<checksum>`) so old baseline vectors are never silently reused.
+
+**Benchmark (Part G).** `compare_nevo_multilingual_retrieval.py` runs the same
+project products through baseline vs multilingual retrieval and reports bucket
+deltas, rows improved/regressed, true_high_risk delta, and existing-V2 agreement.
+`recommendation`: `adopt_multilingual_reference_candidate` only if true_high_risk
+stays 0, auto_ready increases or no_match decreases, regressions stay within a
+small threshold, and existing-V2 agreement does not materially degrade; else
+`needs_review_before_adoption` or `reject_due_to_regressions`.
+
+**Adoption gate.** No production behaviour changes here. Adoption requires
+benchmark proof (improvement + regressions within threshold) AND high_risk = 0 —
+a human decision, made later. ruff clean; V2-AI tests (27) pass.

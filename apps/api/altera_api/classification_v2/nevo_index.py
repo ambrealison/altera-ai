@@ -184,14 +184,20 @@ class NevoVectorIndex:
         references: list[dict[str, Any]],
         *,
         progress: BuildProgressFn | None = None,
+        text_builder: Callable[[dict[str, Any]], str] | None = None,
     ) -> None:
         """Index NEVO reference dicts (food_name_en, …) in batches.
 
         Cache hits are served first; only unique cache-miss texts are
         embedded, in ``batch_size`` chunks. ``progress`` (if given) is
         called once with ``stage="start"`` and once per completed batch.
+
+        ``text_builder`` overrides how each reference dict becomes embedding
+        text (default: ``build_nevo_reference_text`` — baseline behaviour
+        unchanged). Phase Quality-V2-AI passes the multilingual builder here.
         """
-        texts = [build_nevo_reference_text(ref) for ref in references]
+        builder = text_builder or build_nevo_reference_text
+        texts = [builder(ref) for ref in references]
         cands = [
             NevoCandidate(
                 nevo_code=str(ref.get("nevo_code", "")),
@@ -263,6 +269,7 @@ class NevoVectorIndex:
         cache: EmbeddingCache | None = None,
         batch_size: int = 64,
         progress: BuildProgressFn | None = None,
+        text_builder: Callable[[dict[str, Any]], str] | None = None,
     ) -> NevoVectorIndex:
         """Build an index reusing a (persistent) cache.
 
@@ -270,13 +277,16 @@ class NevoVectorIndex:
         references/model embeds nothing (all hits); a model/provider/
         dimensions or reference-text change invalidates the affected
         entries (different cache key) and only those are re-embedded.
+
+        ``text_builder`` overrides the reference-text builder (default:
+        baseline). Phase Quality-V2-AI passes the multilingual builder.
         """
         index = cls(
             provider=provider, provider_name=provider_name, top_k=top_k,
             cache=cache if cache is not None else InMemoryEmbeddingCache(),
             batch_size=batch_size,
         )
-        index.build(references, progress=progress)
+        index.build(references, progress=progress, text_builder=text_builder)
         return index
 
     def search(self, query_text: str, top_k: int | None = None) -> list[ScoredCandidate]:

@@ -297,6 +297,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--reference-source", choices=["fixture", "nevo"],
                     default="nevo")
     ap.add_argument("--reference", default=None)
+    ap.add_argument("--multilingual-reference", default=None,
+                    help="Use a generated FR/DE multilingual reference CSV "
+                         "(Phase Quality-V2-AI) for retrieval. Off by default.")
     ap.add_argument("--dedupe", choices=["true", "false"], default="true")
     ap.add_argument("--require-voyage", action="store_true")
     ap.add_argument("--evaluator-fake", action="store_true")

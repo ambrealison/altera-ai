@@ -38,6 +38,11 @@ from altera_api.classification_v2.nevo_matcher import (
     NevoMatcherError,
     get_nevo_matcher,
 )
+from altera_api.classification_v2.nevo_multilingual_reference import (
+    build_multilingual_reference_text,
+    load_multilingual_nevo_reference,
+    multilingual_reference_checksum,
+)
 from altera_api.classification_v2.nevo_nutrition_safety import (
     nutrition_safety_action,
 )
@@ -447,6 +452,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--reference-source", choices=["fixture", "nevo"],
                     default="nevo")
     ap.add_argument("--reference", default=None)
+    ap.add_argument("--multilingual-reference", default=None,
+                    help="Use a generated FR/DE multilingual reference CSV "
+                         "(Phase Quality-V2-AI) for retrieval. Overrides "
+                         "--reference-source. Off by default.")
     ap.add_argument("--dedupe", choices=["true", "false"], default="true")
     ap.add_argument("--sensitive-column-report", choices=["true", "false"],
                     default="true")
@@ -475,11 +484,22 @@ def _build_matcher(args) -> tuple[Any, str, str] | int:
         else:
             provider = build_embedding_provider("fake")
             provider_name = "fake"
-        references = load_nevo_reference(args.reference_source, path=args.reference)
-        cache = _make_cache(args.cache_dir, provider_name, args.embedding_model)
+        ml_path = getattr(args, "multilingual_reference", None)
+        if ml_path:
+            references = load_multilingual_nevo_reference(ml_path)
+            text_builder = build_multilingual_reference_text
+            cache_tag = "ml-" + multilingual_reference_checksum(references)
+        else:
+            references = load_nevo_reference(args.reference_source,
+                                             path=args.reference)
+            text_builder = None
+            cache_tag = ""
+        cache = _make_cache(args.cache_dir, provider_name,
+                            args.embedding_model, cache_tag)
         index = NevoVectorIndex.load_or_build(
             references, provider=provider, provider_name=provider_name,
-            top_k=args.top_k, cache=cache, batch_size=args.batch_size)
+            top_k=args.top_k, cache=cache, batch_size=args.batch_size,
+            text_builder=text_builder)
         cache.flush()
         matcher = get_nevo_matcher("v2-embeddings", index=index,
                                    evaluator_mode=args.evaluator_fake)

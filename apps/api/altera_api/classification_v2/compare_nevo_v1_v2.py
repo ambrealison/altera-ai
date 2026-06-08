@@ -488,10 +488,15 @@ def _build_v2_provider(model: str, *, require_voyage: bool) -> tuple[Any, str]:
     return build_embedding_provider("fake"), "fake"
 
 
-def _make_cache(cache_dir: str, provider_name: str, model: str) -> Any:
+def _make_cache(cache_dir: str, provider_name: str, model: str,
+                tag: str = "") -> Any:
     if not cache_dir:
         return InMemoryEmbeddingCache()
     slug = f"{provider_name}-{model}".replace("/", "_").replace(".", "_")
+    # A non-empty ``tag`` (e.g. a multilingual reference checksum) gives the
+    # reference its own cache file so old baseline vectors are never reused.
+    if tag:
+        slug = f"{slug}-{tag}"
     return FileEmbeddingCache(Path(cache_dir) / f"embeddings-{slug}.json")
 
 
@@ -510,6 +515,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--embedding-model", default=DEFAULT_EMBEDDING_MODEL)
     ap.add_argument("--reference-source", choices=["fixture", "nevo"], default="nevo")
     ap.add_argument("--reference", default=None)
+    ap.add_argument("--multilingual-reference", default=None,
+                    help="Use a generated FR/DE multilingual reference CSV "
+                         "(Phase Quality-V2-AI) for V2 retrieval. Off by "
+                         "default.")
     ap.add_argument("--require-voyage", action="store_true")
     ap.add_argument("--debug", action="store_true")
     # Phase Quality-V2-N — readiness artifacts.
@@ -583,16 +592,34 @@ def main(argv: list[str] | None = None, *, store: Any = None) -> int:
             traceback.print_exc()
         return 2
 
-    references = load_nevo_reference(args.reference_source, path=args.reference)
-    cache = _make_cache(args.cache_dir, provider_name, args.embedding_model)
+    ml_path = getattr(args, "multilingual_reference", None)
+    if ml_path:
+        from altera_api.classification_v2.nevo_multilingual_reference import (
+            build_multilingual_reference_text,
+            load_multilingual_nevo_reference,
+            multilingual_reference_checksum,
+        )
+        references = load_multilingual_nevo_reference(ml_path)
+        text_builder = build_multilingual_reference_text
+        cache_tag = "ml-" + multilingual_reference_checksum(references)
+        ref_label = f"multilingual:{ml_path}"
+    else:
+        references = load_nevo_reference(args.reference_source,
+                                         path=args.reference)
+        text_builder = None
+        cache_tag = ""
+        ref_label = args.reference_source
+    cache = _make_cache(args.cache_dir, provider_name, args.embedding_model,
+                        cache_tag)
     print(
         f"  V2 provider={provider_name} model={args.embedding_model} "
-        f"reference={args.reference_source} ({len(references)} foods)"
+        f"reference={ref_label} ({len(references)} foods)"
     )
     try:
         index = NevoVectorIndex.load_or_build(
             references, provider=provider, provider_name=provider_name,
             top_k=args.top_k, cache=cache, batch_size=args.batch_size,
+            text_builder=text_builder,
         )
     except EmbeddingProviderError as exc:
         print(f"FATAL: V2 index build failed: {exc}")
