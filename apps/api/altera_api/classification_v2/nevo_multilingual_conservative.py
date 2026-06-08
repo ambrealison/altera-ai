@@ -113,6 +113,22 @@ def family_mismatch(product_name: str, baseline_top1: str, ml_top1: str,
     if _has(p, "biscuit", "sable", "cookie", "shortbread") and \
             _has(m, "pie", "tart") and not _has(p, "tarte", "tart", "pie"):
         return "biscuit_to_pie"
+    # mustard CONDIMENT -> mustard leaves/greens, unless the product is itself a
+    # leaf/greens/salad product (so a Dijon/à l'ancienne mustard never matches
+    # the raw mustard-leaf vegetable)
+    if _has(p, "moutarde", "mustard", "ancienne", "dijon", "condiment") and \
+            _has(m, "leaves", "leaf", "greens") and \
+            not _has(p, "leaves", "leaf", "greens", "salade", "salad",
+                     "pousse"):
+        return "mustard_condiment_to_leaves"
+    # rice GRAIN (as-sold/raw) -> rice cakes/spiced cake, unless the product is
+    # itself a cake/galette/snack/cracker (so plain Thai/basmati rice never
+    # matches a rice-cake candidate)
+    if _has(p, "riz", "rice", "thai", "basmati", "jasmin", "parfume",
+            "long grain", "grain long") and \
+            _has(m, "cake", "galette", "spices", "spiced") and \
+            not _has(p, "galette", "cake", "snack", "cracker", "souffle"):
+        return "rice_grain_to_rice_cakes"
     return None
 
 

@@ -541,6 +541,13 @@ class TestConservativeFamilyGuards:
          "Apple dried soaked in water", "compote_to_dried_fruit"),
         ("Biscuits Sablés au Beurre", "Biscuit spiced Speculaas w butter",
          "Apple pie Dutch w shortbread wo butter", "biscuit_to_pie"),
+        # Expanded-coverage FR false positives.
+        ("Moutarde à l'Ancienne 350g", "Salad dressing honey/mustard",
+         "Mustard leaves raw", "mustard_condiment_to_leaves"),
+        ("Riz Thaï Parfumé 1kg", "Rice drink wo sugar", "Rice cakes w spices",
+         "rice_grain_to_rice_cakes"),
+        ("Riz Basmati", "Rice drink", "Rice cake spiced",
+         "rice_grain_to_rice_cakes"),
     ])
     def test_family_mismatch_detected(self, product, base, ml, expected
                                       ) -> None:
@@ -566,6 +573,16 @@ class TestConservativeFamilyGuards:
         ("Compote Pomme", "Apple sauce", "Apple sauce wo sugar"),
         # a shortbread TART product may match a pie/tart candidate.
         ("Tartelettes Sablées Pommes", "Biscuit", "Apple pie Dutch"),
+        # Quinoa / couscous good switches must NOT trip the rice guard.
+        ("Quinoa Blanc 400g", "Quinoa cooked", "Quinoa raw"),
+        ("Semoule Couscous Moyen 500g", "Couscous wholemeal boiled",
+         "Couscous wholemeal unprepared"),
+        # An explicit rice-CAKE product may match a rice-cake candidate.
+        ("Galettes de Riz Bio", "Crispbread", "Rice cakes w spices"),
+        ("Riz Soufflé Snack", "Cereal", "Rice cakes spiced"),
+        # An explicit mustard-LEAF/greens/salad product may match leaves.
+        ("Salade de Pousses de Moutarde", "Salad", "Mustard leaves raw"),
+        ("Mustard greens fresh", "Greens", "Mustard leaves raw"),
     ])
     def test_family_mismatch_not_flagged(self, product, base, ml) -> None:
         assert cons.family_mismatch(product, base, ml) is None
@@ -687,6 +704,45 @@ class TestConservativeDecisions:
         assert "biscuit_to_pie" in biscuit["conservative_reason"]
         for good in ("Lentilles Vertes Cuites 265g", "Huile de Colza Bio 1L",
                      "Riz Thaï Parfumé 1kg", "Purée Mousseline Nature 4 sachets"):
+            assert by_name[good]["conservative_decision"] == "switch_multilingual"
+        assert out["summary"]["conservative_switch_count"] == 4
+        assert out["summary"]["conservative_regressed_count"] == 0
+        assert out["summary"]["true_high_risk_delta"] == 0
+
+    def test_fr_expanded_coverage_switches(self) -> None:
+        # The six FR-only switches from the expanded (77% coverage) run: two are
+        # newly discovered false positives that the tightened guards now block;
+        # four are legitimate state/form rescues.
+        rows = [
+            _cmp_row("Lentilles Vertes Cuites 265g", "safety_downgrade",
+                     "auto_ready", "Lentils green and brown dried",
+                     "Lentils green and brown boiled", 0.96, 0.96),
+            _cmp_row("Moutarde à l'Ancienne 350g", "no_match", "auto_ready",
+                     "Salad dressing honey/mustard", "Mustard leaves raw",
+                     0.0, 0.96),
+            _cmp_row("Riz Thaï Parfumé 1kg", "safety_downgrade", "auto_ready",
+                     "Rice drink wo sugar", "Rice cakes w spices", 0.96, 0.96),
+            _cmp_row("Quinoa Blanc 400g", "safety_downgrade", "auto_ready",
+                     "Quinoa cooked", "Quinoa raw", 0.96, 0.96),
+            _cmp_row("Semoule Couscous Moyen 500g", "safety_downgrade",
+                     "auto_ready", "Couscous wholemeal boiled",
+                     "Couscous wholemeal unprepared", 0.96, 0.96),
+            _cmp_row("Purée Mousseline Nature 4 sachets", "safety_downgrade",
+                     "auto_ready",
+                     "Potatoes mashed fresh prep w whole milk and margarin",
+                     "Potato puree powder w milkpowder w fat", 0.96, 0.96),
+        ]
+        out = cons.conservative_decisions(rows, coverage=0.7745)
+        by_name = {r["product_name"]: r for r in out["rows"]}
+        moutarde = by_name["Moutarde à l'Ancienne 350g"]
+        assert moutarde["conservative_decision"] == "keep_baseline"
+        assert "mustard_condiment_to_leaves" in moutarde["conservative_reason"]
+        riz = by_name["Riz Thaï Parfumé 1kg"]
+        assert riz["conservative_decision"] == "keep_baseline"
+        assert "rice_grain_to_rice_cakes" in riz["conservative_reason"]
+        for good in ("Lentilles Vertes Cuites 265g", "Quinoa Blanc 400g",
+                     "Semoule Couscous Moyen 500g",
+                     "Purée Mousseline Nature 4 sachets"):
             assert by_name[good]["conservative_decision"] == "switch_multilingual"
         assert out["summary"]["conservative_switch_count"] == 4
         assert out["summary"]["conservative_regressed_count"] == 0
