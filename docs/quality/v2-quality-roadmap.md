@@ -2059,3 +2059,39 @@ nutrition / code / canonical name unchanged. The validator now also reports
 `high_risk_by_issue_type`. Default generator behaviour, the raw benchmark, and
 the conservative/language-specific raw retrieval are all unchanged; no DB writes;
 no routes. ruff clean; V2-AI tests (96) pass.
+
+### Quality-V2-AI — language-specific V2 apply plan (read-only, plan-only)
+
+With the FR-only conservative rescue validated as an opt-in candidate layer, the
+next step is a guarded *apply plan* — without a DB write path yet.
+`plan_nevo_language_specific_v2_apply` reads the language-specific conservative
+benchmark JSON + CSV and selects the candidates that would become language
+auxiliary V2 enrichments, with every other row explicitly skipped + reasoned.
+
+A row is a candidate (`plan_action=candidate_apply_language_v2`) only when ALL
+hold: conservative decision is a switch, conservative bucket is `auto_ready`,
+confidence ≥ `--min-confidence` (0.90), the NEVO code actually changes vs
+baseline, no existing-V2 conflict — AND the whole-plan guards pass (benchmark
+recommendation = `adopt_language_specific_candidate` unless overridden,
+`conservative_regressed_count=0`, `true_high_risk_delta=0`,
+`conservative_true_high_risk=0`, coverage ≥ 0.50, retailer language matches).
+Skip reasons: `skip_not_switch`/`skip_not_auto_ready`/`skip_low_confidence`/
+`skip_regression_guard`/`skip_recommendation_guard`/`skip_language_mismatch`/
+`skip_coverage_guard`/`skip_missing_nevo_code`/`skip_existing_v2_conflict`/
+`skip_same_nevo_code`.
+
+Outputs: a plan JSON (headline benchmark metrics, candidate count, skip counts,
+candidate NEVO codes, source tagging), a plan CSV (every row with its action +
+`source_version`=`v2_language_specific_fr` + a `source_metadata_json` documenting
+`retrieval_mode=language_specific_conservative`, retailer language, coverage,
+baseline/language codes, confidence, source artifacts), and a human-friendly
+review CSV (candidates only). `summarize_nevo_language_specific_v2_apply_plan`
+prints the headline.
+
+Plan-ONLY: there is no DB write path in this phase. `--confirm-apply-language-v2`
+does not apply — it sets `apply_status=apply_not_implemented_for_language_specific_v2`,
+writes the plan, and exits non-zero. Future apply provenance is documented
+(`source=nevo`, `match_method=ai_assisted`, `source_version=v2_language_specific_fr`)
+but never written. On the pilot artifacts the plan selects exactly the **5**
+accepted FR switches and excludes the 4 blocked false positives. ruff clean;
+V2-AI tests (119) pass.

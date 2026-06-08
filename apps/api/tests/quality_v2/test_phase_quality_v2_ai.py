@@ -1032,6 +1032,232 @@ class TestLanguageCli:
 
 
 # ---------------------------------------------------------------------------
+# Language-specific V2 apply PLAN (read-only, plan-only).
+# ---------------------------------------------------------------------------
+from altera_api.classification_v2 import (  # noqa: E402
+    plan_nevo_language_specific_v2_apply as plan_mod,
+)
+from altera_api.classification_v2.compare_nevo_language_specific_retrieval import (  # noqa: E402,E501
+    LANGUAGE_CSV_COLUMNS,
+)
+
+PID2 = "326c6e1c-46b2-4103-98f1-331afadb721a"
+
+
+def _lang_row(name, decision, *, conservative_bucket="auto_ready",
+              baseline_code="B", cons_code="970", cons_top1="Lentils boiled",
+              conf="0.96", lang="fr", base_matches="unknown",
+              cons_matches="unknown", reason="switch_clear_improvement"):
+    r = {c: "" for c in LANGUAGE_CSV_COLUMNS}
+    r.update(product_id=name.replace(" ", "_"), product_name=name,
+             baseline_bucket="safety_downgrade", language_bucket="auto_ready",
+             conservative_bucket=conservative_bucket,
+             baseline_nevo_code=baseline_code, language_nevo_code=cons_code,
+             conservative_nevo_code=cons_code, baseline_top1="base name",
+             language_top1=cons_top1, conservative_top1=cons_top1,
+             baseline_confidence="0.96", language_confidence=conf,
+             conservative_confidence=conf,
+             baseline_matches_existing_v2=base_matches,
+             language_matches_existing_v2=cons_matches,
+             conservative_matches_existing_v2=cons_matches,
+             conservative_decision=decision, conservative_reason=reason,
+             retailer_language=lang, language_reference_coverage="0.7745")
+    return r
+
+
+def _lang_summary(**over):
+    s = {"retailer_language": "fr", "reference_source": "nevo",
+         "recommendation": "adopt_language_specific_candidate",
+         "language_reference_coverage": 0.7745,
+         "conservative_regressed_count": 0, "true_high_risk_delta": 0,
+         "conservative_true_high_risk": 0,
+         "conservative_switch_count": 5, "conservative_improved_count": 5,
+         "baseline_existing_v2_agreement": 48,
+         "conservative_existing_v2_agreement": 48,
+         "baseline_counts": {}, "raw_language_counts": {},
+         "conservative_counts": {}}
+    s.update(over)
+    return s
+
+
+def _plan(rows, summary=None, *, language="fr",
+          require="adopt_language_specific_candidate", min_conf=0.90):
+    return plan_mod.build_plan(
+        summary or _lang_summary(), rows, project_id=PID2, language=language,
+        min_confidence=min_conf, require_recommendation=require,
+        json_path="j.json", csv_path="c.csv")
+
+
+def _render_rows():
+    return [
+        _lang_row("Lentilles Vertes Cuites 265g", "switch_multilingual",
+                  cons_code="970", cons_top1="Lentils green and brown boiled"),
+        _lang_row("Huile de Colza Bio 1L", "switch_multilingual",
+                  cons_code="3449", cons_top1="Oil rapeseed",
+                  baseline_code="N-BLEND"),
+        _lang_row("Quinoa Blanc 400g", "switch_multilingual", cons_code="3153",
+                  cons_top1="Quinoa raw", baseline_code="N-QC"),
+        _lang_row("Semoule Couscous Moyen 500g", "switch_multilingual",
+                  cons_code="5518", cons_top1="Couscous wholemeal unprepared",
+                  baseline_code="N-CCB"),
+        _lang_row("Purée Mousseline Nature 4 sachets", "switch_multilingual",
+                  cons_code="2499", cons_top1="Potato puree powder",
+                  baseline_code="N-MASH"),
+        _lang_row("Compote Pomme Fraise Sans Sucres", "keep_baseline",
+                  conservative_bucket="safety_downgrade", cons_code="427",
+                  baseline_code="427", reason="kept_baseline_not_better"),
+        _lang_row("Biscuits Sablés au Beurre", "keep_baseline",
+                  conservative_bucket="no_match", cons_code="", cons_top1="",
+                  reason="blocked_multilingual_no_match"),
+        _lang_row("Moutarde à l'Ancienne 350g", "keep_baseline",
+                  conservative_bucket="no_match", cons_code="", cons_top1="",
+                  reason="blocked_family_mismatch:mustard_condiment_to_leaves"),
+        _lang_row("Riz Thaï Parfumé 1kg", "keep_baseline", cons_code="N-RD",
+                  baseline_code="N-RD",
+                  reason="blocked_family_mismatch:rice_grain_to_rice_cakes"),
+    ]
+
+
+class TestLanguageApplyPlan:
+    def test_render_fixture_exactly_five_candidates(self) -> None:
+        out = _plan(_render_rows())
+        s = out["summary"]
+        assert s["candidate_count"] == 5
+        assert sorted(s["candidate_nevo_codes"]) == [
+            "2499", "3153", "3449", "5518", "970"]
+
+    def test_selects_only_switch_rows(self) -> None:
+        out_rows = _plan(_render_rows())["plan_rows"]
+        cand = [r for r in out_rows
+                if r["plan_action"] == "candidate_apply_language_v2"]
+        assert all(r["conservative_decision"] == "switch_multilingual"
+                   for r in cand)
+        assert len(cand) == 5
+
+    def test_skips_blocked_false_positives(self) -> None:
+        rows = _plan(_render_rows())["plan_rows"]
+        for name in ("Compote Pomme Fraise Sans Sucres",
+                     "Biscuits Sablés au Beurre", "Moutarde à l'Ancienne 350g",
+                     "Riz Thaï Parfumé 1kg"):
+            row = next(r for r in rows if r["product_name"] == name)
+            assert row["plan_action"] != "candidate_apply_language_v2"
+            assert row["plan_action"] == "skip_not_switch"
+
+    def test_requires_recommendation_by_default(self) -> None:
+        s = _plan(_render_rows(),
+                  _lang_summary(recommendation="needs_more_coverage"))["summary"]
+        assert s["candidate_count"] == 0
+        assert s["skip_counts"].get("skip_recommendation_guard")
+        # explicit override (require=None) lets it through
+        s2 = _plan(_render_rows(),
+                   _lang_summary(recommendation="needs_more_coverage"),
+                   require=None)["summary"]
+        assert s2["candidate_count"] == 5
+
+    def test_refuses_when_regressed(self) -> None:
+        s = _plan(_render_rows(),
+                  _lang_summary(conservative_regressed_count=2))["summary"]
+        assert s["candidate_count"] == 0
+        assert s["skip_counts"].get("skip_regression_guard")
+
+    def test_refuses_when_true_high_risk_delta(self) -> None:
+        s = _plan(_render_rows(),
+                  _lang_summary(true_high_risk_delta=1))["summary"]
+        assert s["candidate_count"] == 0
+        assert s["skip_counts"].get("skip_regression_guard")
+
+    def test_refuses_when_coverage_below_threshold(self) -> None:
+        s = _plan(_render_rows(),
+                  _lang_summary(language_reference_coverage=0.28))["summary"]
+        assert s["candidate_count"] == 0
+        assert s["skip_counts"].get("skip_coverage_guard")
+
+    def test_refuses_language_mismatch(self) -> None:
+        s = _plan(_render_rows(), language="de")["summary"]
+        assert s["candidate_count"] == 0
+        assert s["skip_counts"].get("skip_language_mismatch")
+
+    def test_emits_source_version_and_metadata(self) -> None:
+        rows = _plan(_render_rows())["plan_rows"]
+        cand = next(r for r in rows
+                    if r["plan_action"] == "candidate_apply_language_v2")
+        assert cand["source_version"] == "v2_language_specific_fr"
+        meta = json.loads(cand["source_metadata_json"])
+        assert meta["retrieval_mode"] == "language_specific_conservative"
+        assert meta["retailer_language"] == "fr"
+        assert meta["language_nevo_code"] == cand["conservative_nevo_code"]
+        assert meta["language_reference_coverage"] == 0.7745
+
+    def test_low_confidence_and_same_code_skipped(self) -> None:
+        low = _plan([_lang_row("X", "switch_multilingual", conf="0.5")
+                     ])["summary"]
+        assert low["skip_counts"].get("skip_low_confidence")
+        same = _plan([_lang_row("Y", "switch_multilingual",
+                                baseline_code="970", cons_code="970")
+                      ])["summary"]
+        assert same["skip_counts"].get("skip_same_nevo_code")
+
+    def test_cli_dry_run_writes_files_no_db(self, tmp_path) -> None:
+        csv_path = (tmp_path
+                    / f"nevo_language_specific_retrieval_fr_{PID2}.csv")
+        with csv_path.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=LANGUAGE_CSV_COLUMNS)
+            w.writeheader()
+            w.writerows(_render_rows())
+        json_path = (tmp_path
+                     / f"nevo_language_specific_retrieval_fr_{PID2}.json")
+        json_path.write_text(json.dumps(_lang_summary()))
+
+        rc = plan_mod.main(
+            ["--project-id", PID2, "--retailer-language", "fr",
+             "--language-benchmark-json", str(json_path),
+             "--language-benchmark-csv", str(csv_path),
+             "--output-dir", str(tmp_path), "--min-confidence", "0.90",
+             "--require-recommendation", "adopt_language_specific_candidate",
+             "--include-only-switches", "--dry-run"])
+        assert rc == 0
+        stem = f"nevo_language_specific_v2_apply_plan_fr_{PID2}"
+        s = json.loads((tmp_path / f"{stem}.json").read_text())
+        assert s["candidate_count"] == 5
+        assert s["apply_supported"] is False
+        assert s["apply_status"] == "dry_run_plan_only"
+        assert (tmp_path / f"{stem}.csv").exists()
+        assert (tmp_path
+                / f"nevo_language_specific_v2_apply_review_fr_{PID2}.csv"
+                ).exists()
+
+    def test_cli_confirm_apply_is_not_implemented(self, tmp_path) -> None:
+        csv_path = (tmp_path
+                    / f"nevo_language_specific_retrieval_fr_{PID2}.csv")
+        with csv_path.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=LANGUAGE_CSV_COLUMNS)
+            w.writeheader()
+            w.writerows(_render_rows())
+        json_path = (tmp_path
+                     / f"nevo_language_specific_retrieval_fr_{PID2}.json")
+        json_path.write_text(json.dumps(_lang_summary()))
+
+        rc = plan_mod.main(
+            ["--project-id", PID2, "--retailer-language", "fr",
+             "--language-benchmark-json", str(json_path),
+             "--language-benchmark-csv", str(csv_path),
+             "--output-dir", str(tmp_path),
+             "--confirm-apply-language-v2"])
+        assert rc != 0  # non-zero: apply refused
+        stem = f"nevo_language_specific_v2_apply_plan_fr_{PID2}"
+        s = json.loads((tmp_path / f"{stem}.json").read_text())
+        assert (s["apply_status"]
+                == "apply_not_implemented_for_language_specific_v2")
+        assert s["apply_supported"] is False
+
+    def test_plan_module_has_no_db_or_route_symbols(self) -> None:
+        src = Path(plan_mod.__file__).read_text(encoding="utf-8")
+        for needle in ("add_enrichment", "update_enrichment", "get_store",
+                       "store_factory", ".insert(", "get_repository"):
+            assert needle not in src, needle
+
+
+# ---------------------------------------------------------------------------
 # Safety.
 # ---------------------------------------------------------------------------
 class TestSafety:
