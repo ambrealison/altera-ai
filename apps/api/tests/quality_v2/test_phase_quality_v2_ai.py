@@ -65,11 +65,49 @@ class TestTranslatorAndText:
         ("Oil rapeseed", "colza", "raps"),
         ("Vinegar Balsamic", "balsamique", "balsamico"),
         ("Milk powder", "poudre", "pulver"),
+        # Oil types (Render hotfix — oil-type collapse).
+        ("Oil peanut", "arachide", "erdnuss"),
+        ("Oil soya", "soja", "soja"),
+        ("Oil soy", "soja", "soja"),
+        ("Oil Becel Blend Classic", "mélange", "misch"),
+        ("Oil corn", "maïs", "mais"),
+        ("Oil coconut", "coco", "kokos"),
+        ("Oil sesame", "sésame", "sesam"),
+        ("Oil palm", "palme", "palm"),
+        ("Oil canola", "colza", "raps"),
     ])
     def test_state_form_preserved(self, name, fr_mark, de_mark) -> None:
         tr = DeterministicTranslator().translate(name)
         assert fr_mark in tr.food_name_fr.lower()
         assert de_mark in tr.food_name_de.lower()
+
+    def test_oil_type_products_validate_clean(self) -> None:
+        # The Render full-NEVO run flagged these specific oil products with
+        # oil-type state_collapse; they must now validate with zero high risk.
+        names = ["Oil peanut", "Oil soya", "Oil Becel Blend Classic",
+                 "Oil corn", "Oil coconut", "Oil sesame", "Oil palm",
+                 "Oil soy", "Oil canola",
+                 "Plant-based alternative to Gouda cheese based on coconut oil",
+                 "Plant-based alternative to Gouda cheese based on coconut oil "
+                 "fortified w Ca and Vit B12"]
+        refs = [{"nevo_code": f"N{i}", "food_name_en": n}
+                for i, n in enumerate(names)]
+        rows = generate_rows(refs, translator=DeterministicTranslator())
+        out = val.validate_rows(rows)
+        assert out["summary"]["high_risk_translation_issue_count"] == 0
+        assert (out["summary"]["recommendation"]
+                in ("ready_for_retrieval_experiment",
+                    "needs_translation_review"))
+
+    def test_coconut_oil_marker_in_gouda_products(self) -> None:
+        for name in (
+            "Plant-based alternative to Gouda cheese based on coconut oil",
+            "Plant-based alternative to Gouda cheese based on coconut oil "
+            "fortified w Ca and Vit B12",
+        ):
+            tr = DeterministicTranslator().translate(name)
+            assert "coco" in tr.food_name_fr.lower()
+            assert "kokos" in tr.food_name_de.lower()
 
     def test_unknown_food_is_needs_review(self) -> None:
         tr = DeterministicTranslator().translate("Mystery xyzzy product")
