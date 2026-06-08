@@ -103,6 +103,16 @@ def family_mismatch(product_name: str, baseline_top1: str, ml_top1: str,
             _has(m, "tinned", "canned", "conserve") and \
             not _has(p, "canned", "tinned", "conserve"):
         return "peas_frozen_to_tinned"
+    # compote / fruit puree -> dried/soaked/dehydrated fruit (form collapse:
+    # a fruit sauce/compote must not match a dried/rehydrated-fruit candidate)
+    if _has(p, "compote", "puree de fruit", "dessert fruitier") and \
+            _has(m, "dried", "dehydrated", "soaked"):
+        return "compote_to_dried_fruit"
+    # biscuit/sable/cookie/shortbread -> pie/tart, unless the product is itself
+    # a pie/tart (so shortbread biscuits never match an apple-pie candidate)
+    if _has(p, "biscuit", "sable", "cookie", "shortbread") and \
+            _has(m, "pie", "tart") and not _has(p, "tarte", "tart", "pie"):
+        return "biscuit_to_pie"
     return None
 
 

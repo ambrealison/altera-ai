@@ -404,6 +404,11 @@ class TestConservativeFamilyGuards:
          "jam_to_fruit_in_syrup"),
         ("Petits Pois Surgelés", "Peas boiled", "Peas tinned",
          "peas_frozen_to_tinned"),
+        # Language-specific FR false positives (tightened guards).
+        ("Compote Pomme Fraise Sans Sucres", "Apple sauce wo sugar tinned",
+         "Apple dried soaked in water", "compote_to_dried_fruit"),
+        ("Biscuits Sablés au Beurre", "Biscuit spiced Speculaas w butter",
+         "Apple pie Dutch w shortbread wo butter", "biscuit_to_pie"),
     ])
     def test_family_mismatch_detected(self, product, base, ml, expected
                                       ) -> None:
@@ -417,6 +422,18 @@ class TestConservativeFamilyGuards:
         ("Petits Pois en conserve", "Peas", "Peas tinned"),
         # Unrelated pasta switch must not be flagged.
         ("Pâtes Fusilli", "Pasta boiled", "Pasta raw"),
+        # The four good FR language switches must NOT be flagged.
+        ("Lentilles Vertes Cuites", "Lentils green and brown dried",
+         "Lentils green and brown boiled"),
+        ("Huile de Colza Bio", "Oil Becel Blend Classic", "Oil rapeseed"),
+        ("Riz Thaï Parfumé", "Rice drink wo sugar", "Rice white raw"),
+        ("Purée Mousseline Nature",
+         "Potatoes mashed fresh prep w whole milk and margarin",
+         "Potato puree powder av"),
+        # compote with a non-dried candidate is fine.
+        ("Compote Pomme", "Apple sauce", "Apple sauce wo sugar"),
+        # a shortbread TART product may match a pie/tart candidate.
+        ("Tartelettes Sablées Pommes", "Biscuit", "Apple pie Dutch"),
     ])
     def test_family_mismatch_not_flagged(self, product, base, ml) -> None:
         assert cons.family_mismatch(product, base, ml) is None
@@ -504,6 +521,44 @@ class TestConservativeDecisions:
         rows = [_cmp_row("p", "no_match", "no_match", "A", "B", 0.0, 0.0)]
         out = cons.conservative_decisions(rows, coverage=0.9)
         assert out["summary"]["recommendation"] == "neutral_no_lift"
+
+    def test_fr_language_render_switches(self) -> None:
+        # The six Render FR-only switches: two are false positives that the
+        # tightened guards must now block; four are legitimate rescues.
+        rows = [
+            _cmp_row("Compote Pomme Fraise Sans Sucres 4x100g",
+                     "safety_downgrade", "auto_ready",
+                     "Apple sauce wo sugar w sweetener tinned",
+                     "Apple dried soaked in water", 0.96, 0.96),
+            _cmp_row("Biscuits Sablés au Beurre 200g", "no_match", "auto_ready",
+                     "Biscuit spiced Speculaas w butter",
+                     "Apple pie Dutch w shortbread wo butter", 0.0, 0.96),
+            _cmp_row("Lentilles Vertes Cuites 265g", "safety_downgrade",
+                     "auto_ready", "Lentils green and brown dried",
+                     "Lentils green and brown boiled", 0.96, 0.96),
+            _cmp_row("Huile de Colza Bio 1L", "safety_downgrade", "auto_ready",
+                     "Oil Becel Blend Classic", "Oil rapeseed", 0.96, 0.96),
+            _cmp_row("Riz Thaï Parfumé 1kg", "safety_downgrade", "auto_ready",
+                     "Rice drink wo sugar", "Rice white raw", 0.96, 0.96),
+            _cmp_row("Purée Mousseline Nature 4 sachets", "safety_downgrade",
+                     "auto_ready",
+                     "Potatoes mashed fresh prep w whole milk and margarin",
+                     "Potato puree powder av", 0.96, 0.96),
+        ]
+        out = cons.conservative_decisions(rows, coverage=0.2814)
+        by_name = {r["product_name"]: r for r in out["rows"]}
+        compote = by_name["Compote Pomme Fraise Sans Sucres 4x100g"]
+        assert compote["conservative_decision"] == "keep_baseline"
+        assert "compote_to_dried_fruit" in compote["conservative_reason"]
+        biscuit = by_name["Biscuits Sablés au Beurre 200g"]
+        assert biscuit["conservative_decision"] == "keep_baseline"
+        assert "biscuit_to_pie" in biscuit["conservative_reason"]
+        for good in ("Lentilles Vertes Cuites 265g", "Huile de Colza Bio 1L",
+                     "Riz Thaï Parfumé 1kg", "Purée Mousseline Nature 4 sachets"):
+            assert by_name[good]["conservative_decision"] == "switch_multilingual"
+        assert out["summary"]["conservative_switch_count"] == 4
+        assert out["summary"]["conservative_regressed_count"] == 0
+        assert out["summary"]["true_high_risk_delta"] == 0
 
 
 class TestConservativeCli:
