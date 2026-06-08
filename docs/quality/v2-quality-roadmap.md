@@ -1834,3 +1834,62 @@ only as a last resort.
 workbook (or CSV fallback) a non-engineer can edit, normalize it back, and run
 the unchanged validator. Read-only throughout — no DB writes, no apply plan, no
 production behavior change. ruff clean; V2-AG tests (18) pass.
+
+## Phase Quality-V2-AH — persistent review artifact export + download path
+
+The V2-AG artifacts still lived in `/tmp/altera-quality` on Render, so the manifest
+could only suggest dashboard/scp or base64-from-shell — too complex for internal
+ops, impossible for retailer users. AH adds a durable export + signed download
+path by reusing the existing Supabase storage mechanism. No V2 default, no apply,
+no matcher change, no existing-record change, no commercial data; V1 default and
+embeddings off.
+
+**Architecture reused (Part A).** The app already has a private storage layer:
+`altera_api/storage/service.py::StorageService` (private `exports` bucket;
+`upload_export(path, content, filename)` + `generate_export_download_url(path,
+filename, expires_in=600)` signed URLs), surfaced via
+`storage/factory.py::get_storage_service()` (returns `None` when
+`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` are unset) and a `FakeStorageService`
+test double. Tenant/project authorization for *routes* lives in
+`api/dependencies.py::get_project` (Altera-internal see any org; clients scoped
+to their own org). Org id is resolved from the project
+(`store.get_project(pid).organisation_id`). The `report_exports` table exists but
+its `run_id` FK-references `calculation_runs`; a V2 review run_id is a slug, not a
+calculation-run UUID, so a `report_exports` row is **not applicable** — DB
+registration is intentionally skipped (the storage upload + signed URL stand
+alone). No route was added: the existing export route is welded to
+`calculation_runs`, so wiring V2 review artifacts into it is risky and out of
+scope — AH stays **CLI-only** and routes stay clean.
+
+**Export CLI (Part B–D).** `export_nevo_v2_human_review_artifacts.py`
+auto-discovers the newest `nevo_v2_human_review_{workbook,README,summary}_<project>_*`
+artifacts (xlsx if present, else csv; never the raw retailer upload — discovery
+only matches the reviewer-artifact prefix), computes `sha256` + size +
+content-type for each, and (when storage is configured) uploads them to the
+private `exports` bucket and signs download URLs. Storage paths are
+**server-generated and tenant-scoped**:
+`organisations/<org>/exports/nevo_v2_review/<project>/<run>/<export_id>/<file>`,
+with `project_id` validated as a UUID, `run_id` restricted to `[A-Za-z0-9._-]`
+(path traversal rejected), and `export_id` a server-side `uuid4()`. Signed-URL
+TTL defaults to 3600s (clamped 60..86400). When storage is unconfigured (local
+dev), it still writes the manifest with local paths + checksums and says so.
+
+**Manifest + console (Part C).** Writes
+`nevo_v2_human_review_export_manifest_<project>_<run>.json` with `project_id`,
+`run_id`, `generated_at`, `organisation_id`, `export_id`, per-file
+{`local_path`, `storage_path`, `signed_url`, `expires_at`, `file_size_bytes`,
+`content_type`, `checksum_sha256`}, and `recommendation = ready_for_download`.
+The console prints the XLSX/CSV/README/summary URLs (or local paths) and the
+next normalize + validate commands.
+
+**Import story (Part F).** The reverse path is unchanged and manual for now:
+(1) reviewer downloads the CSV/XLSX from the signed URL; (2) fills
+`manual_decision` / `approved_*` / `reviewer_notes`; (3) returns the file (manual
+upload for now — no upload UI); (4) `normalize_nevo_v2_human_review_workbook`
+turns it back into the canonical package CSV; (5)
+`validate_nevo_v2_batch_review_package` (the source of truth) validates it.
+
+**Result.** One CLI persists the reviewer-friendly artifacts and prints durable
+signed download URLs — no more cat/base64 from `/tmp`. No nutrition DB writes, no
+matcher activation, no commercial-data exposure. ruff clean; V2-AH tests (16)
+pass.
