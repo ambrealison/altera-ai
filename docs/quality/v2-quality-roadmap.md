@@ -1777,3 +1777,60 @@ non-pending row with `should_auto_enrich` / `should_review`), and an
 **Result.** A partially-filled review package validates into the correction-loop
 outputs ready for a future gold-dataset import / apply-planning phase — no apply
 plan created here, no DB writes, no production change. Full suite 3649 passed.
+
+## Phase Quality-V2-AG — human-friendly review workflow
+
+The V2-AF pipeline is technically correct but operationally bad: a reviewer had
+to open a Render shell, find a CSV in `/tmp/altera-quality`, `cat`/`base64` it
+out, decode it locally, open it in Excel, fill it, get it back, then validate.
+Unusable for internal ops and impossible for retailers. AG makes the workflow
+usable by non-engineers while keeping the validator as the source of truth — no
+DB writes, no apply plan, V1 default, embeddings off, routes clean.
+
+**Workbook builder (Part A–F).**
+`build_nevo_v2_human_review_workbook.py` reshapes the machine review package
+(auto-discovering the newest `nevo_v2_batch_review_package_<project>_*.csv`, or
+via `--review-package`) into reviewer-friendly artifacts:
+
+- If `openpyxl` is available, a multi-tab `.xlsx` workbook:
+  `Instructions`, `Review_All`, `P1_Review_First` (P0/P1 only), `Safety_Downgrade`,
+  `Needs_Review`, `No_Match`, `Existing_V2_Diffs`, `Reference_Decisions`,
+  `Technical_Raw`. Useful columns come first (`review_priority`, `product_name`,
+  `category`, the suggested/candidate matches, then the editable decision
+  columns); technical columns (`project_id`, `product_id`, `confidence`,
+  `diff_bucket`, …) are tucked into the trailing block / `Technical_Raw`. Rows
+  are sorted by priority (P0→P3), then source (`existing_v2_diff` →
+  `safety_downgrade` → `needs_review` → `no_match`), then product name. The
+  header row is frozen, filters added, columns auto-width, long fields wrapped,
+  priority rows lightly coloured (P0 red / P1 orange / P2 yellow / P3 grey),
+  with dropdown validation for `manual_decision` and `gold_case_decision`.
+- A **CSV fallback** is always written (self-contained: human columns + the
+  technical tail), so Render images without `openpyxl` still produce a usable
+  file instead of failing.
+- A plain-text **README** and a **summary JSON** document the decision
+  vocabulary and the safety-override tokens.
+
+**Decision vocabulary (Part E).** `manual_decision` ∈ {`approve_existing_candidate`,
+`approve_existing_v2`, `replace`, `reject`, `needs_more_info`, `out_of_scope`,
+blank=pending}. Safety downgrades approved as-is need `OVERRIDE_SAFE_STATE` /
+`OVERRIDE_SAFE_PROXY` in `reviewer_notes`; P0 rows need `OVERRIDE`.
+`gold_case_decision` ∈ {`positive_gold`, `negative_gold`, `alias_candidate`,
+`rule_candidate`, `ignore`}.
+
+**Normalizer (Part G).** `normalize_nevo_v2_human_review_workbook.py` turns a
+FILLED human file (`.xlsx` → `Review_All` sheet, or `.csv`) back into the
+canonical `nevo_v2_batch_review_package_FILLED_NORMALIZED_<project>_<run>.csv`,
+mapping the friendly `current_batch_*` columns back to the validator's
+`batch_nevo_*` / `nevo_*` names, so the existing validator runs unchanged. If
+the input is `.xlsx` but `openpyxl` is missing, it fails clearly and instructs
+the reviewer to export the sheet as CSV from Excel.
+
+**Manifest (Part H).** `print_nevo_v2_review_artifact_manifest.py` prints, for a
+project, where the workbook / CSV / README / summary / package live and the
+exact normalize + validate commands — with a `base64` copy/paste command offered
+only as a last resort.
+
+**Result.** From the current project review package we can produce a human
+workbook (or CSV fallback) a non-engineer can edit, normalize it back, and run
+the unchanged validator. Read-only throughout — no DB writes, no apply plan, no
+production behavior change. ruff clean; V2-AG tests (18) pass.
