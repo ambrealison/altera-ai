@@ -591,6 +591,204 @@ class TestConservativeCli:
 
 
 # ---------------------------------------------------------------------------
+# Language-specific (FR-only / DE-only) auxiliary retrieval.
+# ---------------------------------------------------------------------------
+from altera_api.classification_v2 import (  # noqa: E402
+    compare_nevo_language_specific_retrieval as lang,
+)
+from altera_api.classification_v2.nevo_multilingual_reference import (  # noqa: E402
+    build_language_reference_text,
+    language_name_present,
+)
+
+_LANG_ROW = {
+    "nevo_food_name": "Lentils dried", "nevo_food_name_fr": "lentilles sèches",
+    "nevo_food_name_de": "getrocknete Linsen",
+    "search_aliases_fr": ["lentilles sèches", "lentilles"],
+    "search_aliases_de": ["getrocknete Linsen", "Linsen"],
+    "search_aliases_en": ["dried lentils", "lentils"],
+}
+
+
+class TestLanguageTextBuilder:
+    def test_fr_only_excludes_de_en_and_canonical(self) -> None:
+        txt = build_language_reference_text(_LANG_ROW, language="fr")
+        assert "lentilles" in txt
+        assert "getrocknete" not in txt and "Linsen" not in txt  # no DE
+        assert "dried lentils" not in txt                         # no EN aliases
+        assert "Lentils dried" not in txt                         # no canonical
+
+    def test_de_only_excludes_fr_en_and_canonical(self) -> None:
+        txt = build_language_reference_text(_LANG_ROW, language="de")
+        assert "Linsen" in txt
+        assert "lentilles" not in txt                             # no FR
+        assert "dried lentils" not in txt                         # no EN aliases
+        assert "Lentils dried" not in txt                         # no canonical
+
+    def test_en_uses_canonical_plus_en_aliases(self) -> None:
+        txt = build_language_reference_text(_LANG_ROW, language="en")
+        assert "Lentils dried" in txt and "dried lentils" in txt
+        assert "lentilles" not in txt and "Linsen" not in txt
+
+    def test_missing_language_returns_none(self) -> None:
+        miss = {"nevo_food_name": "Rare food", "nevo_food_name_fr": "",
+                "nevo_food_name_de": ""}
+        assert build_language_reference_text(miss, language="fr") is None
+        assert build_language_reference_text(miss, language="de") is None
+        assert build_language_reference_text(miss, language="en") == "Rare food"
+        assert not language_name_present(miss, "fr")
+        assert language_name_present(miss, "en")
+
+    def test_language_text_differs_from_mixed(self) -> None:
+        # The auxiliary FR-only text must NOT be the mixed EN+FR+DE text.
+        mixed = build_multilingual_reference_text(_LANG_ROW)
+        fr_only = build_language_reference_text(_LANG_ROW, language="fr")
+        assert fr_only != mixed
+        assert "DE:" not in fr_only and "EN aliases:" not in fr_only
+
+
+def _cons_summary(*, base, raw, consv, agree, improved=0, regressed=0,
+                  switch=0, blocked=0, kept=0):
+    return {
+        "baseline_counts": base, "raw_multilingual_counts": raw,
+        "conservative_counts": consv,
+        "agreement_with_existing_v2": agree,
+        "conservative_improved_count": improved,
+        "conservative_regressed_count": regressed,
+        "conservative_switch_count": switch,
+        "conservative_blocked_regression_count": blocked,
+        "conservative_kept_baseline_count": kept,
+        "true_high_risk_delta": consv["true_high_risk"] - base["true_high_risk"],
+    }
+
+
+def _counts(ar=0, sd=0, nr=0, nm=0, thr=0):
+    return {"auto_ready": ar, "safety_downgrade": sd, "needs_review": nr,
+            "no_match": nm, "true_high_risk": thr}
+
+
+class TestLanguageRecommendation:
+    def test_adopt_when_coverage_high_and_safe_lift(self) -> None:
+        cs = _cons_summary(base=_counts(ar=40, nm=30), raw=_counts(ar=43, nm=27),
+                           consv=_counts(ar=43, nm=27),
+                           agree={"baseline": 40, "raw": 20, "conservative": 40},
+                           improved=3)
+        assert (lang.language_recommendation(cs, coverage=0.8)
+                == "adopt_language_specific_candidate")
+
+    def test_needs_more_coverage_when_low_coverage(self) -> None:
+        cs = _cons_summary(base=_counts(ar=49, nm=34), raw=_counts(ar=47, nm=38),
+                           consv=_counts(ar=50, nm=34),
+                           agree={"baseline": 49, "raw": 29, "conservative": 49},
+                           improved=1)
+        assert (lang.language_recommendation(cs, coverage=0.28)
+                == "needs_more_coverage")
+
+    def test_neutral_no_lift_when_covered_but_no_switch(self) -> None:
+        cs = _cons_summary(base=_counts(ar=49, nm=34), raw=_counts(ar=49, nm=34),
+                           consv=_counts(ar=49, nm=34),
+                           agree={"baseline": 49, "raw": 49, "conservative": 49},
+                           improved=0)
+        assert (lang.language_recommendation(cs, coverage=0.8)
+                == "neutral_no_lift")
+
+    def test_reject_when_agreement_collapses(self) -> None:
+        cs = _cons_summary(base=_counts(ar=49, nm=34), raw=_counts(ar=49, nm=34),
+                           consv=_counts(ar=49, nm=34),
+                           agree={"baseline": 49, "raw": 10, "conservative": 10},
+                           improved=0)
+        assert (lang.language_recommendation(cs, coverage=0.8)
+                == "reject_due_to_regressions")
+
+
+class TestLanguageCli:
+    def _store(self, names):
+        products = [SimpleNamespace(
+            id=uuid4(), product_name=n, brand="", labels=(),
+            retailer_category="", ingredients_text="", pack_size="")
+            for n in names]
+
+        class _Store:
+            def __init__(self):
+                self.reads: list[str] = []
+
+            def get_project(self, pid):
+                self.reads.append("p")
+                return object()
+
+            def list_products_for_project(self, pid):
+                return products
+
+            def list_enrichment_records_for_project(self, pid):
+                return []
+
+            def __getattr__(self, name):
+                if name.split("_")[0] in ("add", "update", "delete", "upsert",
+                                          "insert"):
+                    raise AssertionError(f"write: {name}")
+                raise AttributeError(name)
+
+        return _Store()
+
+    def test_fr_cli_writes_artifacts_read_only(self, tmp_path) -> None:
+        gen.main(["--reference-source", "fixture", "--output-dir",
+                  str(tmp_path), "--no-llm"])
+        ml_ref = tmp_path / "nevo_reference_multilingual.csv"
+        store = self._store(["Riz", "Lentilles", "Café"])
+        pid = "326c6e1c-46b2-4103-98f1-331afadb721a"
+        rc = lang.main(
+            ["--project-id", pid, "--reference-source", "fixture",
+             "--language-reference", str(ml_ref), "--retailer-language", "fr",
+             "--output-dir", str(tmp_path), "--cache-dir",
+             str(tmp_path / "cache"), "--evaluator-fake", "--top-k", "5"],
+            store=store)
+        assert rc == 0
+        assert set(store.reads) <= {"p"}
+        csv_path = tmp_path / f"nevo_language_specific_retrieval_fr_{pid}.csv"
+        json_path = tmp_path / f"nevo_language_specific_retrieval_fr_{pid}.json"
+        assert csv_path.exists() and json_path.exists()
+        with csv_path.open(encoding="utf-8-sig", newline="") as fh:
+            header = next(csv.reader(fh))
+        assert header == lang.LANGUAGE_CSV_COLUMNS
+        s = json.loads(json_path.read_text())
+        for key in ("retailer_language", "language_reference_coverage",
+                    "language_reference_rows_used",
+                    "language_reference_rows_missing", "baseline_auto_ready",
+                    "raw_language_auto_ready", "conservative_auto_ready",
+                    "true_high_risk_delta", "conservative_regressed_count",
+                    "baseline_existing_v2_agreement",
+                    "conservative_existing_v2_agreement", "recommendation"):
+            assert key in s, key
+        assert s["retailer_language"] == "fr"
+        assert s["conservative_regressed_count"] == 0
+        assert s["true_high_risk_delta"] == 0
+        # Missing-FR rows were excluded from the language index.
+        assert s["language_reference_rows_missing"] >= 0
+        assert (s["language_reference_rows_used"]
+                + s["language_reference_rows_missing"]
+                == s["language_reference_rows_total"])
+        # The language index cache is tagged distinctly from baseline.
+        assert any("-lang-fr-" in p.name
+                   for p in (tmp_path / "cache").glob("*.json"))
+
+    def test_de_cli_runs(self, tmp_path) -> None:
+        gen.main(["--reference-source", "fixture", "--output-dir",
+                  str(tmp_path), "--no-llm"])
+        ml_ref = tmp_path / "nevo_reference_multilingual.csv"
+        store = self._store(["Reis", "Linsen"])
+        pid = uuid4()
+        rc = lang.main(
+            ["--project-id", str(pid), "--reference-source", "fixture",
+             "--language-reference", str(ml_ref), "--retailer-language", "de",
+             "--output-dir", str(tmp_path), "--cache-dir",
+             str(tmp_path / "cache"), "--evaluator-fake", "--top-k", "5"],
+            store=store)
+        assert rc == 0
+        assert (tmp_path
+                / f"nevo_language_specific_retrieval_de_{pid}.json").exists()
+
+
+# ---------------------------------------------------------------------------
 # Safety.
 # ---------------------------------------------------------------------------
 class TestSafety:
@@ -599,7 +797,7 @@ class TestSafety:
         from altera_api.classification_v2 import (
             compare_nevo_multilingual_retrieval_conservative as wrapper,
         )
-        for mod in (core, gen, val, bench, cons, wrapper):
+        for mod in (core, gen, val, bench, cons, wrapper, lang):
             src = Path(mod.__file__).read_text(encoding="utf-8")
             for needle in ("add_enrichment", "update_enrichment",
                            "add_export_record"):
@@ -610,6 +808,7 @@ class TestSafety:
         offenders = [
             p.name for p in api_dir.rglob("*.py")
             if "multilingual" in p.read_text(encoding="utf-8")
+            or "language_specific" in p.read_text(encoding="utf-8")
             or "classification_v2" in p.read_text(encoding="utf-8")
         ]
         assert not offenders

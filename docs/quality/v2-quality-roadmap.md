@@ -1998,3 +1998,35 @@ improvements (mustard→roux, peas-frozen→tinned), accepts only the legitimate
 pasta boiled→raw fix, keeps existing-V2 agreement at baseline (no 48→27
 collapse), and — given the deterministic reference's ~28% coverage — recommends
 `needs_more_coverage` rather than adoption. ruff clean; V2-AI tests (60) pass.
+
+### Quality-V2-AI — language-specific (FR-only / DE-only) auxiliary retrieval
+
+Mixing EN+FR+DE in one embedding text degraded retrieval globally (raw benchmark
+rejected). Next hypothesis: a retailer declares the upload language, and
+retrieval uses a *language-only* auxiliary index for that language while the
+canonical English index stays the default decision path.
+
+`build_language_reference_text(data, language=...)` builds candidate text from
+ONLY one language — `fr` → `<fr_name>; <fr_aliases>` (no DE, no EN aliases, no
+canonical EN name), `de` likewise, `en` → canonical + EN aliases. The canonical
+NEVO name/code/nutrition stay candidate METADATA (rules + nutrition-safety gate
+still run on canonical English); only the embedding text is language-only.
+**Missing-language strategy:** rows without a name in the requested language are
+EXCLUDED from the language index (folding canonical EN into a FR-only index would
+re-create the mixed-language noise); the excluded count drives
+`language_reference_coverage`.
+
+`compare_nevo_language_specific_retrieval` (new CLI) loads the project products,
+builds the baseline EN index + the language-only auxiliary index (own cache tag
+`lang-<lang>-<checksum>`), runs both, then applies the existing conservative
+decision layer (baseline default; never replace a baseline auto_ready unless
+`--allow-language-overwrite-auto-ready`; block no_match/zero-conf/below-threshold;
+reuse the family-mismatch + existing-V2 guards). Emits the language CSV +
+summary JSON (baseline / raw_language / conservative counts, per-bucket triples,
+switch/blocked/improved/regressed counts, true_high_risk delta, three-way
+agreement, coverage) with recommendation `adopt_language_specific_candidate`
+(coverage ≥ 0.5, safe, lift) | `needs_more_coverage` | `neutral_no_lift` |
+`reject_due_to_regressions`. The raw mixed multilingual benchmark is unchanged.
+On the pilot, FR coverage is ~28%, so the expected verdict is
+`needs_more_coverage` until FR/DE coverage is expanded. ruff clean; V2-AI tests
+(71) pass.

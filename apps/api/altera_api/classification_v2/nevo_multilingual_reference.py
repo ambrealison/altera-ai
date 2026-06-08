@@ -538,6 +538,64 @@ def build_multilingual_reference_text(data: dict[str, Any]) -> str:
     return text
 
 
+LANGUAGES = ("fr", "de", "en")
+
+
+def language_name(data: dict[str, Any], language: str) -> str:
+    """The reference name for *language* (empty when the row lacks it)."""
+    if language == "fr":
+        return str(data.get("nevo_food_name_fr") or data.get("food_name_fr")
+                   or "").strip()
+    if language == "de":
+        return str(data.get("nevo_food_name_de") or "").strip()
+    if language == "en":
+        return str(data.get("nevo_food_name") or data.get("food_name_en")
+                   or "").strip()
+    raise ValueError(f"unsupported language {language!r}")
+
+
+def language_name_present(data: dict[str, Any], language: str) -> bool:
+    return bool(language_name(data, language))
+
+
+def build_language_reference_text(data: dict[str, Any], *, language: str,
+                                  ) -> str | None:
+    """Single-language embedding text for an auxiliary index (no mixing).
+
+    The retailer declares a language; this builds the candidate text from ONLY
+    that language so a FR-only / DE-only index never re-introduces the mixed
+    EN+FR+DE noise that degraded the raw multilingual benchmark:
+
+    - ``fr`` → ``<fr_name>; <fr_aliases>`` (no DE, no EN aliases, no canonical
+      EN name).
+    - ``de`` → ``<de_name>; <de_aliases>`` (no FR, no EN aliases, no canonical
+      EN name).
+    - ``en`` → ``<canonical_name>; <en_aliases>`` (canonical is already the
+      English name, so EN auxiliary text is canonical + EN aliases).
+
+    The canonical NEVO name/code/nutrition remain candidate METADATA (used by
+    the rules + nutrition-safety gate); only the embedding text is
+    language-only. Returns ``None`` when the row has no name in *language* — the
+    caller excludes it from the language index (preferred missing-language
+    strategy) rather than falling back to canonical EN and re-mixing languages.
+    """
+    _assert_no_commercial(data)
+    name = language_name(data, language)
+    if not name:
+        return None
+    if language == "fr":
+        aliases = parse_aliases(data.get("search_aliases_fr"))
+    elif language == "de":
+        aliases = parse_aliases(data.get("search_aliases_de"))
+    else:  # en
+        aliases = parse_aliases(data.get("search_aliases_en"))
+    parts = _dedupe([p for p in [name, *aliases] if p])
+    text = "; ".join(parts)
+    if len(text) > MAX_REFERENCE_TEXT_CHARS:
+        text = text[:MAX_REFERENCE_TEXT_CHARS].rstrip()
+    return text
+
+
 # --- Part F — loader + cache identity --------------------------------------
 def load_multilingual_nevo_reference(path: str) -> list[dict[str, Any]]:
     """Load the generated artifact into index-ready reference dicts.
