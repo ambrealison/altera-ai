@@ -348,12 +348,258 @@ class TestBenchmark:
 
 
 # ---------------------------------------------------------------------------
+# Conservative decision layer (Render regression hotfix).
+# ---------------------------------------------------------------------------
+from altera_api.classification_v2 import (  # noqa: E402
+    nevo_multilingual_conservative as cons,
+)
+
+
+def _cmp_row(name, bb, mb, bt1, mt1, bconf, mconf, bm="unknown", mm="unknown",
+             bcode="C", mcode="M"):
+    return {"product_id": name, "product_name": name, "baseline_bucket": bb,
+            "multilingual_bucket": mb, "baseline_nevo_code": bcode,
+            "multilingual_nevo_code": mcode, "baseline_top1": bt1,
+            "multilingual_top1": mt1, "baseline_confidence": str(bconf),
+            "multilingual_confidence": str(mconf),
+            "baseline_matches_existing_v2": bm,
+            "multilingual_matches_existing_v2": mm}
+
+
+# The six Render regressions + three "improvements" (two suspicious).
+_RENDER_ROWS = [
+    _cmp_row("Maïs Doux Extra Croquant 285g", "auto_ready", "no_match",
+             "Syrup corn", "Cocoa powder sweetened", 0.96, 0.0, bm="true"),
+    _cmp_row("Crackers Graines de Lin 150g", "needs_review", "no_match",
+             "Crispbread", "Crispbread", 0.95, 0.0),
+    _cmp_row("Sucre de Canne Blond 750g", "auto_ready", "safety_downgrade",
+             "Sugar castor brown", "Syrup sugar", 0.96, 0.96, bm="true"),
+    _cmp_row("Confiture Abricot Intense 370g", "safety_downgrade", "no_match",
+             "Apricots in syrup tinned", "Apricots in syrup tinned", 0.96, 0.0),
+    _cmp_row("Boisson Amande Sans Sucres 1L", "auto_ready", "no_match",
+             "Fruit juice", "Drink soya Alpro", 0.96, 0.0, bm="true"),
+    _cmp_row("Houmous Citron Confit 175g", "auto_ready", "no_match", "Lemon",
+             "Grapefruit in syrup canned", 0.96, 0.0, bm="true"),
+    _cmp_row("Pâtes Fusilli Blé Complet 500g", "safety_downgrade",
+             "auto_ready", "Pasta fortified w fibre boiled",
+             "Pasta fortified w fibre raw", 0.96, 0.96),
+    _cmp_row("Moutarde à l'Ancienne 350g", "no_match", "auto_ready",
+             "Salad dressing honey/mustard", "Sauce based on roux prepared",
+             0.0, 0.96),
+    _cmp_row("Petits Pois Extra Fins Surgelés 600g", "safety_downgrade",
+             "auto_ready", "Peas green boiled", "Peas super fine tinned",
+             0.96, 0.96),
+]
+
+
+class TestConservativeFamilyGuards:
+    @pytest.mark.parametrize("product,base,ml,expected", [
+        ("Maïs Doux", "Syrup corn", "Cocoa powder", "corn_to_cocoa"),
+        ("Sucre de Canne Blond", "Sugar brown", "Syrup sugar", "sugar_to_syrup"),
+        ("Boisson Amande", "Almond drink", "Drink soya", "almond_drink_to_soya"),
+        ("Houmous Citron", "Hummus", "Grapefruit in syrup", "hummus_to_citrus"),
+        ("Moutarde à l'Ancienne", "Mustard", "Sauce based on roux",
+         "mustard_to_roux_sauce"),
+        ("Confiture Abricot", "Jam", "Apricots in syrup",
+         "jam_to_fruit_in_syrup"),
+        ("Petits Pois Surgelés", "Peas boiled", "Peas tinned",
+         "peas_frozen_to_tinned"),
+    ])
+    def test_family_mismatch_detected(self, product, base, ml, expected
+                                      ) -> None:
+        assert cons.family_mismatch(product, base, ml) == expected
+
+    @pytest.mark.parametrize("product,base,ml", [
+        # Licensing exceptions: product explicitly names the target family.
+        ("Sirop de Sucre", "Sugar", "Syrup sugar"),
+        ("Sauce Moutarde", "Mustard sauce", "Sauce based on roux"),
+        ("Confiture sirop", "Jam", "Fruit in syrup"),
+        ("Petits Pois en conserve", "Peas", "Peas tinned"),
+        # Unrelated pasta switch must not be flagged.
+        ("Pâtes Fusilli", "Pasta boiled", "Pasta raw"),
+    ])
+    def test_family_mismatch_not_flagged(self, product, base, ml) -> None:
+        assert cons.family_mismatch(product, base, ml) is None
+
+
+class TestConservativeDecisions:
+    def test_blocks_all_render_regressions(self) -> None:
+        out = cons.conservative_decisions(_RENDER_ROWS, coverage=0.28)
+        s = out["summary"]
+        assert s["conservative_regressed_count"] == 0
+        assert s["true_high_risk_delta"] == 0
+        assert s["conservative_blocked_regression_count"] == 6
+        # Only the legitimate pasta boiled->raw switch is accepted.
+        switched = [r["product_name"] for r in out["rows"]
+                    if r["conservative_decision"].startswith("switch")]
+        assert switched == ["Pâtes Fusilli Blé Complet 500g"]
+        # Agreement is preserved, not collapsed.
+        agree = s["agreement_with_existing_v2"]
+        assert agree["conservative"] == agree["baseline"]
+        assert agree["raw"] < agree["baseline"]
+        # Coverage-limited deterministic reference -> not adoption.
+        assert s["recommendation"] == "needs_more_coverage"
+
+    def test_suspicious_improvements_blocked(self) -> None:
+        rows = {r["product_name"]: cons.decide_row(
+            r, allow_overwrite_auto_ready=False, min_confidence=0.9)
+            for r in _RENDER_ROWS}
+        moutarde = rows["Moutarde à l'Ancienne 350g"]
+        assert moutarde["conservative_decision"] == "keep_baseline"
+        assert "mustard_to_roux_sauce" in moutarde["conservative_reason"]
+        pois = rows["Petits Pois Extra Fins Surgelés 600g"]
+        assert pois["conservative_decision"] == "keep_baseline"
+        assert "peas_frozen_to_tinned" in pois["conservative_reason"]
+
+    def test_auto_ready_protected_unless_flag(self) -> None:
+        row = _cmp_row("X", "auto_ready", "safety_downgrade", "A", "B",
+                       0.96, 0.96)
+        kept = cons.decide_row(row, allow_overwrite_auto_ready=False,
+                               min_confidence=0.9)
+        assert kept["conservative_decision"] == "keep_baseline"
+        assert "auto_ready_protected" in kept["conservative_reason"]
+        # auto_ready is the best bucket, so even with the flag a downgrade is
+        # never "strictly better" — it stays protected.
+        with_flag = cons.decide_row(row, allow_overwrite_auto_ready=True,
+                                    min_confidence=0.9)
+        assert with_flag["conservative_decision"] == "keep_baseline"
+
+    def test_blocks_no_match_zero_conf_and_below_threshold(self) -> None:
+        nm = cons.decide_row(
+            _cmp_row("X", "no_match", "no_match", "A", "B", 0.0, 0.0),
+            allow_overwrite_auto_ready=False, min_confidence=0.9)
+        assert nm["conservative_decision"] == "keep_baseline"
+        lowconf = cons.decide_row(
+            _cmp_row("Y", "no_match", "auto_ready", "A", "B", 0.0, 0.5),
+            allow_overwrite_auto_ready=False, min_confidence=0.9)
+        assert lowconf["conservative_decision"] == "keep_baseline"
+        assert "below_confidence" in lowconf["conservative_reason"]
+
+    def test_clear_improvement_switches(self) -> None:
+        row = _cmp_row("Pasta", "safety_downgrade", "auto_ready",
+                       "Pasta boiled", "Pasta raw", 0.96, 0.96)
+        out = cons.decide_row(row, allow_overwrite_auto_ready=False,
+                              min_confidence=0.9)
+        assert out["conservative_decision"] == "switch_multilingual"
+        assert out["conservative_bucket"] == "auto_ready"
+
+    def test_conflicts_existing_v2_blocked(self) -> None:
+        row = _cmp_row("Z", "safety_downgrade", "auto_ready", "A", "B",
+                       0.96, 0.96, bm="true")
+        out = cons.decide_row(row, allow_overwrite_auto_ready=False,
+                              min_confidence=0.9)
+        assert out["conservative_decision"] == "keep_baseline"
+        assert "conflicts_existing_v2" in out["conservative_reason"]
+
+    def test_adopt_when_material_safe_lift(self) -> None:
+        rows = [_cmp_row(f"p{i}", "safety_downgrade", "auto_ready",
+                         "Pasta boiled", "Pasta raw", 0.96, 0.96)
+                for i in range(3)]
+        out = cons.conservative_decisions(rows, coverage=0.9)
+        assert out["summary"]["conservative_improved_count"] == 3
+        assert (out["summary"]["recommendation"]
+                == "adopt_conservative_candidate")
+
+    def test_neutral_no_lift_when_no_switches_and_covered(self) -> None:
+        rows = [_cmp_row("p", "no_match", "no_match", "A", "B", 0.0, 0.0)]
+        out = cons.conservative_decisions(rows, coverage=0.9)
+        assert out["summary"]["recommendation"] == "neutral_no_lift"
+
+
+class TestConservativeCli:
+    def test_conservative_mode_writes_artifacts(self, tmp_path) -> None:
+        gen.main(["--reference-source", "fixture", "--output-dir",
+                  str(tmp_path), "--no-llm"])
+        ml_ref = tmp_path / "nevo_reference_multilingual.csv"
+        products = [SimpleNamespace(
+            id=uuid4(), product_name=n, brand="", labels=(),
+            retailer_category="", ingredients_text="", pack_size="")
+            for n in ("Riz", "Lentilles", "Café")]
+
+        class _Store:
+            def get_project(self, pid):
+                return object()
+
+            def list_products_for_project(self, pid):
+                return products
+
+            def list_enrichment_records_for_project(self, pid):
+                return []
+
+            def __getattr__(self, name):
+                if name.split("_")[0] in ("add", "update", "delete", "upsert",
+                                          "insert"):
+                    raise AssertionError(f"write: {name}")
+                raise AttributeError(name)
+
+        from altera_api.classification_v2 import (
+            compare_nevo_multilingual_retrieval_conservative as wrapper,
+        )
+        pid = uuid4()
+        rc = wrapper.main(
+            ["--project-id", str(pid), "--multilingual-reference", str(ml_ref),
+             "--baseline-reference-source", "fixture", "--output-dir",
+             str(tmp_path), "--cache-dir", str(tmp_path / "cache"),
+             "--evaluator-fake"], store=_Store())
+        assert rc == 0
+        cons_json = (tmp_path
+                     / f"nevo_multilingual_retrieval_conservative_{pid}.json")
+        cons_csv = (tmp_path
+                    / f"nevo_multilingual_retrieval_conservative_{pid}.csv")
+        assert cons_json.exists() and cons_csv.exists()
+        s = json.loads(cons_json.read_text())
+        assert s["decision_mode"] == "conservative"
+        assert s["conservative_regressed_count"] == 0
+        # Raw comparison is still written (preserve before/after).
+        assert (tmp_path
+                / f"nevo_multilingual_retrieval_comparison_{pid}.json").exists()
+
+    def test_raw_mode_default_no_conservative_file(self, tmp_path) -> None:
+        gen.main(["--reference-source", "fixture", "--output-dir",
+                  str(tmp_path), "--no-llm"])
+        ml_ref = tmp_path / "nevo_reference_multilingual.csv"
+        product = SimpleNamespace(
+            id=uuid4(), product_name="Riz", brand="", labels=(),
+            retailer_category="", ingredients_text="", pack_size="")
+
+        class _Store:
+            def get_project(self, pid):
+                return object()
+
+            def list_products_for_project(self, pid):
+                return [product]
+
+            def list_enrichment_records_for_project(self, pid):
+                return []
+
+            def __getattr__(self, name):
+                if name.split("_")[0] in ("add", "update", "delete", "upsert",
+                                          "insert"):
+                    raise AssertionError(f"write: {name}")
+                raise AttributeError(name)
+
+        pid = uuid4()
+        rc = bench.main(
+            ["--project-id", str(pid), "--multilingual-reference", str(ml_ref),
+             "--baseline-reference-source", "fixture", "--output-dir",
+             str(tmp_path), "--cache-dir", str(tmp_path / "cache"),
+             "--evaluator-fake"], store=_Store())
+        assert rc == 0
+        assert not (tmp_path
+                    / f"nevo_multilingual_retrieval_conservative_{pid}.json"
+                    ).exists()
+
+
+# ---------------------------------------------------------------------------
 # Safety.
 # ---------------------------------------------------------------------------
 class TestSafety:
     def test_no_db_writes_in_modules(self) -> None:
         import altera_api.classification_v2.nevo_multilingual_reference as core
-        for mod in (core, gen, val, bench):
+        from altera_api.classification_v2 import (
+            compare_nevo_multilingual_retrieval_conservative as wrapper,
+        )
+        for mod in (core, gen, val, bench, cons, wrapper):
             src = Path(mod.__file__).read_text(encoding="utf-8")
             for needle in ("add_enrichment", "update_enrichment",
                            "add_export_record"):

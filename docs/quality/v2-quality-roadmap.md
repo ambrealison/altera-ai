@@ -1963,3 +1963,38 @@ small threshold, and existing-V2 agreement does not materially degrade; else
 **Adoption gate.** No production behaviour changes here. Adoption requires
 benchmark proof (improvement + regressions within threshold) AND high_risk = 0 —
 a human decision, made later. ruff clean; V2-AI tests (27) pass.
+
+### Quality-V2-AI — conservative multilingual retrieval (regression hotfix)
+
+The raw benchmark on the pilot project showed the FR/DE reference *globally*
+degrades retrieval (auto_ready 48→47, no_match 34→38, existing-V2 agreement
+48→27, 6 regressions) and drifts into wrong food families (corn→cocoa,
+sugar→syrup, almond-drink→soya, hummus→citrus, mustard→roux, jam→fruit-in-syrup,
+peas-frozen→tinned). So the multilingual reference is **not** adopted globally.
+
+`nevo_multilingual_conservative.py` adds a read-only decision layer over the
+row-level comparison: the conservative candidate is the **baseline** by default
+and only switches to the multilingual candidate when it strictly improves an
+eligible baseline bucket (`no_match`/`needs_review`/`safety_downgrade`) AND
+passes every guard — never replacing a baseline `auto_ready` (unless the explicit
+`--allow-multilingual-overwrite-auto-ready` unsafe flag), never switching into
+`no_match`/zero-confidence/below-threshold, never when it conflicts with an
+existing-V2 match, and never across a known food-family boundary. It does not
+weaken validation or nutrition safety — it only chooses between two
+already-gated matcher outputs.
+
+Exposed via `--decision-mode conservative` on
+`compare_nevo_multilingual_retrieval` (default `raw` = unchanged) and the wrapper
+CLI `compare_nevo_multilingual_retrieval_conservative`. Emits a conservative CSV
+(`conservative_bucket/nevo_code/top1/confidence/decision/reason/
+matches_existing_v2`) + JSON audit (baseline / raw / conservative counts,
+switch/kept/blocked-regression/improved/regressed counts, true_high_risk delta,
+agreement baseline/raw/conservative, coverage, recommendation:
+`adopt_conservative_candidate` | `reject_due_to_regressions` |
+`neutral_no_lift` | `needs_more_coverage`).
+
+On the pilot scenario the layer blocks all 6 regressions and both suspicious
+improvements (mustard→roux, peas-frozen→tinned), accepts only the legitimate
+pasta boiled→raw fix, keeps existing-V2 agreement at baseline (no 48→27
+collapse), and — given the deterministic reference's ~28% coverage — recommends
+`needs_more_coverage` rather than adoption. ruff clean; V2-AI tests (60) pass.

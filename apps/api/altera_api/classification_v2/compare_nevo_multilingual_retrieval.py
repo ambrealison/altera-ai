@@ -22,8 +22,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from altera_api.classification_v2 import nevo_multilingual_conservative as conservative
 from altera_api.classification_v2 import nevo_v2_project_batch_dry_run as proj
 from altera_api.classification_v2.apply_nevo_v2_plan import _s
+from altera_api.classification_v2.nevo_multilingual_reference import (
+    load_multilingual_nevo_reference,
+)
 from altera_api.classification_v2.nevo_v2_batch_dry_run import (
     DEFAULT_EMBEDDING_MODEL,
     _build_matcher,
@@ -169,6 +173,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--require-voyage", action="store_true")
     ap.add_argument("--evaluator-fake", action="store_true")
     ap.add_argument("--debug", action="store_true")
+    # Phase Quality-V2-AI conservative experiment (raw default = unchanged).
+    ap.add_argument("--decision-mode", choices=["raw", "conservative"],
+                    default="raw",
+                    help="raw (default) keeps existing behaviour; conservative "
+                         "only switches to a multilingual candidate on a clear, "
+                         "guarded improvement of a baseline failure.")
+    ap.add_argument("--allow-multilingual-overwrite-auto-ready",
+                    action="store_true",
+                    help="UNSAFE-FOR-NOW: allow conservative mode to replace a "
+                         "baseline auto_ready candidate.")
+    ap.add_argument("--min-confidence", type=float,
+                    default=conservative.DEFAULT_MIN_CONFIDENCE,
+                    help="conservative confidence floor for a switch.")
     return ap
 
 
@@ -210,6 +227,7 @@ def main(argv: list[str] | None = None, *, store: Any = None) -> int:
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     pid = _s(args.project_id)
+    # Raw comparison is ALWAYS written unchanged (preserve before/after).
     csv_path = (out_dir
                 / f"nevo_multilingual_retrieval_comparison_{pid}.csv")
     _write_csv(csv_path, COMPARISON_COLUMNS, result["rows"])
@@ -227,11 +245,62 @@ def main(argv: list[str] | None = None, *, store: Any = None) -> int:
     print(f"  true_high_risk_delta={s['true_high_risk_delta']} "
           f"agreement {s['existing_v2_agreement_baseline']}"
           f"->{s['existing_v2_agreement_multilingual']}")
-    print(f"  RECOMMENDATION: {s['recommendation']}")
+    print(f"  RAW RECOMMENDATION: {s['recommendation']}")
     print(f"  Comparison CSV: {csv_path}")
     print(f"  Summary JSON: {json_path}")
+
+    if args.decision_mode == "conservative":
+        coverage = _coverage(args.multilingual_reference)
+        cons = conservative.conservative_decisions(
+            result["rows"], coverage=coverage,
+            allow_overwrite_auto_ready=(
+                args.allow_multilingual_overwrite_auto_ready),
+            min_confidence=args.min_confidence)
+        cs = cons["summary"]
+        cons_csv = (out_dir
+                    / f"nevo_multilingual_retrieval_conservative_{pid}.csv")
+        _write_csv(cons_csv,
+                   COMPARISON_COLUMNS + conservative.CONSERVATIVE_EXTRA_COLUMNS,
+                   cons["rows"])
+        cons_json = (out_dir
+                     / f"nevo_multilingual_retrieval_conservative_{pid}.json")
+        cons_json.write_text(json.dumps(cs, indent=2, ensure_ascii=False),
+                             encoding="utf-8")
+        agree = cs["agreement_with_existing_v2"]
+        print("")
+        print("# Conservative decision layer (default keep baseline)")
+        print(f"  switches={cs['conservative_switch_count']} "
+              f"kept_baseline={cs['conservative_kept_baseline_count']} "
+              f"blocked_regressions={cs['conservative_blocked_regression_count']}")
+        print(f"  improved={cs['conservative_improved_count']} "
+              f"regressed={cs['conservative_regressed_count']} "
+              f"true_high_risk_delta={cs['true_high_risk_delta']}")
+        print(f"  conservative_counts={cs['conservative_counts']}")
+        print(f"  agreement baseline={agree['baseline']} raw={agree['raw']} "
+              f"conservative={agree['conservative']}")
+        print(f"  coverage={cs['multilingual_coverage']}")
+        print(f"  CONSERVATIVE RECOMMENDATION: {cs['recommendation']}")
+        print(f"  Conservative CSV: {cons_csv}")
+        print(f"  Conservative JSON: {cons_json}")
+
     print("READ-ONLY — no database writes were made.")
     return 0
+
+
+def _coverage(multilingual_reference: str | None) -> float | None:
+    """Fraction of multilingual rows with a FR or DE name (None if unknown)."""
+    if not multilingual_reference:
+        return None
+    try:
+        rows = load_multilingual_nevo_reference(multilingual_reference)
+    except (FileNotFoundError, OSError):
+        return None
+    if not rows:
+        return 0.0
+    covered = sum(1 for r in rows
+                  if _s(r.get("nevo_food_name_fr"))
+                  or _s(r.get("nevo_food_name_de")))
+    return round(covered / len(rows), 4)
 
 
 if __name__ == "__main__":
