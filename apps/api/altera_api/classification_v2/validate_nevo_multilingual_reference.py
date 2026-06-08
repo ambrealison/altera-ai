@@ -26,10 +26,7 @@ from altera_api.classification_v2.apply_nevo_v2_plan import _s
 from altera_api.classification_v2.nevo_index import load_nevo_reference
 from altera_api.classification_v2.nevo_multilingual_reference import (
     NUTRITION_COLUMN,
-    OIL_TYPES,
-    STATE_CHECKS,
-    VINEGAR_TYPES,
-    _tokens,
+    marker_collapse_issues,
     parse_aliases,
 )
 
@@ -50,53 +47,22 @@ def _read_rows(path: str) -> list[dict[str, Any]]:
         return list(csv.DictReader(fh))
 
 
-def _has_marker(text: str, markers) -> bool:
-    low = text.lower()
-    return any(m in low for m in markers)
-
-
 def state_collapse_issues(row: dict[str, Any]) -> list[str]:
     """Return high-risk state/form collapse issues for a row (empty if clean).
 
-    For each high-risk state present in the English name, the FR and DE
-    translation (name + aliases) must keep a corresponding marker.
+    Delegates to the shared ``marker_collapse_issues`` (same logic the
+    compositional translator self-checks against), comparing the English name
+    to the FR/DE name + aliases.
     """
     name = _s(row.get("nevo_food_name"))
-    en_tokens = set(_tokens(name))
-    if not en_tokens:
-        return []
     fr = (_s(row.get("nevo_food_name_fr")) + " "
-          + " ".join(parse_aliases(row.get("search_aliases_fr")))).lower()
+          + " ".join(parse_aliases(row.get("search_aliases_fr"))))
     de = (_s(row.get("nevo_food_name_de")) + " "
-          + " ".join(parse_aliases(row.get("search_aliases_de")))).lower()
-    has_fr = bool(_s(row.get("nevo_food_name_fr")))
-    has_de = bool(_s(row.get("nevo_food_name_de")))
-    issues: list[str] = []
-
-    for label, spec in STATE_CHECKS.items():
-        if not (en_tokens & spec["en"]):
-            continue
-        if has_fr and not _has_marker(fr, spec["fr"]):
-            issues.append(f"state '{label}' collapsed in FR translation")
-        if has_de and not _has_marker(de, spec["de"]):
-            issues.append(f"state '{label}' collapsed in DE translation")
-
-    if "oil" in en_tokens:
-        for typ, mk in OIL_TYPES.items():
-            if typ in en_tokens:
-                if has_fr and not _has_marker(fr, mk["fr"]):
-                    issues.append(f"oil type '{typ}' missing in FR translation")
-                if has_de and not _has_marker(de, mk["de"]):
-                    issues.append(f"oil type '{typ}' missing in DE translation")
-    if "vinegar" in en_tokens:
-        for typ, mk in VINEGAR_TYPES.items():
-            if typ in en_tokens:
-                if has_fr and not _has_marker(fr, mk["fr"]):
-                    issues.append(
-                        f"vinegar type '{typ}' missing in FR translation")
-                if has_de and not _has_marker(de, mk["de"]):
-                    issues.append(
-                        f"vinegar type '{typ}' missing in DE translation")
+          + " ".join(parse_aliases(row.get("search_aliases_de"))))
+    issues = marker_collapse_issues(
+        name, fr, de,
+        has_fr=bool(_s(row.get("nevo_food_name_fr"))),
+        has_de=bool(_s(row.get("nevo_food_name_de"))))
     return issues
 
 
@@ -195,6 +161,13 @@ def validate_rows(rows: list[dict[str, Any]], *,
     else:
         recommendation = "ready_for_retrieval_experiment"
 
+    source_dist = _dist(rows, "translation_source")
+    high_risk_by_type: dict[str, int] = {}
+    for issue in issues:
+        if issue["severity"] == "high":
+            high_risk_by_type[issue["issue_type"]] = (
+                high_risk_by_type.get(issue["issue_type"], 0) + 1)
+
     summary = {
         "phase": "quality-v2-ai",
         "total_rows": total,
@@ -204,11 +177,24 @@ def validate_rows(rows: list[dict[str, Any]], *,
         "rows_with_aliases_de": nonblank("search_aliases_de"),
         "fr_coverage": round(fr_cov, 4),
         "de_coverage": round(de_cov, 4),
+        "coverage_by_language": {"fr": round(fr_cov, 4),
+                                 "de": round(de_cov, 4)},
+        "coverage_by_source": source_dist,
+        "compositional_count": source_dist.get(
+            "deterministic_compositional", 0),
+        "curated_count": source_dist.get("curated", 0)
+        + source_dist.get("imported", 0),
+        "unavailable_count": source_dist.get("unavailable", 0),
         "needs_review_count": needs_review,
+        "blocked_compositional_count": sum(
+            1 for r in rows
+            if _s(r.get("translation_review_status")) == "needs_review"
+            and not _s(r.get("nevo_food_name_fr"))),
         "review_status_distribution": _dist(rows,
                                             "translation_review_status"),
         "issue_count": len(issues),
         "high_risk_translation_issue_count": high_risk,
+        "high_risk_by_issue_type": high_risk_by_type,
         "recommendation": recommendation,
     }
     return {"summary": summary, "issues": issues}

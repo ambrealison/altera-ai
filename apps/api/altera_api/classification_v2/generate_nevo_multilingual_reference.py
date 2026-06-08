@@ -30,6 +30,7 @@ from altera_api.classification_v2.apply_nevo_v2_plan import _s
 from altera_api.classification_v2.nevo_index import load_nevo_reference
 from altera_api.classification_v2.nevo_multilingual_reference import (
     ML_COLUMNS,
+    CompositionalTranslator,
     DeterministicTranslator,
     generate_rows,
 )
@@ -98,6 +99,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--model", default=None)
     ap.add_argument("--no-llm", action="store_true",
                     help="use the deterministic translator (no network).")
+    ap.add_argument("--translator", choices=["deterministic", "compositional"],
+                    default="deterministic",
+                    help="deterministic (default, curated only) or "
+                         "compositional (curated + safe token composition).")
+    ap.add_argument("--expand-compositional", action="store_true",
+                    help="shorthand for --translator compositional: safe "
+                         "deterministic FR/DE coverage expansion. Default off.")
+    ap.add_argument("--coverage-target", type=float, default=0.50,
+                    help="reported target; does not change generation.")
     ap.add_argument("--resume-from-existing", default=None)
     ap.add_argument("--only-missing", action="store_true")
     ap.add_argument("--review-sample-size", type=int, default=50)
@@ -110,10 +120,14 @@ def main(argv: list[str] | None = None, *, translator: Any = None) -> int:
     languages = tuple(s.strip() for s in args.languages.split(",") if s.strip())
 
     llm_requested = bool(args.llm_provider) and not args.no_llm
+    expand = args.expand_compositional or args.translator == "compositional"
     if translator is None:
         # No working LLM translator is wired into this build; the deterministic
-        # translator is always available and never sends data anywhere.
-        translator = DeterministicTranslator()
+        # translator is always available and never sends data anywhere. The
+        # default is the curated-only DeterministicTranslator (behaviour
+        # unchanged); --expand-compositional opts into safe token composition.
+        translator = (CompositionalTranslator() if expand
+                      else DeterministicTranslator())
         if llm_requested:
             print(f"NOTE: --llm-provider {args.llm_provider!r} requested but no "
                   "LLM translator is configured; using the deterministic "
@@ -147,9 +161,18 @@ def main(argv: list[str] | None = None, *, translator: Any = None) -> int:
         "llm_requested": llm_requested,
         "languages": list(languages),
         "max_aliases_per_language": args.max_aliases_per_language,
+        "expand_compositional": expand,
         "total_rows": len(rows),
         "rows_with_fr": _nonblank("nevo_food_name_fr"),
         "rows_with_de": _nonblank("nevo_food_name_de"),
+        "fr_coverage": round(_nonblank("nevo_food_name_fr") / len(rows), 4)
+        if rows else 0.0,
+        "de_coverage": round(_nonblank("nevo_food_name_de") / len(rows), 4)
+        if rows else 0.0,
+        "coverage_target": args.coverage_target,
+        "coverage_target_reached": bool(
+            rows and _nonblank("nevo_food_name_fr") / len(rows)
+            >= args.coverage_target),
         "rows_with_aliases_fr": _nonblank("search_aliases_fr"),
         "rows_with_aliases_de": _nonblank("search_aliases_de"),
         "count_by_translation_source": _counts(rows, "translation_source"),

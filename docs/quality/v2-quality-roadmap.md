@@ -2030,3 +2030,32 @@ agreement, coverage) with recommendation `adopt_language_specific_candidate`
 On the pilot, FR coverage is ~28%, so the expected verdict is
 `needs_more_coverage` until FR/DE coverage is expanded. ruff clean; V2-AI tests
 (71) pass.
+
+### Quality-V2-AI — deterministic compositional coverage expansion
+
+FR/DE coverage of the multilingual reference was the blocker (655/2328 = 28%
+with the curated-only translator). `CompositionalTranslator` (in
+`nevo_multilingual_reference.py`, behind the generator's `--expand-compositional`
+/ `--translator compositional` flag — default unchanged) adds SAFE token-level
+composition: a fixed, auditable FR/DE lexicon (~220 entries: grains, legumes,
+veg/fruit, dairy, meats, oils/vinegars, condiments, bakery, states/forms,
+colours, connectors) translates each token; unknown tokens (proper nouns /
+varieties) pass through. A row is emitted (`deterministic_compositional`,
+`approved_deterministic`) ONLY when every high-risk marker survives
+(`marker_collapse_issues`, the SAME check the validator runs — now shared) and
+the row is not too generic (≤2 unknown content tokens, ≤50% unknown). Anything
+else is left BLANK (excluded from the language index) and flagged
+`needs_review`. Composition runs first (it preserves states/colours/forms, so
+"Rice white raw" → *riz blanc cru* rather than a greedy curated "riz"); curated
+idioms are the fallback. No EN alias is emitted (avoids tripping the commercial-
+word guard on food names like "Apple turnover").
+
+Result on full NEVO (`--reference-source nevo`, deterministic only): FR/DE
+coverage 28% → **77.45%** (1704 compositional + 99 curated + 525 unavailable),
+validation `high_risk=0`, recommendation `ready_for_retrieval_experiment`;
+nutrition / code / canonical name unchanged. The validator now also reports
+`coverage_by_language`, `coverage_by_source`, `compositional_count`,
+`unavailable_count`, `needs_review_count`, `blocked_compositional_count`,
+`high_risk_by_issue_type`. Default generator behaviour, the raw benchmark, and
+the conservative/language-specific raw retrieval are all unchanged; no DB writes;
+no routes. ruff clean; V2-AI tests (96) pass.

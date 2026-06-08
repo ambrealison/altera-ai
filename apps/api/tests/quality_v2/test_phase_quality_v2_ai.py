@@ -35,6 +35,7 @@ from altera_api.classification_v2.nevo_index import (
 )
 from altera_api.classification_v2.nevo_multilingual_reference import (
     ML_COLUMNS,
+    CompositionalTranslator,
     DeterministicTranslator,
     build_multilingual_reference_text,
     generate_rows,
@@ -177,6 +178,137 @@ class TestGenerate:
         assert "count_by_translation_source" in s
         assert (tmp_path / "nevo_reference_multilingual_review_sample.csv"
                 ).exists()
+
+
+# ---------------------------------------------------------------------------
+# Deterministic compositional coverage expansion.
+# ---------------------------------------------------------------------------
+class TestCompositionalTranslator:
+    @pytest.mark.parametrize("name,fr_mark,de_mark", [
+        ("Rice white raw", "cru", "roh"),
+        ("Rice white cooked", "cuit", "gekocht"),
+        ("Rice white boiled", "cuit", "gekocht"),
+        ("Tomato dried", "séch", "getrocknet"),
+    ])
+    def test_preserves_raw_cooked_boiled_dried(self, name, fr_mark, de_mark
+                                               ) -> None:
+        tr = CompositionalTranslator().translate(name)
+        assert fr_mark in tr.food_name_fr.lower()
+        assert de_mark in tr.food_name_de.lower()
+
+    def test_preserves_drink_vs_solid_rice(self) -> None:
+        drink = CompositionalTranslator().translate("Rice drink wo sugar")
+        solid = CompositionalTranslator().translate("Rice white raw")
+        assert "boisson" in drink.food_name_fr.lower()
+        assert "drink" in drink.food_name_de.lower()
+        assert "boisson" not in solid.food_name_fr.lower()
+        assert "drink" not in solid.food_name_de.lower()
+
+    def test_preserves_coffee_beans_vs_instant_powder(self) -> None:
+        beans = CompositionalTranslator().translate("Coffee beans")
+        instant = CompositionalTranslator().translate("Coffee instant powder")
+        # beans must not be translated as instant/powder
+        assert "instant" not in beans.food_name_fr.lower()
+        assert "poudre" not in beans.food_name_fr.lower()
+        # instant powder keeps both markers
+        assert "instant" in instant.food_name_fr.lower()
+        assert "poudre" in instant.food_name_fr.lower()
+        assert "instant" in instant.food_name_de.lower()
+        assert "pulver" in instant.food_name_de.lower()
+
+    def test_preserves_powder_vs_prepared_potato(self) -> None:
+        powder = CompositionalTranslator().translate("Potato puree powder av")
+        prep = CompositionalTranslator().translate(
+            "Potatoes mashed fresh prepared w whole milk and margarin")
+        assert "poudre" in powder.food_name_fr.lower()
+        assert "pulver" in powder.food_name_de.lower()
+        assert "poudre" not in prep.food_name_fr.lower()
+        assert "préparé" in prep.food_name_fr.lower()
+
+    def test_preserves_oil_type_markers(self) -> None:
+        tr = CompositionalTranslator().translate("Oil rapeseed")
+        assert "colza" in tr.food_name_fr.lower()
+        assert "raps" in tr.food_name_de.lower()
+
+    def test_preserves_vinegar_type_markers(self) -> None:
+        tr = CompositionalTranslator().translate("Vinegar balsamic")
+        assert "balsamique" in tr.food_name_fr.lower()
+        assert "balsamico" in tr.food_name_de.lower()
+
+    def test_too_generic_row_not_translated(self) -> None:
+        # Many unknown tokens -> not safely compositional -> blank + flagged.
+        tr = CompositionalTranslator().translate("Xyzzy Quux Frobnitz Widget")
+        assert tr.food_name_fr == "" and tr.food_name_de == ""
+        assert tr.review_status in ("needs_review", "unavailable")
+
+    def test_preserves_nutrition_and_canonical_metadata(self) -> None:
+        refs = [{"nevo_code": "N1", "food_name_en": "Rice white raw",
+                 "protein_g_per_100g": "7.1"},
+                {"nevo_code": "N2", "food_name_en": "Bread brown"}]
+        rows = generate_rows(refs, translator=CompositionalTranslator())
+        assert [r["nevo_code"] for r in rows] == ["N1", "N2"]
+        assert rows[0]["nevo_food_name"] == "Rice white raw"  # exact.
+        assert rows[0]["protein_g_per_100g"] == "7.1"
+        assert "cru" in rows[0]["nevo_food_name_fr"].lower()
+        assert rows[0]["translation_source"] == "deterministic_compositional"
+
+    def test_expanded_increases_coverage_over_deterministic(self) -> None:
+        # Rows the curated-only translator leaves blank, composition fills.
+        refs = [{"nevo_code": str(i), "food_name_en": n} for i, n in enumerate(
+            ["Bread brown", "Chicken raw", "Yoghurt low fat",
+             "Carrots boiled", "Salmon smoked", "Cheese white"])]
+        det = generate_rows(refs, translator=DeterministicTranslator())
+        comp = generate_rows(refs, translator=CompositionalTranslator())
+        det_fr = sum(1 for r in det if r["nevo_food_name_fr"])
+        comp_fr = sum(1 for r in comp if r["nevo_food_name_fr"])
+        assert comp_fr > det_fr
+
+    def test_compositional_row_fr_text_excludes_de_en(self) -> None:
+        rows = generate_rows([{"nevo_code": "1",
+                               "food_name_en": "Rice white raw"}],
+                             translator=CompositionalTranslator())
+        row = rows[0]
+        txt = build_language_reference_text(row, language="fr")
+        assert "cru" in txt.lower()
+        assert "reis" not in txt.lower() and "roh" not in txt.lower()
+
+
+class TestExpandedGenerator:
+    def test_default_unchanged_without_flag(self, tmp_path) -> None:
+        gen.main(["--reference-source", "fixture", "--output-dir",
+                  str(tmp_path), "--no-llm"])
+        s = json.loads((tmp_path
+                        / "nevo_reference_multilingual_summary.json").read_text())
+        assert s["translator"] == "deterministic"
+        assert s.get("expand_compositional") is False
+        assert "deterministic_compositional" not in s[
+            "count_by_translation_source"]
+
+    def test_expand_flag_uses_compositional(self, tmp_path) -> None:
+        gen.main(["--reference-source", "fixture", "--output-dir",
+                  str(tmp_path), "--no-llm", "--expand-compositional"])
+        s = json.loads((tmp_path
+                        / "nevo_reference_multilingual_summary.json").read_text())
+        assert s["translator"] == "deterministic_compositional"
+        assert s["expand_compositional"] is True
+        assert "coverage_target" in s and "fr_coverage" in s
+
+    def test_expanded_validation_high_risk_zero(self, tmp_path) -> None:
+        gen.main(["--reference-source", "fixture", "--output-dir",
+                  str(tmp_path), "--no-llm", "--expand-compositional"])
+        rc = val.main(["--input", str(tmp_path
+                       / "nevo_reference_multilingual.csv"),
+                       "--output-dir", str(tmp_path)])
+        assert rc == 0
+        s = json.loads((tmp_path
+                        / "nevo_reference_multilingual_validation_summary.json"
+                        ).read_text())
+        assert s["high_risk_translation_issue_count"] == 0
+        for key in ("coverage_by_language", "coverage_by_source",
+                    "compositional_count", "unavailable_count",
+                    "needs_review_count", "blocked_compositional_count",
+                    "high_risk_by_issue_type"):
+            assert key in s
 
 
 # ---------------------------------------------------------------------------

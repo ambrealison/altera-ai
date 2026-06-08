@@ -38,9 +38,12 @@ ML_COLUMNS = [
     "translation_source", "translation_review_status", "translation_notes",
 ]
 TRANSLATION_SOURCES = frozenset(
-    {"generated_llm", "manual", "imported", "unavailable"})
+    {"generated_llm", "manual", "imported", "unavailable",
+     # Phase Quality-V2-AI coverage expansion (deterministic only):
+     "curated", "deterministic_compositional"})
 REVIEW_STATUSES = frozenset(
-    {"unreviewed", "auto_validated", "needs_review", "reviewed"})
+    {"unreviewed", "auto_validated", "needs_review", "reviewed",
+     "approved_deterministic"})
 
 #: Max embedding-text length (chars) so the multilingual text stays bounded.
 MAX_REFERENCE_TEXT_CHARS = 700
@@ -109,6 +112,50 @@ _TOKEN_RE = re.compile(r"[a-zA-Zàâäéèêëïîôöùûüçœ]+", re.UNICODE)
 
 def _tokens(name: str) -> list[str]:
     return [t for t in _TOKEN_RE.findall(name.lower()) if t not in _STOPWORDS]
+
+
+def _marker_in(text: str, markers) -> bool:
+    low = text.lower()
+    return any(m in low for m in markers)
+
+
+def marker_collapse_issues(en_name: str, fr_text: str, de_text: str, *,
+                           has_fr: bool = True, has_de: bool = True,
+                           ) -> list[str]:
+    """High-risk state/form/type markers that the English name carries but the
+    FR/DE translation drops (empty list = nothing collapsed).
+
+    Shared by the validator (Part D) and the compositional translator's
+    self-check, so an emitted compositional row can never be flagged later: a
+    drink/dried/cooked/instant/powder state and an oil/vinegar TYPE must survive
+    into both target languages.
+    """
+    en_tokens = set(_tokens(en_name))
+    issues: list[str] = []
+    for label, spec in STATE_CHECKS.items():
+        if not (en_tokens & spec["en"]):
+            continue
+        if has_fr and not _marker_in(fr_text, spec["fr"]):
+            issues.append(f"state '{label}' collapsed in FR translation")
+        if has_de and not _marker_in(de_text, spec["de"]):
+            issues.append(f"state '{label}' collapsed in DE translation")
+    if "oil" in en_tokens:
+        for typ, mk in OIL_TYPES.items():
+            if typ in en_tokens:
+                if has_fr and not _marker_in(fr_text, mk["fr"]):
+                    issues.append(f"oil type '{typ}' missing in FR translation")
+                if has_de and not _marker_in(de_text, mk["de"]):
+                    issues.append(f"oil type '{typ}' missing in DE translation")
+    if "vinegar" in en_tokens:
+        for typ, mk in VINEGAR_TYPES.items():
+            if typ in en_tokens:
+                if has_fr and not _marker_in(fr_text, mk["fr"]):
+                    issues.append(
+                        f"vinegar type '{typ}' missing in FR translation")
+                if has_de and not _marker_in(de_text, mk["de"]):
+                    issues.append(
+                        f"vinegar type '{typ}' missing in DE translation")
+    return issues
 
 
 # --- curated FR/DE translation table ---------------------------------------
@@ -392,6 +439,252 @@ class DeterministicTranslator:
             aliases_de=[de_base], aliases_en=[food_name_en.lower()],
             source=self.source_label, review_status="needs_review",
             notes="composed_from_base+modifiers"), tokens)
+
+
+# --- deterministic compositional translator (coverage expansion) -----------
+# A token-level FR/DE lexicon for SAFE compositional translation of NEVO names.
+# Translation is emitted only when every high-risk marker is preserved and the
+# row is not "too generic" (bounded unknown tokens). Not arbitrary semantic
+# translation — a fixed, auditable, deterministic mapping.
+_LEX: dict[str, tuple[str, str]] = {
+    # connectors / quantifiers (meaning-bearing: with/without/no)
+    "w": ("avec", "mit"), "wo": ("sans", "ohne"), "without": ("sans", "ohne"),
+    "with": ("avec", "mit"), "no": ("sans", "ohne"), "free": ("sans", "ohne"),
+    "added": ("ajouté", "zugesetzt"), "and": ("et", "und"),
+    # --- high-risk state / form markers (MUST be present + preserved) -------
+    "raw": ("cru", "roh"), "cooked": ("cuit", "gekocht"),
+    "boiled": ("cuit", "gekocht"), "dried": ("séché", "getrocknet"),
+    "fresh": ("frais", "frisch"), "frozen": ("surgelé", "tiefgekühlt"),
+    "tinned": ("en conserve", "Dosen"), "canned": ("en conserve", "Dosen"),
+    "powder": ("en poudre", "Pulver"), "powdered": ("en poudre", "Pulver"),
+    "instant": ("instantané", "Instant"), "prepared": ("préparé", "zubereitet"),
+    "prep": ("préparé", "zubereitet"),
+    "unprepared": ("non préparé", "unzubereitet"),
+    "soaked": ("trempé", "eingeweicht"), "smoked": ("fumé", "geräuchert"),
+    "fried": ("frit", "gebraten"), "grilled": ("grillé", "gegrillt"),
+    "roasted": ("rôti", "geröstet"), "baked": ("cuit au four", "gebacken"),
+    "steamed": ("à la vapeur", "gedämpft"), "ground": ("moulu", "gemahlen"),
+    "minced": ("haché", "gehackt"), "grated": ("râpé", "gerieben"),
+    "sliced": ("en tranches", "geschnitten"), "syrup": ("sirop", "Sirup"),
+    "juice": ("jus", "Saft"), "drink": ("boisson", "Drink"),
+    "paste": ("pâte", "Paste"), "flakes": ("flocons", "Flocken"),
+    "filled": ("fourré", "gefüllt"), "spread": ("à tartiner", "Aufstrich"),
+    "flavoured": ("aromatisé", "aromatisiert"), "salted": ("salé", "gesalzen"),
+    "unsalted": ("non salé", "ungesalzen"), "spiced": ("épicé", "gewürzt"),
+    "sweetened": ("sucré", "gesüßt"),
+    "unsweetened": ("non sucré", "ungesüßt"), "oven": ("au four", "Ofen"),
+    "ready": ("prêt", "fertig"), "eat": ("manger", "essen"),
+    # --- colours / fat / descriptors ---------------------------------------
+    "white": ("blanc", "weiß"), "brown": ("brun", "braun"),
+    "green": ("vert", "grün"), "red": ("rouge", "rot"),
+    "black": ("noir", "schwarz"), "yellow": ("jaune", "gelb"),
+    "whole": ("entier", "ganz"), "wholemeal": ("complet", "Vollkorn"),
+    "wholegrain": ("complet", "Vollkorn"), "low": ("faible", "niedrig"),
+    "light": ("léger", "leicht"), "full": ("entier", "voll"),
+    "semi": ("demi", "halb"), "skimmed": ("écrémé", "entrahmt"),
+    "fat": ("gras", "Fett"), "fortified": ("enrichi", "angereichert"),
+    "fibre": ("fibres", "Ballaststoffe"), "fiber": ("fibres", "Ballaststoffe"),
+    "reduced": ("réduit", "reduziert"), "rich": ("riche", "reich"),
+    "natural": ("nature", "natürlich"), "plain": ("nature", "natur"),
+    "organic": ("bio", "bio"), "bio": ("bio", "bio"),
+    "sweet": ("doux", "süß"), "sour": ("aigre", "sauer"),
+    "calcium": ("calcium", "Kalzium"), "vegetarian": ("végétarien",
+                                                       "vegetarisch"),
+    "sugar": ("sucre", "Zucker"), "sweetener": ("édulcorant", "Süßstoff"),
+    "salt": ("sel", "Salz"), "water": ("eau", "Wasser"),
+    "standaard": ("standard", "Standard"), "standard": ("standard", "Standard"),
+    "dutch": ("hollandais", "holländisch"), "french": ("français",
+                                                        "französisch"),
+    "italian": ("italien", "italienisch"), "turkish": ("turc", "türkisch"),
+    "greek": ("grec", "griechisch"),
+    # --- grains / cereals --------------------------------------------------
+    "rice": ("riz", "Reis"), "pasta": ("pâtes", "Nudeln"),
+    "couscous": ("couscous", "Couscous"), "quinoa": ("quinoa", "Quinoa"),
+    "semolina": ("semoule", "Grieß"), "wheat": ("blé", "Weizen"),
+    "oats": ("avoine", "Hafer"), "oat": ("avoine", "Hafer"),
+    "muesli": ("muesli", "Müsli"), "cereal": ("céréale", "Getreide"),
+    "cereals": ("céréales", "Getreide"), "flour": ("farine", "Mehl"),
+    "bread": ("pain", "Brot"), "baguette": ("baguette", "Baguette"),
+    "breakfast": ("petit-déjeuner", "Frühstück"), "rye": ("seigle", "Roggen"),
+    "barley": ("orge", "Gerste"), "corn": ("maïs", "Mais"),
+    # --- legumes -----------------------------------------------------------
+    "lentils": ("lentilles", "Linsen"), "lentil": ("lentille", "Linse"),
+    "beans": ("haricots", "Bohnen"), "bean": ("haricot", "Bohne"),
+    "chickpeas": ("pois chiches", "Kichererbsen"),
+    "chickpea": ("pois chiche", "Kichererbse"), "peas": ("pois", "Erbsen"),
+    "pea": ("pois", "Erbse"), "soya": ("soja", "Soja"), "soy": ("soja", "Soja"),
+    "tofu": ("tofu", "Tofu"),
+    # --- vegetables / fruit ------------------------------------------------
+    "tomato": ("tomate", "Tomate"), "tomatoes": ("tomates", "Tomaten"),
+    "potato": ("pomme de terre", "Kartoffel"),
+    "potatoes": ("pommes de terre", "Kartoffeln"),
+    "apple": ("pomme", "Apfel"), "apples": ("pommes", "Äpfel"),
+    "apricot": ("abricot", "Aprikose"), "apricots": ("abricots", "Aprikosen"),
+    "mango": ("mangue", "Mango"), "lemon": ("citron", "Zitrone"),
+    "lime": ("citron vert", "Limette"),
+    "grapefruit": ("pamplemousse", "Grapefruit"),
+    "passion": ("passion", "Passions"), "fruit": ("fruit", "Frucht"),
+    "fruits": ("fruits", "Früchte"), "banana": ("banane", "Banane"),
+    "orange": ("orange", "Orange"), "strawberry": ("fraise", "Erdbeere"),
+    "strawberries": ("fraises", "Erdbeeren"),
+    "raspberry": ("framboise", "Himbeere"), "cherry": ("cerise", "Kirsche"),
+    "cherries": ("cerises", "Kirschen"), "grape": ("raisin", "Traube"),
+    "grapes": ("raisins", "Trauben"), "pineapple": ("ananas", "Ananas"),
+    "peach": ("pêche", "Pfirsich"), "pear": ("poire", "Birne"),
+    "plum": ("prune", "Pflaume"), "carrot": ("carotte", "Karotte"),
+    "carrots": ("carottes", "Karotten"), "onion": ("oignon", "Zwiebel"),
+    "onions": ("oignons", "Zwiebeln"), "garlic": ("ail", "Knoblauch"),
+    "pepper": ("poivron", "Paprika"), "cabbage": ("chou", "Kohl"),
+    "spinach": ("épinards", "Spinat"), "broccoli": ("brocoli", "Brokkoli"),
+    "cucumber": ("concombre", "Gurke"), "lettuce": ("laitue", "Salat"),
+    "salad": ("salade", "Salat"), "mushroom": ("champignon", "Pilz"),
+    "mushrooms": ("champignons", "Pilze"),
+    "vegetables": ("légumes", "Gemüse"), "vegetable": ("légume", "Gemüse"),
+    # --- dairy / alternatives ----------------------------------------------
+    "milk": ("lait", "Milch"), "yoghurt": ("yaourt", "Joghurt"),
+    "yogurt": ("yaourt", "Joghurt"), "cheese": ("fromage", "Käse"),
+    "butter": ("beurre", "Butter"), "cream": ("crème", "Sahne"),
+    "margarine": ("margarine", "Margarine"), "egg": ("œuf", "Ei"),
+    "eggs": ("œufs", "Eier"), "dairy": ("laitier", "Milch"),
+    # --- meats / fish ------------------------------------------------------
+    "chicken": ("poulet", "Hähnchen"), "beef": ("bœuf", "Rind"),
+    "pork": ("porc", "Schwein"), "veal": ("veau", "Kalb"),
+    "turkey": ("dinde", "Pute"), "lamb": ("agneau", "Lamm"),
+    "meat": ("viande", "Fleisch"), "fish": ("poisson", "Fisch"),
+    "salmon": ("saumon", "Lachs"), "tuna": ("thon", "Thunfisch"),
+    "ham": ("jambon", "Schinken"), "sausage": ("saucisse", "Wurst"),
+    "steak": ("steak", "Steak"), "liver": ("foie", "Leber"),
+    "bacon": ("lard", "Speck"),
+    # --- nuts / seeds ------------------------------------------------------
+    "nuts": ("noix", "Nüsse"), "nut": ("noix", "Nuss"),
+    "seeds": ("graines", "Samen"), "seed": ("graine", "Samen"),
+    "almond": ("amande", "Mandel"), "almonds": ("amandes", "Mandeln"),
+    "hazelnut": ("noisette", "Haselnuss"), "walnut": ("noix", "Walnuss"),
+    "peanut": ("cacahuète", "Erdnuss"),
+    # --- oils / vinegars (types preserved; most also curated) --------------
+    "oil": ("huile", "Öl"), "vinegar": ("vinaigre", "Essig"),
+    "rapeseed": ("colza", "Raps"), "olive": ("olive", "Oliven"),
+    "sunflower": ("tournesol", "Sonnenblumen"), "coconut": ("coco", "Kokos"),
+    "palm": ("palme", "Palm"), "sesame": ("sésame", "Sesam"),
+    "balsamic": ("balsamique", "Balsamico"), "cider": ("cidre", "Apfel"),
+    # --- condiments / prepared ---------------------------------------------
+    "mustard": ("moutarde", "Senf"), "ketchup": ("ketchup", "Ketchup"),
+    "mayonnaise": ("mayonnaise", "Mayonnaise"), "sauce": ("sauce", "Sauce"),
+    "gravy": ("sauce", "Bratensauce"), "soup": ("soupe", "Suppe"),
+    "puree": ("purée", "Püree"), "mashed": ("écrasé", "püriert"),
+    "honey": ("miel", "Honig"), "jam": ("confiture", "Marmelade"),
+    "chocolate": ("chocolat", "Schokolade"), "coffee": ("café", "Kaffee"),
+    "tea": ("thé", "Tee"),
+    # --- bakery / snacks ---------------------------------------------------
+    "biscuit": ("biscuit", "Keks"), "biscuits": ("biscuits", "Kekse"),
+    "cookie": ("cookie", "Cookie"), "cookies": ("cookies", "Cookies"),
+    "cracker": ("cracker", "Cracker"), "crackers": ("crackers", "Cracker"),
+    "crispbread": ("pain croustillant", "Knäckebrot"),
+    "waffle": ("gaufre", "Waffel"), "madeleine": ("madeleine", "Madeleine"),
+    "cake": ("gâteau", "Kuchen"),
+    # --- infant / misc -----------------------------------------------------
+    "formula": ("formule", "Formel"), "toddler": ("bambin", "Kleinkind"),
+    "infant": ("nourrisson", "Säugling"), "baby": ("bébé", "Baby"),
+}
+#: Non-content tokens dropped before composition (units / abbreviations /
+#: chemistry artefacts that never change the food family).
+_NOISE_TOKENS = frozenset({
+    "p", "s", "ml", "g", "kg", "mg", "l", "dl", "cl", "oz", "lb", "fa", "sat",
+    "mono", "poly", "based", "product", "on", "for", "e", "b", "c", "d", "k",
+    "x", "av", "per", "type", "kind", "var", "etc",
+})
+#: High-risk marker tokens — if any is present in the English name it MUST be
+#: translatable (in _LEX), else the row is not safely compositional.
+_HIGH_RISK_MARKER_TOKENS = frozenset({
+    "raw", "cooked", "boiled", "dried", "instant", "powder", "powdered",
+    "drink", "juice", "syrup", "tinned", "canned", "frozen", "prepared",
+    "prep", "soaked", "smoked", "fresh",
+})
+_MAX_UNKNOWN_TOKENS = 2
+_MAX_UNKNOWN_RATIO = 0.5
+
+
+class CompositionalTranslator(DeterministicTranslator):
+    """Deterministic compositional FR/DE translator (coverage expansion).
+
+    Curated entries first (source ``curated``); otherwise a token-level
+    composition from ``_LEX`` that is emitted ONLY when every high-risk marker
+    is preserved (no state/form/type collapse) and the row is not too generic
+    (bounded unknown tokens). Unknown content tokens pass through unchanged
+    (proper nouns/varieties). Anything that cannot be safely composed is left
+    BLANK (excluded from the language index) and flagged. No nutrition/canonical
+    change. Used only behind the generator's ``--expand-compositional`` flag.
+    """
+
+    name = "deterministic_compositional"
+
+    def translate(self, food_name_en: str) -> Translation:
+        tokens = _tokens(food_name_en)
+        if not tokens:
+            return Translation(notes="empty_source_name")
+        # Composition FIRST: it preserves every token (states/colours/forms),
+        # so it is less greedy than a single-token curated match (which would
+        # turn "Rice white raw" into a too-generic "riz"). Curated is the
+        # fallback for idioms composition cannot resolve (e.g. "Oil Becel Blend
+        # Classic" -> "mélange d'huiles").
+        composed = self._compose(food_name_en, tokens)
+        if composed.review_status == "approved_deterministic":
+            return composed
+        curated = _best_curated(tokens)
+        if curated is not None:
+            return _augment_states(Translation(
+                food_name_fr=curated.fr, food_name_de=curated.de,
+                aliases_fr=list(curated.afr), aliases_de=list(curated.ade),
+                aliases_en=list(curated.aen) or [food_name_en.lower()],
+                source="curated", review_status="approved_deterministic",
+                notes="curated"), tokens)
+        return composed
+
+    def _compose(self, food_name_en: str, tokens: list[str]) -> Translation:
+        content = [t for t in tokens if t not in _NOISE_TOKENS]
+        if not content:
+            return Translation(notes="no_content_tokens")
+        # A high-risk marker we cannot translate => cannot guarantee safety.
+        markers = [t for t in content if t in _HIGH_RISK_MARKER_TOKENS]
+        if any(t not in _LEX for t in markers):
+            return Translation(
+                review_status="needs_review",
+                notes="unmappable_high_risk_marker")
+        fr_parts, de_parts, unknown = [], [], 0
+        for t in content:
+            mapped = _LEX.get(t)
+            if mapped:
+                fr_parts.append(mapped[0])
+                de_parts.append(mapped[1])
+            else:
+                unknown += 1
+                fr_parts.append(t)  # pass proper nouns/varieties through
+                de_parts.append(t)
+        known = len(content) - unknown
+        if known == 0:
+            return Translation(notes="no_known_tokens")
+        if unknown > _MAX_UNKNOWN_TOKENS or unknown / len(content) > \
+                _MAX_UNKNOWN_RATIO:
+            return Translation(review_status="needs_review",
+                               notes=f"too_generic_unknown={unknown}")
+        fr = " ".join(fr_parts)
+        de = " ".join(de_parts)
+        # Self-validate marker preservation with the SAME check the validator
+        # uses, so an emitted row can never be flagged high-risk later.
+        if marker_collapse_issues(food_name_en, fr, de):
+            return Translation(review_status="needs_review",
+                               notes="marker_collapse_blocked")
+        return Translation(
+            food_name_fr=fr, food_name_de=de,
+            aliases_fr=[fr_parts[0]] if fr_parts else [],
+            aliases_de=[de_parts[0]] if de_parts else [],
+            # No EN alias: the canonical name already covers English, and the
+            # raw name can contain a word the validator forbids in aliases
+            # (e.g. "Apple turnover" the pastry vs the commercial "turnover").
+            aliases_en=[],
+            source="deterministic_compositional",
+            review_status="approved_deterministic",
+            notes=f"composed known={known} unknown={unknown}")
 
 
 # --- alias helpers ---------------------------------------------------------
