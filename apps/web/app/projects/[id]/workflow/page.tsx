@@ -79,7 +79,12 @@ type WizardStepDef = {
 
 const ALL_WIZARD_STEPS: readonly WizardStepDef[] = [
   { id: "import",        labelKey: "workflow.step.import",        backendKey: "upload",                        methodologyGate: "any" },
-  { id: "methodology",   labelKey: "workflow.step.methodology",   backendKey: "methodology",                   methodologyGate: "any" },
+  // Phase Step1-UX — the "Methodology" step is removed from the visible
+  // wizard: methodology is chosen at project creation, so a dedicated
+  // workflow step is redundant. The backend "methodology" step is left
+  // intact (business logic unchanged); it is simply no longer rendered, and
+  // ``buildWizardSteps`` re-indexes the remaining steps so numbering stays
+  // contiguous.
   { id: "ai_class",      labelKey: "workflow.step.aiClass",       backendKey: "ai_classification",             methodologyGate: "any" },
   { id: "validation",    labelKey: "workflow.step.validation",    backendKey: "manual_classification_review",  methodologyGate: "any" },
   { id: "nevo",          labelKey: "workflow.step.nevo",          backendKey: "nutrition_enrichment_nevo",     methodologyGate: "protein_tracker" },
@@ -158,7 +163,13 @@ function StepChip({
   const stepLabel = t(wizardStep.labelKey);
   const isActive = wizardStep.idx === currentIdx;
   const isComplete = status === "complete" || status === "not_needed";
-  const isBlocked = status === "blocked";
+  // A "blocked" status means "upstream prerequisites are not met yet" — for a
+  // step the user has NOT reached yet (a future step) that is the normal,
+  // expected forward state, not an error, so it must render grey/inactive
+  // rather than red. Only surface the red/danger treatment for the current or
+  // an already-passed step (e.g. a real calculation failure or a step the user
+  // must go back and fix). On Step 1 this keeps Calculation grey, not red.
+  const isBlocked = status === "blocked" && wizardStep.idx <= currentIdx;
 
   let circleClass = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all duration-150 ";
   if (isActive) {
@@ -327,70 +338,6 @@ function StepImport({
           )}
           <div className="mt-3 flex flex-wrap gap-3">
             <Button onClick={onNext}>{t("workflow.import.continue")}</Button>
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-function StepMethodology({
-  step,
-  methodologies,
-  onNext,
-}: {
-  step: WorkflowStep;
-  methodologies: string[];
-  onNext: () => void;
-}) {
-  const t = useT();
-  const isComplete = step.status === "complete";
-
-  const METHOD_LABELS: Record<string, string> = {
-    protein_tracker: "Protein Tracker",
-    wwf: "WWF Planet-Based Diets",
-  };
-
-  const METHOD_DESC: Record<string, string> = {
-    protein_tracker: t("workflow.methodology.desc.pt"),
-    wwf: t("workflow.methodology.desc.wwf"),
-  };
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-semibold">{t("workflow.methodology.title")}</h2>
-        <p className="mt-1 text-sm text-ink-muted">
-          {t("workflow.methodology.desc")}
-        </p>
-      </div>
-
-      {isComplete ? (
-        <div className="space-y-3">
-          {methodologies.map((m) => (
-            <Card key={m}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium text-gray-900">{METHOD_LABELS[m] ?? m}</p>
-                  <p className="mt-0.5 text-sm text-ink-soft">{METHOD_DESC[m] ?? ""}</p>
-                </div>
-                <Pill tone="ok">{t("workflow.methodology.enabled")}</Pill>
-              </div>
-            </Card>
-          ))}
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Button onClick={onNext}>{t("workflow.methodology.continue")}</Button>
-          </div>
-        </div>
-      ) : (
-        <Card>
-          <p className="text-sm text-ink-muted">
-            {t("workflow.methodology.fixedNote")}
-          </p>
-          <div className="mt-4">
-            <Button variant="secondary" disabled>
-              {t("workflow.methodology.noneSelected")}
-            </Button>
           </div>
         </Card>
       )}
@@ -2735,13 +2682,6 @@ export default function WorkflowWizardPage() {
             onNext={advanceNext}
           />
         )}
-        {activeStepId === "methodology" && (
-          <StepMethodology
-            step={activeBackendStep}
-            methodologies={status.methodologies_enabled}
-            onNext={advanceNext}
-          />
-        )}
         {activeStepId === "ai_class" && ptWwfMode && (
           <StepAIClassificationDual
             latestUpload={latestUpload}
@@ -2883,10 +2823,14 @@ export default function WorkflowWizardPage() {
         </Button>
       </div>
 
-      {/* Phase WWF-G — privacy footer adapts to methodology context. */}
-      <p className="mt-6 text-xs text-ink-soft">
-        {wwfOnly ? t("workflow.footer.wwf") : t("workflow.footer")}
-      </p>
+      {/* Phase Step1-UX — the verbose PT footer note was removed for demo
+          polish. The WWF-only privacy note (a methodology invariant: no
+          commercial data is sent to the AI) is kept for WWF-only projects. */}
+      {wwfOnly && (
+        <p className="mt-6 text-xs text-ink-soft">
+          {t("workflow.footer.wwf")}
+        </p>
+      )}
     </div>
   );
 }

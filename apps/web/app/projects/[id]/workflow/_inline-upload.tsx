@@ -14,6 +14,7 @@
  * - Detailed validation report (errors + dropped columns expansion)
  */
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { Button, Card, Pill } from "@/components/ui";
@@ -238,6 +239,11 @@ export function InlineUpload({
         }
       }
       setOverrides(initial);
+      // Demo polish — open the column-mapping panel automatically once the
+      // file is selected and the preview succeeded, so the user reaches
+      // mapping without an extra click. Only runs on success (a failed
+      // preview falls into the catch below and leaves mapping closed).
+      setShowMapping(true);
     } catch (e) {
       if (
         e instanceof Error &&
@@ -381,9 +387,6 @@ export function InlineUpload({
     }
   }
   const productNameMapped = mappedFields.has("product_name");
-  const weightMapped =
-    mappedFields.has("weight_per_item_kg") ||
-    mappedFields.has("weight_per_item_g");
 
   return (
     <div className="space-y-4">
@@ -415,14 +418,24 @@ export function InlineUpload({
       )}
 
       <Card>
+        {/* Template CTA — download a ready-to-use catalog template before
+            importing (demo polish). Routes to the existing /templates page. */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-ink-muted">{t("upload.template.hint")}</p>
+          <Link
+            href="/templates"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 hover:bg-mint-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1"
+          >
+            <span aria-hidden>↓</span>
+            {t("upload.template.button")}
+          </Link>
+        </div>
+
         <label className="block rounded-2xl border border-dashed border-line bg-mint-50/40 p-5 transition-colors hover:border-brand-200">
           <span className="text-sm font-semibold text-forest-900">
             {latestUpload
               ? t("upload.picker.replace")
               : t("upload.picker.choose")}
-          </span>
-          <span className="mt-0.5 block text-xs text-ink-muted">
-            {t("upload.picker.hint")}
           </span>
           <input
             type="file"
@@ -466,25 +479,6 @@ export function InlineUpload({
                   ),
                 )}
               </p>
-              <ul className="mt-1.5 space-y-0.5">
-                <li
-                  className={
-                    productNameMapped ? "text-brand-700" : "text-danger-700"
-                  }
-                >
-                  {productNameMapped ? "✓" : "✗"}{" "}
-                  {t("upload.preview.productNameMapped")}
-                </li>
-                <li
-                  className={
-                    weightMapped ? "text-brand-700" : "text-warn-700"
-                  }
-                >
-                  {weightMapped ? "✓" : "○"}{" "}
-                  {t("upload.preview.weightMapped")}
-                  {!weightMapped && t("upload.preview.weightOptional")}
-                </li>
-              </ul>
             </div>
 
             {preview.missing_required_pt.length > 0 && (

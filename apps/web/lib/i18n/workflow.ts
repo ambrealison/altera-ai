@@ -717,8 +717,4 @@ export const workflow: I18nDict = {
     fr: "Note : la catégorisation WWF utilise uniquement les descripteurs non commerciaux (nom, marque, catégorie retailer, ingrédients). Les volumes, ventes et prix ne sont jamais envoyés à l'IA.",
     en: "Note: WWF categorisation uses only non-commercial descriptors (name, brand, retailer category, ingredients). Volumes, sales and prices are never sent to the AI.",
   },
-  "workflow.footer": {
-    fr: "Note : l'IA peut aider à sélectionner certaines références, mais ne génère pas de valeurs nutritionnelles. Les protéines proviennent uniquement des données fournies par le retailer, de NEVO, de CIQUAL ou de la validation manuelle.",
-    en: "Note: the AI can help select some references, but does not generate nutrition values. Protein comes only from data supplied by the retailer, from NEVO, from CIQUAL or from manual review.",
-  },
 };

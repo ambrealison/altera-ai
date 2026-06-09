@@ -127,9 +127,11 @@ export const upload: I18nDict = {
     fr: "Choisir un fichier CSV",
     en: "Choose a CSV file",
   },
-  "upload.picker.hint": {
-    fr: "Format CSV UTF-8 ; la première ligne doit contenir les en-têtes. Les CSV éparses (nom + poids + volume) sont supportées — l’identifiant produit est généré si absent.",
-    en: "UTF-8 CSV format; the first row must contain the headers. Sparse CSVs (name + weight + volume) are supported — the product ID is generated if missing.",
+  // ---- Template CTA (Step 1 demo polish) ----
+  "upload.template.button": { fr: "Modèle", en: "Template" },
+  "upload.template.hint": {
+    fr: "Téléchargez un modèle prêt à remplir avant d’importer votre catalogue.",
+    en: "Download a ready-to-use template before importing your catalog.",
   },
 
   // ---- Analysis / preview ----
@@ -146,19 +148,6 @@ export const upload: I18nDict = {
     fr: "{n} auto-mappée(s)",
     en: "{n} auto-mapped",
   },
-  "upload.preview.productNameMapped": {
-    fr: "Nom du produit mappé",
-    en: "Product name mapped",
-  },
-  "upload.preview.weightMapped": {
-    fr: "Poids unitaire mappé",
-    en: "Unit weight mapped",
-  },
-  "upload.preview.weightOptional": {
-    fr: " (optionnel pour Protein Tracker)",
-    en: " (optional for Protein Tracker)",
-  },
-
   // ---- Missing-field warnings (inline) ----
   "upload.missing.ptTitle": {
     fr: "Champs Protein Tracker requis encore manquants : {fields}",
