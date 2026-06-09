@@ -122,7 +122,6 @@ export const upload: I18nDict = {
   "upload.summary.imported": { fr: "Importé", en: "Imported" },
 
   // ---- File picker ----
-  "upload.picker.replace": { fr: "Remplacer le fichier", en: "Replace file" },
   "upload.picker.choose": {
     fr: "Choisir un fichier CSV",
     en: "Choose a CSV file",

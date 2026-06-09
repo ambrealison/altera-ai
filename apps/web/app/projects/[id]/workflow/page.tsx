@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 
-import { Button, Card, Pill } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import { useT } from "@/lib/i18n";
 import {
@@ -327,7 +327,9 @@ function StepImport({
 
       {isComplete && latestUpload && (
         <Card>
-          <CountRow counts={step.counts} />
+          {/* Phase Step1-UX — the redundant import counts row ("Imports 1",
+              etc.) was removed; the imported-file summary above already shows
+              products + rows, so the count badges added demo noise. */}
           {latestUpload.warnings.length > 0 && (
             <div className="mt-2 rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
               {t("workflow.import.warnings").replace(
@@ -855,52 +857,36 @@ function MethodologyClassificationCard({
     0,
     Math.min(total, total - successCount),
   );
+  // Phase Step1-UX — a methodology is only "started" once a job has been
+  // launched or some products have actually been classified. Until then
+  // (0 classified, everything still pending) the card must read as a neutral
+  // idle state — NOT "completed with errors" just because every row is still
+  // unresolved. Gating ``hasPartialFailures`` / the complete states on
+  // ``hasRun`` prevents premature error banners before the user launches
+  // classification, while real post-run errors (a job that completed with
+  // errors / failed, or rows left unknown) still surface.
+  const hasRun =
+    currentJob != null ||
+    classified > 0 ||
+    needsReview > 0 ||
+    unknown > 0 ||
+    failedRows > 0;
   const hasPartialFailures =
-    unresolvedCount > 0 || failedRows > 0 || jobErrored;
+    hasRun && (unresolvedCount > 0 || failedRows > 0 || jobErrored);
   const isCompleteClean =
-    status === "complete" && !isRunning && !hasPartialFailures;
+    hasRun && status === "complete" && !isRunning && !hasPartialFailures;
   const isCompleteWithErrors =
-    status === "complete" && !isRunning && hasPartialFailures;
+    hasRun && status === "complete" && !isRunning && hasPartialFailures;
 
-  // Phase PT-WWF-S2 — split the "complete" pill into three states so
-  // a job with manual-review rows is no longer labelled as an error.
-  //  - "Terminée"            : all rows classified + accepted (no
-  //                            review queue).
-  //  - "Terminée · à valider": all rows classified, some in review.
-  //  - "Terminée avec erreurs": at least one row is unresolved
-  //                              (unknown / failed / job errored).
-  let pillTone: "ok" | "warn" | "neutral" = "neutral";
-  let pillLabel = t("workflow.card.pill.toRun");
-  if (isCompleteClean) {
-    if (needsReview > 0) {
-      pillTone = "warn";
-      pillLabel = t("workflow.card.pill.doneToValidate");
-    } else {
-      pillTone = "ok";
-      pillLabel = t("workflow.card.pill.done");
-    }
-  } else if (isCompleteWithErrors) {
-    pillTone = "warn";
-    pillLabel = t("workflow.card.pill.doneWithErrors");
-  } else if (isRunning) {
-    pillTone = "warn";
-    pillLabel = t("workflow.card.pill.running");
-  } else if (status === "locked") {
-    pillTone = "neutral";
-    pillLabel = t("workflow.card.pill.locked");
-  } else {
-    pillTone = "warn";
-    pillLabel = t("workflow.card.pill.toRun");
-  }
-
+  // Phase Step1-UX — the right-side status pill ("À lancer" / "Terminée ·
+  // à valider" / "Terminée avec erreurs" …) was removed from the card header
+  // to reduce demo noise. The launch buttons, progress bar and (post-run)
+  // error banner below carry the meaningful state.
   return (
     <Card>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold text-forest-900">{title}</h3>
-          <p className="mt-1 text-xs text-ink-muted">{description}</p>
-        </div>
-        <Pill tone={pillTone}>{pillLabel}</Pill>
+      <div>
+        <h3 className="text-base font-semibold text-forest-900">{title}</h3>
+        <p className="mt-1 text-xs text-ink-muted">{description}</p>
       </div>
 
       {total > 0 && (
@@ -1158,15 +1144,16 @@ function StepAIClassificationDual({
           <Button onClick={onRunBoth} disabled={runBothDisabled}>
             {runBothLabel}
           </Button>
-          <span className="text-xs text-ink-soft">
-            {bothNeed
-              ? t("workflow.dual.hint.both")
-              : ptNeeds
-              ? t("workflow.dual.hint.ptNeeds")
-              : wwfNeeds
-              ? t("workflow.dual.hint.wwfNeeds")
-              : ""}
-          </span>
+          {/* Phase Step1-UX — the "Runs both jobs in parallel … resumable"
+              helper sentence (bothNeed) was removed for demo polish. The
+              contextual PT/WWF hints are kept. */}
+          {!bothNeed && (ptNeeds || wwfNeeds) && (
+            <span className="text-xs text-ink-soft">
+              {ptNeeds
+                ? t("workflow.dual.hint.ptNeeds")
+                : t("workflow.dual.hint.wwfNeeds")}
+            </span>
+          )}
         </div>
       )}
 
@@ -1222,16 +1209,34 @@ function StepAIClassificationDual({
         const wwfUnresolved = Math.max(0, wwfTotal - wwfSuccess);
         const ptFailed = ptCurrentJob?.failed_product_count ?? 0;
         const wwfFailed = wwfCurrentJob?.failed_product_count ?? 0;
-        const ptHasErrors =
-          ptCurrentJob?.status === "completed_with_errors" ||
-          ptCurrentJob?.status === "failed" ||
-          ptUnresolved > 0 ||
+        // Phase Step1-UX — only treat "unresolved rows" as errors once a job
+        // has actually run for that methodology. Before launch (0 classified,
+        // everything pending) every row is "unresolved" simply because nothing
+        // ran — that must NOT show a warning. Real post-run errors still do.
+        const ptHasRun =
+          ptCurrentJob != null ||
+          (ptCounts?.classified ?? 0) > 0 ||
+          ptUnknown > 0 ||
+          (ptCounts?.needs_review ?? 0) > 0 ||
           ptFailed > 0;
-        const wwfHasErrors =
-          wwfCurrentJob?.status === "completed_with_errors" ||
-          wwfCurrentJob?.status === "failed" ||
-          wwfUnresolved > 0 ||
+        const wwfHasRun =
+          wwfCurrentJob != null ||
+          (wwfCounts?.classified ?? 0) > 0 ||
+          wwfUnknown > 0 ||
+          (wwfCounts?.needs_review ?? 0) > 0 ||
           wwfFailed > 0;
+        const ptHasErrors =
+          ptHasRun &&
+          (ptCurrentJob?.status === "completed_with_errors" ||
+            ptCurrentJob?.status === "failed" ||
+            ptUnresolved > 0 ||
+            ptFailed > 0);
+        const wwfHasErrors =
+          wwfHasRun &&
+          (wwfCurrentJob?.status === "completed_with_errors" ||
+            wwfCurrentJob?.status === "failed" ||
+            wwfUnresolved > 0 ||
+            wwfFailed > 0);
         if (!ptHasErrors && !wwfHasErrors) return null;
         return (
           <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">

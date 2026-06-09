@@ -424,6 +424,8 @@ export function InlineUpload({
           <p className="text-xs text-ink-muted">{t("upload.template.hint")}</p>
           <Link
             href="/templates"
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 hover:bg-mint-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1"
           >
             <span aria-hidden>↓</span>
@@ -431,22 +433,26 @@ export function InlineUpload({
           </Link>
         </div>
 
-        <label className="block rounded-2xl border border-dashed border-line bg-mint-50/40 p-5 transition-colors hover:border-brand-200">
-          <span className="text-sm font-semibold text-forest-900">
-            {latestUpload
-              ? t("upload.picker.replace")
-              : t("upload.picker.choose")}
-          </span>
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void pickFile(f);
-            }}
-            className="mt-3 block w-full text-sm text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-brand-700"
-          />
-        </label>
+        {/* Phase Step1-UX — the file picker (and its "Replace file" label) is
+            only offered until a catalog has been imported. Once a file exists
+            we keep it as the project's catalog and route the user on to
+            mapping / AI classification rather than offering a replace. */}
+        {!latestUpload && (
+          <label className="block rounded-2xl border border-dashed border-line bg-mint-50/40 p-5 transition-colors hover:border-brand-200">
+            <span className="text-sm font-semibold text-forest-900">
+              {t("upload.picker.choose")}
+            </span>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void pickFile(f);
+              }}
+              className="mt-3 block w-full text-sm text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-brand-700"
+            />
+          </label>
+        )}
 
         {previewing && (
           <div className="mt-3 flex items-center gap-2 text-xs text-ink-muted">

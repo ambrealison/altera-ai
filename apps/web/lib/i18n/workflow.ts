@@ -61,8 +61,8 @@ export const workflow: I18nDict = {
     en: "{n} warning(s) on import.",
   },
   "workflow.import.continue": {
-    fr: "Continuer vers Méthodologie",
-    en: "Continue to Methodology",
+    fr: "Continuer vers la classification IA",
+    en: "Continue to AI Classification",
   },
 
   // ----- Step: Methodology -----
@@ -340,10 +340,6 @@ export const workflow: I18nDict = {
     en: "Run remaining WWF categorisation",
   },
   "workflow.dual.allDone": { fr: "Tout est terminé", en: "Everything is done" },
-  "workflow.dual.hint.both": {
-    fr: "Lance les deux jobs en parallèle. Vous pouvez fermer cette page — chaque job est sauvegardé et reprenable.",
-    en: "Runs both jobs in parallel. You can close this page — each job is saved and resumable.",
-  },
   "workflow.dual.hint.ptNeeds": {
     fr: "WWF est terminée. Cliquez pour lancer Protein Tracker.",
     en: "WWF is done. Click to run Protein Tracker.",
