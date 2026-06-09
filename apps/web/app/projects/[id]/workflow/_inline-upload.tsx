@@ -195,12 +195,17 @@ export function InlineUpload({
   methodologies,
   latestUpload,
   onUploaded,
+  onContinue,
 }: {
   projectId: string;
   accessToken: string | null;
   methodologies: string[];
   latestUpload: UploadResult | null;
   onUploaded: () => void | Promise<void>;
+  /** Phase Step2-UX — when an import already exists, the post-import
+   *  confirmation card shows a "Continue to AI Classification" CTA in the
+   *  same white card as the imported-file summary. */
+  onContinue?: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<MappingPreviewResult | null>(null);
@@ -390,7 +395,11 @@ export function InlineUpload({
 
   return (
     <div className="space-y-4">
-      {/* Already-imported file summary */}
+      {/* Phase Step2-UX — post-import confirmation card. Shows ONLY the
+          just-imported file + the "Continue to AI Classification" CTA, in the
+          same white card. No template browsing in this phase — that lives in
+          the pre-import upload card below (rendered only while no import
+          exists). */}
       {latestUpload && !file && (
         <Card>
           <div className="flex items-start justify-between">
@@ -414,9 +423,17 @@ export function InlineUpload({
             </div>
             <Pill tone="ok">{t("upload.summary.imported")}</Pill>
           </div>
+          {onContinue && (
+            <div className="mt-4">
+              <Button onClick={onContinue}>
+                {t("workflow.import.continue")}
+              </Button>
+            </div>
+          )}
         </Card>
       )}
 
+      {!latestUpload && (
       <Card>
         {/* Template CTA — download a ready-to-use catalog template before
             importing (demo polish). Routes to the existing /templates page. */}
@@ -433,26 +450,23 @@ export function InlineUpload({
           </Link>
         </div>
 
-        {/* Phase Step1-UX — the file picker (and its "Replace file" label) is
-            only offered until a catalog has been imported. Once a file exists
-            we keep it as the project's catalog and route the user on to
-            mapping / AI classification rather than offering a replace. */}
-        {!latestUpload && (
-          <label className="block rounded-2xl border border-dashed border-line bg-mint-50/40 p-5 transition-colors hover:border-brand-200">
-            <span className="text-sm font-semibold text-forest-900">
-              {t("upload.picker.choose")}
-            </span>
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void pickFile(f);
-              }}
-              className="mt-3 block w-full text-sm text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-brand-700"
-            />
-          </label>
-        )}
+        {/* The file picker is only present in the pre-import upload card
+            (this whole card is gated on ``!latestUpload``), so there is no
+            "replace file" affordance once a catalog is imported. */}
+        <label className="block rounded-2xl border border-dashed border-line bg-mint-50/40 p-5 transition-colors hover:border-brand-200">
+          <span className="text-sm font-semibold text-forest-900">
+            {t("upload.picker.choose")}
+          </span>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void pickFile(f);
+            }}
+            className="mt-3 block w-full text-sm text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-brand-700"
+          />
+        </label>
 
         {previewing && (
           <div className="mt-3 flex items-center gap-2 text-xs text-ink-muted">
@@ -582,6 +596,7 @@ export function InlineUpload({
           </div>
         )}
       </Card>
+      )}
     </div>
   );
 }

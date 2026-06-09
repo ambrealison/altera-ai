@@ -292,7 +292,6 @@ function CountRow({ counts }: { counts: Record<string, number> }) {
 function StepImport({
   projectId,
   accessToken,
-  step,
   latestUpload,
   methodologies,
   onUploaded,
@@ -300,14 +299,12 @@ function StepImport({
 }: {
   projectId: string;
   accessToken: string | null;
-  step: WorkflowStep;
   latestUpload: UploadResult | null;
   methodologies: string[];
   onUploaded: () => void | Promise<void>;
   onNext: () => void;
 }) {
   const t = useT();
-  const isComplete = step.status === "complete";
   return (
     <div className="space-y-5">
       <div>
@@ -317,32 +314,18 @@ function StepImport({
         </p>
       </div>
 
+      {/* Phase Step2-UX — InlineUpload owns the post-import confirmation card
+          (imported file + "Continue to AI Classification" CTA together). The
+          separate completion card was removed so the file summary and CTA live
+          in the same white card. */}
       <InlineUpload
         projectId={projectId}
         accessToken={accessToken}
         methodologies={methodologies}
         latestUpload={latestUpload}
         onUploaded={onUploaded}
+        onContinue={onNext}
       />
-
-      {isComplete && latestUpload && (
-        <Card>
-          {/* Phase Step1-UX — the redundant import counts row ("Imports 1",
-              etc.) was removed; the imported-file summary above already shows
-              products + rows, so the count badges added demo noise. */}
-          {latestUpload.warnings.length > 0 && (
-            <div className="mt-2 rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
-              {t("workflow.import.warnings").replace(
-                "{n}",
-                String(latestUpload.warnings.length),
-              )}
-            </div>
-          )}
-          <div className="mt-3 flex flex-wrap gap-3">
-            <Button onClick={onNext}>{t("workflow.import.continue")}</Button>
-          </div>
-        </Card>
-      )}
     </div>
   );
 }
@@ -1209,34 +1192,26 @@ function StepAIClassificationDual({
         const wwfUnresolved = Math.max(0, wwfTotal - wwfSuccess);
         const ptFailed = ptCurrentJob?.failed_product_count ?? 0;
         const wwfFailed = wwfCurrentJob?.failed_product_count ?? 0;
-        // Phase Step1-UX — only treat "unresolved rows" as errors once a job
-        // has actually run for that methodology. Before launch (0 classified,
-        // everything pending) every row is "unresolved" simply because nothing
-        // ran — that must NOT show a warning. Real post-run errors still do.
-        const ptHasRun =
-          ptCurrentJob != null ||
-          (ptCounts?.classified ?? 0) > 0 ||
+        // Phase Step2-UX — the "lines to resolve" warning must only appear
+        // once a methodology has FINISHED with genuinely unresolved rows.
+        // A job that is queued / running / processing — or whose rows are
+        // simply still pending — is NOT an error: pending rows are not "lines
+        // to resolve", so the banner never shows while a job is active
+        // (``!ptRunning`` / ``!wwfRunning`` gate). Only real terminal errors
+        // (completed_with_errors / failed, or rows left unknown / failed)
+        // surface, so a normal run no longer looks broken.
+        const ptRealErrors =
+          ptCurrentJob?.status === "completed_with_errors" ||
+          ptCurrentJob?.status === "failed" ||
           ptUnknown > 0 ||
-          (ptCounts?.needs_review ?? 0) > 0 ||
           ptFailed > 0;
-        const wwfHasRun =
-          wwfCurrentJob != null ||
-          (wwfCounts?.classified ?? 0) > 0 ||
+        const wwfRealErrors =
+          wwfCurrentJob?.status === "completed_with_errors" ||
+          wwfCurrentJob?.status === "failed" ||
           wwfUnknown > 0 ||
-          (wwfCounts?.needs_review ?? 0) > 0 ||
           wwfFailed > 0;
-        const ptHasErrors =
-          ptHasRun &&
-          (ptCurrentJob?.status === "completed_with_errors" ||
-            ptCurrentJob?.status === "failed" ||
-            ptUnresolved > 0 ||
-            ptFailed > 0);
-        const wwfHasErrors =
-          wwfHasRun &&
-          (wwfCurrentJob?.status === "completed_with_errors" ||
-            wwfCurrentJob?.status === "failed" ||
-            wwfUnresolved > 0 ||
-            wwfFailed > 0);
+        const ptHasErrors = !ptRunning && ptRealErrors;
+        const wwfHasErrors = !wwfRunning && wwfRealErrors;
         if (!ptHasErrors && !wwfHasErrors) return null;
         return (
           <div className="rounded-xl border border-warn-100 bg-warn-50 px-3 py-2 text-xs text-warn-700">
@@ -2680,7 +2655,6 @@ export default function WorkflowWizardPage() {
           <StepImport
             projectId={projectId}
             accessToken={accessToken}
-            step={activeBackendStep}
             latestUpload={latestUpload}
             methodologies={status.methodologies_enabled}
             onUploaded={refresh}
