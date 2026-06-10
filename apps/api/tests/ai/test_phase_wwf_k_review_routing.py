@@ -47,10 +47,13 @@ from altera_api.ai.batch_classifier import (
 from altera_api.ai.classifier import (
     AIAccepted,
     AINeedsReviewLowConfidence,
+    AINeedsReviewParseFailed,
+    AIProviderError,
 )
 from altera_api.ai.provider import (
     ClassifierPrompt,
     ClassifierProvider,
+    ProviderError,
     ProviderResponse,
 )
 from altera_api.domain.common import Methodology
@@ -185,12 +188,14 @@ class TestMethodologyDefaults:
         assert PT_REVIEW_THRESHOLD == Decimal("0.7")
         assert _default_threshold(Methodology.PROTEIN_TRACKER) == Decimal("0.7")
 
-    def test_wwf_default_is_0_80(self) -> None:
-        """Phase WWF-K — WWF auto-accept threshold is stricter than PT
-        so the operator sees borderline WWF rows in review instead of
-        them being silently auto-accepted at 0.70."""
-        assert WWF_REVIEW_THRESHOLD == Decimal("0.8")
-        assert _default_threshold(Methodology.WWF) == Decimal("0.8")
+    def test_wwf_default_is_0_70(self) -> None:
+        """Phase WWF-Review-Calibration — the WWF-K 0.80 threshold routed
+        EVERY normal WWF row to review (50/50 on a clean demo), so it is
+        re-calibrated to the PT level (0.70). Clear WWF classifications are
+        accepted; guard-clamped (0.69) / fallback (0.5) / genuinely
+        low-confidence (<0.70) rows still route to review."""
+        assert WWF_REVIEW_THRESHOLD == Decimal("0.70")
+        assert _default_threshold(Methodology.WWF) == Decimal("0.70")
 
 
 # ---------------------------------------------------------------------------
@@ -198,12 +203,15 @@ class TestMethodologyDefaults:
 # ---------------------------------------------------------------------------
 
 
-class TestWWFAt0_75GoesToReview:
-    """The exact pattern from the user bug report: AI returns a
-    plausible-but-wrong category at confidence 0.75. With the old
-    0.70 threshold this was auto-accepted (silent quality bug).
-    With the WWF-K threshold (0.80) it now routes to review so the
-    operator sees and can correct it."""
+class TestWWFConfidenceCalibration:
+    """Phase WWF-Review-Calibration — the demo bug: WWF systematically sent
+    every row to review. With the re-calibrated 0.70 threshold a clear WWF
+    classification (>= 0.70) is ACCEPTED, while a genuinely low-confidence
+    one (< 0.70) still routes to review.
+
+    The ``Mystery Item N`` names carry no food tokens, so no deterministic
+    WWF guard fires — the verdict keeps the provider's confidence and we test
+    the confidence cut-off in isolation."""
 
     @pytest.mark.parametrize(
         "name,category",
@@ -216,9 +224,11 @@ class TestWWFAt0_75GoesToReview:
             ("Mystery Item 7", "FG7"),
         ],
     )
-    def test_wwf_borderline_confidence_routes_to_review(
+    def test_wwf_clear_confidence_is_accepted(
         self, name: str, category: str
     ) -> None:
+        """A clear WWF classification at 0.75 (>= the 0.70 threshold) must be
+        ACCEPTED, not parked in review — this is the fix for the 50/50 demo."""
         bundle = batch_classify(
             [_make_wwf_product(name)],
             _ConstantConfidenceProvider(
@@ -231,17 +241,35 @@ class TestWWFAt0_75GoesToReview:
             enable_retry=False,
         )
         v = bundle.verdicts[0]
-        # Must NOT be auto-accepted at 0.75 (between PT and WWF
-        # thresholds). Must land in review.
-        assert isinstance(v, AINeedsReviewLowConfidence), (
-            f"{name!r}@0.75 was {type(v).__name__}, expected "
-            f"AINeedsReviewLowConfidence (WWF threshold=0.80)"
+        assert isinstance(v, AIAccepted), (
+            f"{name!r}@0.75 was {type(v).__name__}, expected AIAccepted "
+            f"(WWF threshold re-calibrated to 0.70)"
         )
 
-    def test_wwf_high_confidence_can_be_accepted(self) -> None:
-        """WWF at confidence 0.90 still auto-accepts on a clean
-        verdict — we're only making the review band wider, not
-        breaking auto-accept for high-confidence rows."""
+    @pytest.mark.parametrize("category", ["FG1", "FG3", "FG5"])
+    def test_wwf_genuinely_low_confidence_still_routes_to_review(
+        self, category: str
+    ) -> None:
+        """A genuinely low-confidence WWF row (0.55 < 0.70) still creates a
+        LOW_CONFIDENCE review verdict — we are not auto-accepting everything."""
+        bundle = batch_classify(
+            [_make_wwf_product(f"Mystery Low {category}")],
+            _ConstantConfidenceProvider(
+                methodology=Methodology.WWF,
+                confidence=0.55,
+                category=category,
+            ),
+            Methodology.WWF,
+            now=datetime.now(UTC),
+            enable_retry=False,
+        )
+        v = bundle.verdicts[0]
+        assert isinstance(v, AINeedsReviewLowConfidence), (
+            f"@0.55 was {type(v).__name__}, expected AINeedsReviewLowConfidence"
+        )
+
+    def test_wwf_high_confidence_is_accepted(self) -> None:
+        """WWF at 0.90 still auto-accepts on a clean verdict."""
         bundle = batch_classify(
             [_make_wwf_product("Mystery FG1")],
             _ConstantConfidenceProvider(
@@ -253,12 +281,213 @@ class TestWWFAt0_75GoesToReview:
             now=datetime.now(UTC),
             enable_retry=False,
         )
-        # Could be either AIAccepted (clean) or
-        # AINeedsReviewLowConfidence if a guard fired and clamped
-        # the confidence. Either way it must NOT be parse-failed,
-        # and the row carries a valid category.
         v = bundle.verdicts[0]
-        assert isinstance(v, (AIAccepted, AINeedsReviewLowConfidence))
+        assert isinstance(v, AIAccepted)
+
+
+class TestWWFReviewThresholdEnvOverride:
+    """``ALTERA_WWF_REVIEW_THRESHOLD`` tunes the WWF review band at runtime
+    without changing PT or requiring a deploy."""
+
+    def test_env_var_raises_threshold(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from altera_api.ai.batch_classifier import _wwf_review_threshold
+
+        monkeypatch.setenv("ALTERA_WWF_REVIEW_THRESHOLD", "0.85")
+        assert _wwf_review_threshold() == Decimal("0.85")
+        assert _default_threshold(Methodology.WWF) == Decimal("0.85")
+        # With a 0.85 threshold a 0.80 WWF row routes back to review.
+        bundle = batch_classify(
+            [_make_wwf_product("Mystery Item 1")],
+            _ConstantConfidenceProvider(
+                methodology=Methodology.WWF, confidence=0.8, category="FG1"
+            ),
+            Methodology.WWF,
+            now=datetime.now(UTC),
+            enable_retry=False,
+        )
+        assert isinstance(bundle.verdicts[0], AINeedsReviewLowConfidence)
+
+    def test_invalid_or_unset_env_falls_back_to_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from altera_api.ai.batch_classifier import _wwf_review_threshold
+
+        monkeypatch.delenv("ALTERA_WWF_REVIEW_THRESHOLD", raising=False)
+        assert _wwf_review_threshold() == Decimal("0.70")
+        monkeypatch.setenv("ALTERA_WWF_REVIEW_THRESHOLD", "not-a-number")
+        assert _wwf_review_threshold() == Decimal("0.70")
+        monkeypatch.setenv("ALTERA_WWF_REVIEW_THRESHOLD", "5")  # out of range
+        assert _wwf_review_threshold() == Decimal("0.70")
+
+
+# ---------------------------------------------------------------------------
+# B2. Auditability invariants at the calibrated 0.70 threshold
+#
+# Re-calibrating WWF from 0.80 -> 0.70 must NOT auto-accept rows that should
+# stay reviewable. The real protection against systematically-wrong WWF
+# categories is the deterministic guard layer + the failure/fallback routing,
+# NOT the blunt confidence cut-off — so these must still route to review even
+# though clear classifications now auto-accept. Guard ceiling (0.69) and the
+# readable fallback (~0.5) both sit BELOW 0.70 by design.
+# ---------------------------------------------------------------------------
+
+
+class _UnknownWWFProvider(ClassifierProvider):
+    """Returns ``wwf_food_group=unknown`` for every product — simulates an
+    AI that gives up. The WWF readable fallback / guards must keep the row
+    reviewable rather than silently auto-accepting it."""
+
+    @property
+    def model(self) -> str:
+        return "wwf-k-unknown"
+
+    def classify(self, prompt: ClassifierPrompt) -> ProviderResponse:
+        raise NotImplementedError
+
+    def supports_batch(self) -> bool:
+        return True
+
+    def batch_classify(self, prompt: Any) -> ProviderResponse:
+        rows: list[dict[str, Any]] = []
+        for line in prompt.user_message.split("\n"):
+            if not line.startswith("{"):
+                continue
+            try:
+                parsed = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if "id" not in parsed:
+                continue
+            rows.append(
+                {
+                    "id": parsed["id"],
+                    "wwf_food_group": "unknown",
+                    "wwf_is_composite": False,
+                    "confidence": 0.3,
+                    "rationale": "phase-wwf-k unknown",
+                }
+            )
+        return ProviderResponse(
+            raw_text=json.dumps({"results": rows}), model="wwf-k-unknown"
+        )
+
+
+class _RaisingProvider(ClassifierProvider):
+    """Always raises ``ProviderError`` — simulates a provider outage."""
+
+    @property
+    def model(self) -> str:
+        return "wwf-k-raise"
+
+    def classify(self, prompt: ClassifierPrompt) -> ProviderResponse:
+        raise NotImplementedError
+
+    def supports_batch(self) -> bool:
+        return True
+
+    def batch_classify(self, prompt: Any) -> ProviderResponse:
+        raise ProviderError("simulated WWF provider outage")
+
+
+class _GarbageProvider(ClassifierProvider):
+    """Returns un-parseable text on every call (including the repair retry)
+    — simulates a model that never emits valid JSON for the row."""
+
+    @property
+    def model(self) -> str:
+        return "wwf-k-garbage"
+
+    def classify(self, prompt: ClassifierPrompt) -> ProviderResponse:
+        raise NotImplementedError
+
+    def supports_batch(self) -> bool:
+        return True
+
+    def batch_classify(self, prompt: Any) -> ProviderResponse:
+        return ProviderResponse(
+            raw_text="<<not json — model returned prose instead>>",
+            model="wwf-k-garbage",
+        )
+
+
+class TestWWFAuditabilityPreservedAtCalibratedThreshold:
+    """The four non-accept routes must still reach review at the default 0.70
+    threshold, so genuinely ambiguous / low-quality / failed rows stay
+    auditable (the user's hard invariant)."""
+
+    def test_guard_corrected_row_still_routes_to_review(self) -> None:
+        """A plant-milk row is touched by the unconditional WWF Guard 2a,
+        which clamps confidence to <= 0.69. Even though the model returned a
+        confident verdict, the guard-corrected row must route to review (the
+        0.69 ceiling sits below the 0.70 threshold)."""
+        bundle = batch_classify(
+            [_make_wwf_product("Boisson avoine bio 1L")],
+            _ConstantConfidenceProvider(
+                methodology=Methodology.WWF,
+                confidence=0.95,  # model is confident...
+                category="FG2",
+            ),
+            Methodology.WWF,
+            now=datetime.now(UTC),
+            enable_retry=False,
+        )
+        v = bundle.verdicts[0]
+        assert isinstance(v, AINeedsReviewLowConfidence), (
+            f"guard-corrected plant-milk row was {type(v).__name__}, "
+            f"expected AINeedsReviewLowConfidence"
+        )
+        # ...but the guard clamped it below the auto-accept ceiling.
+        assert v.classification.confidence <= Decimal("0.69")
+
+    def test_model_unknown_row_is_never_auto_accepted(self) -> None:
+        """A model ``unknown`` on a readable legume name is rescued by the WWF
+        readable fallback / guard, but at fallback confidence (< 0.70) — so it
+        must route to review, never silently auto-accept."""
+        bundle = batch_classify(
+            [_make_wwf_product("Lentilles vertes")],
+            _UnknownWWFProvider(),
+            Methodology.WWF,
+            now=datetime.now(UTC),
+            enable_retry=False,
+        )
+        v = bundle.verdicts[0]
+        assert not isinstance(v, AIAccepted), (
+            f"model-unknown row was auto-accepted ({type(v).__name__}) — it "
+            f"must stay reviewable"
+        )
+        assert isinstance(
+            v, (AINeedsReviewLowConfidence, AINeedsReviewParseFailed)
+        )
+
+    def test_provider_error_still_routes_to_review(self) -> None:
+        """A provider outage surfaces as ``AIProviderError`` (reviewable),
+        regardless of threshold — the calibration change must not swallow it."""
+        bundle = batch_classify(
+            [_make_wwf_product("Mystery Item 1")],
+            _RaisingProvider(),
+            Methodology.WWF,
+            now=datetime.now(UTC),
+            enable_retry=False,
+        )
+        assert isinstance(bundle.verdicts[0], AIProviderError)
+
+    def test_parse_failure_still_routes_to_review(self) -> None:
+        """An un-parseable model response on a non-food name surfaces as
+        ``AINeedsReviewParseFailed`` (reviewable), independent of threshold."""
+        bundle = batch_classify(
+            [_make_wwf_product("Zzx Widget 1")],
+            _GarbageProvider(),
+            Methodology.WWF,
+            now=datetime.now(UTC),
+            enable_retry=False,
+        )
+        v = bundle.verdicts[0]
+        assert isinstance(v, (AINeedsReviewParseFailed, AIProviderError)), (
+            f"un-parseable WWF row was {type(v).__name__}, expected a "
+            f"reviewable failure verdict"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -42,12 +42,13 @@ commercial fields).
 from __future__ import annotations
 
 import json
+import os
 import re
 import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from pydantic import ValidationError as _PydanticValidationError
@@ -858,23 +859,53 @@ REVIEW_RATE_TRIGGER = 0.40
 #: best-guess so the user sees what was proposed.
 PT_REVIEW_THRESHOLD: Decimal = Decimal("0.7")
 
-#: Phase WWF-K — WWF auto-accept at confidence >= 0.80. The user
-#: report on the 100-product dataset showed that PT-level (0.70)
-#: auto-acceptance was too permissive for WWF: incorrect categories
-#: were being auto-accepted at 100% confidence, so the operator saw
-#: "100/100 catégorisé(s) · 0 en revue" while the underlying data
-#: was wrong. WWF's review band is now wider (anything <0.80 →
-#: review) so the operator sees and can correct borderline rows.
-#: Guard-overridden rows are already clamped to <=0.69 by
-#: ``wwf_guards._GUARD_CONFIDENCE_CEILING``, so they remain routed
-#: to review regardless of this threshold.
-WWF_REVIEW_THRESHOLD: Decimal = Decimal("0.8")
+#: Phase WWF-K (revised, Phase WWF-Review-Calibration) — WWF auto-accept
+#: threshold. Phase WWF-K raised this to 0.80 to widen the review band, but
+#: that systematically routed EVERY normal WWF row to manual review: on a
+#: clean 50-product demo the model returns clear classifications in the
+#: 0.70-0.79 band, and (combined with guard-clamped 0.69 and readable-fallback
+#: 0.5 rows) the operator saw "50/50 catégorisé · 50 en revue" — which makes
+#: WWF look broken even when it worked. A 0.80 cut-off cannot distinguish a
+#: clear-and-correct 0.75 row from a plausible-but-wrong 0.75 row anyway; the
+#: real protection against systematically-wrong WWF categories is the
+#: deterministic guards (which clamp known errors to <=0.69 -> review), NOT a
+#: blunt confidence cut-off. So WWF is re-calibrated to the PT level (0.70):
+#: clear WWF classifications (>= 0.70) are accepted, while genuinely
+#: low-confidence rows (< 0.70), guard-corrected rows (clamped to 0.69) and
+#: readable-fallback rows (0.5) all still route to review. The threshold is
+#: also overridable per-environment via ``ALTERA_WWF_REVIEW_THRESHOLD`` so the
+#: review band can be tuned without a deploy. Keep it ABOVE the guard ceiling
+#: (0.69) so guard corrections always route to review.
+WWF_REVIEW_THRESHOLD: Decimal = Decimal("0.70")
+
+#: Env var to override the WWF auto-accept threshold at runtime.
+_WWF_REVIEW_THRESHOLD_ENV = "ALTERA_WWF_REVIEW_THRESHOLD"
+
+
+def _wwf_review_threshold() -> Decimal:
+    """Resolve the WWF auto-accept threshold.
+
+    Reads ``ALTERA_WWF_REVIEW_THRESHOLD`` (a 0<v<=1 decimal) on demand so
+    deployments / tests can tune the review band without a code change; falls
+    back to :data:`WWF_REVIEW_THRESHOLD` when unset or invalid.
+    """
+    raw = (os.environ.get(_WWF_REVIEW_THRESHOLD_ENV) or "").strip()
+    if raw:
+        try:
+            value = Decimal(raw)
+        except InvalidOperation:
+            return WWF_REVIEW_THRESHOLD
+        if Decimal("0") < value <= Decimal("1"):
+            return value
+    return WWF_REVIEW_THRESHOLD
 
 
 def _default_threshold(methodology: Methodology) -> Decimal:
-    """Phase WWF-K — methodology-specific auto-accept thresholds."""
+    """Methodology-specific auto-accept thresholds. PT and WWF stay strictly
+    separate: PT keeps its Phase 34Q calibration (0.70); WWF resolves its own
+    (env-overridable) threshold."""
     if methodology is Methodology.WWF:
-        return WWF_REVIEW_THRESHOLD
+        return _wwf_review_threshold()
     return PT_REVIEW_THRESHOLD
 
 
