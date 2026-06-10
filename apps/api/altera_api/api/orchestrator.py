@@ -35,6 +35,17 @@ from altera_api.calculation import (
     calculate_pt_run,
     calculate_wwf_run,
 )
+from altera_api.demo.golden_classification import (
+    REVIEW_EXTERNAL_IDS as _DEMO_REVIEW_EXTERNAL_IDS,
+)
+from altera_api.demo.golden_classification import (
+    REVIEW_METHODOLOGY as _DEMO_REVIEW_METHODOLOGY,
+)
+from altera_api.demo.golden_classification import (
+    apply_demo_golden_classification,
+    is_demo_golden_classification_enabled,
+    is_demo_golden_upload,
+)
 from altera_api.domain.common import ClassificationSource, Methodology
 from altera_api.domain.product import NormalizedProduct
 from altera_api.domain.project import Project
@@ -485,6 +496,49 @@ def classify_upload(
     upload_record = store.get_upload(upload_id)
     if upload_record is None:
         raise LookupError("upload not found")
+
+    # Phase Demo-Golden — deterministic golden classification short-circuit
+    # for the recognised demo catalogue. Flag-gated (default off) + strict
+    # recognition, so normal uploads and production are unaffected. Mirrors
+    # the chunked job orchestrator (the wizard's primary path) so the
+    # direct/synchronous classify path stays consistent. No AI call happens.
+    if is_demo_golden_classification_enabled() and methodology in (
+        Methodology.PROTEIN_TRACKER,
+        Methodology.WWF,
+    ):
+        all_products = [
+            p
+            for p in (
+                store.get_product(pid) for pid in upload_record.product_ids
+            )
+            if p is not None
+        ]
+        if is_demo_golden_upload(all_products):
+            now = datetime.now(UTC)
+            eligible = [
+                p
+                for p in all_products
+                if methodology in p.methodologies_enabled
+            ]
+            written = apply_demo_golden_classification(
+                store, eligible, methodology, now=now
+            )
+            review = sum(
+                1
+                for p in eligible
+                if methodology is _DEMO_REVIEW_METHODOLOGY
+                and p.external_product_id in _DEMO_REVIEW_EXTERNAL_IDS
+            )
+            return ClassifySummary(
+                methodology=methodology,
+                matched=written,
+                pass_through=0,
+                rule_collision=0,
+                queued_for_review=review,
+                categorized_total=written,
+                accepted_total=max(0, written - review),
+                review_required_total=review,
+            )
 
     now = datetime.now(UTC)
     matched = pass_through = collision = contradiction = queued = skipped = 0

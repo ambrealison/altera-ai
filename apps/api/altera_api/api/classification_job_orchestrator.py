@@ -50,6 +50,11 @@ from altera_api.api.orchestrator import (
     _queue_unknown_pt,
     _queue_unknown_wwf,
 )
+from altera_api.demo.golden_classification import (
+    apply_demo_golden_classification,
+    is_demo_golden_classification_enabled,
+    is_demo_golden_upload,
+)
 from altera_api.domain.classification_job import (
     ClassificationJob,
     ClassificationJobStatus,
@@ -469,6 +474,31 @@ class ClassificationJobConflict(Exception):
 _ADVANCE_CONFLICT_WINDOW_SECONDS: float = 0.25
 
 
+def _demo_golden_applies(store: StoreProtocol, job: ClassificationJob) -> bool:
+    """Phase Demo-Golden — True iff the demo golden classification path
+    should handle this job.
+
+    Three independent gates, all of which must hold:
+
+    1. ``ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED`` is truthy (default off);
+    2. the job methodology is Protein Tracker or WWF;
+    3. the job's upload is *exactly* the recognised demo catalogue
+       (``is_demo_golden_upload`` — strict id-set + name fingerprint).
+
+    Gate 1 is checked first and is a cheap env read, so production (flag
+    off) never loads the upload here — behaviour is unchanged.
+    """
+    if not is_demo_golden_classification_enabled():
+        return False
+    if job.methodology not in (Methodology.PROTEIN_TRACKER, Methodology.WWF):
+        return False
+    upload_record = store.get_upload(job.upload_id)
+    if upload_record is None:
+        return False
+    upload_products = store.list_products_by_ids(list(upload_record.product_ids))
+    return is_demo_golden_upload(upload_products)
+
+
 def advance_classification_job(
     store: StoreProtocol,
     job_id: UUID,
@@ -523,7 +553,12 @@ def advance_classification_job(
         )
         store.update_classification_job(cancelled)
         return cancelled
-    if ai_provider is None:
+    # Phase Demo-Golden — decide ONCE whether this job is the recognised
+    # demo catalogue running under the (default-off) golden flag. When it
+    # is, the golden path replaces the AI call entirely, so we must NOT
+    # fail the job just because no AI provider is configured.
+    demo_active = _demo_golden_applies(store, job)
+    if ai_provider is None and not demo_active:
         failed = job.with_progress(
             status=ClassificationJobStatus.FAILED,
             error_code="ai_provider_unavailable",
@@ -564,6 +599,38 @@ def advance_classification_job(
     t_load = time.perf_counter()
     products = store.list_products_by_ids(chunk_ids)
     load_ms = (time.perf_counter() - t_load) * 1000
+
+    # Phase Demo-Golden — deterministic golden classification for the
+    # recognised demo catalogue. The AI provider is NEVER called for these
+    # rows (privacy + perfect determinism for the demo). Gated by the
+    # default-off flag + strict catalogue recognition computed above, so
+    # normal uploads (and all of production) skip this branch entirely.
+    if demo_active:
+        running = job.with_progress(
+            status=ClassificationJobStatus.RUNNING,
+            started_at=job.started_at or now,
+        )
+        store.update_classification_job(running)
+        apply_demo_golden_classification(
+            store, products, job.methodology, now=now
+        )
+        coverage, _coverage_ms = _refresh_coverage_counters(store, job)
+        is_done = not remaining
+        updated = job.with_progress(
+            # The golden path is deterministic and never fails a row, so a
+            # finished job is always COMPLETED (never completed_with_errors).
+            status=(
+                ClassificationJobStatus.COMPLETED
+                if is_done
+                else ClassificationJobStatus.RUNNING
+            ),
+            pending_product_ids=remaining,
+            processed_products=job.processed_products + len(chunk_ids),
+            completed_at=now if is_done else None,
+            **coverage,
+        )
+        store.update_classification_job(updated)
+        return updated
 
     # Single OpenAI call for this batch (with the existing in-batch
     # retry pass disabled — we keep retry control at the job level).
