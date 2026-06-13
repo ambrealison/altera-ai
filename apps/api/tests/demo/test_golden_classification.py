@@ -548,8 +548,9 @@ class TestNonMatchingUpload:
     ) -> None:
         monkeypatch.setenv(FLAG, "true")
         store = InMemoryStore()
-        # Same id scheme, different names → fingerprint rejects it.
-        rows = [(f"PTWWF{n:03d}", f"Mystery product {n}") for n in range(1, 26)]
+        # A real retailer catalogue: real SKU ids (NOT the demo PTWWF ids),
+        # so neither the fingerprint nor the id-set match → golden not applied.
+        rows = [(f"SKU{n:05d}", f"Mystery product {n}") for n in range(1, 26)]
         org_id, project_id, upload_id, product_ids = _seed(store, rows)
         provider = _RecordingProvider(Methodology.PROTEIN_TRACKER)
 
@@ -620,9 +621,10 @@ class TestRecognition:
         _org, _proj, _upl, pids = _seed(store, _rows(DEMO25))
         assert golden.recognise_demo_catalogue(store.list_products_by_ids(pids[:24])) is None
 
-    def test_rejects_renamed_product(self) -> None:
+    def test_rejects_changed_external_id(self) -> None:
+        # Changing an external id breaks the id set → not a demo catalogue.
         rows = _rows(DEMO25)
-        rows[0] = (rows[0][0], "Totally different product")
+        rows[0] = ("NOT-A-DEMO-ID", rows[0][1])
         store = InMemoryStore()
         _org, _proj, _upl, pids = _seed(store, rows)
         assert golden.recognise_demo_catalogue(store.list_products_by_ids(pids)) is None
@@ -640,6 +642,26 @@ class TestRecognition:
     def test_catalogues_have_distinct_fingerprints(self) -> None:
         fps = golden.demo_catalogue_fingerprints()
         assert fps["demo25"] != fps["demo50"]
+
+    def test_recognises_by_exact_id_set_despite_name_differences(self) -> None:
+        # Robustness: the same 25 demo external ids but with DIFFERENT product
+        # names (simulating an encoding / whitespace / edit difference in the
+        # stored data) are still recognised via the exact id-set match, so the
+        # demo never silently falls back to live AI over a name mismatch.
+        rows = [(ext, f"renamed {ext}") for ext, _name in _rows(DEMO25)]
+        store = InMemoryStore()
+        _org, _proj, _upl, pids = _seed(store, rows)
+        recognised = golden.recognise_demo_catalogue(store.list_products_by_ids(pids))
+        assert recognised is not None and recognised.key == "demo25"
+
+    def test_id_set_match_does_not_cross_catalogues(self) -> None:
+        # A 25-id upload must never be mistaken for the 50-product catalogue.
+        rows = [(ext, f"x {ext}") for ext, _ in _rows(DEMO25)]
+        store = InMemoryStore()
+        _org, _proj, _upl, pids = _seed(store, rows)
+        assert golden.recognise_demo_catalogue(
+            store.list_products_by_ids(pids)
+        ).key == "demo25"
 
 
 # ---------------------------------------------------------------------------

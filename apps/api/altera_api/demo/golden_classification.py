@@ -410,7 +410,16 @@ def recognise_demo_catalogue(
         pairs.append((ext_id, product.product_name))
     fingerprint = _fingerprint(pairs)
     for catalogue in _CATALOGUES:
-        if len(pairs) == catalogue.size() and fingerprint == catalogue.fingerprint:
+        if len(pairs) != catalogue.size():
+            continue
+        # Match on EITHER the exact id+name fingerprint OR the exact external
+        # id set. The demo external ids (PTWWF001..) are unique to the demo —
+        # no real retailer catalogue uses them — so an exact id-set match is
+        # a safe, demo-only signal that ALSO stays robust to product-name
+        # encoding / whitespace / minor-edit differences between the stored
+        # data and this fixture (which strict name fingerprinting would
+        # silently reject, leaving the demo on the live-AI path).
+        if fingerprint == catalogue.fingerprint or seen == set(catalogue.entries):
             return catalogue
     return None
 
