@@ -52,6 +52,7 @@ from altera_api.api.orchestrator import (
 )
 from altera_api.demo.golden_classification import (
     apply_demo_golden_classification,
+    demo_catalogue_sizes,
     is_demo_golden_classification_enabled,
     recognise_demo_catalogue,
 )
@@ -255,6 +256,7 @@ def create_classification_job(
                 store.list_products_by_ids(list(_upload_record.product_ids))
             )
             if _upload_record is not None
+            and len(_upload_record.product_ids) in demo_catalogue_sizes()
             else None
         )
         # Diagnostic: fires on EVERY job creation while the flag is on, so
@@ -537,6 +539,10 @@ def _recognise_demo_catalogue_for_job(
         return None
     upload_record = store.get_upload(job.upload_id)
     if upload_record is None:
+        return None
+    # Cheap pre-filter: only demo-sized uploads can possibly be a demo
+    # catalogue, so production uploads never pay the full product load.
+    if len(upload_record.product_ids) not in demo_catalogue_sizes():
         return None
     upload_products = store.list_products_by_ids(list(upload_record.product_ids))
     return recognise_demo_catalogue(upload_products)

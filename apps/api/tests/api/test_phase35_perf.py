@@ -247,7 +247,10 @@ class TestCreateNoNPlusOne:
     def test_create_uses_bulk_not_per_product(
         self, client: TestClient, store: InMemoryStore
     ) -> None:
-        pid, upload_id = _setup_upload(client, 50)
+        # 60 products — a normal production upload. (Not 25/50: those are the
+        # demo-golden catalogue sizes, which trigger one extra bulk recognition
+        # fetch by design; this test guards the per-product N+1 invariant.)
+        pid, upload_id = _setup_upload(client, 60)
         from uuid import UUID
 
         counting = _CountingStore(store)
@@ -258,7 +261,7 @@ class TestCreateNoNPlusOne:
             upload_id=UUID(upload_id),
             methodology=Methodology.PROTEIN_TRACKER,
         )
-        assert job.total_products == 50
+        assert job.total_products == 60
         # Bulk product fetch: ONE call regardless of N.
         assert counting.calls.get("list_products_by_ids", 0) == 1
         # Bulk classification fetch: ONE call.

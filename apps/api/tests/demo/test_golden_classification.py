@@ -258,15 +258,43 @@ def _review_ext_ids(
 
 
 # ---------------------------------------------------------------------------
-# A. Flag OFF → normal AI path, golden NOT applied
+# A. Gating — default ON (recognition-only); kill switch forces OFF
 # ---------------------------------------------------------------------------
 
 
-class TestFlagDisabled:
-    def test_demo_catalogue_follows_normal_ai_path(
+class TestGating:
+    def test_default_no_env_applies_golden(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # The demo path now defaults ON (gated by strict recognition alone),
+        # so the recognised demo catalogue is golden-classified with NO env
+        # var set and the AI provider is never called.
         monkeypatch.delenv(FLAG, raising=False)
+        store = InMemoryStore()
+        org_id, project_id, upload_id, product_ids = _seed(store, _rows(DEMO25))
+        provider = _RecordingProvider(Methodology.WWF)
+
+        _run_job_to_terminal(
+            store,
+            org_id=org_id,
+            project_id=project_id,
+            upload_id=upload_id,
+            user_id=store.default_user_id,
+            methodology=Methodology.WWF,
+            provider=provider,
+        )
+
+        assert provider.calls == []
+        cls = store.get_wwf_classifications_bulk(product_ids)
+        assert len(cls) == 25
+        assert all(c.rule_id == golden.WWF_RULE_ID for c in cls.values())
+
+    def test_kill_switch_false_uses_normal_ai_path(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Setting the env var to a falsy value forces the demo path OFF even
+        # for the recognised catalogue → normal AI path runs.
+        monkeypatch.setenv(FLAG, "false")
         store = InMemoryStore()
         org_id, project_id, upload_id, product_ids = _seed(store, _rows(DEMO25))
         provider = _RecordingProvider(Methodology.PROTEIN_TRACKER)
@@ -281,7 +309,7 @@ class TestFlagDisabled:
             provider=provider,
         )
 
-        assert provider.calls, "flag off must use the AI provider"
+        assert provider.calls, "kill switch off must use the AI provider"
         cls_map = store.get_pt_classifications_bulk(product_ids)
         assert cls_map
         assert all(c.rule_id != golden.PT_RULE_ID for c in cls_map.values())

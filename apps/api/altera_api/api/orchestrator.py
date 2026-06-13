@@ -37,6 +37,7 @@ from altera_api.calculation import (
 )
 from altera_api.demo.golden_classification import (
     apply_demo_golden_classification,
+    demo_catalogue_sizes,
     is_demo_golden_classification_enabled,
     recognise_demo_catalogue,
 )
@@ -496,9 +497,12 @@ def classify_upload(
     # recognition, so normal uploads and production are unaffected. Mirrors
     # the chunked job orchestrator (the wizard's primary path) so the
     # direct/synchronous classify path stays consistent. No AI call happens.
-    if is_demo_golden_classification_enabled() and methodology in (
-        Methodology.PROTEIN_TRACKER,
-        Methodology.WWF,
+    if (
+        is_demo_golden_classification_enabled()
+        and methodology in (Methodology.PROTEIN_TRACKER, Methodology.WWF)
+        # Cheap pre-filter: only demo-sized uploads can be a demo catalogue,
+        # so production uploads never pay the per-product load below.
+        and len(upload_record.product_ids) in demo_catalogue_sizes()
     ):
         all_products = [
             p

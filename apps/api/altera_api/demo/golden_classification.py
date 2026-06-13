@@ -110,13 +110,29 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 _FLAG_ENV = "ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED"
-_TRUTHY = {"1", "true", "yes", "on"}
+_FALSY = {"0", "false", "no", "off"}
 
 
 def is_demo_golden_classification_enabled() -> bool:
-    """True only when ``ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED`` is set
-    to a truthy value. Read on demand so tests can monkeypatch the env."""
-    return (os.environ.get(_FLAG_ENV) or "").strip().lower() in _TRUTHY
+    """Whether the demo golden path may activate.
+
+    Now defaults to **ON** and is gated by strict catalogue recognition
+    alone (the demo external ids ``PTWWF001..`` are unique to the demo — no
+    real retailer catalogue uses them). The env var
+    ``ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED`` is kept only as an
+    emergency **kill switch**: set it to ``0`` / ``false`` / ``no`` / ``off``
+    to force the demo path off everywhere. Read on demand so tests can
+    monkeypatch the env."""
+    return (os.environ.get(_FLAG_ENV) or "").strip().lower() not in _FALSY
+
+
+def demo_catalogue_sizes() -> frozenset[int]:
+    """Product counts of the recognised demo catalogues (e.g. {25, 50}).
+
+    Used as a cheap pre-filter: an upload whose product count is not one of
+    these can never be a demo catalogue, so the (more expensive) full
+    recognition is skipped — production uploads pay almost nothing."""
+    return _DEMO_SIZES
 
 
 # ---------------------------------------------------------------------------
@@ -381,6 +397,9 @@ DEMO50 = _make_catalogue(
 #: All recognised demo catalogues. Order is irrelevant — recognition matches
 #: a unique fingerprint.
 _CATALOGUES: tuple[DemoCatalogue, ...] = (DEMO25, DEMO50)
+
+#: Distinct product counts across all demo catalogues — the cheap pre-filter.
+_DEMO_SIZES: frozenset[int] = frozenset(c.size() for c in _CATALOGUES)
 
 
 # ---------------------------------------------------------------------------

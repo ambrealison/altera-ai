@@ -5,22 +5,27 @@ demo on a recognised demo catalogue is perfectly predictable: every product
 categorised by both methodologies, exactly **two** products surfaced for
 manual validation, and no dependency on live LLM variability.
 
-It is **off by default** and **only** affects an upload that is recognised as
-an exact demo catalogue. Production and every normal upload are unchanged.
+It is gated by **strict catalogue recognition** and **only** affects an upload
+recognised as an exact demo catalogue. Production and every normal upload are
+unchanged.
 
 > Status: demo aid. Designed to be deleted after the demo with no residue —
-> remove `apps/api/altera_api/demo/` and the two flag-guarded branches that
-> call it.
+> remove `apps/api/altera_api/demo/` and the flag-guarded branches that call
+> it.
 
-## How to enable
+## How it activates (no config needed)
 
-Set the environment variable (backend / Render):
+The demo path now defaults **ON** and is gated by recognition alone — there is
+**nothing to set** for the demo to work. It activates only when an upload's
+external ids are exactly a demo catalogue's (`PTWWF001..`, unique to the demo;
+no real retailer catalogue uses them).
 
-```
-ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED=true
-```
+`ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED` is retained only as an **emergency
+kill switch**: set it to `false` / `0` / `no` / `off` to force the demo path
+off everywhere. Any other value (or unset) leaves it ON.
 
-With the flag **off** (default) the platform behaves exactly as before.
+A cheap pre-filter (upload product count must be a demo size, e.g. 25 or 50)
+means normal-sized production uploads never even run the recognition check.
 
 ## Recognised catalogues
 
