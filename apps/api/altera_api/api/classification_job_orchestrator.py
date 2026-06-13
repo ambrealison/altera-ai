@@ -53,7 +53,7 @@ from altera_api.api.orchestrator import (
 from altera_api.demo.golden_classification import (
     apply_demo_golden_classification,
     is_demo_golden_classification_enabled,
-    is_demo_golden_upload,
+    recognise_demo_catalogue,
 )
 from altera_api.domain.classification_job import (
     ClassificationJob,
@@ -474,29 +474,31 @@ class ClassificationJobConflict(Exception):
 _ADVANCE_CONFLICT_WINDOW_SECONDS: float = 0.25
 
 
-def _demo_golden_applies(store: StoreProtocol, job: ClassificationJob) -> bool:
-    """Phase Demo-Golden — True iff the demo golden classification path
-    should handle this job.
+def _recognise_demo_catalogue_for_job(
+    store: StoreProtocol, job: ClassificationJob
+):
+    """Phase Demo-Golden — return the recognised demo catalogue this job's
+    upload matches, or ``None`` if the golden path should not handle it.
 
-    Three independent gates, all of which must hold:
+    Three independent gates, all of which must hold to return a catalogue:
 
     1. ``ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED`` is truthy (default off);
     2. the job methodology is Protein Tracker or WWF;
-    3. the job's upload is *exactly* the recognised demo catalogue
-       (``is_demo_golden_upload`` — strict id-set + name fingerprint).
+    3. the job's upload is *exactly* a recognised demo catalogue
+       (strict id-set + name fingerprint).
 
     Gate 1 is checked first and is a cheap env read, so production (flag
     off) never loads the upload here — behaviour is unchanged.
     """
     if not is_demo_golden_classification_enabled():
-        return False
+        return None
     if job.methodology not in (Methodology.PROTEIN_TRACKER, Methodology.WWF):
-        return False
+        return None
     upload_record = store.get_upload(job.upload_id)
     if upload_record is None:
-        return False
+        return None
     upload_products = store.list_products_by_ids(list(upload_record.product_ids))
-    return is_demo_golden_upload(upload_products)
+    return recognise_demo_catalogue(upload_products)
 
 
 def advance_classification_job(
@@ -553,11 +555,12 @@ def advance_classification_job(
         )
         store.update_classification_job(cancelled)
         return cancelled
-    # Phase Demo-Golden — decide ONCE whether this job is the recognised
-    # demo catalogue running under the (default-off) golden flag. When it
-    # is, the golden path replaces the AI call entirely, so we must NOT
-    # fail the job just because no AI provider is configured.
-    demo_active = _demo_golden_applies(store, job)
+    # Phase Demo-Golden — decide ONCE whether this job is a recognised demo
+    # catalogue running under the (default-off) golden flag. When it is, the
+    # golden path replaces the AI call entirely, so we must NOT fail the job
+    # just because no AI provider is configured.
+    demo_catalogue = _recognise_demo_catalogue_for_job(store, job)
+    demo_active = demo_catalogue is not None
     if ai_provider is None and not demo_active:
         failed = job.with_progress(
             status=ClassificationJobStatus.FAILED,
@@ -612,7 +615,7 @@ def advance_classification_job(
         )
         store.update_classification_job(running)
         apply_demo_golden_classification(
-            store, products, job.methodology, now=now
+            store, products, job.methodology, now=now, catalogue=demo_catalogue
         )
         coverage, _coverage_ms = _refresh_coverage_counters(store, job)
         is_done = not remaining

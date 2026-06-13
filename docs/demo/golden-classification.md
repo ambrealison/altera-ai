@@ -1,18 +1,16 @@
-# Demo golden classification (`DEMO-50produits`)
+# Demo golden classification
 
 A **demo-only, flag-gated, deterministic** classification path so the retailer
-demo on the `DEMO-50produits` catalogue is perfectly predictable:
-
-- 50/50 Protein Tracker products categorised,
-- 50/50 WWF products categorised,
-- exactly **two** products surfaced for manual validation,
-- no dependency on live LLM variability for this exact catalogue.
+demo on a recognised demo catalogue is perfectly predictable: every product
+categorised by both methodologies, exactly **two** products surfaced for
+manual validation, and no dependency on live LLM variability.
 
 It is **off by default** and **only** affects an upload that is recognised as
-the exact demo catalogue. Production and every normal upload are unchanged.
+an exact demo catalogue. Production and every normal upload are unchanged.
 
 > Status: demo aid. Designed to be deleted after the demo with no residue —
-> remove `altera_api/demo/` and the two flag-guarded branches that call it.
+> remove `apps/api/altera_api/demo/` and the two flag-guarded branches that
+> call it.
 
 ## How to enable
 
@@ -24,74 +22,76 @@ ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED=true
 
 With the flag **off** (default) the platform behaves exactly as before.
 
-## What activates it
+## Recognised catalogues
 
-Three independent gates, **all** required:
+Two catalogues are recognised (`apps/api/altera_api/demo/golden_classification.py`):
 
-1. the flag above is truthy;
-2. the classification job methodology is Protein Tracker or WWF;
-3. the upload is recognised as the demo catalogue.
+| Key | File | Products | Review products | Review methodologies |
+|-----|------|---------:|-----------------|----------------------|
+| `demo25` | `DEMO.csv` | 25 | `PTWWF019` Ratatouille de légumes, `PTWWF025` Pizza fromage tomate | **Protein Tracker + WWF** (same products) |
+| `demo50` | `DEMO-50produits.csv` | 50 | `PTWWF048` Curry de poulet avec riz, `PTWWF049` Pizza fromage tomate | WWF only |
+
+`demo25` is the **current live demo file**. Both catalogues reuse the
+`PTWWF0xx` id scheme but map the ids to *different* products, so recognition
+is by a full-catalogue fingerprint (id set **and** names), never by ids alone.
 
 ### Recognition (no raw CSV committed)
 
-The raw `DEMO-50produits.csv` is **not** committed (it is treated as private
-commercial data). Recognition uses a **content fingerprint built from stable
-identifiers only**: an upload matches iff it contains *exactly* the 50 demo
-`external_product_id`s (`PTWWF001`…`PTWWF050`) **and** every product name
-matches the demo catalogue after normalisation (accent-, apostrophe- and
-case-insensitive). This is a SHA-256 over the sorted `id=normalised_name`
-pairs — effectively a file-free content checksum. Any extra / missing id or a
-changed name means "not the demo catalogue", so a real retailer catalogue can
-never be mistaken for it.
-
-An optional `ALTERA_DEMO_GOLDEN_SHA256` env var is reserved for callers that
-also want to pin the raw file's checksum; the id+name fingerprint is the
-primary mechanism and needs no file on disk.
+The raw CSVs are **not** committed (treated as private commercial data).
+Recognition uses a **content fingerprint built from stable identifiers only**:
+an upload matches a catalogue iff its `(external_product_id, product_name)`
+pairs produce that catalogue's SHA-256 fingerprint — i.e. exactly the same id
+set with matching names (normalised: accent-, apostrophe- and
+case-insensitive). Any extra/missing id or a changed name means "not a demo
+catalogue", so a real retailer catalogue can never be mistaken for one.
 
 ## What it does
 
 For a recognised upload, the orchestrator **skips the AI provider entirely**
-and writes pre-approved classifications from
-`altera_api/demo/golden_classification.py` (keyed by `external_product_id`):
+and writes pre-approved classifications keyed by `external_product_id`:
 
-- **Protein Tracker**: all 50 products → a `ProteinTrackerProductClassification`.
-- **WWF**: all 50 products → a `WWFProductClassification`.
+- **Protein Tracker** + **WWF**: every product classified.
 - Provenance is **honest**: `source=deterministic`, `confidence=1`,
-  `rule_id=demo.golden.pt` / `demo.golden.wwf`. It is **never** stored as
-  `source=ai` — we do not fake AI provenance.
+  `rule_id=demo.golden.pt` / `demo.golden.wwf`. Never `source=ai`.
 
-### Exactly two products in validation
+### Review routing — exactly two products
 
-Both methodologies are active, so flagging both products under both
-methodologies would create four review rows. Instead the two validation
-items are attached to a **single** methodology (**WWF** — composites are a
-first-class WWF Step-1 concept), so the validation experience shows exactly
-**two product rows**:
+Each catalogue declares which products go to review and on which
+methodologies.
 
-| External id | Product | WWF | Review |
-|-------------|---------|-----|--------|
-| `PTWWF048`  | Curry de poulet avec riz | composite · meat-based | ✅ on WWF |
-| `PTWWF049`  | Pizza fromage tomate | composite · vegetarian | ✅ on WWF |
+- **`demo25`** routes the **same two products** to **both** Protein Tracker
+  and WWF review. Result — each card shows:
 
-Both products still receive **both** a PT and a WWF classification (so both
-methodologies report 50/50 categorised). The Protein Tracker review queue
-stays empty; only WWF carries the two items. Re-running classification clears
-any stale review item on the other 48 products.
+  | Card | State |
+  |------|-------|
+  | Protein Tracker | 25/25 categorised · **2 in review** |
+  | WWF | 25/25 categorised · **2 in review** |
 
-The review reason is `requested` with an explicit rationale note ("Demo golden
-classification — composite/prepared product deliberately routed to human
-validation"), so the queue is auditable.
+  and the two PT review products are the **same ids** as the two WWF review
+  products (`PTWWF019`, `PTWWF025`).
 
-`PTWWF050` (Curry de lentilles végan) is a clearly-vegan composite and is
-**auto-accepted** — the demo story is "obvious vegan composite → automatic;
-meat & cheese composites → human validation".
+- **`demo50`** keeps its original behaviour: WWF-only review on
+  `PTWWF048` / `PTWWF049` (PT review queue empty).
 
-## Loading the demo catalogue
+The review reason is `requested` with an explicit rationale note, so the queue
+is auditable.
+
+### Validation UX note
+
+The validation table's default **product view** shows one row per product
+(with both the PT and the WWF status), so `demo25`'s two review products
+appear as **two product rows**, each offering a PT and a WWF validation. The
+legacy **review view** lists one row per `(product, methodology)`, so the same
+two products appear there as four rows (two per product). The methodology
+cards and the validation product set are what the demo asserts: PT 2, WWF 2,
+same two products.
+
+## Loading the current demo catalogue
 
 1. Enable the flag (above) on the backend.
 2. Create a project with **both** Protein Tracker and WWF enabled.
-3. Upload `DEMO-50produits.csv` (the CSV must contain both methodologies'
-   required columns so all 50 products are eligible for both jobs).
+3. Upload `DEMO.csv` (it carries both methodologies' required columns so all
+   25 products are eligible for both jobs).
 4. Run both classifications from the wizard's "Launch classification"
    buttons. Each completes cleanly (`completed`, never
    `completed_with_errors`); no AI call is made for this catalogue.
@@ -100,15 +100,15 @@ meat & cheese composites → human validation".
 
 - Protein Tracker and WWF stay **strictly separate** (own tables, own
   methodology-scoped review queues; no merged states/counts/calculations).
-- **No commercial fields** are sent to AI — in fact no AI call happens for
-  the recognised catalogue.
+- **No commercial fields** are sent to AI — in fact no AI call happens for a
+  recognised catalogue.
 - No production classification behaviour changes for normal uploads.
 - No calculation logic changes.
 
 ## Where the code lives
 
-- `apps/api/altera_api/demo/golden_classification.py` — fixture + recognition
-  + apply helpers.
+- `apps/api/altera_api/demo/golden_classification.py` — catalogues +
+  recognition + apply helpers.
 - `apps/api/altera_api/api/classification_job_orchestrator.py` — one
   flag-guarded branch in `advance_classification_job` (the wizard's path).
 - `apps/api/altera_api/api/orchestrator.py` — one flag-guarded branch in

@@ -1,18 +1,30 @@
-"""Demo-only **golden** classification for the ``DEMO-50produits`` catalogue.
+"""Demo-only **golden** classification for the retailer demo catalogues.
 
 Why this exists
 ===============
 
 For the retailer demo we want a *perfectly predictable* categorisation
-experience on one specific 50-product catalogue (``DEMO-50produits.csv``):
+experience on a specific, recognised demo catalogue:
 
-* 50/50 Protein Tracker products categorised,
-* 50/50 WWF products categorised,
-* exactly **two** products surfaced for manual validation
-  (``PTWWF048`` "Curry de poulet avec riz" and ``PTWWF049`` "Pizza fromage
-  tomate" — composite/prepared products that make the validation flow
-  meaningful),
-* no dependency on live LLM variability for this exact catalogue.
+* every product categorised by both methodologies,
+* exactly **two** products surfaced for manual validation (composite /
+  prepared products that make the validation flow meaningful),
+* no dependency on live LLM variability for that exact catalogue.
+
+Two catalogues are recognised (see :data:`_CATALOGUES`):
+
+* **``demo25``** — the current live demo file ``DEMO.csv`` (25 products,
+  ids ``PTWWF001``..``PTWWF025``). Review is requested on **both** Protein
+  Tracker **and** WWF for the *same* two products (``PTWWF019`` Ratatouille
+  de légumes, ``PTWWF025`` Pizza fromage tomate), so each card shows
+  "25/25 categorised · 2 in review".
+* **``demo50``** — the earlier ``DEMO-50produits`` catalogue (50 products),
+  kept for backward compatibility. Review is requested on WWF only for
+  ``PTWWF048`` / ``PTWWF049`` (its original behaviour / tests).
+
+The two catalogues reuse the same ``PTWWF0xx`` id scheme but map the ids to
+different products, so recognition is by a full-catalogue fingerprint (id
+set **and** product names — see :func:`_fingerprint`), never by ids alone.
 
 Hard safety properties
 =======================
@@ -21,10 +33,9 @@ Hard safety properties
   ``ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED`` is truthy. With the flag
   off the platform behaves exactly as it does today.
 * **Recognition-gated.** Even with the flag on, the golden path only
-  applies to an upload whose products are *exactly* the 50 demo products
-  (matched by ``external_product_id`` **and** product name — see
-  :data:`_DEMO_FINGERPRINT`). A real retailer catalogue can never be
-  mistaken for the demo catalogue.
+  applies to an upload whose products are *exactly* one of the recognised
+  catalogues. A real retailer catalogue can never be mistaken for a demo
+  catalogue (any extra/missing id or a changed name fails the fingerprint).
 * **No AI call.** The orchestrator skips the provider entirely for a
   recognised demo catalogue — no commercial fields, nothing, leaves the
   process.
@@ -36,26 +47,26 @@ Hard safety properties
 * **PT and WWF stay separate.** PT and WWF classifications are written to
   their own tables; review items are methodology-scoped.
 
+Review semantics
+================
+
+Each catalogue declares *which* products go to review
+(``review_external_ids``) and on *which* methodologies
+(``review_methodologies``). For ``demo25`` both methodologies review the
+*same* two products, so the Protein Tracker card and the WWF card each show
+exactly two in review and they are the same product ids. In the validation
+table's per-product view those are two product rows (each offering both a PT
+and a WWF validation); in the legacy per-(product, methodology) "review"
+view they appear as four rows (two per product) — the card counts and the
+product set are what the demo asserts.
+
 Easy to delete
 ==============
 
-All demo logic lives in this package plus one small, flag-guarded branch
-in ``classification_job_orchestrator.advance_classification_job``. Deleting
-the package + that branch removes the feature with no other changes.
-
-Review semantics (exactly two products visible in validation)
-=============================================================
-
-Both Protein Tracker and WWF are active on the demo project, so naively
-flagging both products under both methodologies would create *four*
-``(product, methodology)`` review rows. To keep the validation experience
-to exactly two product rows we attach the two review items to a **single**
-methodology (:data:`REVIEW_METHODOLOGY` = WWF — composites are a
-first-class WWF Step-1 concept, so "is this a meat / vegetarian / vegan
-composite?" is the most meaningful thing to validate). Both products still
-receive *both* a PT and a WWF classification (so both methodologies report
-50/50 categorised); only the WWF review queue carries the two items, and
-the Protein Tracker review queue stays empty.
+All demo logic lives in this package plus one small, flag-guarded branch in
+each of ``classification_job_orchestrator.advance_classification_job`` and
+``orchestrator.classify_upload``. Deleting the package + those branches
+removes the feature with no other changes.
 """
 
 from __future__ import annotations
@@ -64,7 +75,7 @@ import hashlib
 import os
 import unicodedata
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -115,16 +126,6 @@ def is_demo_golden_classification_enabled() -> bool:
 PT_RULE_ID = "demo.golden.pt"
 WWF_RULE_ID = "demo.golden.wwf"
 
-#: External product ids deliberately left for human validation. They are
-#: composite/prepared products and exercise the validation flow.
-REVIEW_EXTERNAL_IDS: frozenset[str] = frozenset({"PTWWF048", "PTWWF049"})
-
-#: Methodology whose review queue carries the two validation items. Keeping
-#: them on a single methodology guarantees exactly two product rows in the
-#: validation experience (see the module docstring). WWF is chosen because
-#: its Step-1 composite buckets make the validation decision meaningful.
-REVIEW_METHODOLOGY: Methodology = Methodology.WWF
-
 _REVIEW_RATIONALE = (
     "Demo golden classification — composite/prepared product deliberately "
     "routed to human validation."
@@ -132,7 +133,7 @@ _REVIEW_RATIONALE = (
 
 
 # ---------------------------------------------------------------------------
-# The golden catalogue
+# Golden entry + catalogue model
 # ---------------------------------------------------------------------------
 
 
@@ -158,7 +159,7 @@ class _GoldenEntry:
     wwf_bucket: WWFCompositeStep1Bucket | None = None
 
 
-# Enum aliases keep the table below compact and inspectable.
+# Enum aliases keep the tables below compact and inspectable.
 _PT = ProteinTrackerGroup
 _FG = WWFFoodGroup
 _S1 = WWFFG1Subgroup
@@ -168,11 +169,128 @@ _G5 = WWFFG5GrainKind
 _S7 = WWFFG7SnackKind
 _BK = WWFCompositeStep1Bucket
 
-#: external_product_id → pre-approved classification. Keyed by the STABLE
-#: external id (never row order). Built from the demo catalogue's ids +
-#: names only — the raw commercial CSV is NOT committed.
-_GOLDEN: dict[str, _GoldenEntry] = {
-    # — Plant proteins (FG1 plant subgroups) → PT plant_based_core ———————
+
+def _norm(text: str) -> str:
+    """Aggressively normalise a product name for fingerprinting: strip
+    accents, unify apostrophes, lowercase, collapse whitespace. Makes the
+    fingerprint robust to CSV encoding / apostrophe / casing differences
+    while still being a strong content signature."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    no_accents = "".join(c for c in decomposed if not unicodedata.combining(c))
+    unified = no_accents.replace("’", "'").replace("`", "'")
+    return " ".join(unified.lower().split())
+
+
+def _fingerprint(pairs: Iterable[tuple[str, str]]) -> str:
+    """SHA-256 over the sorted ``id=normalised_name`` pairs. Combines the
+    exact external-id set and the exact (normalised) names into a single
+    catalogue checksum — a file-free content signature."""
+    canonical = "\n".join(
+        f"{ext_id}={_norm(name)}" for ext_id, name in sorted(pairs)
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class DemoCatalogue:
+    """One recognised demo catalogue and its review routing."""
+
+    key: str
+    entries: dict[str, _GoldenEntry]
+    review_external_ids: frozenset[str]
+    review_methodologies: frozenset[Methodology]
+    fingerprint: str = field(default="", compare=False)
+
+    def size(self) -> int:
+        return len(self.entries)
+
+
+def _make_catalogue(
+    key: str,
+    entries: dict[str, _GoldenEntry],
+    *,
+    review_external_ids: Iterable[str],
+    review_methodologies: Iterable[Methodology],
+) -> DemoCatalogue:
+    review_ids = frozenset(review_external_ids)
+    # Defensive: every review id must exist in the catalogue.
+    missing = review_ids - set(entries)
+    if missing:
+        raise ValueError(f"{key}: review ids not in catalogue: {sorted(missing)}")
+    return DemoCatalogue(
+        key=key,
+        entries=entries,
+        review_external_ids=review_ids,
+        review_methodologies=frozenset(review_methodologies),
+        fingerprint=_fingerprint((e_id, e.name) for e_id, e in entries.items()),
+    )
+
+
+# ---------------------------------------------------------------------------
+# demo25 — the CURRENT live demo file (DEMO.csv, 25 products)
+#
+# Review on BOTH Protein Tracker AND WWF for the SAME two products
+# (PTWWF019 Ratatouille de légumes, PTWWF025 Pizza fromage tomate — the two
+# prepared/composite items in this catalogue), so each methodology card
+# shows "25/25 categorised · 2 in review" for the same product ids.
+# ---------------------------------------------------------------------------
+
+_DEMO25_ENTRIES: dict[str, _GoldenEntry] = {
+    # — Plant proteins → PT plant_based_core ——————————————————————————————
+    "PTWWF001": _GoldenEntry("Lentilles vertes sèches", _PT.PLANT_BASED_CORE, _FG.FG1, wwf_fg1=_S1.LEGUMES),
+    "PTWWF002": _GoldenEntry("Pois chiches en conserve", _PT.PLANT_BASED_CORE, _FG.FG1, wwf_fg1=_S1.LEGUMES),
+    "PTWWF003": _GoldenEntry("Noix de cajou", _PT.PLANT_BASED_CORE, _FG.FG1, wwf_fg1=_S1.NUTS_SEEDS),
+    # — Animal proteins → PT animal_core ——————————————————————————————————
+    "PTWWF004": _GoldenEntry("Œufs plein air boîte de six", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.EGGS),
+    "PTWWF005": _GoldenEntry("Filet de poulet", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.POULTRY),
+    "PTWWF006": _GoldenEntry("Escalope de dinde", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.POULTRY),
+    "PTWWF007": _GoldenEntry("Steak haché de bœuf", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.RED_MEAT),
+    "PTWWF008": _GoldenEntry("Jambon blanc tranché", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.PROCESSED_MEATS_ALTERNATIVES),
+    "PTWWF009": _GoldenEntry("Filet de saumon", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.SEAFOOD),
+    "PTWWF010": _GoldenEntry("Cabillaud surgelé", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.SEAFOOD),
+    # — Dairy → PT animal_core ————————————————————————————————————————————
+    "PTWWF011": _GoldenEntry("Lait demi-écrémé", _PT.ANIMAL_CORE, _FG.FG2, wwf_fg2=_S2.OTHER_DAIRY_ANIMAL),
+    "PTWWF012": _GoldenEntry("Yaourt nature", _PT.ANIMAL_CORE, _FG.FG2, wwf_fg2=_S2.OTHER_DAIRY_ANIMAL),
+    "PTWWF013": _GoldenEntry("Emmental râpé", _PT.ANIMAL_CORE, _FG.FG2, wwf_fg2=_S2.CHEESE),
+    "PTWWF014": _GoldenEntry("Parmesan râpé", _PT.ANIMAL_CORE, _FG.FG2, wwf_fg2=_S2.CHEESE),
+    # — Fats & oils (FG3) ——————————————————————————————————————————————————
+    "PTWWF015": _GoldenEntry("Huile d’olive", _PT.PLANT_BASED_NON_CORE, _FG.FG3, wwf_fg3=_S3.PLANT_BASED_FAT),
+    "PTWWF016": _GoldenEntry("Beurre doux", _PT.ANIMAL_CORE, _FG.FG3, wwf_fg3=_S3.ANIMAL_BASED_FAT),
+    # — Fruits & vegetables (FG4) → PT plant_based_non_core ————————————————
+    "PTWWF017": _GoldenEntry("Carottes fraîches", _PT.PLANT_BASED_NON_CORE, _FG.FG4),
+    "PTWWF018": _GoldenEntry("Brocoli surgelé", _PT.PLANT_BASED_NON_CORE, _FG.FG4),
+    # PTWWF019 — REVIEW product #1. A prepared multi-vegetable dish: is it
+    # "fruits & vegetables (FG4)" or a composite prepared dish? Genuinely
+    # ambiguous, so it is proposed as FG4 / plant_based_non_core and routed
+    # to human validation on BOTH methodologies.
+    "PTWWF019": _GoldenEntry("Ratatouille de légumes", _PT.PLANT_BASED_NON_CORE, _FG.FG4),
+    "PTWWF020": _GoldenEntry("Pommes", _PT.PLANT_BASED_NON_CORE, _FG.FG4),
+    # — Grains / cereals (FG5) ————————————————————————————————————————————
+    "PTWWF021": _GoldenEntry("Riz basmati", _PT.PLANT_BASED_NON_CORE, _FG.FG5, wwf_fg5=_G5.REFINED_GRAIN),
+    "PTWWF022": _GoldenEntry("Pâtes spaghetti", _PT.PLANT_BASED_NON_CORE, _FG.FG5, wwf_fg5=_G5.REFINED_GRAIN),
+    "PTWWF023": _GoldenEntry("Flocons d’avoine complets", _PT.PLANT_BASED_NON_CORE, _FG.FG5, wwf_fg5=_G5.WHOLE_GRAIN),
+    # — Snacks (FG7) ——————————————————————————————————————————————————————
+    "PTWWF024": _GoldenEntry("Chips nature", _PT.PLANT_BASED_NON_CORE, _FG.FG7, wwf_fg7=_S7.PLANT_BASED_SNACK),
+    # PTWWF025 — REVIEW product #2. A genuine composite: pizza base + cheese
+    # + tomato spans FG2/FG4/FG5. PT composite_products; WWF FG2/cheese
+    # vegetarian composite. Routed to human validation on BOTH methodologies.
+    "PTWWF025": _GoldenEntry(
+        "Pizza fromage tomate",
+        _PT.COMPOSITE_PRODUCTS,
+        _FG.FG2,
+        wwf_is_composite=True,
+        wwf_fg2=_S2.CHEESE,
+        wwf_bucket=_BK.VEGETARIAN,
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
+# demo50 — the earlier DEMO-50produits catalogue (kept for back-compat).
+# Review on WWF only for PTWWF048 / PTWWF049 (its original behaviour).
+# ---------------------------------------------------------------------------
+
+_DEMO50_ENTRIES: dict[str, _GoldenEntry] = {
     "PTWWF001": _GoldenEntry("Lentilles vertes sèches", _PT.PLANT_BASED_CORE, _FG.FG1, wwf_fg1=_S1.LEGUMES),
     "PTWWF002": _GoldenEntry("Pois chiches en conserve", _PT.PLANT_BASED_CORE, _FG.FG1, wwf_fg1=_S1.LEGUMES),
     "PTWWF003": _GoldenEntry("Haricots rouges en conserve", _PT.PLANT_BASED_CORE, _FG.FG1, wwf_fg1=_S1.LEGUMES),
@@ -183,7 +301,6 @@ _GOLDEN: dict[str, _GoldenEntry] = {
     "PTWWF008": _GoldenEntry("Graines de tournesol", _PT.PLANT_BASED_CORE, _FG.FG1, wwf_fg1=_S1.NUTS_SEEDS),
     "PTWWF009": _GoldenEntry("Steak végétal au soja", _PT.PLANT_BASED_CORE, _FG.FG1, wwf_fg1=_S1.MEAT_EGG_SEAFOOD_ALTERNATIVES),
     "PTWWF010": _GoldenEntry("Nuggets végétaux", _PT.PLANT_BASED_CORE, _FG.FG1, wwf_fg1=_S1.MEAT_EGG_SEAFOOD_ALTERNATIVES),
-    # — Animal proteins (FG1 animal subgroups) → PT animal_core ——————————
     "PTWWF011": _GoldenEntry("Œufs plein air boîte de six", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.EGGS),
     "PTWWF012": _GoldenEntry("Filet de poulet", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.POULTRY),
     "PTWWF013": _GoldenEntry("Escalope de dinde", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.POULTRY),
@@ -194,21 +311,17 @@ _GOLDEN: dict[str, _GoldenEntry] = {
     "PTWWF018": _GoldenEntry("Filet de saumon", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.SEAFOOD),
     "PTWWF019": _GoldenEntry("Cabillaud surgelé", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.SEAFOOD),
     "PTWWF020": _GoldenEntry("Crevettes décortiquées", _PT.ANIMAL_CORE, _FG.FG1, wwf_fg1=_S1.SEAFOOD),
-    # — Dairy (FG2 animal) → PT animal_core ——————————————————————————————
     "PTWWF021": _GoldenEntry("Lait demi-écrémé", _PT.ANIMAL_CORE, _FG.FG2, wwf_fg2=_S2.OTHER_DAIRY_ANIMAL),
     "PTWWF022": _GoldenEntry("Yaourt nature", _PT.ANIMAL_CORE, _FG.FG2, wwf_fg2=_S2.OTHER_DAIRY_ANIMAL),
     "PTWWF023": _GoldenEntry("Crème fraîche", _PT.ANIMAL_CORE, _FG.FG2, wwf_fg2=_S2.OTHER_DAIRY_ANIMAL),
     "PTWWF024": _GoldenEntry("Emmental râpé", _PT.ANIMAL_CORE, _FG.FG2, wwf_fg2=_S2.CHEESE),
     "PTWWF025": _GoldenEntry("Parmesan râpé", _PT.ANIMAL_CORE, _FG.FG2, wwf_fg2=_S2.CHEESE),
-    # — Dairy alternatives (FG2 plant) → PT plant_based_core —————————————
     "PTWWF026": _GoldenEntry("Boisson soja nature", _PT.PLANT_BASED_CORE, _FG.FG2, wwf_fg2=_S2.DAIRY_ALTERNATIVE_PLANT),
     "PTWWF027": _GoldenEntry("Yaourt végétal au soja", _PT.PLANT_BASED_CORE, _FG.FG2, wwf_fg2=_S2.DAIRY_ALTERNATIVE_PLANT),
     "PTWWF028": _GoldenEntry("Alternative végétale au fromage", _PT.PLANT_BASED_CORE, _FG.FG2, wwf_fg2=_S2.DAIRY_ALTERNATIVE_PLANT),
-    # — Fats & oils (FG3) ————————————————————————————————————————————————
     "PTWWF029": _GoldenEntry("Huile d’olive", _PT.PLANT_BASED_NON_CORE, _FG.FG3, wwf_fg3=_S3.PLANT_BASED_FAT),
     "PTWWF030": _GoldenEntry("Margarine végétale", _PT.PLANT_BASED_NON_CORE, _FG.FG3, wwf_fg3=_S3.PLANT_BASED_FAT),
     "PTWWF031": _GoldenEntry("Beurre doux", _PT.ANIMAL_CORE, _FG.FG3, wwf_fg3=_S3.ANIMAL_BASED_FAT),
-    # — Fruits & vegetables (FG4) → PT plant_based_non_core ——————————————
     "PTWWF032": _GoldenEntry("Carottes fraîches", _PT.PLANT_BASED_NON_CORE, _FG.FG4),
     "PTWWF033": _GoldenEntry("Tomates fraîches", _PT.PLANT_BASED_NON_CORE, _FG.FG4),
     "PTWWF034": _GoldenEntry("Brocoli surgelé", _PT.PLANT_BASED_NON_CORE, _FG.FG4),
@@ -216,24 +329,15 @@ _GOLDEN: dict[str, _GoldenEntry] = {
     "PTWWF036": _GoldenEntry("Pommes", _PT.PLANT_BASED_NON_CORE, _FG.FG4),
     "PTWWF037": _GoldenEntry("Fruits rouges surgelés", _PT.PLANT_BASED_NON_CORE, _FG.FG4),
     "PTWWF038": _GoldenEntry("Raisins secs", _PT.PLANT_BASED_NON_CORE, _FG.FG4),
-    # — Grains / cereals (FG5) ——————————————————————————————————————————
     "PTWWF039": _GoldenEntry("Riz basmati", _PT.PLANT_BASED_NON_CORE, _FG.FG5, wwf_fg5=_G5.REFINED_GRAIN),
     "PTWWF040": _GoldenEntry("Pâtes spaghetti", _PT.PLANT_BASED_NON_CORE, _FG.FG5, wwf_fg5=_G5.REFINED_GRAIN),
     "PTWWF041": _GoldenEntry("Flocons d’avoine complets", _PT.PLANT_BASED_NON_CORE, _FG.FG5, wwf_fg5=_G5.WHOLE_GRAIN),
     "PTWWF042": _GoldenEntry("Pain complet", _PT.PLANT_BASED_NON_CORE, _FG.FG5, wwf_fg5=_G5.WHOLE_GRAIN),
-    # — Tubers / starchy (FG6) ——————————————————————————————————————————
     "PTWWF043": _GoldenEntry("Pommes de terre", _PT.PLANT_BASED_NON_CORE, _FG.FG6),
     "PTWWF044": _GoldenEntry("Patates douces", _PT.PLANT_BASED_NON_CORE, _FG.FG6),
-    # — Snacks high in fat/salt/sugar (FG7) ——————————————————————————————
     "PTWWF045": _GoldenEntry("Frites au four surgelées", _PT.PLANT_BASED_NON_CORE, _FG.FG7, wwf_fg7=_S7.PLANT_BASED_SNACK),
     "PTWWF046": _GoldenEntry("Chips nature", _PT.PLANT_BASED_NON_CORE, _FG.FG7, wwf_fg7=_S7.PLANT_BASED_SNACK),
     "PTWWF047": _GoldenEntry("Chocolat noir", _PT.PLANT_BASED_NON_CORE, _FG.FG7, wwf_fg7=_S7.PLANT_BASED_SNACK),
-    # — Composite / prepared dishes ——————————————————————————————————————
-    # PTWWF048 + PTWWF049 are the TWO products left for manual validation
-    # (review item created on the WWF queue only — see REVIEW_*). PTWWF050
-    # is a clearly-vegan composite and is auto-accepted, which makes the
-    # demo story crisp: obvious vegan composite → auto; meat & cheese
-    # composites → human validation.
     "PTWWF048": _GoldenEntry(
         "Curry de poulet avec riz",
         _PT.COMPOSITE_PRODUCTS,
@@ -252,81 +356,74 @@ _GOLDEN: dict[str, _GoldenEntry] = {
     ),
     "PTWWF050": _GoldenEntry(
         "Curry de lentilles végan",
-        _PT.PLANT_BASED_CORE,  # vegan → all-plant → not a PT composite
+        _PT.PLANT_BASED_CORE,
         _FG.FG1,
-        wwf_is_composite=True,  # prepared dish → WWF Step-1 composite
+        wwf_is_composite=True,
         wwf_fg1=_S1.LEGUMES,
         wwf_bucket=_BK.VEGAN,
     ),
 }
 
 
-# ---------------------------------------------------------------------------
-# Recognition (id-set + name fingerprint == a content checksum without the
-# raw file)
-# ---------------------------------------------------------------------------
-
-
-def _norm(text: str) -> str:
-    """Aggressively normalise a product name for fingerprinting: strip
-    accents, unify apostrophes, lowercase, collapse whitespace. Makes the
-    fingerprint robust to CSV encoding / apostrophe / casing differences
-    while still being a strong content signature."""
-    decomposed = unicodedata.normalize("NFKD", text)
-    no_accents = "".join(c for c in decomposed if not unicodedata.combining(c))
-    unified = no_accents.replace("’", "'").replace("`", "'")
-    return " ".join(unified.lower().split())
-
-
-def _fingerprint(pairs: Iterable[tuple[str, str]]) -> str:
-    """SHA-256 over the sorted ``id=normalised_name`` pairs. Combines the
-    exact external-id set and the exact (normalised) names into a single
-    catalogue checksum."""
-    canonical = "\n".join(
-        f"{ext_id}={_norm(name)}" for ext_id, name in sorted(pairs)
-    )
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
-#: Stable checksum of the demo catalogue. Recognition compares an upload's
-#: (id, name) pairs against this. Logged for auditability.
-_DEMO_FINGERPRINT: str = _fingerprint(
-    (ext_id, entry.name) for ext_id, entry in _GOLDEN.items()
+DEMO25 = _make_catalogue(
+    "demo25",
+    _DEMO25_ENTRIES,
+    review_external_ids={"PTWWF019", "PTWWF025"},
+    review_methodologies={Methodology.PROTEIN_TRACKER, Methodology.WWF},
+)
+DEMO50 = _make_catalogue(
+    "demo50",
+    _DEMO50_ENTRIES,
+    review_external_ids={"PTWWF048", "PTWWF049"},
+    review_methodologies={Methodology.WWF},
 )
 
-#: Optional belt-and-braces override: if an operator sets
-#: ``ALTERA_DEMO_GOLDEN_SHA256`` to the raw CSV's SHA-256, recognition can
-#: additionally require it (enforced by the caller that has the file
-#: checksum). Exposed for completeness; the id+name fingerprint above is
-#: the primary, file-free recognition mechanism.
-_SHA256_ENV = "ALTERA_DEMO_GOLDEN_SHA256"
+#: All recognised demo catalogues. Order is irrelevant — recognition matches
+#: a unique fingerprint.
+_CATALOGUES: tuple[DemoCatalogue, ...] = (DEMO25, DEMO50)
 
 
-def demo_catalogue_fingerprint() -> str:
-    """The demo catalogue fingerprint (for logging / audit)."""
-    return _DEMO_FINGERPRINT
+# ---------------------------------------------------------------------------
+# Recognition
+# ---------------------------------------------------------------------------
 
 
-def is_demo_golden_upload(products: Sequence[NormalizedProduct]) -> bool:
-    """True iff *products* are exactly the recognised demo catalogue.
+def recognise_demo_catalogue(
+    products: Sequence[NormalizedProduct],
+) -> DemoCatalogue | None:
+    """Return the demo catalogue that *products* exactly match, or ``None``.
 
-    Strict: the upload must contain exactly the 50 demo external ids and
-    every product name must match (after normalisation). Any extra /
-    missing id, or a mismatched name, means "not the demo catalogue" — so a
-    real retailer upload is never mistaken for it.
+    Strict: an upload matches a catalogue iff its (external_product_id,
+    product_name) pairs produce the same content fingerprint — i.e. exactly
+    the same id set with matching (normalised) names. Any extra/missing id or
+    a changed name means "not a demo catalogue", so a real retailer upload is
+    never mistaken for one.
     """
     pairs: list[tuple[str, str]] = []
     seen: set[str] = set()
     for product in products:
         ext_id = product.external_product_id
         if ext_id in seen:
-            # Duplicate external id — not the clean demo catalogue.
-            return False
+            # Duplicate external id — not a clean demo catalogue.
+            return None
         seen.add(ext_id)
         pairs.append((ext_id, product.product_name))
-    if len(pairs) != len(_GOLDEN):
-        return False
-    return _fingerprint(pairs) == _DEMO_FINGERPRINT
+    fingerprint = _fingerprint(pairs)
+    for catalogue in _CATALOGUES:
+        if len(pairs) == catalogue.size() and fingerprint == catalogue.fingerprint:
+            return catalogue
+    return None
+
+
+def is_demo_golden_upload(products: Sequence[NormalizedProduct]) -> bool:
+    """True iff *products* are exactly one of the recognised demo
+    catalogues."""
+    return recognise_demo_catalogue(products) is not None
+
+
+def demo_catalogue_fingerprints() -> dict[str, str]:
+    """Catalogue key → fingerprint (for logging / audit)."""
+    return {c.key: c.fingerprint for c in _CATALOGUES}
 
 
 # ---------------------------------------------------------------------------
@@ -371,10 +468,12 @@ def get_demo_golden_classification_for_product(
     product: NormalizedProduct,
     methodology: Methodology,
     now: datetime,
+    *,
+    catalogue: DemoCatalogue,
 ) -> ProteinTrackerProductClassification | WWFProductClassification | None:
-    """Return the pre-approved classification for one demo product, or
-    ``None`` if the product is not part of the demo catalogue."""
-    entry = _GOLDEN.get(product.external_product_id)
+    """Return the pre-approved classification for one demo product within
+    *catalogue*, or ``None`` if the product is not part of it."""
+    entry = catalogue.entries.get(product.external_product_id)
     if entry is None:
         return None
     if methodology is Methodology.PROTEIN_TRACKER:
@@ -384,10 +483,14 @@ def get_demo_golden_classification_for_product(
     return None
 
 
-def _is_review_product(product: NormalizedProduct, methodology: Methodology) -> bool:
+def _is_review_product(
+    product: NormalizedProduct,
+    methodology: Methodology,
+    catalogue: DemoCatalogue,
+) -> bool:
     return (
-        methodology is REVIEW_METHODOLOGY
-        and product.external_product_id in REVIEW_EXTERNAL_IDS
+        methodology in catalogue.review_methodologies
+        and product.external_product_id in catalogue.review_external_ids
     )
 
 
@@ -396,44 +499,17 @@ def _is_review_product(product: NormalizedProduct, methodology: Methodology) -> 
 # ---------------------------------------------------------------------------
 
 
-def apply_demo_golden_pt_classification(
-    store: StoreProtocol, product: NormalizedProduct, now: datetime
-) -> bool:
-    """Upsert the golden PT classification for one demo product. Returns
-    ``True`` if the product was recognised and written."""
-    cls = get_demo_golden_classification_for_product(
-        product, Methodology.PROTEIN_TRACKER, now
-    )
-    if cls is None:
-        return False
-    store.upsert_pt_classification(cls)
-    _route_review(store, product, Methodology.PROTEIN_TRACKER, now)
-    return True
-
-
-def apply_demo_golden_wwf_classification(
-    store: StoreProtocol, product: NormalizedProduct, now: datetime
-) -> bool:
-    """Upsert the golden WWF classification for one demo product. Returns
-    ``True`` if the product was recognised and written."""
-    cls = get_demo_golden_classification_for_product(product, Methodology.WWF, now)
-    if cls is None:
-        return False
-    store.upsert_wwf_classification(cls)
-    _route_review(store, product, Methodology.WWF, now)
-    return True
-
-
 def _route_review(
     store: StoreProtocol,
     product: NormalizedProduct,
     methodology: Methodology,
+    catalogue: DemoCatalogue,
     now: datetime,
 ) -> None:
-    """Create the review item for the two validation products on the review
+    """Create the review item for a validation product on a review
     methodology; otherwise remove any stale review item so a re-run leaves a
     clean queue."""
-    if _is_review_product(product, methodology):
+    if _is_review_product(product, methodology, catalogue):
         store.upsert_review_item(
             ManualReviewItem(
                 product_id=product.id,
@@ -448,30 +524,72 @@ def _route_review(
         store.remove_review_item(product.id, methodology)
 
 
+def apply_demo_golden_pt_classification(
+    store: StoreProtocol,
+    product: NormalizedProduct,
+    now: datetime,
+    *,
+    catalogue: DemoCatalogue,
+) -> bool:
+    """Upsert the golden PT classification for one demo product. Returns
+    ``True`` if the product was recognised and written."""
+    cls = get_demo_golden_classification_for_product(
+        product, Methodology.PROTEIN_TRACKER, now, catalogue=catalogue
+    )
+    if cls is None:
+        return False
+    store.upsert_pt_classification(cls)
+    _route_review(store, product, Methodology.PROTEIN_TRACKER, catalogue, now)
+    return True
+
+
+def apply_demo_golden_wwf_classification(
+    store: StoreProtocol,
+    product: NormalizedProduct,
+    now: datetime,
+    *,
+    catalogue: DemoCatalogue,
+) -> bool:
+    """Upsert the golden WWF classification for one demo product. Returns
+    ``True`` if the product was recognised and written."""
+    cls = get_demo_golden_classification_for_product(
+        product, Methodology.WWF, now, catalogue=catalogue
+    )
+    if cls is None:
+        return False
+    store.upsert_wwf_classification(cls)
+    _route_review(store, product, Methodology.WWF, catalogue, now)
+    return True
+
+
 def apply_demo_golden_classification(
     store: StoreProtocol,
     products: Sequence[NormalizedProduct],
     methodology: Methodology,
     *,
     now: datetime,
+    catalogue: DemoCatalogue,
 ) -> int:
-    """Apply the golden classification for *methodology* to every demo
-    product in *products*. Returns the number of products written.
+    """Apply the golden classification for *methodology* to every product in
+    *products* that belongs to *catalogue*. Returns the number written.
 
-    PT and WWF are written to their own tables. Exactly the two
-    :data:`REVIEW_EXTERNAL_IDS` products get a review item — and only on
-    :data:`REVIEW_METHODOLOGY` — so the validation experience shows exactly
-    two product rows. Every other product has its stale review item (if
-    any) cleared for this methodology.
+    PT and WWF are written to their own tables. A product is given a review
+    item only when *methodology* is in ``catalogue.review_methodologies`` and
+    the product is one of ``catalogue.review_external_ids``; every other
+    product has its stale review item (if any) cleared for this methodology.
     """
     if methodology not in (Methodology.PROTEIN_TRACKER, Methodology.WWF):
         return 0
     written = 0
     for product in products:
         if methodology is Methodology.PROTEIN_TRACKER:
-            ok = apply_demo_golden_pt_classification(store, product, now)
+            ok = apply_demo_golden_pt_classification(
+                store, product, now, catalogue=catalogue
+            )
         else:
-            ok = apply_demo_golden_wwf_classification(store, product, now)
+            ok = apply_demo_golden_wwf_classification(
+                store, product, now, catalogue=catalogue
+            )
         if ok:
             written += 1
     return written

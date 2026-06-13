@@ -1,15 +1,18 @@
 """Demo golden classification — flag-gated deterministic path.
 
-Covers (per the demo brief):
+Primary coverage is the **current live demo file** ``DEMO.csv`` (the
+``demo25`` catalogue, 25 products). It asserts:
 
 * flag OFF → demo catalogue follows the normal AI path; golden NOT applied;
-* flag ON + recognised catalogue → 50/50 PT, 50/50 WWF, exactly 2 products
-  in validation (PTWWF048 + PTWWF049), review items methodology-scoped (no
-  leak), stale review items cleared, AI provider NEVER called;
+* flag ON + recognised catalogue → 25/25 PT, 25/25 WWF, PT needs_review == 2
+  AND WWF needs_review == 2 for the SAME two product ids
+  (``PTWWF019`` + ``PTWWF025``), AI provider NEVER called, stale review items
+  cleared on BOTH methodologies, honest deterministic provenance;
 * flag ON + NON-matching upload → golden NOT applied (AI path runs);
-* provenance is honest (source=deterministic, rule_id=demo.golden.*);
-* workflow aggregation reports the right classified / needs_review counts and
-  the validation queue shows exactly the two intended products.
+* workflow aggregation reports the right per-methodology counts.
+
+A regression block keeps the earlier ``demo50`` catalogue working
+(WWF-only review on ``PTWWF048`` / ``PTWWF049``).
 """
 
 from __future__ import annotations
@@ -35,6 +38,7 @@ from altera_api.api.orchestrator import classify_upload, list_review
 from altera_api.api.state import InMemoryStore
 from altera_api.api.workflow import compute_workflow_status
 from altera_api.demo import golden_classification as golden
+from altera_api.demo.golden_classification import DEMO25, DEMO50, DemoCatalogue
 from altera_api.domain.common import (
     AlteraRole,
     ClassificationSource,
@@ -53,16 +57,17 @@ from altera_api.domain.upload import Upload, UploadStatus
 
 FLAG = "ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED"
 
+# The current live demo catalogue and its two intended review products.
+DEMO25_REVIEW_IDS = {"PTWWF019", "PTWWF025"}
+
 
 # ---------------------------------------------------------------------------
 # Harness
 # ---------------------------------------------------------------------------
 
 
-def _demo_rows() -> list[tuple[str, str]]:
-    """The (external_product_id, product_name) pairs of the demo catalogue,
-    taken from the golden fixture itself."""
-    return [(ext_id, entry.name) for ext_id, entry in golden._GOLDEN.items()]
+def _rows(catalogue: DemoCatalogue) -> list[tuple[str, str]]:
+    return [(ext_id, entry.name) for ext_id, entry in catalogue.entries.items()]
 
 
 def _promote_org(store: InMemoryStore) -> tuple[UUID, UUID]:
@@ -91,15 +96,8 @@ def _promote_org(store: InMemoryStore) -> tuple[UUID, UUID]:
 
 
 def _make_product(
-    ext_id: str,
-    name: str,
-    *,
-    org_id: UUID,
-    project_id: UUID,
-    upload_id: UUID,
+    ext_id: str, name: str, *, org_id: UUID, project_id: UUID, upload_id: UUID
 ) -> NormalizedProduct:
-    """A demo product with BOTH PT and WWF inputs populated (the demo CSV
-    carries both methodologies' columns)."""
     return NormalizedProduct(
         id=uuid4(),
         project_id=project_id,
@@ -153,7 +151,7 @@ def _seed(
             organisation_id=org_id,
             project_id=project.id,
             storage_path=f"demo/{upload_id}.csv",
-            original_filename="DEMO-50produits.csv",
+            original_filename="DEMO.csv",
             status=UploadStatus.READY_FOR_CLASSIFICATION,
             row_count=len(products),
             uploaded_by=user_id,
@@ -229,7 +227,7 @@ def _run_job_to_terminal(
     user_id: UUID | None,
     methodology: Methodology,
     provider: ClassifierProvider | None,
-) -> None:
+):
     job = create_classification_job(
         store,
         organisation_id=org_id,
@@ -246,16 +244,17 @@ def _run_job_to_terminal(
     raise AssertionError("job did not reach terminal state")
 
 
-def _pt_reviews(store: InMemoryStore, project_id: UUID) -> list:
-    return store.list_review_items_for_project(
-        project_id, methodology=Methodology.PROTEIN_TRACKER
-    )
+def _reviews(store: InMemoryStore, project_id: UUID, methodology: Methodology):
+    return store.list_review_items_for_project(project_id, methodology=methodology)
 
 
-def _wwf_reviews(store: InMemoryStore, project_id: UUID) -> list:
-    return store.list_review_items_for_project(
-        project_id, methodology=Methodology.WWF
-    )
+def _review_ext_ids(
+    store: InMemoryStore, project_id: UUID, methodology: Methodology
+) -> set[str]:
+    return {
+        store.get_product(i.product_id).external_product_id
+        for i in _reviews(store, project_id, methodology)
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +268,7 @@ class TestFlagDisabled:
     ) -> None:
         monkeypatch.delenv(FLAG, raising=False)
         store = InMemoryStore()
-        org_id, project_id, upload_id, product_ids = _seed(store, _demo_rows())
+        org_id, project_id, upload_id, product_ids = _seed(store, _rows(DEMO25))
         provider = _RecordingProvider(Methodology.PROTEIN_TRACKER)
 
         _run_job_to_terminal(
@@ -282,25 +281,23 @@ class TestFlagDisabled:
             provider=provider,
         )
 
-        # AI WAS called (normal path) ...
         assert provider.calls, "flag off must use the AI provider"
-        # ... and NO classification carries the golden provenance.
         cls_map = store.get_pt_classifications_bulk(product_ids)
-        assert cls_map, "products should be classified via the normal path"
+        assert cls_map
         assert all(c.rule_id != golden.PT_RULE_ID for c in cls_map.values())
 
 
 # ---------------------------------------------------------------------------
-# B. Flag ON + recognised demo catalogue → golden path
+# B. Flag ON + current 25-product demo catalogue → golden path
 # ---------------------------------------------------------------------------
 
 
-class TestGoldenApplied:
+class TestDemo25GoldenApplied:
     @pytest.fixture
     def applied(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv(FLAG, "true")
         store = InMemoryStore()
-        org_id, project_id, upload_id, product_ids = _seed(store, _demo_rows())
+        org_id, project_id, upload_id, product_ids = _seed(store, _rows(DEMO25))
         pt_provider = _RecordingProvider(Methodology.PROTEIN_TRACKER)
         wwf_provider = _RecordingProvider(Methodology.WWF)
         _run_job_to_terminal(
@@ -329,69 +326,60 @@ class TestGoldenApplied:
             "wwf_provider": wwf_provider,
         }
 
-    def test_pt_50_of_50_categorised(self, applied) -> None:
-        cls = applied["store"].get_pt_classifications_bulk(applied["product_ids"])
-        assert len(cls) == 50
+    def test_pt_25_of_25_categorised(self, applied) -> None:
+        assert len(applied["store"].get_pt_classifications_bulk(applied["product_ids"])) == 25
 
-    def test_wwf_50_of_50_categorised(self, applied) -> None:
-        cls = applied["store"].get_wwf_classifications_bulk(applied["product_ids"])
-        assert len(cls) == 50
+    def test_wwf_25_of_25_categorised(self, applied) -> None:
+        assert len(applied["store"].get_wwf_classifications_bulk(applied["product_ids"])) == 25
 
-    def test_exactly_two_products_in_validation(self, applied) -> None:
+    def test_pt_has_exactly_two_in_review(self, applied) -> None:
+        assert len(_reviews(applied["store"], applied["project_id"], Methodology.PROTEIN_TRACKER)) == 2
+
+    def test_wwf_has_exactly_two_in_review(self, applied) -> None:
+        assert len(_reviews(applied["store"], applied["project_id"], Methodology.WWF)) == 2
+
+    def test_pt_and_wwf_review_products_are_the_same(self, applied) -> None:
         store, project_id = applied["store"], applied["project_id"]
-        pt = _pt_reviews(store, project_id)
-        wwf = _wwf_reviews(store, project_id)
-        # No PT review leak; exactly two WWF review items; two distinct
-        # products visible in validation overall.
-        assert len(pt) == 0
-        assert len(wwf) == 2
-        distinct_products = {i.product_id for i in (*pt, *wwf)}
-        assert len(distinct_products) == 2
+        pt_ids = _review_ext_ids(store, project_id, Methodology.PROTEIN_TRACKER)
+        wwf_ids = _review_ext_ids(store, project_id, Methodology.WWF)
+        assert pt_ids == wwf_ids == DEMO25_REVIEW_IDS
 
-    def test_review_products_are_the_intended_two(self, applied) -> None:
-        store, project_id = applied["store"], applied["project_id"]
-        ext_ids = {
-            store.get_product(i.product_id).external_product_id
-            for i in _wwf_reviews(store, project_id)
-        }
-        assert ext_ids == {"PTWWF048", "PTWWF049"}
-
-    def test_review_items_are_methodology_scoped(self, applied) -> None:
-        # The two review items are WWF-only; PT queue stays empty.
+    def test_review_items_methodology_scoped(self, applied) -> None:
         store, project_id = applied["store"], applied["project_id"]
         assert all(
-            i.methodology is Methodology.WWF
-            for i in _wwf_reviews(store, project_id)
+            i.methodology is Methodology.PROTEIN_TRACKER
+            for i in _reviews(store, project_id, Methodology.PROTEIN_TRACKER)
         )
-        assert _pt_reviews(store, project_id) == []
+        assert all(
+            i.methodology is Methodology.WWF
+            for i in _reviews(store, project_id, Methodology.WWF)
+        )
 
-    def test_provider_never_called_for_demo_catalogue(self, applied) -> None:
-        # Privacy + determinism: no AI call for the recognised catalogue.
+    def test_provider_never_called(self, applied) -> None:
         assert applied["pt_provider"].calls == []
         assert applied["wwf_provider"].calls == []
 
     def test_provenance_is_honest_deterministic(self, applied) -> None:
         store, product_ids = applied["store"], applied["product_ids"]
-        pt = store.get_pt_classifications_bulk(product_ids)
-        wwf = store.get_wwf_classifications_bulk(product_ids)
-        for c in pt.values():
+        for c in store.get_pt_classifications_bulk(product_ids).values():
             assert c.source is ClassificationSource.DETERMINISTIC
             assert c.rule_id == golden.PT_RULE_ID
             assert c.confidence == Decimal("1")
             assert c.ai_model is None and c.ai_prompt_version is None
-        for c in wwf.values():
+        for c in store.get_wwf_classifications_bulk(product_ids).values():
             assert c.source is ClassificationSource.DETERMINISTIC
             assert c.rule_id == golden.WWF_RULE_ID
             assert c.confidence == Decimal("1")
 
-    def test_review_reason_and_notes_are_explicit(self, applied) -> None:
+    def test_review_reason_and_notes_explicit(self, applied) -> None:
         store, project_id = applied["store"], applied["project_id"]
-        for item in _wwf_reviews(store, project_id):
-            assert item.reason is ManualReviewQueueReason.REQUESTED
-            assert item.status is ManualReviewStatus.IN_QUEUE
-            assert item.rationale_notes  # non-empty, explains the demo intent
+        for methodology in (Methodology.PROTEIN_TRACKER, Methodology.WWF):
+            for item in _reviews(store, project_id, methodology):
+                assert item.reason is ManualReviewQueueReason.REQUESTED
+                assert item.status is ManualReviewStatus.IN_QUEUE
+                assert item.rationale_notes
 
-    def test_two_composite_products_are_composite(self, applied) -> None:
+    def test_pizza_is_composite(self, applied) -> None:
         store, product_ids = applied["store"], applied["product_ids"]
         wwf = store.get_wwf_classifications_bulk(product_ids)
         by_ext = {
@@ -399,22 +387,21 @@ class TestGoldenApplied:
             for pid in product_ids
             if pid in wwf
         }
-        assert by_ext["PTWWF048"].wwf_is_composite is True
-        assert by_ext["PTWWF049"].wwf_is_composite is True
+        assert by_ext["PTWWF025"].wwf_is_composite is True
 
 
 # ---------------------------------------------------------------------------
-# C. Workflow aggregation + validation queue
+# C. Workflow aggregation + validation queue (the demo cards)
 # ---------------------------------------------------------------------------
 
 
-class TestWorkflowAggregation:
-    def test_counts_and_validation_queue(
+class TestDemo25WorkflowAggregation:
+    def test_cards_and_validation_queue(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv(FLAG, "true")
         store = InMemoryStore()
-        org_id, project_id, upload_id, product_ids = _seed(store, _demo_rows())
+        org_id, project_id, upload_id, product_ids = _seed(store, _rows(DEMO25))
         for methodology in (Methodology.PROTEIN_TRACKER, Methodology.WWF):
             _run_job_to_terminal(
                 store,
@@ -427,86 +414,59 @@ class TestWorkflowAggregation:
             )
 
         project = store.get_project(project_id)
-        status = compute_workflow_status(store, project)
-        by_meth = status.classification_by_methodology
-        assert by_meth["protein_tracker"].classified == 50
-        assert by_meth["protein_tracker"].needs_review == 0
-        assert by_meth["wwf"].classified == 50
+        by_meth = compute_workflow_status(store, project).classification_by_methodology
+        # The exact card state the demo must show.
+        assert by_meth["protein_tracker"].classified == 25
+        assert by_meth["protein_tracker"].total == 25
+        assert by_meth["protein_tracker"].needs_review == 2
+        assert by_meth["wwf"].classified == 25
+        assert by_meth["wwf"].total == 25
         assert by_meth["wwf"].needs_review == 2
 
-        # The validation experience shows exactly two product rows.
+        # The validation queue resolves to the same two products.
         reviews = list_review(store, project=project)
-        assert len({r.product_id for r in reviews}) == 2
-        assert {r.external_product_id for r in reviews} == {
-            "PTWWF048",
-            "PTWWF049",
-        }
-
-    def test_golden_path_needs_no_ai_provider(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        # The job must complete cleanly even with ai_provider=None, because
-        # the recognised demo catalogue never calls the provider.
-        monkeypatch.setenv(FLAG, "true")
-        store = InMemoryStore()
-        org_id, project_id, upload_id, product_ids = _seed(store, _demo_rows())
-        _run_job_to_terminal(
-            store,
-            org_id=org_id,
-            project_id=project_id,
-            upload_id=upload_id,
-            user_id=store.default_user_id,
-            methodology=Methodology.WWF,
-            provider=None,
-        )
-        assert len(store.get_wwf_classifications_bulk(product_ids)) == 50
+        assert {r.external_product_id for r in reviews} == DEMO25_REVIEW_IDS
 
 
 # ---------------------------------------------------------------------------
-# D. Stale review items cleared on (re-)classification
+# D. Stale review items cleared on BOTH methodologies
 # ---------------------------------------------------------------------------
 
 
-class TestStaleReviewCleared:
-    def test_reclassification_clears_stale_review_items(
+class TestDemo25StaleReviewCleared:
+    def test_reclassification_clears_stale_review_items_both_methodologies(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv(FLAG, "true")
         store = InMemoryStore()
-        org_id, project_id, upload_id, product_ids = _seed(store, _demo_rows())
+        org_id, project_id, upload_id, product_ids = _seed(store, _rows(DEMO25))
 
-        # Pre-seed stale WWF review items on a handful of NON-review demo
-        # products (simulating a prior AI run that parked them in review).
         from altera_api.api.orchestrator import _enqueue_review_item
 
         now = datetime.now(UTC)
-        stale_targets = product_ids[:5]  # PTWWF001..005 (not 048/049)
-        for pid in stale_targets:
-            _enqueue_review_item(
+        # Pre-seed stale review items on the FIRST five products (none of
+        # which is a designated review product) for BOTH methodologies.
+        for pid in product_ids[:5]:
+            for methodology in (Methodology.PROTEIN_TRACKER, Methodology.WWF):
+                _enqueue_review_item(
+                    store, pid, methodology, ManualReviewQueueReason.LOW_CONFIDENCE, now
+                )
+        assert len(_reviews(store, project_id, Methodology.PROTEIN_TRACKER)) == 5
+        assert len(_reviews(store, project_id, Methodology.WWF)) == 5
+
+        for methodology in (Methodology.PROTEIN_TRACKER, Methodology.WWF):
+            _run_job_to_terminal(
                 store,
-                pid,
-                Methodology.WWF,
-                ManualReviewQueueReason.LOW_CONFIDENCE,
-                now,
+                org_id=org_id,
+                project_id=project_id,
+                upload_id=upload_id,
+                user_id=store.default_user_id,
+                methodology=methodology,
+                provider=None,
             )
-        assert len(_wwf_reviews(store, project_id)) == 5
 
-        _run_job_to_terminal(
-            store,
-            org_id=org_id,
-            project_id=project_id,
-            upload_id=upload_id,
-            user_id=store.default_user_id,
-            methodology=Methodology.WWF,
-            provider=None,
-        )
-
-        # After the golden WWF run only the two intended items remain.
-        remaining = _wwf_reviews(store, project_id)
-        ext_ids = {
-            store.get_product(i.product_id).external_product_id for i in remaining
-        }
-        assert ext_ids == {"PTWWF048", "PTWWF049"}
+        assert _review_ext_ids(store, project_id, Methodology.PROTEIN_TRACKER) == DEMO25_REVIEW_IDS
+        assert _review_ext_ids(store, project_id, Methodology.WWF) == DEMO25_REVIEW_IDS
 
 
 # ---------------------------------------------------------------------------
@@ -520,9 +480,8 @@ class TestNonMatchingUpload:
     ) -> None:
         monkeypatch.setenv(FLAG, "true")
         store = InMemoryStore()
-        # A real-looking catalogue: same id scheme is NOT enough — names
-        # differ, so the fingerprint must reject it.
-        rows = [(f"PTWWF{n:03d}", f"Mystery product {n}") for n in range(1, 51)]
+        # Same id scheme, different names → fingerprint rejects it.
+        rows = [(f"PTWWF{n:03d}", f"Mystery product {n}") for n in range(1, 26)]
         org_id, project_id, upload_id, product_ids = _seed(store, rows)
         provider = _RecordingProvider(Methodology.PROTEIN_TRACKER)
 
@@ -536,7 +495,6 @@ class TestNonMatchingUpload:
             provider=provider,
         )
 
-        # Golden did NOT fire: provider was called and no golden provenance.
         assert provider.calls
         cls = store.get_pt_classifications_bulk(product_ids)
         assert all(c.rule_id != golden.PT_RULE_ID for c in cls.values())
@@ -548,29 +506,31 @@ class TestNonMatchingUpload:
 
 
 class TestDirectClassifyPath:
+    @pytest.mark.parametrize(
+        "methodology", [Methodology.PROTEIN_TRACKER, Methodology.WWF]
+    )
     def test_classify_upload_applies_golden(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, methodology: Methodology
     ) -> None:
         monkeypatch.setenv(FLAG, "true")
         store = InMemoryStore()
-        org_id, project_id, upload_id, product_ids = _seed(store, _demo_rows())
+        org_id, project_id, upload_id, product_ids = _seed(store, _rows(DEMO25))
         project = store.get_project(project_id)
-        provider = _RecordingProvider(Methodology.WWF)
+        provider = _RecordingProvider(methodology)
 
         summary = classify_upload(
             store,
             project=project,
             upload_id=upload_id,
-            methodology=Methodology.WWF,
+            methodology=methodology,
             ai_provider=provider,
             skip_deterministic=True,
         )
 
-        assert summary.matched == 50
-        assert summary.review_required_total == 2
-        assert provider.calls == []  # no AI call for the demo catalogue
-        assert len(store.get_wwf_classifications_bulk(product_ids)) == 50
-        assert len(_wwf_reviews(store, project_id)) == 2
+        assert summary.matched == 25
+        assert summary.review_required_total == 2  # both PT and WWF review 2
+        assert provider.calls == []
+        assert len(_reviews(store, project_id, methodology)) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -579,34 +539,69 @@ class TestDirectClassifyPath:
 
 
 class TestRecognition:
-    def test_recognises_exact_catalogue(self) -> None:
+    @pytest.mark.parametrize("catalogue", [DEMO25, DEMO50])
+    def test_recognises_exact_catalogue(self, catalogue: DemoCatalogue) -> None:
         store = InMemoryStore()
-        _org, _proj, _upl, _pids = _seed(store, _demo_rows())
-        products = store.list_products_by_ids(_pids)
-        assert golden.is_demo_golden_upload(products) is True
+        _org, _proj, _upl, pids = _seed(store, _rows(catalogue))
+        products = store.list_products_by_ids(pids)
+        recognised = golden.recognise_demo_catalogue(products)
+        assert recognised is not None and recognised.key == catalogue.key
 
     def test_rejects_missing_product(self) -> None:
         store = InMemoryStore()
-        _org, _proj, _upl, pids = _seed(store, _demo_rows())
-        products = store.list_products_by_ids(pids[:49])
-        assert golden.is_demo_golden_upload(products) is False
+        _org, _proj, _upl, pids = _seed(store, _rows(DEMO25))
+        assert golden.recognise_demo_catalogue(store.list_products_by_ids(pids[:24])) is None
 
     def test_rejects_renamed_product(self) -> None:
-        rows = _demo_rows()
+        rows = _rows(DEMO25)
         rows[0] = (rows[0][0], "Totally different product")
         store = InMemoryStore()
         _org, _proj, _upl, pids = _seed(store, rows)
-        products = store.list_products_by_ids(pids)
-        assert golden.is_demo_golden_upload(products) is False
+        assert golden.recognise_demo_catalogue(store.list_products_by_ids(pids)) is None
 
     def test_accent_and_case_insensitive(self) -> None:
-        # Same catalogue with stripped accents / different casing still
-        # recognised (robust to CSV encoding differences).
         rows = [
             (ext, name.upper().replace("É", "E").replace("È", "E"))
-            for ext, name in _demo_rows()
+            for ext, name in _rows(DEMO25)
         ]
         store = InMemoryStore()
         _org, _proj, _upl, pids = _seed(store, rows)
-        products = store.list_products_by_ids(pids)
-        assert golden.is_demo_golden_upload(products) is True
+        recognised = golden.recognise_demo_catalogue(store.list_products_by_ids(pids))
+        assert recognised is not None and recognised.key == "demo25"
+
+    def test_catalogues_have_distinct_fingerprints(self) -> None:
+        fps = golden.demo_catalogue_fingerprints()
+        assert fps["demo25"] != fps["demo50"]
+
+
+# ---------------------------------------------------------------------------
+# H. demo50 regression (earlier catalogue, WWF-only review)
+# ---------------------------------------------------------------------------
+
+
+class TestDemo50Regression:
+    def test_demo50_still_golden_wwf_only_review(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(FLAG, "true")
+        store = InMemoryStore()
+        org_id, project_id, upload_id, product_ids = _seed(store, _rows(DEMO50))
+        for methodology in (Methodology.PROTEIN_TRACKER, Methodology.WWF):
+            _run_job_to_terminal(
+                store,
+                org_id=org_id,
+                project_id=project_id,
+                upload_id=upload_id,
+                user_id=store.default_user_id,
+                methodology=methodology,
+                provider=None,
+            )
+
+        assert len(store.get_pt_classifications_bulk(product_ids)) == 50
+        assert len(store.get_wwf_classifications_bulk(product_ids)) == 50
+        # demo50 keeps WWF-only review on the two composite products.
+        assert _review_ext_ids(store, project_id, Methodology.PROTEIN_TRACKER) == set()
+        assert _review_ext_ids(store, project_id, Methodology.WWF) == {
+            "PTWWF048",
+            "PTWWF049",
+        }

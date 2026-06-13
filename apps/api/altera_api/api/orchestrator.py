@@ -36,15 +36,9 @@ from altera_api.calculation import (
     calculate_wwf_run,
 )
 from altera_api.demo.golden_classification import (
-    REVIEW_EXTERNAL_IDS as _DEMO_REVIEW_EXTERNAL_IDS,
-)
-from altera_api.demo.golden_classification import (
-    REVIEW_METHODOLOGY as _DEMO_REVIEW_METHODOLOGY,
-)
-from altera_api.demo.golden_classification import (
     apply_demo_golden_classification,
     is_demo_golden_classification_enabled,
-    is_demo_golden_upload,
+    recognise_demo_catalogue,
 )
 from altera_api.domain.common import ClassificationSource, Methodology
 from altera_api.domain.product import NormalizedProduct
@@ -513,7 +507,8 @@ def classify_upload(
             )
             if p is not None
         ]
-        if is_demo_golden_upload(all_products):
+        demo_catalogue = recognise_demo_catalogue(all_products)
+        if demo_catalogue is not None:
             now = datetime.now(UTC)
             eligible = [
                 p
@@ -521,13 +516,13 @@ def classify_upload(
                 if methodology in p.methodologies_enabled
             ]
             written = apply_demo_golden_classification(
-                store, eligible, methodology, now=now
+                store, eligible, methodology, now=now, catalogue=demo_catalogue
             )
             review = sum(
                 1
                 for p in eligible
-                if methodology is _DEMO_REVIEW_METHODOLOGY
-                and p.external_product_id in _DEMO_REVIEW_EXTERNAL_IDS
+                if methodology in demo_catalogue.review_methodologies
+                and p.external_product_id in demo_catalogue.review_external_ids
             )
             return ClassifySummary(
                 methodology=methodology,
