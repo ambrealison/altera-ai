@@ -68,13 +68,15 @@ and writes pre-approved classifications keyed by `external_product_id`:
 - **Protein Tracker** + **WWF**: every product classified.
 - The data is **100 % deterministic** golden data (the AI provider is never
   called). To make the demo *look* like a real classification run, the stored
-  `source` and `confidence` are **varied with a deterministic, reproducible
+  `source` + `confidence` are **varied with a deterministic, reproducible
   derivation from the product id** (no RNG — the demo stays byte-for-byte
-  stable): `confidence` sits in **90–99 %** (never a suspicious flat 100 %);
-  the two human-validated products read **`manual_review`** and of the rest
-  **~75 % read `deterministic` / ~25 % read `ai`** (Gen AI). No real AI is
-  involved — only the label varies — and `rule_id` stays `demo.golden.pt` /
-  `demo.golden.wwf` wherever the model permits, so the data remains auditable.
+  stable). Each combination **mirrors exactly what the real flows write**, so
+  every row persists in production: `deterministic` and `manual_review` rows
+  are **confidence 1.0** (a rule match / a human decision is certain) and only
+  the `ai` rows vary in **90–99 %**. The two human-validated products read
+  **`manual_review`** with a **real reviewer** (the launching user — never a
+  fabricated id); of the rest **~25 % read `ai`** (Gen AI) and **~75 %
+  `deterministic`**. No real AI is involved — only the label varies.
 
 ### Review routing — exactly two products
 

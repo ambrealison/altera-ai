@@ -520,7 +520,14 @@ def classify_upload(
                 if methodology in p.methodologies_enabled
             ]
             written = apply_demo_golden_classification(
-                store, eligible, methodology, now=now, catalogue=demo_catalogue
+                store,
+                eligible,
+                methodology,
+                now=now,
+                catalogue=demo_catalogue,
+                # Real user id for the demo's manual_review rows (a fabricated
+                # reviewer would violate the production reviewer_user_id FK).
+                reviewer_id=project.created_by,
             )
             review = sum(
                 1

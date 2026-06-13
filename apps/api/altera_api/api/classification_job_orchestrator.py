@@ -662,7 +662,15 @@ def advance_classification_job(
         )
         store.update_classification_job(running)
         apply_demo_golden_classification(
-            store, products, job.methodology, now=now, catalogue=demo_catalogue
+            store,
+            products,
+            job.methodology,
+            now=now,
+            catalogue=demo_catalogue,
+            # The job's launching user is a real user id — used as the reviewer
+            # for the demo's manual_review rows (a fabricated id would violate
+            # the production reviewer_user_id foreign key).
+            reviewer_id=job.created_by,
         )
         coverage, _coverage_ms = _refresh_coverage_counters(store, job)
         is_done = not remaining

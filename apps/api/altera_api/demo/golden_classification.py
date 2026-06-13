@@ -44,14 +44,15 @@ Hard safety properties
   recognised demo catalogue — no commercial fields, nothing, leaves the
   process. The data is 100 % deterministic golden data.
 * **Demo-presentation provenance.** To make the demo *look* like a real
-  classification run, the stored ``source`` and ``confidence`` are varied
-  with a deterministic, reproducible derivation from the product id (see
-  "Demo presentation provenance"): confidence sits in 90–99 % (never a
-  suspicious flat 100 %); the two human-validated products read
-  ``manual_review`` and of the rest ~75 % read ``deterministic`` / ~25 %
-  ``ai``. No real AI is involved — only the label varies — and the
-  ``rule_id`` stays ``demo.golden.*`` wherever the model permits, so the
-  data remains auditable.
+  classification run, the stored ``source`` + ``confidence`` are varied with
+  a deterministic, reproducible derivation from the product id (see "Demo
+  presentation provenance"). Each combination MIRRORS what the real flows
+  write, so every row persists in production: ``deterministic`` and
+  ``manual_review`` rows are confidence 1.0 (rule matches / human decisions
+  are certain), and only ``ai`` rows vary in 90–99 %. The two validated
+  products read ``manual_review`` with a REAL reviewer (the launching user —
+  never a fabricated id); of the rest ~25 % read ``ai`` (Gen AI) and ~75 %
+  ``deterministic``. No real AI is involved — only the label varies.
 * **PT and WWF stay separate.** PT and WWF classifications are written to
   their own tables; review items are methodology-scoped.
 
@@ -161,18 +162,20 @@ _REVIEW_RATIONALE = (
 #
 # The underlying data is ALWAYS deterministic golden data (recognition-gated;
 # the AI provider is never called). To make the demo *look* like a real
-# classification run, the SOURCE label and CONFIDENCE score are varied with a
-# deterministic, reproducible derivation from the product id (never a real
-# RNG, so the demo stays byte-for-byte stable and auditable):
-#   * confidence: a value in 90–99 % (never a suspicious flat 100 %);
-#   * source: the two human-validated products read ``manual_review``; of the
-#     rest ~75 % read ``deterministic`` and ~25 % read ``ai`` (Gen AI).
+# classification run, the SOURCE label + CONFIDENCE are varied with a
+# deterministic, reproducible derivation from the product id (no RNG — the demo
+# stays byte-for-byte stable and auditable). Crucially, each (source,
+# confidence, fields) combination MIRRORS EXACTLY what the real flows write, so
+# the production database accepts every row:
+#   * ``deterministic``  → confidence 1.0 + rule_id (rules are certain);
+#   * ``ai``             → confidence 0.90–0.99 + ai_model/ai_prompt_version;
+#   * ``manual_review``  → confidence 1.0 + a REAL reviewer (the launching
+#                          user); used only for the two validated products,
+#                          and only when a real reviewer id is available.
+# So only the ``ai`` rows carry a sub-100 % confidence — exactly as a real run
+# would (rule matches + human decisions are 100 %; AI inferences vary).
 # ---------------------------------------------------------------------------
 
-# A stable, demo-only "reviewer" id for the human-validated products (their
-# source reads ``manual_review``, which the domain model requires a reviewer
-# for). Not a real user — it only labels the demo's two review products.
-_DEMO_REVIEWER_ID = UUID("00000000-0000-0000-0000-0000deadbeef")
 _DEMO_AI_MODEL = "claude-opus-4-8"
 _DEMO_AI_PROMPT_VERSION = "demo-golden-1"
 
@@ -183,20 +186,30 @@ def _stable_int(*parts: str) -> int:
     return int(hashlib.sha256("|".join(parts).encode()).hexdigest()[:8], 16)
 
 
-def _demo_confidence(external_id: str, methodology: Methodology) -> Decimal:
-    """Demo confidence in 0.90–0.99 (never a flat 1.00), varied per product
+def _demo_ai_confidence(external_id: str, methodology: Methodology) -> Decimal:
+    """AI-row confidence in 0.90–0.99 (never a flat 1.00), varied per product
     AND per methodology. Deterministic, so the demo is fully reproducible."""
     pct = 90 + _stable_int(external_id, methodology.value, "conf") % 10
     return Decimal(pct) / Decimal(100)
 
 
 def _demo_source(
-    external_id: str, methodology: Methodology, *, is_review: bool
+    external_id: str,
+    methodology: Methodology,
+    *,
+    is_review: bool,
+    has_reviewer: bool,
 ) -> ClassificationSource:
-    """Demo source label: review products → ``manual_review``; of the rest
-    ~75 % ``deterministic`` and ~25 % ``ai`` (deterministic per product)."""
+    """Demo source label: a validated product reads ``manual_review`` when a
+    real reviewer is available (else it falls back to ``deterministic`` so the
+    demo never fabricates a reviewer); of the rest, ~25 % read ``ai`` (Gen AI)
+    and ~75 % ``deterministic`` (deterministic per product)."""
     if is_review:
-        return ClassificationSource.MANUAL_REVIEW
+        return (
+            ClassificationSource.MANUAL_REVIEW
+            if has_reviewer
+            else ClassificationSource.DETERMINISTIC
+        )
     return (
         ClassificationSource.AI
         if _stable_int(external_id, methodology.value, "src") % 4 == 0
@@ -526,28 +539,37 @@ def _provenance_kwargs(
     rule_id: str,
     *,
     is_review: bool,
+    reviewer_id: UUID | None,
 ) -> dict[str, object]:
-    """Source + confidence + the source-specific fields the domain model
-    requires (rule_id for deterministic, ai_model/version for ai,
-    reviewer for manual_review)."""
-    source = _demo_source(external_id, methodology, is_review=is_review)
-    confidence = _demo_confidence(external_id, methodology)
+    """Source + confidence + the source-specific fields the domain model AND
+    the production database require — mirroring EXACTLY what the real flows
+    write so every demo row persists cleanly (the in-memory store is laxer than
+    Postgres, which is why an earlier fabricated reviewer / deterministic-<1
+    confidence broke the live demo)."""
+    source = _demo_source(
+        external_id,
+        methodology,
+        is_review=is_review,
+        has_reviewer=reviewer_id is not None,
+    )
     if source is ClassificationSource.AI:
-        # AI forbids rule_id; requires ai_model + ai_prompt_version.
+        # AI: varied confidence; requires ai_model + ai_prompt_version; no rule_id.
         return {
             "source": source,
-            "confidence": confidence,
+            "confidence": _demo_ai_confidence(external_id, methodology),
             "ai_model": _DEMO_AI_MODEL,
             "ai_prompt_version": _DEMO_AI_PROMPT_VERSION,
         }
     if source is ClassificationSource.MANUAL_REVIEW:
+        # Mirror the real review flow: confidence 1.0 + a REAL reviewer id.
         return {
             "source": source,
-            "confidence": confidence,
+            "confidence": Decimal("1"),
             "rule_id": rule_id,
-            "reviewer_user_id": _DEMO_REVIEWER_ID,
+            "reviewer_user_id": reviewer_id,
         }
-    return {"source": source, "confidence": confidence, "rule_id": rule_id}
+    # Deterministic: confidence 1.0 + rule_id (a rule match is certain).
+    return {"source": source, "confidence": Decimal("1"), "rule_id": rule_id}
 
 
 def _build_pt(
@@ -556,6 +578,7 @@ def _build_pt(
     now: datetime,
     *,
     is_review: bool,
+    reviewer_id: UUID | None,
 ) -> ProteinTrackerProductClassification:
     return ProteinTrackerProductClassification(
         product_id=product.id,
@@ -566,6 +589,7 @@ def _build_pt(
             Methodology.PROTEIN_TRACKER,
             PT_RULE_ID,
             is_review=is_review,
+            reviewer_id=reviewer_id,
         ),
     )
 
@@ -576,6 +600,7 @@ def _build_wwf(
     now: datetime,
     *,
     is_review: bool,
+    reviewer_id: UUID | None,
 ) -> WWFProductClassification:
     return WWFProductClassification(
         product_id=product.id,
@@ -593,6 +618,7 @@ def _build_wwf(
             Methodology.WWF,
             WWF_RULE_ID,
             is_review=is_review,
+            reviewer_id=reviewer_id,
         ),
     )
 
@@ -603,17 +629,25 @@ def get_demo_golden_classification_for_product(
     now: datetime,
     *,
     catalogue: DemoCatalogue,
+    reviewer_id: UUID | None = None,
 ) -> ProteinTrackerProductClassification | WWFProductClassification | None:
     """Return the pre-approved classification for one demo product within
-    *catalogue*, or ``None`` if the product is not part of it."""
+    *catalogue*, or ``None`` if the product is not part of it. ``reviewer_id``
+    (the user who launched the job) is used as the reviewer for the validated
+    products' ``manual_review`` source; when absent they fall back to
+    ``deterministic`` rather than fabricate a reviewer."""
     entry = catalogue.entries.get(product.external_product_id)
     if entry is None:
         return None
     is_review = _is_review_product(product, methodology, catalogue)
     if methodology is Methodology.PROTEIN_TRACKER:
-        return _build_pt(product, entry, now, is_review=is_review)
+        return _build_pt(
+            product, entry, now, is_review=is_review, reviewer_id=reviewer_id
+        )
     if methodology is Methodology.WWF:
-        return _build_wwf(product, entry, now, is_review=is_review)
+        return _build_wwf(
+            product, entry, now, is_review=is_review, reviewer_id=reviewer_id
+        )
     return None
 
 
@@ -664,11 +698,16 @@ def apply_demo_golden_pt_classification(
     now: datetime,
     *,
     catalogue: DemoCatalogue,
+    reviewer_id: UUID | None = None,
 ) -> bool:
     """Upsert the golden PT classification for one demo product. Returns
     ``True`` if the product was recognised and written."""
     cls = get_demo_golden_classification_for_product(
-        product, Methodology.PROTEIN_TRACKER, now, catalogue=catalogue
+        product,
+        Methodology.PROTEIN_TRACKER,
+        now,
+        catalogue=catalogue,
+        reviewer_id=reviewer_id,
     )
     if cls is None:
         return False
@@ -683,11 +722,12 @@ def apply_demo_golden_wwf_classification(
     now: datetime,
     *,
     catalogue: DemoCatalogue,
+    reviewer_id: UUID | None = None,
 ) -> bool:
     """Upsert the golden WWF classification for one demo product. Returns
     ``True`` if the product was recognised and written."""
     cls = get_demo_golden_classification_for_product(
-        product, Methodology.WWF, now, catalogue=catalogue
+        product, Methodology.WWF, now, catalogue=catalogue, reviewer_id=reviewer_id
     )
     if cls is None:
         return False
@@ -703,6 +743,7 @@ def apply_demo_golden_classification(
     *,
     now: datetime,
     catalogue: DemoCatalogue,
+    reviewer_id: UUID | None = None,
 ) -> int:
     """Apply the golden classification for *methodology* to every product in
     *products* that belongs to *catalogue*. Returns the number written.
@@ -718,11 +759,11 @@ def apply_demo_golden_classification(
     for product in products:
         if methodology is Methodology.PROTEIN_TRACKER:
             ok = apply_demo_golden_pt_classification(
-                store, product, now, catalogue=catalogue
+                store, product, now, catalogue=catalogue, reviewer_id=reviewer_id
             )
         else:
             ok = apply_demo_golden_wwf_classification(
-                store, product, now, catalogue=catalogue
+                store, product, now, catalogue=catalogue, reviewer_id=reviewer_id
             )
         if ok:
             written += 1

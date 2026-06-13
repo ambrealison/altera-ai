@@ -399,10 +399,13 @@ class TestDemo25GoldenApplied:
 
     def test_provenance_demo_presentation(self, applied) -> None:
         # The data is deterministic golden data, but the demo VARIES the
-        # source + confidence so it looks like a real classification run:
-        # confidence sits in 90–99 % (never a suspicious flat 100 %); the two
-        # human-validated products read manual_review; of the rest there is a
-        # genuine mix of deterministic + ai (Gen AI). It is fully reproducible.
+        # source + confidence so it looks like a real run — and every
+        # (source, confidence, fields) combo MIRRORS what the real flows
+        # write, so it persists in production: deterministic + manual_review
+        # rows are confidence 1.0 (rule matches / human decisions are certain),
+        # only the ai rows vary in 90–99 %. The two validated products read
+        # manual_review with a REAL reviewer (never a fabricated id). Fully
+        # reproducible; the AI provider is never called.
         store, product_ids = applied["store"], applied["product_ids"]
         ext = {
             pid: store.get_product(pid).external_product_id for pid in product_ids
@@ -413,17 +416,19 @@ class TestDemo25GoldenApplied:
         ):
             sources: set[ClassificationSource] = set()
             for pid, c in bulk.items():
-                assert Decimal("0.90") <= c.confidence <= Decimal("0.99")
                 sources.add(c.source)
                 if ext[pid] in DEMO25_REVIEW_IDS:
                     assert c.source is ClassificationSource.MANUAL_REVIEW
                     assert c.reviewer_user_id is not None
+                    assert c.confidence == Decimal("1")
                 elif c.source is ClassificationSource.DETERMINISTIC:
                     assert c.rule_id == rule_id
                     assert c.ai_model is None and c.ai_prompt_version is None
+                    assert c.confidence == Decimal("1")
                 elif c.source is ClassificationSource.AI:
                     assert c.ai_model is not None and c.ai_prompt_version is not None
                     assert c.rule_id is None
+                    assert Decimal("0.90") <= c.confidence <= Decimal("0.99")
                 else:
                     raise AssertionError(f"unexpected source {c.source}")
             # A genuine mix — not a wall of a single source.

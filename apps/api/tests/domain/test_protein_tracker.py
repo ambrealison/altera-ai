@@ -53,12 +53,11 @@ class TestProteinTrackerProductClassification:
                 updated_at=now,
             )
         with pytest.raises(PydanticValidationError):
-            # Deterministic confidence must be high (>= 0.9); 0.5 is too low.
             ProteinTrackerProductClassification(
                 product_id=product_id,
                 pt_group=ProteinTrackerGroup.PLANT_BASED_CORE,
                 source=ClassificationSource.DETERMINISTIC,
-                confidence=Decimal("0.5"),
+                confidence=Decimal("0.9"),
                 rule_id="pt.pulses.lentils",
                 updated_at=now,
             )
