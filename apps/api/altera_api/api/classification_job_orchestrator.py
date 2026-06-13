@@ -235,6 +235,24 @@ def create_classification_job(
         batch_size = _default_batch_size(methodology)
     elif batch_size <= 0 or batch_size > MAX_BATCH_SIZE:
         batch_size = min(max(batch_size, 1), MAX_BATCH_SIZE)
+    # Phase Demo-Golden — a recognised demo catalogue is ALWAYS fully
+    # (re)classified deterministically. Without this, enabling the flag
+    # after a prior (AI) run would be a no-op: ``only_missing_or_failed``
+    # skips already-classified products, so the golden path would never run
+    # and the stale AI classifications + their review items would remain
+    # (e.g. WWF showing every row in review). Forcing overwrite makes the
+    # demo idempotent and self-healing. Flag-gated, so production is
+    # unaffected.
+    if (
+        is_demo_golden_classification_enabled()
+        and methodology in (Methodology.PROTEIN_TRACKER, Methodology.WWF)
+    ):
+        _upload_record = store.get_upload(upload_id)
+        if _upload_record is not None and recognise_demo_catalogue(
+            store.list_products_by_ids(list(_upload_record.product_ids))
+        ) is not None:
+            overwrite = True
+            only_missing_or_failed = False
     t_total = time.perf_counter()
     eligible, timings = _eligible_product_ids(
         store,

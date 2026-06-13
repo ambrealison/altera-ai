@@ -470,6 +470,74 @@ class TestDemo25StaleReviewCleared:
 
 
 # ---------------------------------------------------------------------------
+# D2. Re-run after a prior AI run replaces everything with golden
+#
+# Reproduces the reported bug: the catalogue was first classified by live AI
+# (flag off) — WWF landed every row in review — then the flag was enabled and
+# classification re-run. The re-run MUST replace the stale AI state with the
+# golden fixture (PT 2 + WWF 2), not skip already-classified products.
+# ---------------------------------------------------------------------------
+
+
+class TestDemo25ReRunReplacesPriorAiState:
+    def test_rerun_with_flag_on_overrides_prior_ai_reviews(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from altera_api.api.orchestrator import _enqueue_review_item
+        from altera_api.domain.wwf import (
+            WWFFG1Subgroup,
+            WWFFoodGroup,
+            WWFProductClassification,
+        )
+
+        # --- 1. Prior live-AI run (flag OFF): every WWF row low-confidence
+        #        → all 25 stored as source=ai AND parked in review. ---
+        monkeypatch.delenv(FLAG, raising=False)
+        store = InMemoryStore()
+        org_id, project_id, upload_id, product_ids = _seed(store, _rows(DEMO25))
+        now = datetime.now(UTC)
+        for pid in product_ids:
+            store.upsert_wwf_classification(
+                WWFProductClassification(
+                    product_id=pid,
+                    wwf_food_group=WWFFoodGroup.FG1,
+                    wwf_is_composite=False,
+                    fg1_subgroup=WWFFG1Subgroup.LEGUMES,
+                    source=ClassificationSource.AI,
+                    confidence=Decimal("0.5"),
+                    ai_prompt_version="demo-test-v1",
+                    ai_model="demo-test-model",
+                    updated_at=now,
+                )
+            )
+            _enqueue_review_item(
+                store, pid, Methodology.WWF, ManualReviewQueueReason.LOW_CONFIDENCE, now
+            )
+        assert len(_reviews(store, project_id, Methodology.WWF)) == 25  # the bug
+
+        # --- 2. Enable the flag and RE-RUN classification. ---
+        monkeypatch.setenv(FLAG, "true")
+        provider = _RecordingProvider(Methodology.WWF)
+        _run_job_to_terminal(
+            store,
+            org_id=org_id,
+            project_id=project_id,
+            upload_id=upload_id,
+            user_id=store.default_user_id,
+            methodology=Methodology.WWF,
+            provider=provider,
+        )
+
+        # --- 3. Golden fully replaced the AI state: 2 review (not 25), no AI
+        #        call, deterministic provenance. ---
+        assert _review_ext_ids(store, project_id, Methodology.WWF) == DEMO25_REVIEW_IDS
+        assert provider.calls == []
+        wwf = store.get_wwf_classifications_bulk(product_ids)
+        assert len(wwf) == 25
+        assert all(c.rule_id == golden.WWF_RULE_ID for c in wwf.values())
+
+
+# ---------------------------------------------------------------------------
 # E. Flag ON but NON-matching upload → golden NOT applied
 # ---------------------------------------------------------------------------
 
