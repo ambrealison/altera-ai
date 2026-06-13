@@ -10,10 +10,13 @@
  * technical detail link is admin-only.
  */
 
+import { useMemo, useState } from "react";
+
 import { Button, Card } from "@/components/ui";
 import { RunReport } from "@/components/RunReport";
 import type { Run, WorkflowStep } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { createApi } from "@/lib/api";
+import { useI18n, useT } from "@/lib/i18n";
 import { useRunReport } from "@/lib/use-run-report";
 
 export function StepReport({
@@ -28,9 +31,25 @@ export function StepReport({
   latestRun: Run | null;
 }) {
   const t = useT();
+  const { lang } = useI18n();
+  const api = useMemo(() => createApi(accessToken), [accessToken]);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const hasRun = step.status === "complete" && latestRun !== null;
   const runId = hasRun && latestRun ? latestRun.id : null;
   const { report, error, retry } = useRunReport(projectId, runId, accessToken);
+
+  async function downloadExcel() {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      await api.downloadCategorizedExport(projectId, lang);
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : t("report.export.error"));
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   // No successful run yet — invite the user back to the calculation step.
   if (!hasRun) {
@@ -58,6 +77,35 @@ export function StepReport({
   if (report) {
     return (
       <div className="space-y-5">
+        {/* Export CTA — download the categorised catalogue (.xlsx): all
+            products + categories + one analysis sheet per methodology. */}
+        <Card>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-forest-900">
+                📊 {t("report.export.title")}
+              </h3>
+              <p className="mt-0.5 text-sm text-ink-muted">
+                {t("report.export.body")}
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => void downloadExcel()}
+              disabled={downloading}
+            >
+              {downloading
+                ? t("report.export.downloading")
+                : `⬇️ ${t("report.export.button")}`}
+            </Button>
+          </div>
+          {downloadError && (
+            <div className="mt-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
+              {downloadError}
+            </div>
+          )}
+        </Card>
+
         <RunReport doc={report} />
       </div>
     );

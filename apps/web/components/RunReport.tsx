@@ -13,7 +13,9 @@
  * and PT+WWF.
  */
 
-import { Card, Pill } from "@/components/ui";
+import { useState } from "react";
+
+import { Card, Pill, Segmented } from "@/components/ui";
 import { formatKg, formatPct, formatGapPts } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import type {
@@ -467,7 +469,11 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
 // ---------------------------------------------------------------------------
 export function RunReport({ doc }: { doc: ReportDocument }) {
   const t = useT();
-  const both = doc.pt_section && doc.wwf_section;
+  const both = Boolean(doc.pt_section && doc.wwf_section);
+  // Phase Report-Toggle — when a project has BOTH methodologies, the report
+  // is a "double report": a segmented toggle switches the detailed view
+  // between Protein Tracker and WWF (the hero stays a combined overview).
+  const [view, setView] = useState<"pt" | "wwf">("pt");
   return (
     <div className="space-y-4">
       {/* Hero / executive summary */}
@@ -527,18 +533,35 @@ export function RunReport({ doc }: { doc: ReportDocument }) {
       </div>
 
       {both && (
-        <div className="rounded-2xl border border-line bg-white/80 px-4 py-3">
-          <p className="text-sm font-semibold text-forest-900">
-            📋 {t("report.combined.title")}
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-line bg-white/80 px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+            {t("report.toggle.label")}
           </p>
-          <p className="mt-1 text-sm text-ink-muted">
-            {t("report.combined.body")}
-          </p>
+          <Segmented
+            value={view}
+            onChange={(v) => setView(v)}
+            options={[
+              { value: "pt", label: `🌱 ${t("report.toggle.pt")}` },
+              { value: "wwf", label: `🌍 ${t("report.toggle.wwf")}` },
+            ]}
+          />
         </div>
       )}
 
-      {doc.pt_section && <PtSection pt={doc.pt_section} />}
-      {doc.wwf_section && <WwfSection wwf={doc.wwf_section} />}
+      {/* Double report: when both methodologies exist the toggle picks the
+          detailed section; otherwise render whichever single section exists. */}
+      {both ? (
+        view === "pt" ? (
+          <PtSection pt={doc.pt_section!} />
+        ) : (
+          <WwfSection wwf={doc.wwf_section!} />
+        )
+      ) : (
+        <>
+          {doc.pt_section && <PtSection pt={doc.pt_section} />}
+          {doc.wwf_section && <WwfSection wwf={doc.wwf_section} />}
+        </>
+      )}
 
       {doc.recommendations && doc.recommendations.length > 0 && (
         <Card>

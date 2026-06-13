@@ -1661,6 +1661,38 @@ export function createApi(accessToken: string | null) {
       URL.revokeObjectURL(objectUrl);
     },
 
+    /**
+     * Download the categorised catalogue as an .xlsx: one data sheet (all
+     * products + their PT & WWF categories) plus one analysis sheet per
+     * methodology with charts. Sends the auth token and triggers a browser
+     * download via a blob URL.
+     */
+    downloadCategorizedExport: async (
+      projectId: string,
+      lang: "fr" | "en" = "fr",
+    ): Promise<void> => {
+      const url = `${getApiBaseUrl()}/api/v1/projects/${projectId}/export/categorized.xlsx?lang=${lang}`;
+      const headers: Record<string, string> = {};
+      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+      const res = await fetch(url, { headers, cache: "no-store", credentials: "omit" });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(body?.detail ?? `${res.status} ${res.statusText}`);
+      }
+      const disposition = res.headers.get("Content-Disposition");
+      const filenameMatch = disposition?.match(/filename="([^"]+)"/);
+      const filename = filenameMatch?.[1] ?? "altera-export-categorise.xlsx";
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+    },
+
     listExports: (projectId: string, runId: string) =>
       request<Page<ExportRecord>>(
         `/api/v1/projects/${projectId}/runs/${runId}/exports`,

@@ -3929,6 +3929,83 @@ def _to_export_response(r: ExportRecord) -> ExportRecordResponse:
     )
 
 
+@api_router.get("/projects/{project_id}/export/categorized.xlsx")
+def export_categorized_xlsx_route(
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+    lang: Literal["fr", "en"] = "fr",
+) -> Response:
+    """Download an .xlsx of the whole catalogue with its PT + WWF categories
+    plus one analysis sheet per methodology (charts). Non-commercial fields
+    only — volumes / prices / margins are never exported."""
+    from altera_api.domain.common import Methodology
+    from altera_api.exports.categorized_workbook import (
+        ExportRow,
+        build_categorized_workbook,
+    )
+
+    products = store.list_products_for_project(project.id)
+    pids = [p.id for p in products]
+    pt_map = store.get_pt_classifications_bulk(pids) if pids else {}
+    wwf_map = store.get_wwf_classifications_bulk(pids) if pids else {}
+    pt_enabled = Methodology.PROTEIN_TRACKER in project.methodologies_enabled
+    wwf_enabled = Methodology.WWF in project.methodologies_enabled
+
+    rows: list[ExportRow] = []
+    for p in products:
+        ptc = pt_map.get(p.id)
+        wc = wwf_map.get(p.id)
+        wwf_sub = None
+        if wc is not None:
+            sub = (
+                wc.fg1_subgroup
+                or wc.fg2_subgroup
+                or wc.fg3_subgroup
+                or wc.fg5_grain_kind
+                or wc.fg7_snack_kind
+            )
+            wwf_sub = sub.value if sub is not None else None
+        rows.append(
+            ExportRow(
+                external_product_id=p.external_product_id,
+                product_name=p.product_name,
+                retailer_category=p.retailer_category,
+                pt_group=ptc.pt_group.value if ptc is not None else None,
+                pt_source=ptc.source.value if ptc is not None else None,
+                pt_confidence=float(ptc.confidence) if ptc is not None else None,
+                wwf_food_group=wc.wwf_food_group.value if wc is not None else None,
+                wwf_subgroup=wwf_sub,
+                wwf_composite_bucket=(
+                    wc.composite_step1_bucket.value
+                    if wc is not None and wc.composite_step1_bucket is not None
+                    else None
+                ),
+                wwf_source=wc.source.value if wc is not None else None,
+                wwf_confidence=float(wc.confidence) if wc is not None else None,
+            )
+        )
+
+    data = build_categorized_workbook(
+        project_name=project.name,
+        rows=rows,
+        pt_enabled=pt_enabled,
+        wwf_enabled=wwf_enabled,
+        lang=lang,
+    )
+    return Response(
+        content=data,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+        headers={
+            "Content-Disposition": (
+                'attachment; filename="altera-export-categorise.xlsx"'
+            )
+        },
+    )
+
+
 @api_router.get("/projects/{project_id}/runs/{run_id}/export")
 def export_run_route(
     run_id: UUID,

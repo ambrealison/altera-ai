@@ -40,6 +40,26 @@ export const report: I18nDict = {
     fr: "Ce projet combine Protein Tracker (ratio protéines) et WWF (groupes alimentaires). Les deux analyses ci-dessous se lisent ensemble : le ratio végétal complète la répartition par groupe.",
     en: "This project combines Protein Tracker (protein ratio) and WWF (food groups). The two analyses below read together: the plant ratio complements the per-group breakdown.",
   },
+  "report.toggle.label": {
+    fr: "Méthodologie du rapport",
+    en: "Report methodology",
+  },
+  "report.toggle.pt": { fr: "Protein Tracker", en: "Protein Tracker" },
+  "report.toggle.wwf": { fr: "WWF", en: "WWF" },
+  "report.export.title": {
+    fr: "Exporter le catalogue catégorisé",
+    en: "Export the categorised catalogue",
+  },
+  "report.export.body": {
+    fr: "Fichier Excel : tous vos produits avec leurs catégories Protein Tracker et WWF, plus un onglet d'analyse par méthodologie avec graphiques.",
+    en: "Excel file: all your products with their Protein Tracker and WWF categories, plus one analysis tab per methodology with charts.",
+  },
+  "report.export.button": { fr: "Télécharger l'Excel", en: "Download Excel" },
+  "report.export.downloading": { fr: "Préparation…", en: "Preparing…" },
+  "report.export.error": {
+    fr: "Le téléchargement a échoué. Réessayez.",
+    en: "The download failed. Please try again.",
+  },
 
   // PT KPIs
   "report.kpi.plantProtein": { fr: "Protéines végétales", en: "Plant protein" },
