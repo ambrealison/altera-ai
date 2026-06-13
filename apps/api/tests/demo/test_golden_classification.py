@@ -407,23 +407,35 @@ class TestDemo25GoldenApplied:
                 assert item.status is ManualReviewStatus.IN_QUEUE
                 assert item.rationale_notes
 
-    def test_pizza_is_composite_vegetarian(self, applied) -> None:
-        # PTWWF025 "Pizza fromage tomate" must be a WWF composite with the
-        # VEGETARIAN Step-1 bucket — NOT a plain FG2 dairy product. (FG2 is
-        # only the schema filler the domain model requires; the bucket is
-        # what the calculation and the UI use.)
+    def test_pizza_vegan_pt_noncore_and_wwf_composite_vegan(self, applied) -> None:
+        # PTWWF025 "Pizza fromage tomate vegan" is VEGAN:
+        #   - Protein Tracker: plant_based_non_core (NOT a plant/animal
+        #     composite_products — it is all-plant);
+        #   - WWF: a composite with the VEGAN Step-1 bucket — NOT a plain FG2
+        #     dairy product (FG1 is only the schema filler; the bucket drives
+        #     the calculation and every display).
+        from altera_api.domain.protein_tracker import ProteinTrackerGroup
         from altera_api.domain.wwf import WWFCompositeStep1Bucket
 
         store, product_ids = applied["store"], applied["product_ids"]
+        pt = store.get_pt_classifications_bulk(product_ids)
         wwf = store.get_wwf_classifications_bulk(product_ids)
-        by_ext = {
+        by_ext_pt = {
+            store.get_product(pid).external_product_id: pt[pid]
+            for pid in product_ids
+            if pid in pt
+        }
+        by_ext_wwf = {
             store.get_product(pid).external_product_id: wwf[pid]
             for pid in product_ids
             if pid in wwf
         }
-        pizza = by_ext["PTWWF025"]
-        assert pizza.wwf_is_composite is True
-        assert pizza.composite_step1_bucket is WWFCompositeStep1Bucket.VEGETARIAN
+        pizza_pt = by_ext_pt["PTWWF025"]
+        pizza_wwf = by_ext_wwf["PTWWF025"]
+        assert pizza_pt.pt_group is ProteinTrackerGroup.PLANT_BASED_NON_CORE
+        assert pizza_pt.pt_group is not ProteinTrackerGroup.COMPOSITE_PRODUCTS
+        assert pizza_wwf.wwf_is_composite is True
+        assert pizza_wwf.composite_step1_bucket is WWFCompositeStep1Bucket.VEGAN
 
 
 # ---------------------------------------------------------------------------

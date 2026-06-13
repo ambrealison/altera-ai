@@ -55,8 +55,22 @@ def _read(p: Path) -> str:
 
 def test_step_report_renders_runreport() -> None:
     # Phase Product-UX-E — the Result step lives in _step-report.tsx now.
+    # Result-Dual: runs are per-methodology, so the step fetches the latest
+    # PT *and* WWF report and merges their sections into one document for
+    # RunReport (which toggles between them).
     src = _read(_STEP_REPORT)
-    assert "<RunReport doc={report} />" in src
+    assert "<RunReport doc={merged} />" in src
+    assert "getLatestReports" in src
+    assert "mergeReports" in src
+
+
+def test_step_report_shows_missing_methodology_state() -> None:
+    # A methodology that is enabled but has no run yet must show a clear
+    # missing-state notice — never be silently hidden.
+    src = _read(_STEP_REPORT)
+    assert "report.missing.pt" in src
+    assert "report.missing.wwf" in src
+    assert "ptMissing" in src and "wwfMissing" in src
 
 
 def test_step_report_has_loading_and_error_states() -> None:

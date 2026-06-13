@@ -1,9 +1,11 @@
 # Demo golden classification
 
-A **demo-only, flag-gated, deterministic** classification path so the retailer
-demo on a recognised demo catalogue is perfectly predictable: every product
-categorised by both methodologies, exactly **two** products surfaced for
-manual validation, and no dependency on live LLM variability.
+A **demo-only, recognition-gated, deterministic** classification path so the
+retailer demo on a recognised demo catalogue is perfectly predictable: every
+product categorised by both methodologies, exactly **two** products surfaced
+for manual validation, and no dependency on live LLM variability. It defaults
+**ON** and is gated by catalogue recognition; the env flag is only an emergency
+kill switch (see below).
 
 It is gated by **strict catalogue recognition** and **only** affects an upload
 recognised as an exact demo catalogue. Production and every normal upload are
@@ -33,22 +35,28 @@ Two catalogues are recognised (`apps/api/altera_api/demo/golden_classification.p
 
 | Key | File | Products | Review products | Review methodologies |
 |-----|------|---------:|-----------------|----------------------|
-| `demo25` | `DEMO.csv` | 25 | `PTWWF019` Ratatouille de légumes, `PTWWF025` Pizza fromage tomate | **Protein Tracker + WWF** (same products) |
+| `demo25` | `DEMO.csv` | 25 | `PTWWF019` Ratatouille de légumes, `PTWWF025` Pizza fromage tomate vegan | **Protein Tracker + WWF** (same products) |
 | `demo50` | `DEMO-50produits.csv` | 50 | `PTWWF048` Curry de poulet avec riz, `PTWWF049` Pizza fromage tomate | WWF only |
 
-`demo25` is the **current live demo file**. Both catalogues reuse the
-`PTWWF0xx` id scheme but map the ids to *different* products, so recognition
-is by a full-catalogue fingerprint (id set **and** names), never by ids alone.
+`demo25` is the **current live demo file**. In `demo25` the pizza is
+`Pizza fromage tomate vegan` — an all-plant dish, so it is **PT
+`plant_based_non_core`** (not a PT composite) while still being a **WWF Step-1
+composite in the `vegan` bucket**. Both catalogues reuse the `PTWWF0xx` id
+scheme but map the ids to *different* products, so recognition matches on
+**either** a full-catalogue fingerprint (id set **and** names) **or** the exact
+demo-only id set — never on ids a real catalogue could share.
 
 ### Recognition (no raw CSV committed)
 
 The raw CSVs are **not** committed (treated as private commercial data).
-Recognition uses a **content fingerprint built from stable identifiers only**:
-an upload matches a catalogue iff its `(external_product_id, product_name)`
-pairs produce that catalogue's SHA-256 fingerprint — i.e. exactly the same id
-set with matching names (normalised: accent-, apostrophe- and
-case-insensitive). Any extra/missing id or a changed name means "not a demo
-catalogue", so a real retailer catalogue can never be mistaken for one.
+Recognition uses **stable identifiers only**: an upload matches a catalogue iff
+**either** its `(external_product_id, product_name)` pairs produce that
+catalogue's SHA-256 fingerprint (exactly the same id set with matching names,
+normalised: accent-, apostrophe- and case-insensitive) **or** its external-id
+set is exactly that catalogue's id set. Both are keyed on the demo-only
+`PTWWF0xx` ids, so a real retailer catalogue can never be mistaken for one; the
+id-set path simply tolerates benign product-name drift between the demo CSV and
+this fixture.
 
 ## What it does
 
@@ -93,7 +101,8 @@ same two products.
 
 ## Loading the current demo catalogue
 
-1. Enable the flag (above) on the backend.
+1. Nothing to enable — the demo path defaults ON (just don't set the kill
+   switch `ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED` to a falsy value).
 2. Create a project with **both** Protein Tracker and WWF enabled.
 3. Upload `DEMO.csv` (it carries both methodologies' required columns so all
    25 products are eligible for both jobs).

@@ -16,26 +16,30 @@ Two catalogues are recognised (see :data:`_CATALOGUES`):
 * **``demo25``** — the current live demo file ``DEMO.csv`` (25 products,
   ids ``PTWWF001``..``PTWWF025``). Review is requested on **both** Protein
   Tracker **and** WWF for the *same* two products (``PTWWF019`` Ratatouille
-  de légumes, ``PTWWF025`` Pizza fromage tomate), so each card shows
+  de légumes, ``PTWWF025`` Pizza fromage tomate vegan), so each card shows
   "25/25 categorised · 2 in review".
 * **``demo50``** — the earlier ``DEMO-50produits`` catalogue (50 products),
   kept for backward compatibility. Review is requested on WWF only for
   ``PTWWF048`` / ``PTWWF049`` (its original behaviour / tests).
 
 The two catalogues reuse the same ``PTWWF0xx`` id scheme but map the ids to
-different products, so recognition is by a full-catalogue fingerprint (id
-set **and** product names — see :func:`_fingerprint`), never by ids alone.
+different products. Recognition matches an upload to a catalogue on **either**
+its full id+name fingerprint (see :func:`_fingerprint`) **or** its exact
+external-id set — both keyed on the demo-only ``PTWWF0xx`` ids, which no real
+retailer catalogue uses.
 
 Hard safety properties
 =======================
 
-* **Default off.** Nothing here activates unless
-  ``ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED`` is truthy. With the flag
-  off the platform behaves exactly as it does today.
-* **Recognition-gated.** Even with the flag on, the golden path only
-  applies to an upload whose products are *exactly* one of the recognised
-  catalogues. A real retailer catalogue can never be mistaken for a demo
-  catalogue (any extra/missing id or a changed name fails the fingerprint).
+* **Default on, kill-switchable.** The golden path defaults ON and is gated by
+  recognition alone. ``ALTERA_DEMO_GOLDEN_CLASSIFICATION_ENABLED`` is retained
+  only as an emergency kill switch: a falsy value
+  (``false``/``0``/``no``/``off``) forces it off everywhere; any other value
+  (or unset) leaves it on.
+* **Recognition-gated.** The golden path only applies to an upload whose
+  products are *exactly* one of the recognised catalogues (id+name fingerprint
+  or the exact demo-only id set). A real retailer catalogue can never be
+  mistaken for a demo catalogue.
 * **No AI call.** The orchestrator skips the provider entirely for a
   recognised demo catalogue — no commercial fields, nothing, leaves the
   process.
@@ -246,9 +250,11 @@ def _make_catalogue(
 # demo25 — the CURRENT live demo file (DEMO.csv, 25 products)
 #
 # Review on BOTH Protein Tracker AND WWF for the SAME two products
-# (PTWWF019 Ratatouille de légumes, PTWWF025 Pizza fromage tomate — the two
-# prepared/composite items in this catalogue), so each methodology card
-# shows "25/25 categorised · 2 in review" for the same product ids.
+# (PTWWF019 Ratatouille de légumes, PTWWF025 Pizza fromage tomate vegan — the
+# two prepared dishes in this catalogue). NB PTWWF025 is a WWF Step-1 composite
+# but NOT a PT composite (it is an all-plant dish → PT plant_based_non_core);
+# only its WWF side is composite. Each methodology card shows
+# "25/25 categorised · 2 in review" for the same product ids.
 # ---------------------------------------------------------------------------
 
 _DEMO25_ENTRIES: dict[str, _GoldenEntry] = {
@@ -287,16 +293,21 @@ _DEMO25_ENTRIES: dict[str, _GoldenEntry] = {
     "PTWWF023": _GoldenEntry("Flocons d’avoine complets", _PT.PLANT_BASED_NON_CORE, _FG.FG5, wwf_fg5=_G5.WHOLE_GRAIN),
     # — Snacks (FG7) ——————————————————————————————————————————————————————
     "PTWWF024": _GoldenEntry("Chips nature", _PT.PLANT_BASED_NON_CORE, _FG.FG7, wwf_fg7=_S7.PLANT_BASED_SNACK),
-    # PTWWF025 — REVIEW product #2. A genuine composite: pizza base + cheese
-    # + tomato spans FG2/FG4/FG5. PT composite_products; WWF FG2/cheese
-    # vegetarian composite. Routed to human validation on BOTH methodologies.
+    # PTWWF025 — REVIEW product #2. "Pizza fromage tomate vegan" — a VEGAN
+    # prepared dish. Protein Tracker: it is all-plant, so it is NOT a
+    # plant/animal composite; it is a plant prepared meal that does not drive
+    # a plant-protein shift → plant_based_non_core. WWF: a prepared dish is a
+    # Step-1 composite, and since it is vegan the bucket is VEGAN. FG1 +
+    # subgroup is only the schema filler the model requires for a composite;
+    # the calculation and every display use the bucket, never the filler.
+    # Routed to human validation on BOTH methodologies.
     "PTWWF025": _GoldenEntry(
-        "Pizza fromage tomate",
-        _PT.COMPOSITE_PRODUCTS,
-        _FG.FG2,
+        "Pizza fromage tomate vegan",
+        _PT.PLANT_BASED_NON_CORE,
+        _FG.FG1,
         wwf_is_composite=True,
-        wwf_fg2=_S2.CHEESE,
-        wwf_bucket=_BK.VEGETARIAN,
+        wwf_fg1=_S1.ALTERNATIVE_PROTEIN_SOURCES,
+        wwf_bucket=_BK.VEGAN,
     ),
 }
 

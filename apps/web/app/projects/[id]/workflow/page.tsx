@@ -2771,6 +2771,8 @@ export default function WorkflowWizardPage() {
             accessToken={accessToken}
             step={activeBackendStep}
             latestRun={latestRun}
+            ptEnabled={ptEnabled}
+            wwfEnabled={wwfEnabled}
           />
         )}
       </div>

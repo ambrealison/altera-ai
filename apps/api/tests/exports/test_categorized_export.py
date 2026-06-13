@@ -62,13 +62,17 @@ def client(
 
 
 def _rows() -> list[ExportRow]:
+    # PTWWF025 mirrors the live demo25 golden: a vegan pizza that is PT
+    # plant_based_non_core (NOT a PT composite) but a WWF Step-1 composite in
+    # the vegan bucket, with FG1 as the schema-filler food group.
     return [
         ExportRow("PTWWF001", "Lentilles", "Légumineuses", "plant_based_core",
                   "deterministic", 1.0, "FG1", "legumes", None, "deterministic", 1.0),
         ExportRow("PTWWF007", "Steak bœuf", "Viande", "animal_core",
                   "deterministic", 1.0, "FG1", "red_meat", None, "deterministic", 1.0),
-        ExportRow("PTWWF025", "Pizza", "Plat", "composite_products",
-                  "deterministic", 1.0, "FG2", "cheese", "vegetarian", "deterministic", 1.0),
+        ExportRow("PTWWF025", "Pizza fromage tomate vegan", "Plat",
+                  "plant_based_non_core", "deterministic", 1.0, "FG1",
+                  "alternative_protein_sources", "vegan", "deterministic", 1.0),
     ]
 
 
@@ -103,7 +107,7 @@ class TestWorkbookBuilder:
         # header + 3 products
         assert ws.max_row == 4
         names = [ws.cell(row=r, column=2).value for r in range(2, 5)]
-        assert names == ["Lentilles", "Steak bœuf", "Pizza"]
+        assert names == ["Lentilles", "Steak bœuf", "Pizza fromage tomate vegan"]
 
     def test_charts_are_embedded(self) -> None:
         data = build_categorized_workbook(
@@ -114,9 +118,10 @@ class TestWorkbookBuilder:
         assert len(wb["Analyse WWF"]._charts) >= 1
 
     def test_composite_shows_composite_not_food_group(self) -> None:
-        # The Pizza row is a composite (bucket=vegetarian). Its WWF group
-        # cell must read "Composite", never the FG2 food-group label, and the
-        # bucket detail lives in the composite column.
+        # The Pizza row is a vegan composite (filler FG1). Its WWF group cell
+        # must read "Composite", never the FG1 food-group label, and the
+        # bucket column carries the LOCALISED bucket ("Végane"), never the raw
+        # enum value or the filler subgroup.
         data = build_categorized_workbook(
             project_name="Demo", rows=_rows(), pt_enabled=True, wwf_enabled=True
         )
@@ -126,8 +131,28 @@ class TestWorkbookBuilder:
         }
         pizza = by_id["PTWWF025"]
         assert ws.cell(row=pizza, column=7).value == "Composite"  # WWF group
-        assert "FG2" not in str(ws.cell(row=pizza, column=7).value)
-        assert ws.cell(row=pizza, column=9).value == "vegetarian"  # bucket
+        assert "FG1" not in str(ws.cell(row=pizza, column=7).value)
+        # subgroup hidden for composites (openpyxl reads "" back as None)
+        assert ws.cell(row=pizza, column=8).value in (None, "")
+        assert ws.cell(row=pizza, column=9).value == "Végane"  # localised bucket
+
+    def test_wwf_analysis_counts_composite_separately_not_filler_fg(self) -> None:
+        # Regression guard: the WWF analysis distribution must tally the vegan
+        # composite under a "Composite" category, NOT under its FG1 schema
+        # filler. FG1 should reflect only the two genuine FG1 products.
+        data = build_categorized_workbook(
+            project_name="Demo", rows=_rows(), pt_enabled=True, wwf_enabled=True
+        )
+        ws = load_workbook(BytesIO(data))["Analyse WWF"]
+        dist: dict[str, int] = {}
+        for r in range(4, ws.max_row + 1):
+            cat = ws.cell(row=r, column=1).value
+            cnt = ws.cell(row=r, column=2).value
+            if cat is not None:
+                dist[str(cat)] = cnt
+        assert dist.get("Composite") == 1
+        assert dist.get("FG1 — Protéines") == 2  # Lentilles + Steak, NOT the pizza
+        assert sum(dist.values()) == 3  # no double-counting
 
 
 # ---------------------------------------------------------------------------

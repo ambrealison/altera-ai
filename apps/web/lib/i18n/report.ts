@@ -60,6 +60,18 @@ export const report: I18nDict = {
     fr: "Le téléchargement a échoué. Réessayez.",
     en: "The download failed. Please try again.",
   },
+  "report.export.networkError": {
+    fr: "Impossible de joindre le service d'export. Vérifiez votre connexion puis réessayez.",
+    en: "Could not reach the export service. Check your connection and try again.",
+  },
+  "report.missing.pt": {
+    fr: "Le rapport Protein Tracker n'est pas encore disponible — lancez le calcul Protein Tracker à l'étape Calcul.",
+    en: "The Protein Tracker report isn't available yet — run the Protein Tracker calculation in the Calculation step.",
+  },
+  "report.missing.wwf": {
+    fr: "Le rapport WWF n'est pas encore disponible — lancez le calcul WWF à l'étape Calcul.",
+    en: "The WWF report isn't available yet — run the WWF calculation in the Calculation step.",
+  },
 
   // PT KPIs
   "report.kpi.plantProtein": { fr: "Protéines végétales", en: "Plant protein" },

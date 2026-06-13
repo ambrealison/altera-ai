@@ -4006,12 +4006,26 @@ def export_categorized_xlsx_route(
                 )
             )
 
+        logging.getLogger("altera_api.export").info(
+            "export.categorized project=%s products=%d pt_classified=%d "
+            "wwf_classified=%d pt_enabled=%s wwf_enabled=%s lang=%s",
+            project.id,
+            len(products),
+            len(pt_map),
+            len(wwf_map),
+            pt_enabled,
+            wwf_enabled,
+            lang,
+        )
         data = build_categorized_workbook(
             project_name=project.name,
             rows=rows,
             pt_enabled=pt_enabled,
             wwf_enabled=wwf_enabled,
             lang=lang,
+        )
+        logging.getLogger("altera_api.export").info(
+            "export.categorized.ok project=%s bytes=%d", project.id, len(data)
         )
     except HTTPException:
         raise
@@ -4037,7 +4051,9 @@ def export_categorized_xlsx_route(
         headers={
             "Content-Disposition": (
                 'attachment; filename="altera-export-categorise.xlsx"'
-            )
+            ),
+            # Let the browser read the filename across origins.
+            "Access-Control-Expose-Headers": "Content-Disposition",
         },
     )
 
@@ -4361,6 +4377,68 @@ def get_report_route(
     export = max(pool, key=lambda e: e.created_at) if pool else None
 
     return build_report_document(store, record, project, export, is_altera=auth.is_altera_internal)
+
+
+class LatestReportsResponse(BaseModel):
+    """Latest report document per methodology. Either may be null when that
+    methodology has no run yet. PT and WWF stay strictly separate — these are
+    two independent documents, never merged metrics."""
+
+    protein_tracker: ReportDocument | None = None
+    wwf: ReportDocument | None = None
+
+
+@api_router.get(
+    "/projects/{project_id}/reports/latest",
+    response_model=LatestReportsResponse,
+)
+def get_latest_reports_route(
+    project: Annotated[Project, Depends(get_project)],
+    store: Annotated[StoreProtocol, Depends(get_data_store)],
+    auth: Annotated[AuthContext, Depends(authed_user)],
+) -> LatestReportsResponse:
+    """Return the latest Protein Tracker report and the latest WWF report for
+    the project, so the Result step can show BOTH when both methodology runs
+    exist. Runs are per-methodology (``RunRecord.methodology``); this finds
+    the most recent finished run of each and builds its report document.
+    PT and WWF reports are kept separate — no combined metrics."""
+    runs = store.list_runs_for_project(project.id)
+
+    def _latest(methodology: Methodology) -> Any | None:
+        # Guard against an in-progress run (finished_at is None) sneaking into
+        # the max() key comparison — only finished runs have a report.
+        candidates = [
+            r
+            for r in runs
+            if r.methodology is methodology and r.finished_at is not None
+        ]
+        return max(candidates, key=lambda r: r.finished_at) if candidates else None
+
+    def _doc_for(record: Any | None) -> ReportDocument | None:
+        if record is None:
+            return None
+        exports = store.get_exports_for_run(record.id)
+        visible = [
+            e for e in exports if e.approval_status in _CLIENT_VISIBLE_STATUSES
+        ]
+        pool = visible or exports
+        export = max(pool, key=lambda e: e.created_at) if pool else None
+        return build_report_document(
+            store, record, project, export, is_altera=auth.is_altera_internal
+        )
+
+    pt_run = _latest(Methodology.PROTEIN_TRACKER)
+    wwf_run = _latest(Methodology.WWF)
+    logging.getLogger("altera_api.reports").info(
+        "reports.latest project=%s pt_run=%s wwf_run=%s",
+        project.id,
+        pt_run.id if pt_run is not None else None,
+        wwf_run.id if wwf_run is not None else None,
+    )
+    return LatestReportsResponse(
+        protein_tracker=_doc_for(pt_run),
+        wwf=_doc_for(wwf_run),
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -1065,6 +1065,18 @@ export interface ReportDocument {
   recommendations: RecommendationItem[];
 }
 
+/** Latest report per methodology (either may be null). PT and WWF documents
+ *  stay separate — never merged metrics. */
+export interface LatestReports {
+  protein_tracker: ReportDocument | null;
+  wwf: ReportDocument | null;
+}
+
+/** Sentinel thrown by ``downloadCategorizedExport`` when ``fetch`` itself
+ *  rejects (network / CORS / timeout — no backend response). The UI maps it
+ *  to a localised message; ``api.ts`` has no access to ``t()``. */
+export const EXPORT_NETWORK_ERROR = "EXPORT_NETWORK_ERROR";
+
 // ---------------------------------------------------------------------------
 // Phase 32A — admin types
 // ---------------------------------------------------------------------------
@@ -1674,8 +1686,20 @@ export function createApi(accessToken: string | null) {
       const url = `${getApiBaseUrl()}/api/v1/projects/${projectId}/export/categorized.xlsx?lang=${lang}`;
       const headers: Record<string, string> = {};
       if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-      const res = await fetch(url, { headers, cache: "no-store", credentials: "omit" });
+      let res: Response;
+      try {
+        res = await fetch(url, { headers, cache: "no-store", credentials: "omit" });
+      } catch {
+        // fetch() itself rejected — a network error / CORS failure / timeout,
+        // i.e. NO backend response to read a detail from. Throw a stable
+        // sentinel the UI maps to a localised message (api.ts has no t()),
+        // instead of leaking a raw English Error.message as the bare
+        // "Failed to fetch".
+        throw new Error(EXPORT_NETWORK_ERROR);
+      }
       if (!res.ok) {
+        // The backend responded with an error — surface its detail so the UI
+        // shows the real reason, not a generic failure.
         const body = (await res.json().catch(() => null)) as { detail?: string } | null;
         throw new Error(body?.detail ?? `${res.status} ${res.statusText}`);
       }
@@ -1731,6 +1755,15 @@ export function createApi(accessToken: string | null) {
     getReport: (projectId: string, runId: string) =>
       request<ReportDocument>(
         `/api/v1/projects/${projectId}/runs/${runId}/report`,
+        { method: "GET" },
+        accessToken,
+      ),
+
+    /** Latest Protein Tracker AND WWF report documents for the project, so
+     *  the Result step can show both when both methodology runs exist. */
+    getLatestReports: (projectId: string) =>
+      request<LatestReports>(
+        `/api/v1/projects/${projectId}/reports/latest`,
         { method: "GET" },
         accessToken,
       ),

@@ -142,6 +142,23 @@ _WWF_FG_LABELS = {
     "unknown": "Inconnu",
 }
 
+# WWF Step-1 composite buckets — localised so the export reads like the app
+# UI ("Composite · Végane") rather than a raw enum value ("vegan").
+_WWF_BUCKET_LABELS = {
+    "fr": {
+        "meat_based": "À base de viande",
+        "seafood_based": "À base de poisson",
+        "vegetarian": "Végétarien",
+        "vegan": "Végane",
+    },
+    "en": {
+        "meat_based": "Meat-based",
+        "seafood_based": "Seafood-based",
+        "vegetarian": "Vegetarian",
+        "vegan": "Vegan",
+    },
+}
+
 _PT_ORDER = [
     "plant_based_core",
     "plant_based_non_core",
@@ -185,6 +202,7 @@ def _products_sheet(
     rows: list[ExportRow],
     t: dict[str, str],
     pt_labels: dict[str, str],
+    bucket_labels: dict[str, str],
     *,
     pt_enabled: bool,
     wwf_enabled: bool,
@@ -226,10 +244,11 @@ def _products_sheet(
                     r.wwf_food_group or "", r.wwf_food_group or ""
                 )
             )
+            bucket = r.wwf_composite_bucket
             line += [
                 wwf_group_label,
                 "" if is_composite else (r.wwf_subgroup or ""),
-                r.wwf_composite_bucket or "",
+                bucket_labels.get(bucket or "", bucket or "") if bucket else "",
                 r.wwf_source or "",
                 _pct(r.wwf_confidence),
             ]
@@ -308,15 +327,30 @@ def _pt_analysis_sheet(
 def _wwf_analysis_sheet(
     ws: Worksheet, rows: list[ExportRow], t: dict[str, str]
 ) -> None:
-    counts = Counter(r.wwf_food_group for r in rows if r.wwf_food_group)
-    present = [g for g in _WWF_ORDER if counts.get(g)]
+    # Composites are tallied as a single "Composite" category — NEVER under
+    # their schema-filler food group. This mirrors the products sheet and the
+    # PT analysis sheet (which carves out "composite_products"), and matches
+    # the canonical WWF calculation, which excludes composites from the
+    # per-food-group breakdown and routes them by Step-1 bucket instead.
+    counts: Counter[str] = Counter()
+    for r in rows:
+        if r.wwf_composite_bucket is not None:
+            counts["composite"] += 1
+        elif r.wwf_food_group:
+            counts[r.wwf_food_group] += 1
+    order = [*_WWF_ORDER[:7], "composite", *_WWF_ORDER[7:]]
+    present = [g for g in order if counts.get(g)]
+
+    def _wwf_label(g: str) -> str:
+        return t["composite"] if g == "composite" else _WWF_FG_LABELS.get(g, g)
+
     ws.cell(row=1, column=1, value=t["a_wwf_title"]).font = _TITLE_FONT
     ws.cell(row=3, column=1, value=t["a_category"])
     ws.cell(row=3, column=2, value=t["a_count"])
     _style_header(ws, 2, row=3)
     row = 4
     for g in present:
-        ws.cell(row=row, column=1, value=_WWF_FG_LABELS.get(g, g))
+        ws.cell(row=row, column=1, value=_wwf_label(g))
         ws.cell(row=row, column=2, value=counts[g])
         row += 1
     last = row - 1
@@ -352,12 +386,19 @@ def build_categorized_workbook(
     lang = lang if lang in _L else "fr"
     t = _L[lang]
     pt_labels = _PT_GROUP_LABELS[lang]
+    bucket_labels = _WWF_BUCKET_LABELS[lang]
 
     wb = Workbook()
     ws_products = wb.active
     ws_products.title = t["sheet_products"][:31]
     _products_sheet(
-        ws_products, rows, t, pt_labels, pt_enabled=pt_enabled, wwf_enabled=wwf_enabled
+        ws_products,
+        rows,
+        t,
+        pt_labels,
+        bucket_labels,
+        pt_enabled=pt_enabled,
+        wwf_enabled=wwf_enabled,
     )
 
     if pt_enabled:
