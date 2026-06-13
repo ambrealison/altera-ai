@@ -147,7 +147,7 @@ PT_RULE_ID = "demo.golden.pt"
 WWF_RULE_ID = "demo.golden.wwf"
 
 _REVIEW_RATIONALE = (
-    "Demo golden classification — composite/prepared product deliberately "
+    "Demo golden classification — prepared/composite dish deliberately "
     "routed to human validation."
 )
 
@@ -250,11 +250,11 @@ def _make_catalogue(
 # demo25 — the CURRENT live demo file (DEMO.csv, 25 products)
 #
 # Review on BOTH Protein Tracker AND WWF for the SAME two products
-# (PTWWF019 Ratatouille de légumes, PTWWF025 Pizza fromage tomate vegan — the
-# two prepared dishes in this catalogue). NB PTWWF025 is a WWF Step-1 composite
-# but NOT a PT composite (it is an all-plant dish → PT plant_based_non_core);
-# only its WWF side is composite. Each methodology card shows
-# "25/25 categorised · 2 in review" for the same product ids.
+# (PTWWF019 Ratatouille de légumes → WWF FG4 vegetables; PTWWF025 Pizza
+# fromage tomate vegan → WWF FG5 grains — the two prepared dishes in this
+# catalogue, each mapped to its dominant WWF food group, neither a PT
+# composite). Each methodology card shows "25/25 categorised · 2 in review"
+# for the same product ids.
 # ---------------------------------------------------------------------------
 
 _DEMO25_ENTRIES: dict[str, _GoldenEntry] = {
@@ -293,21 +293,18 @@ _DEMO25_ENTRIES: dict[str, _GoldenEntry] = {
     "PTWWF023": _GoldenEntry("Flocons d’avoine complets", _PT.PLANT_BASED_NON_CORE, _FG.FG5, wwf_fg5=_G5.WHOLE_GRAIN),
     # — Snacks (FG7) ——————————————————————————————————————————————————————
     "PTWWF024": _GoldenEntry("Chips nature", _PT.PLANT_BASED_NON_CORE, _FG.FG7, wwf_fg7=_S7.PLANT_BASED_SNACK),
-    # PTWWF025 — REVIEW product #2. "Pizza fromage tomate vegan" — a VEGAN
-    # prepared dish. Protein Tracker: it is all-plant, so it is NOT a
-    # plant/animal composite; it is a plant prepared meal that does not drive
-    # a plant-protein shift → plant_based_non_core. WWF: a prepared dish is a
-    # Step-1 composite, and since it is vegan the bucket is VEGAN. FG1 +
-    # subgroup is only the schema filler the model requires for a composite;
-    # the calculation and every display use the bucket, never the filler.
-    # Routed to human validation on BOTH methodologies.
+    # PTWWF025 — REVIEW product #2. "Pizza fromage tomate vegan" — a vegan
+    # prepared dish. Protein Tracker: all-plant, so NOT a plant/animal
+    # composite and not a plant-protein driver → plant_based_non_core. WWF:
+    # the 7 Planet-Based-Diets food groups are the WWF taxonomy ("Composite"
+    # is not one of them), so the dish maps to its dominant component — the
+    # wheat pizza base — i.e. FG5 (grains/cereals), refined grain. Routed to
+    # human validation on BOTH methodologies.
     "PTWWF025": _GoldenEntry(
         "Pizza fromage tomate vegan",
         _PT.PLANT_BASED_NON_CORE,
-        _FG.FG1,
-        wwf_is_composite=True,
-        wwf_fg1=_S1.ALTERNATIVE_PROTEIN_SOURCES,
-        wwf_bucket=_BK.VEGAN,
+        _FG.FG5,
+        wwf_fg5=_G5.REFINED_GRAIN,
     ),
 }
 

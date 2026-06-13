@@ -3941,10 +3941,6 @@ def export_categorized_xlsx_route(
     plus one analysis sheet per methodology (charts). Non-commercial fields
     only — volumes / prices / margins are never exported."""
     from altera_api.domain.common import Methodology
-    from altera_api.exports.categorized_workbook import (
-        ExportRow,
-        build_categorized_workbook,
-    )
 
     def _enum_value(v: object) -> str | None:
         # Tolerate either an enum (``.value``) or an already-coerced string,
@@ -3963,6 +3959,14 @@ def export_categorized_xlsx_route(
             return None
 
     try:
+        # Import inside the try so a missing runtime dependency (e.g. openpyxl
+        # absent from the prod image) surfaces as a CORS-wrapped HTTPException
+        # with a real message, never a bare 500 → "Failed to fetch".
+        from altera_api.exports.categorized_workbook import (
+            ExportRow,
+            build_categorized_workbook,
+        )
+
         products = store.list_products_for_project(project.id)
         pids = [p.id for p in products]
         pt_map = store.get_pt_classifications_bulk(pids) if pids else {}

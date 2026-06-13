@@ -40,9 +40,11 @@ Two catalogues are recognised (`apps/api/altera_api/demo/golden_classification.p
 
 `demo25` is the **current live demo file**. In `demo25` the pizza is
 `Pizza fromage tomate vegan` — an all-plant dish, so it is **PT
-`plant_based_non_core`** (not a PT composite) while still being a **WWF Step-1
-composite in the `vegan` bucket**. Both catalogues reuse the `PTWWF0xx` id
-scheme but map the ids to *different* products, so recognition matches on
+`plant_based_non_core`** (not a PT composite); on the WWF side it maps to its
+dominant component, the wheat base, i.e. **WWF `FG5` (grains/cereals)** — one
+of the 7 Planet-Based-Diets food groups ("Composite" is not a WWF food group).
+Both catalogues reuse the `PTWWF0xx` id scheme but map the ids to *different*
+products, so recognition matches on
 **either** a full-catalogue fingerprint (id set **and** names) **or** the exact
 demo-only id set — never on ids a real catalogue could share.
 

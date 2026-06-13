@@ -493,6 +493,10 @@ export const workflow: I18nDict = {
     fr: "Lance le calcul des volumes WWF par groupe alimentaire (FG1–FG7) et la répartition des composites selon les buckets Step 1. Le calcul est bloqué tant que des pré-requis sont manquants.",
     en: "Runs the WWF volume calculation per food group (FG1–FG7) and the composite split across the Step 1 buckets. The calculation is blocked while prerequisites are missing.",
   },
+  "workflow.calc.runsBoth": {
+    fr: "Ce projet combine Protein Tracker et WWF : « Lancer le calcul » exécute les deux calculs et les deux rapports apparaissent dans l'onglet Résultat.",
+    en: "This project combines Protein Tracker and WWF: “Run calculation” runs both calculations and both reports appear in the Result tab.",
+  },
   "workflow.calc.requirements": { fr: "Conditions requises", en: "Requirements" },
   "workflow.calc.readyLine": {
     fr: "{ready} sur {total} produit(s) prêt(s) pour le calcul.",

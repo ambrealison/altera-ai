@@ -1552,6 +1552,7 @@ function StepCalculation({
   busy,
   error,
   wwfOnly,
+  bothEnabled,
   onRun,
   onRunPartial,
   onGoToStep,
@@ -1564,6 +1565,9 @@ function StepCalculation({
   /** Phase WWF-G — when true, swap PT (protéines/NEVO) labels for
    *  WWF (volumes/groupes alimentaires) labels. */
   wwfOnly: boolean;
+  /** Phase Result-Dual — both PT and WWF enabled: "Run calculation" runs
+   *  both methodologies, so the step says so explicitly. */
+  bothEnabled: boolean;
   onRun: () => void;
   onRunPartial: () => void;
   onGoToStep: (idx: WizardStepIdx) => void;
@@ -1615,6 +1619,11 @@ function StepCalculation({
         <p className="mt-1 text-sm text-ink-muted">
           {wwfOnly ? t("workflow.calc.desc.wwf") : t("workflow.calc.desc")}
         </p>
+        {bothEnabled && (
+          <p className="mt-2 rounded-lg bg-forest-50 px-3 py-2 text-sm text-forest-800">
+            {t("workflow.calc.runsBoth")}
+          </p>
+        )}
       </div>
 
       <Card>
@@ -2495,27 +2504,54 @@ export default function WorkflowWizardPage() {
     );
   }
 
-  function handleCreateRun() {
+  // Phase Result-Dual — runs are per-methodology and the Result step shows
+  // BOTH reports, so the calculation creates a run for EVERY enabled
+  // methodology (PT and/or WWF), not just the primary one. Per-methodology
+  // failures are tolerated: as long as one run is created we go to the
+  // report, which shows a clear missing-state for any methodology whose run
+  // did not complete. ``allow_partial`` only applies to Protein Tracker
+  // (WWF needs no nutrition data).
+  function runEnabledMethodologies(partial: boolean) {
     if (!status) return;
-    // Phase WWF-G — primary methodology drives the run; index of the
-    // report step is now dynamic (last step in visibleSteps).
-    const methodology: Methodology = primaryMethodology;
+    const enabled = (status.methodologies_enabled ?? []).filter(
+      (m): m is Methodology => m === "protein_tracker" || m === "wwf",
+    );
+    const list = enabled.length > 0 ? enabled : [primaryMethodology];
     void runAction(async () => {
-      await api.createRun(projectId, methodology);
+      let firstError: unknown = null;
+      let failures = 0;
+      for (const m of list) {
+        try {
+          await api.createRun(
+            projectId,
+            m,
+            partial && m === "protein_tracker"
+              ? { allow_partial: true }
+              : undefined,
+          );
+        } catch (e) {
+          if (firstError === null) firstError = e;
+          failures += 1;
+        }
+      }
+      // Only fail outright if NO methodology produced a run. Re-throw the
+      // first error object (not a flattened string) so runAction can keep
+      // its structured ApiError → localised-message mapping (run_not_ready…).
+      if (failures === list.length) {
+        throw firstError ?? new Error("run_failed");
+      }
       goToStepById("report");
     });
   }
 
-  // Phase 34K — partial calculation: same as handleCreateRun but
-  // passes allow_partial=true so the backend lets the run through
-  // when products are missing nutrition data.
+  function handleCreateRun() {
+    runEnabledMethodologies(false);
+  }
+
+  // Phase 34K — partial calculation: allow the run through even when some
+  // products are missing nutrition data (PT only).
   function handleCreateRunPartial() {
-    if (!status) return;
-    const methodology: Methodology = primaryMethodology;
-    void runAction(async () => {
-      await api.createRun(projectId, methodology, { allow_partial: true });
-      goToStepById("report");
-    });
+    runEnabledMethodologies(true);
   }
 
   // ----------- render -----------
@@ -2759,6 +2795,7 @@ export default function WorkflowWizardPage() {
             busy={busy}
             error={actionError}
             wwfOnly={wwfOnly}
+            bothEnabled={ptEnabled && wwfEnabled}
             onRun={handleCreateRun}
             onRunPartial={handleCreateRunPartial}
             onGoToStep={advanceTo}

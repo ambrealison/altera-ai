@@ -407,15 +407,16 @@ class TestDemo25GoldenApplied:
                 assert item.status is ManualReviewStatus.IN_QUEUE
                 assert item.rationale_notes
 
-    def test_pizza_vegan_pt_noncore_and_wwf_composite_vegan(self, applied) -> None:
-        # PTWWF025 "Pizza fromage tomate vegan" is VEGAN:
+    def test_pizza_vegan_pt_noncore_and_wwf_fg5_grain(self, applied) -> None:
+        # PTWWF025 "Pizza fromage tomate vegan" is a vegan prepared dish:
         #   - Protein Tracker: plant_based_non_core (NOT a plant/animal
         #     composite_products — it is all-plant);
-        #   - WWF: a composite with the VEGAN Step-1 bucket — NOT a plain FG2
-        #     dairy product (FG1 is only the schema filler; the bucket drives
-        #     the calculation and every display).
+        #   - WWF: it maps to one of the 7 Planet-Based-Diets food groups by
+        #     its dominant component (the wheat base) → FG5 grains, refined
+        #     grain. "Composite" is NOT a WWF food group, so the WWF side is a
+        #     plain FG5 classification, never a composite.
         from altera_api.domain.protein_tracker import ProteinTrackerGroup
-        from altera_api.domain.wwf import WWFCompositeStep1Bucket
+        from altera_api.domain.wwf import WWFFG5GrainKind, WWFFoodGroup
 
         store, product_ids = applied["store"], applied["product_ids"]
         pt = store.get_pt_classifications_bulk(product_ids)
@@ -434,8 +435,10 @@ class TestDemo25GoldenApplied:
         pizza_wwf = by_ext_wwf["PTWWF025"]
         assert pizza_pt.pt_group is ProteinTrackerGroup.PLANT_BASED_NON_CORE
         assert pizza_pt.pt_group is not ProteinTrackerGroup.COMPOSITE_PRODUCTS
-        assert pizza_wwf.wwf_is_composite is True
-        assert pizza_wwf.composite_step1_bucket is WWFCompositeStep1Bucket.VEGAN
+        assert pizza_wwf.wwf_is_composite is False
+        assert pizza_wwf.composite_step1_bucket is None
+        assert pizza_wwf.wwf_food_group is WWFFoodGroup.FG5
+        assert pizza_wwf.fg5_grain_kind is WWFFG5GrainKind.REFINED_GRAIN
 
 
 # ---------------------------------------------------------------------------
