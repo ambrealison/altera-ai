@@ -62,6 +62,7 @@ _L = {
         "sheet_products": "Produits",
         "sheet_pt": "Analyse Protein Tracker",
         "sheet_wwf": "Analyse WWF",
+        "sheet_protein": "Analyse protéines",
         "h_id": "Réf. produit",
         "h_name": "Produit",
         "h_retailer": "Catégorie distributeur",
@@ -84,6 +85,7 @@ _L = {
         "a_pt_pie": "Végétal vs animal (nombre de produits)",
         "a_pt_protein_title": "Répartition des protéines (kg)",
         "a_pt_protein_pie": "Protéines végétales vs animales (kg)",
+        "a_pt_protein_chart": "Protéines par groupe PT (kg)",
         "a_wwf_title": "Répartition WWF",
         "a_wwf_chart": "Produits par groupe alimentaire WWF",
         "plant": "Végétal",
@@ -96,6 +98,7 @@ _L = {
         "sheet_products": "Products",
         "sheet_pt": "Protein Tracker analysis",
         "sheet_wwf": "WWF analysis",
+        "sheet_protein": "Protein analysis",
         "h_id": "Product ref.",
         "h_name": "Product",
         "h_retailer": "Retailer category",
@@ -118,6 +121,7 @@ _L = {
         "a_pt_pie": "Plant vs animal (product count)",
         "a_pt_protein_title": "Protein split (kg)",
         "a_pt_protein_pie": "Plant vs animal protein (kg)",
+        "a_pt_protein_chart": "Protein per PT group (kg)",
         "a_wwf_title": "WWF distribution",
         "a_wwf_chart": "Products per WWF food group",
         "plant": "Plant",
@@ -376,32 +380,71 @@ def _pt_analysis_sheet(
     count_pie.width = 12
     ws.add_chart(count_pie, "D22")
 
-    # Protein split in KG (pie) — only when a PT calculation produced amounts.
-    plant_kg = sum((r.pt_plant_protein_kg or 0.0) for r in rows)
-    animal_kg = sum((r.pt_animal_protein_kg or 0.0) for r in rows)
-    if plant_kg > 0 or animal_kg > 0:
-        prot_start = crow + 2
-        ws.cell(
-            row=prot_start, column=1, value=t["a_pt_protein_title"]
-        ).font = _TITLE_FONT
-        prow = prot_start + 1
-        pfirst = prow
-        for label, val in (
-            (t["plant"], round(plant_kg, 1)),
-            (t["animal"], round(animal_kg, 1)),
-        ):
-            ws.cell(row=prow, column=1, value=label)
-            ws.cell(row=prow, column=2, value=val)
-            prow += 1
-        prot_pie = PieChart()
-        prot_pie.title = t["a_pt_protein_pie"]
-        prot_pie.add_data(Reference(ws, min_col=2, min_row=pfirst, max_row=prow - 1))
-        prot_pie.set_categories(
-            Reference(ws, min_col=1, min_row=pfirst, max_row=prow - 1)
+
+def _protein_analysis_sheet(
+    ws: Worksheet, rows: list[ExportRow], t: dict[str, str], pt_labels: dict[str, str]
+) -> None:
+    """Dedicated 'protein analysis' sheet (kg) — its own tab, built only when a
+    PT calculation produced per-product protein amounts. Holds two charts in
+    separate bands: protein per PT group (bar) + plant-vs-animal split (pie)."""
+    # Protein by PT group (kg).
+    by_group: dict[str, float] = {}
+    plant_kg = animal_kg = 0.0
+    for r in rows:
+        if r.pt_total_protein_kg is None:
+            continue
+        g = r.pt_group or "unknown"
+        by_group[g] = by_group.get(g, 0.0) + (r.pt_total_protein_kg or 0.0)
+        plant_kg += r.pt_plant_protein_kg or 0.0
+        animal_kg += r.pt_animal_protein_kg or 0.0
+
+    ws.cell(row=1, column=1, value=t["a_pt_protein_title"]).font = _TITLE_FONT
+    ws.cell(row=3, column=1, value=t["a_category"])
+    ws.cell(row=3, column=2, value=t["a_kg"])
+    _style_header(ws, 2, row=3)
+    present = [g for g in _PT_ORDER if by_group.get(g)]
+    row = 4
+    for g in present:
+        ws.cell(row=row, column=1, value=pt_labels.get(g, g))
+        ws.cell(row=row, column=2, value=round(by_group[g], 1))
+        row += 1
+    last = row - 1
+    _autosize(ws, [26, 18])
+
+    if present:
+        bar = BarChart()
+        bar.type = "col"
+        bar.title = t["a_pt_protein_chart"]
+        bar.legend = None
+        bar.add_data(
+            Reference(ws, min_col=2, min_row=3, max_row=last), titles_from_data=True
         )
-        prot_pie.height = 8
-        prot_pie.width = 12
-        ws.add_chart(prot_pie, "D42")
+        bar.set_categories(Reference(ws, min_col=1, min_row=4, max_row=last))
+        bar.height = 8
+        bar.width = 14
+        ws.add_chart(bar, "D2")
+
+    # Plant vs animal protein split (pie), in its own band below the bar.
+    split_start = last + 3
+    ws.cell(
+        row=split_start, column=1, value=t["a_pt_protein_pie"]
+    ).font = _TITLE_FONT
+    srow = split_start + 1
+    sfirst = srow
+    for label, val in (
+        (t["plant"], round(plant_kg, 1)),
+        (t["animal"], round(animal_kg, 1)),
+    ):
+        ws.cell(row=srow, column=1, value=label)
+        ws.cell(row=srow, column=2, value=val)
+        srow += 1
+    pie = PieChart()
+    pie.title = t["a_pt_protein_pie"]
+    pie.add_data(Reference(ws, min_col=2, min_row=sfirst, max_row=srow - 1))
+    pie.set_categories(Reference(ws, min_col=1, min_row=sfirst, max_row=srow - 1))
+    pie.height = 8
+    pie.width = 12
+    ws.add_chart(pie, "D22")
 
 
 def _wwf_analysis_sheet(
@@ -481,8 +524,17 @@ def build_categorized_workbook(
         wwf_enabled=wwf_enabled,
     )
 
+    has_protein = pt_enabled and any(
+        r.pt_total_protein_kg is not None for r in rows
+    )
     if pt_enabled:
         _pt_analysis_sheet(wb.create_sheet(t["sheet_pt"][:31]), rows, t, pt_labels)
+    # Dedicated protein-analysis tab — its own sheet, only once a calculation
+    # has produced per-product protein amounts.
+    if has_protein:
+        _protein_analysis_sheet(
+            wb.create_sheet(t["sheet_protein"][:31]), rows, t, pt_labels
+        )
     if wwf_enabled:
         _wwf_analysis_sheet(wb.create_sheet(t["sheet_wwf"][:31]), rows, t)
 

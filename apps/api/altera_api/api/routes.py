@@ -3976,14 +3976,19 @@ def export_categorized_xlsx_route(
 
         # Per-product protein amounts (kg) from the latest finished PT run, so
         # the export can show plant / animal protein + the split. Empty before
-        # any calculation has run; the workbook hides the columns then.
-        protein_by_pid: dict[Any, tuple[float, float, float]] = {}
-        if pt_enabled:
-            from altera_api.domain.protein_tracker import (
-                ProteinTrackerCalculationRow,
-                ProteinTrackerGroup,
-            )
+        # any calculation has run; the workbook hides the columns then. We read
+        # the persisted rows_payload as RAW dicts (not strict model_validate),
+        # so a single unexpected field can never silently empty the whole map.
+        from altera_api.domain.protein_tracker import ProteinTrackerGroup as _PTG
 
+        _PLANT_VALS = {
+            _PTG.PLANT_BASED_CORE.value,
+            _PTG.PLANT_BASED_NON_CORE.value,
+        }
+        protein_by_pid: dict[Any, tuple[float, float, float]] = {}
+        latest_pt = None
+        pt_rows_seen = 0
+        if pt_enabled:
             pt_runs = [
                 r
                 for r in store.list_runs_for_project(project.id)
@@ -3993,32 +3998,39 @@ def export_categorized_xlsx_route(
             latest_pt = (
                 max(pt_runs, key=lambda r: r.finished_at) if pt_runs else None
             )
-            if latest_pt is not None:
-                _plant_groups = {
-                    ProteinTrackerGroup.PLANT_BASED_CORE,
-                    ProteinTrackerGroup.PLANT_BASED_NON_CORE,
-                }
-                for raw in latest_pt.rows_payload or []:
-                    try:
-                        prow = ProteinTrackerCalculationRow.model_validate(raw)
-                    except Exception:  # noqa: BLE001 — skip an unparsable row
-                        continue
-                    total = float(prow.protein_kg)
-                    if (
-                        prow.plant_protein_kg is not None
-                        and prow.animal_protein_kg is not None
-                    ):
-                        plant = float(prow.plant_protein_kg)
-                        animal = float(prow.animal_protein_kg)
-                    elif prow.pt_group in _plant_groups:
+            payload = (latest_pt.rows_payload if latest_pt is not None else None) or []
+            pt_rows_seen = len(payload)
+            for raw in payload:
+                if not isinstance(raw, dict):
+                    continue
+                try:
+                    pid = UUID(str(raw["product_id"]))
+                    total = float(raw.get("protein_kg") or 0)
+                except (KeyError, TypeError, ValueError):
+                    continue
+                group = str(raw.get("pt_group") or "")
+                p_raw, a_raw = raw.get("plant_protein_kg"), raw.get("animal_protein_kg")
+                try:
+                    if p_raw is not None and a_raw is not None:
+                        plant, animal = float(p_raw), float(a_raw)
+                    elif group in _PLANT_VALS:
                         plant, animal = total, 0.0
-                    elif prow.pt_group is ProteinTrackerGroup.ANIMAL_CORE:
+                    elif group == _PTG.ANIMAL_CORE.value:
                         plant, animal = 0.0, total
-                    elif prow.pt_group is ProteinTrackerGroup.COMPOSITE_PRODUCTS:
+                    elif group == _PTG.COMPOSITE_PRODUCTS.value:
                         plant = animal = total / 2
                     else:
                         plant = animal = 0.0
-                    protein_by_pid[prow.product_id] = (plant, animal, total)
+                except (TypeError, ValueError):
+                    plant, animal = total, 0.0
+                protein_by_pid[pid] = (plant, animal, total)
+            logging.getLogger("altera_api.export").info(
+                "export.categorized.protein project=%s pt_run=%s rows=%d mapped=%d",
+                project.id,
+                latest_pt.id if latest_pt is not None else None,
+                pt_rows_seen,
+                len(protein_by_pid),
+            )
 
         rows: list[ExportRow] = []
         for p in products:

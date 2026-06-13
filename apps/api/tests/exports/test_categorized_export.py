@@ -188,21 +188,31 @@ class TestProteinColumnsAndCharts:
         assert ws.cell(row=2, column=plant_col).value == 200
         assert ws.cell(row=2, column=share_col).value == "100 %"
 
-    def test_pt_sheet_has_three_separated_charts(self) -> None:
-        # bar (groups) + count pie + protein-split pie, in distinct row bands.
+    def test_dedicated_protein_tab_with_separated_charts(self) -> None:
+        # The protein graphs live in their OWN sheet ("Analyse protéines"),
+        # not inside the PT-analysis tab. The PT tab keeps just bar + count pie.
         data = build_categorized_workbook(
             project_name="Demo", rows=_rows_with_protein(),
             pt_enabled=True, wwf_enabled=True,
         )
-        pt = load_workbook(BytesIO(data))["Analyse Protein Tracker"]
-        assert len(pt._charts) == 3
-        rows = sorted(c.anchor._from.row for c in pt._charts)
-        # each chart band is clear of the previous (no overlap like before).
+        wb = load_workbook(BytesIO(data))
+        assert "Analyse protéines" in wb.sheetnames  # the dedicated 4th tab
+        assert len(wb["Analyse Protein Tracker"]._charts) == 2  # protein moved out
+        prot = wb["Analyse protéines"]
+        assert len(prot._charts) == 2  # protein-per-group bar + split pie
+        rows = sorted(c.anchor._from.row for c in prot._charts)
         assert all(rows[i + 1] - rows[i] >= 15 for i in range(len(rows) - 1))
+        # Split table: Lentilles 200 plant, Steak 300 animal.
+        cats = {
+            prot.cell(row=r, column=1).value: prot.cell(row=r, column=2).value
+            for r in range(1, prot.max_row + 1)
+        }
+        assert cats.get("Végétal") == 200
+        assert cats.get("Animal") == 300
 
-    def test_no_protein_columns_or_chart_without_a_run(self) -> None:
-        # _rows() carries no protein amounts (no calculation yet): the columns
-        # and the protein chart are omitted, leaving bar + count pie only.
+    def test_no_protein_tab_columns_or_chart_without_a_run(self) -> None:
+        # _rows() carries no protein amounts (no calculation yet): no protein
+        # columns, no protein tab; the PT tab keeps bar + count pie only.
         data = build_categorized_workbook(
             project_name="Demo", rows=_rows(), pt_enabled=True, wwf_enabled=True
         )
@@ -212,6 +222,7 @@ class TestProteinColumnsAndCharts:
             for c in range(1, wb["Produits"].max_column + 1)
         ]
         assert "Protéines végétales (kg)" not in hdr
+        assert "Analyse protéines" not in wb.sheetnames
         assert len(wb["Analyse Protein Tracker"]._charts) == 2
 
 
