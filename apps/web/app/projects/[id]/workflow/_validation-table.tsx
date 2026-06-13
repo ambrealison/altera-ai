@@ -1138,7 +1138,14 @@ export function ValidationTable({
             <div className="text-gray-400">{row.retailer_subcategory}</div>
           )}
         </td>
-        {isWwfRow ? (
+        {/* Phase Demo-Golden-fix — the row's category cells MUST match the
+            header layout, which is chosen by ``isReviewWwfView`` (the
+            methodology filter), NOT by the per-row methodology. Previously a
+            WWF review row rendered the 3-column WWF-detail layout even when
+            the active header was the 2-column PT/WWF "all" layout, shifting
+            every following cell (the WWF food group appeared under the PT
+            header). Branch on ``isReviewWwfView`` so columns always align. */}
+        {isReviewWwfView ? (
           <>
             <td className="py-2 pr-3">
               {row.wwf_food_group ? (
@@ -1168,6 +1175,8 @@ export function ValidationTable({
           </>
         ) : (
           <>
+            {/* PT column — the product's Protein Tracker category (shown for
+                every review row so the cell lines up under the PT header). */}
             <td className="py-2 pr-3">
               {row.pt_group ? (
                 <Pill tone={PT_GROUP_TONE[row.pt_group]}>
@@ -1177,9 +1186,19 @@ export function ValidationTable({
                 <span className="text-gray-400">—</span>
               )}
             </td>
+            {/* WWF column — labelled food group (used by both PT and WWF
+                review rows in the combined "all" view). */}
             {wwfEnabled && (
-              <td className="py-2 pr-3 text-gray-600">
-                {row.wwf_food_group ?? "—"}
+              <td className="py-2 pr-3">
+                {row.wwf_food_group ? (
+                  <Pill
+                    tone={WWF_FOOD_GROUP_TONE[row.wwf_food_group] ?? "neutral"}
+                  >
+                    {wwfFoodGroupLabel(t, row.wwf_food_group)}
+                  </Pill>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
               </td>
             )}
           </>

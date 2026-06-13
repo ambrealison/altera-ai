@@ -247,10 +247,33 @@ def create_classification_job(
         is_demo_golden_classification_enabled()
         and methodology in (Methodology.PROTEIN_TRACKER, Methodology.WWF)
     ):
+        import logging as _logging
+
         _upload_record = store.get_upload(upload_id)
-        if _upload_record is not None and recognise_demo_catalogue(
-            store.list_products_by_ids(list(_upload_record.product_ids))
-        ) is not None:
+        _demo_cat = (
+            recognise_demo_catalogue(
+                store.list_products_by_ids(list(_upload_record.product_ids))
+            )
+            if _upload_record is not None
+            else None
+        )
+        # Diagnostic: fires on EVERY job creation while the flag is on, so
+        # production logs make it obvious whether the golden path will run.
+        # Absent log line => flag off (or backend not running this code);
+        # recognised=none => the upload is not a known demo catalogue.
+        _logging.getLogger("altera_api.demo_golden").info(
+            "demo_golden.create flag=on methodology=%s recognised=%s "
+            "upload=%s upload_products=%d",
+            methodology.value,
+            _demo_cat.key if _demo_cat is not None else "none",
+            upload_id,
+            len(_upload_record.product_ids) if _upload_record else 0,
+        )
+        if _demo_cat is not None:
+            # A recognised demo catalogue is always fully re-classified
+            # deterministically, so enabling the flag after a prior AI run
+            # replaces those classifications instead of being skipped by
+            # only_missing_or_failed.
             overwrite = True
             only_missing_or_failed = False
     t_total = time.perf_counter()
