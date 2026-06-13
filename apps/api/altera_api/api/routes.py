@@ -3974,10 +3974,57 @@ def export_categorized_xlsx_route(
         pt_enabled = Methodology.PROTEIN_TRACKER in project.methodologies_enabled
         wwf_enabled = Methodology.WWF in project.methodologies_enabled
 
+        # Per-product protein amounts (kg) from the latest finished PT run, so
+        # the export can show plant / animal protein + the split. Empty before
+        # any calculation has run; the workbook hides the columns then.
+        protein_by_pid: dict[Any, tuple[float, float, float]] = {}
+        if pt_enabled:
+            from altera_api.domain.protein_tracker import (
+                ProteinTrackerCalculationRow,
+                ProteinTrackerGroup,
+            )
+
+            pt_runs = [
+                r
+                for r in store.list_runs_for_project(project.id)
+                if r.methodology is Methodology.PROTEIN_TRACKER
+                and r.finished_at is not None
+            ]
+            latest_pt = (
+                max(pt_runs, key=lambda r: r.finished_at) if pt_runs else None
+            )
+            if latest_pt is not None:
+                _plant_groups = {
+                    ProteinTrackerGroup.PLANT_BASED_CORE,
+                    ProteinTrackerGroup.PLANT_BASED_NON_CORE,
+                }
+                for raw in latest_pt.rows_payload or []:
+                    try:
+                        prow = ProteinTrackerCalculationRow.model_validate(raw)
+                    except Exception:  # noqa: BLE001 — skip an unparsable row
+                        continue
+                    total = float(prow.protein_kg)
+                    if (
+                        prow.plant_protein_kg is not None
+                        and prow.animal_protein_kg is not None
+                    ):
+                        plant = float(prow.plant_protein_kg)
+                        animal = float(prow.animal_protein_kg)
+                    elif prow.pt_group in _plant_groups:
+                        plant, animal = total, 0.0
+                    elif prow.pt_group is ProteinTrackerGroup.ANIMAL_CORE:
+                        plant, animal = 0.0, total
+                    elif prow.pt_group is ProteinTrackerGroup.COMPOSITE_PRODUCTS:
+                        plant = animal = total / 2
+                    else:
+                        plant = animal = 0.0
+                    protein_by_pid[prow.product_id] = (plant, animal, total)
+
         rows: list[ExportRow] = []
         for p in products:
             ptc = pt_map.get(p.id)
             wc = wwf_map.get(p.id)
+            pp = protein_by_pid.get(p.id)
             wwf_sub = None
             if wc is not None:
                 sub = (
@@ -4007,6 +4054,9 @@ def export_categorized_xlsx_route(
                     ),
                     wwf_source=_enum_value(wc.source) if wc is not None else None,
                     wwf_confidence=_num(wc.confidence) if wc is not None else None,
+                    pt_plant_protein_kg=pp[0] if pp else None,
+                    pt_animal_protein_kg=pp[1] if pp else None,
+                    pt_total_protein_kg=pp[2] if pp else None,
                 )
             )
 

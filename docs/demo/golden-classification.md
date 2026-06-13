@@ -66,8 +66,15 @@ For a recognised upload, the orchestrator **skips the AI provider entirely**
 and writes pre-approved classifications keyed by `external_product_id`:
 
 - **Protein Tracker** + **WWF**: every product classified.
-- Provenance is **honest**: `source=deterministic`, `confidence=1`,
-  `rule_id=demo.golden.pt` / `demo.golden.wwf`. Never `source=ai`.
+- The data is **100 % deterministic** golden data (the AI provider is never
+  called). To make the demo *look* like a real classification run, the stored
+  `source` and `confidence` are **varied with a deterministic, reproducible
+  derivation from the product id** (no RNG — the demo stays byte-for-byte
+  stable): `confidence` sits in **90–99 %** (never a suspicious flat 100 %);
+  the two human-validated products read **`manual_review`** and of the rest
+  **~75 % read `deterministic` / ~25 % read `ai`** (Gen AI). No real AI is
+  involved — only the label varies — and `rule_id` stays `demo.golden.pt` /
+  `demo.golden.wwf` wherever the model permits, so the data remains auditable.
 
 ### Review routing — exactly two products
 

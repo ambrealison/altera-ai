@@ -373,7 +373,21 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
                     {target != null && (
                       <span className="ml-1 text-ink-soft">
                         ({t("report.wwf.target")} {formatPct(target)}
-                        {gap ? `, ${gap}` : ""})
+                        {gap && (
+                          <>
+                            ,{" "}
+                            <span
+                              className={
+                                below
+                                  ? "font-semibold text-danger-700"
+                                  : "font-semibold text-brand-700"
+                              }
+                            >
+                              {gap}
+                            </span>
+                          </>
+                        )}
+                        )
                       </span>
                     )}
                   </span>
@@ -382,16 +396,6 @@ function WwfSection({ wwf }: { wwf: WWFReportSection }) {
                   pct={share}
                   tone={fg.food_group === "FG7" ? "warn" : "brand"}
                 />
-                {fg.food_group === "FG4" && below && (
-                  <p className="mt-0.5 text-[11px] text-warn-700">
-                    🥕 {t("report.wwf.fg4Below")}
-                  </p>
-                )}
-                {fg.food_group === "FG7" && !below && share > 0 && (
-                  <p className="mt-0.5 text-[11px] text-warn-700">
-                    ⚠️ {t("report.wwf.fg7Watch")}
-                  </p>
-                )}
               </div>
             );
           })}

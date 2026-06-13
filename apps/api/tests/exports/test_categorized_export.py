@@ -160,6 +160,61 @@ class TestWorkbookBuilder:
         assert sum(dist.values()) == 3  # no double-counting
 
 
+def _rows_with_protein() -> list[ExportRow]:
+    return [
+        ExportRow("PTWWF001", "Lentilles", "Lég", "plant_based_core",
+                  "deterministic", 0.95, "FG1", "legumes", None,
+                  "deterministic", 0.95, 200.0, 0.0, 200.0),
+        ExportRow("PTWWF007", "Steak bœuf", "Viande", "animal_core",
+                  "ai", 0.92, "FG1", "red_meat", None, "ai", 0.93,
+                  0.0, 300.0, 300.0),
+    ]
+
+
+class TestProteinColumnsAndCharts:
+    def test_products_sheet_has_protein_amounts_and_split(self) -> None:
+        data = build_categorized_workbook(
+            project_name="Demo", rows=_rows_with_protein(),
+            pt_enabled=True, wwf_enabled=True,
+        )
+        ws = load_workbook(BytesIO(data))["Produits"]
+        hdr = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
+        assert "Protéines végétales (kg)" in hdr
+        assert "Protéines animales (kg)" in hdr
+        assert "Part végétale (%)" in hdr
+        # Lentilles: all-plant → 200 kg plant, 0 animal, 100 % plant share.
+        plant_col = hdr.index("Protéines végétales (kg)") + 1
+        share_col = hdr.index("Part végétale (%)") + 1
+        assert ws.cell(row=2, column=plant_col).value == 200
+        assert ws.cell(row=2, column=share_col).value == "100 %"
+
+    def test_pt_sheet_has_three_separated_charts(self) -> None:
+        # bar (groups) + count pie + protein-split pie, in distinct row bands.
+        data = build_categorized_workbook(
+            project_name="Demo", rows=_rows_with_protein(),
+            pt_enabled=True, wwf_enabled=True,
+        )
+        pt = load_workbook(BytesIO(data))["Analyse Protein Tracker"]
+        assert len(pt._charts) == 3
+        rows = sorted(c.anchor._from.row for c in pt._charts)
+        # each chart band is clear of the previous (no overlap like before).
+        assert all(rows[i + 1] - rows[i] >= 15 for i in range(len(rows) - 1))
+
+    def test_no_protein_columns_or_chart_without_a_run(self) -> None:
+        # _rows() carries no protein amounts (no calculation yet): the columns
+        # and the protein chart are omitted, leaving bar + count pie only.
+        data = build_categorized_workbook(
+            project_name="Demo", rows=_rows(), pt_enabled=True, wwf_enabled=True
+        )
+        wb = load_workbook(BytesIO(data))
+        hdr = [
+            wb["Produits"].cell(row=1, column=c).value
+            for c in range(1, wb["Produits"].max_column + 1)
+        ]
+        assert "Protéines végétales (kg)" not in hdr
+        assert len(wb["Analyse Protein Tracker"]._charts) == 2
+
+
 # ---------------------------------------------------------------------------
 # Download route
 # ---------------------------------------------------------------------------
@@ -252,3 +307,65 @@ class TestExportRoute:
         assert r.status_code == 200
         wb = load_workbook(BytesIO(r.content))
         assert "Products" in wb.sheetnames
+
+    def test_protein_columns_appear_after_a_pt_run(
+        self, client: TestClient, store: InMemoryStore
+    ) -> None:
+        # End-to-end: once a finished PT run exists, the route reads its
+        # per-product protein from rows_payload and the Produits sheet gains
+        # the protein columns (all-plant products → plant=protein, animal=0).
+        from uuid import UUID
+
+        from altera_api.api.state import RunRecord
+        from altera_api.domain.protein_tracker import (
+            ProteinTrackerCalculationRow,
+        )
+
+        project_id = _seed_classified(store)
+        products = store.list_products_for_project(UUID(project_id))
+        run_id = uuid4()
+        now = datetime.now(UTC)
+        rows = [
+            ProteinTrackerCalculationRow(
+                run_id=run_id,
+                product_id=p.id,
+                in_scope=True,
+                pt_group=ProteinTrackerGroup.PLANT_BASED_CORE,
+                volume_kg=Decimal("100"),
+                protein_pct=Decimal("20"),
+                protein_kg=Decimal("20"),
+                used_per_product_split=False,
+                methodology_version="1.0.0",
+                methodology_source_edition="demo",
+                taxonomy_version="1.0.0",
+                rules_version="0.1.0",
+            )
+            for p in products
+        ]
+        store.add_run(
+            RunRecord(
+                id=run_id,
+                project_id=UUID(project_id),
+                methodology=Methodology.PROTEIN_TRACKER,
+                started_at=now,
+                finished_at=now,
+                triggered_by=store.default_user_id,
+                rows_payload=[r.model_dump() for r in rows],
+                summary_payload={},
+                rows_count=len(rows),
+                organisation_id=store.default_org_id,
+            )
+        )
+
+        r = client.get(f"/api/v1/projects/{project_id}/export/categorized.xlsx")
+        assert r.status_code == 200, r.text
+        ws = load_workbook(BytesIO(r.content))["Produits"]
+        hdr = [
+            ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)
+        ]
+        assert "Protéines végétales (kg)" in hdr
+        plant_col = hdr.index("Protéines végétales (kg)") + 1
+        animal_col = hdr.index("Protéines animales (kg)") + 1
+        # all-plant (PLANT_BASED_CORE) → 20 kg plant, 0 animal.
+        assert ws.cell(row=2, column=plant_col).value == 20
+        assert ws.cell(row=2, column=animal_col).value == 0

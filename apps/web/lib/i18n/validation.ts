@@ -103,8 +103,8 @@ export const validation: I18nDict = {
 
   // Classification source display labels.
   "validation.source.deterministic": { fr: "Déterministe", en: "Deterministic" },
-  "validation.source.ai": { fr: "IA", en: "AI" },
-  "validation.source.manual_review": { fr: "Manuel", en: "Manual" },
+  "validation.source.ai": { fr: "IA générative", en: "Gen AI" },
+  "validation.source.manual_review": { fr: "Revue manuelle", en: "Manual review" },
   "validation.source.unknown": { fr: "Aucune", en: "None" },
 
   // Empty / placeholder dash fallbacks.

@@ -221,8 +221,10 @@ class WWFProductClassification(DomainBase):
             case ClassificationSource.DETERMINISTIC:
                 if self.rule_id is None:
                     raise ValueError("rule_id is required when source=deterministic.")
-                if self.confidence != Decimal("1"):
-                    raise ValueError("confidence must be 1 when source=deterministic.")
+                if self.confidence < Decimal("0.9"):
+                    raise ValueError(
+                        "confidence must be >= 0.9 when source=deterministic."
+                    )
             case ClassificationSource.AI:
                 if self.ai_prompt_version is None or self.ai_model is None:
                     raise ValueError("ai_prompt_version and ai_model are required when source=ai.")

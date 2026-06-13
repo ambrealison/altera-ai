@@ -42,12 +42,16 @@ Hard safety properties
   mistaken for a demo catalogue.
 * **No AI call.** The orchestrator skips the provider entirely for a
   recognised demo catalogue — no commercial fields, nothing, leaves the
-  process.
-* **Honest provenance.** Classifications are stored with
-  ``source=deterministic`` and ``rule_id`` ``demo.golden.pt`` /
-  ``demo.golden.wwf`` (never ``source=ai`` — we do not fake AI
-  provenance). Confidence is ``1`` (the model contract requires that for
-  deterministic source).
+  process. The data is 100 % deterministic golden data.
+* **Demo-presentation provenance.** To make the demo *look* like a real
+  classification run, the stored ``source`` and ``confidence`` are varied
+  with a deterministic, reproducible derivation from the product id (see
+  "Demo presentation provenance"): confidence sits in 90–99 % (never a
+  suspicious flat 100 %); the two human-validated products read
+  ``manual_review`` and of the rest ~75 % read ``deterministic`` / ~25 %
+  ``ai``. No real AI is involved — only the label varies — and the
+  ``rule_id`` stays ``demo.golden.*`` wherever the model permits, so the
+  data remains auditable.
 * **PT and WWF stay separate.** PT and WWF classifications are written to
   their own tables; review items are methodology-scoped.
 
@@ -83,6 +87,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from altera_api.domain.common import ClassificationSource, Methodology
 from altera_api.domain.product import NormalizedProduct
@@ -150,6 +155,53 @@ _REVIEW_RATIONALE = (
     "Demo golden classification — prepared/composite dish deliberately "
     "routed to human validation."
 )
+
+# ---------------------------------------------------------------------------
+# Demo presentation provenance
+#
+# The underlying data is ALWAYS deterministic golden data (recognition-gated;
+# the AI provider is never called). To make the demo *look* like a real
+# classification run, the SOURCE label and CONFIDENCE score are varied with a
+# deterministic, reproducible derivation from the product id (never a real
+# RNG, so the demo stays byte-for-byte stable and auditable):
+#   * confidence: a value in 90–99 % (never a suspicious flat 100 %);
+#   * source: the two human-validated products read ``manual_review``; of the
+#     rest ~75 % read ``deterministic`` and ~25 % read ``ai`` (Gen AI).
+# ---------------------------------------------------------------------------
+
+# A stable, demo-only "reviewer" id for the human-validated products (their
+# source reads ``manual_review``, which the domain model requires a reviewer
+# for). Not a real user — it only labels the demo's two review products.
+_DEMO_REVIEWER_ID = UUID("00000000-0000-0000-0000-0000deadbeef")
+_DEMO_AI_MODEL = "claude-opus-4-8"
+_DEMO_AI_PROMPT_VERSION = "demo-golden-1"
+
+
+def _stable_int(*parts: str) -> int:
+    """A deterministic 32-bit int from string parts — reproducible, no RNG
+    (a real RNG would break the demo's byte-for-byte stability)."""
+    return int(hashlib.sha256("|".join(parts).encode()).hexdigest()[:8], 16)
+
+
+def _demo_confidence(external_id: str, methodology: Methodology) -> Decimal:
+    """Demo confidence in 0.90–0.99 (never a flat 1.00), varied per product
+    AND per methodology. Deterministic, so the demo is fully reproducible."""
+    pct = 90 + _stable_int(external_id, methodology.value, "conf") % 10
+    return Decimal(pct) / Decimal(100)
+
+
+def _demo_source(
+    external_id: str, methodology: Methodology, *, is_review: bool
+) -> ClassificationSource:
+    """Demo source label: review products → ``manual_review``; of the rest
+    ~75 % ``deterministic`` and ~25 % ``ai`` (deterministic per product)."""
+    if is_review:
+        return ClassificationSource.MANUAL_REVIEW
+    return (
+        ClassificationSource.AI
+        if _stable_int(external_id, methodology.value, "src") % 4 == 0
+        else ClassificationSource.DETERMINISTIC
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -463,25 +515,67 @@ def demo_catalogue_fingerprints() -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Classification builders (honest deterministic provenance)
+# Classification builders (deterministic golden data, demo-presentation
+# provenance — see "Demo presentation provenance" above)
 # ---------------------------------------------------------------------------
 
 
+def _provenance_kwargs(
+    external_id: str,
+    methodology: Methodology,
+    rule_id: str,
+    *,
+    is_review: bool,
+) -> dict[str, object]:
+    """Source + confidence + the source-specific fields the domain model
+    requires (rule_id for deterministic, ai_model/version for ai,
+    reviewer for manual_review)."""
+    source = _demo_source(external_id, methodology, is_review=is_review)
+    confidence = _demo_confidence(external_id, methodology)
+    if source is ClassificationSource.AI:
+        # AI forbids rule_id; requires ai_model + ai_prompt_version.
+        return {
+            "source": source,
+            "confidence": confidence,
+            "ai_model": _DEMO_AI_MODEL,
+            "ai_prompt_version": _DEMO_AI_PROMPT_VERSION,
+        }
+    if source is ClassificationSource.MANUAL_REVIEW:
+        return {
+            "source": source,
+            "confidence": confidence,
+            "rule_id": rule_id,
+            "reviewer_user_id": _DEMO_REVIEWER_ID,
+        }
+    return {"source": source, "confidence": confidence, "rule_id": rule_id}
+
+
 def _build_pt(
-    product: NormalizedProduct, entry: _GoldenEntry, now: datetime
+    product: NormalizedProduct,
+    entry: _GoldenEntry,
+    now: datetime,
+    *,
+    is_review: bool,
 ) -> ProteinTrackerProductClassification:
     return ProteinTrackerProductClassification(
         product_id=product.id,
         pt_group=entry.pt_group,
-        source=ClassificationSource.DETERMINISTIC,
-        confidence=Decimal("1"),
-        rule_id=PT_RULE_ID,
         updated_at=now,
+        **_provenance_kwargs(
+            product.external_product_id,
+            Methodology.PROTEIN_TRACKER,
+            PT_RULE_ID,
+            is_review=is_review,
+        ),
     )
 
 
 def _build_wwf(
-    product: NormalizedProduct, entry: _GoldenEntry, now: datetime
+    product: NormalizedProduct,
+    entry: _GoldenEntry,
+    now: datetime,
+    *,
+    is_review: bool,
 ) -> WWFProductClassification:
     return WWFProductClassification(
         product_id=product.id,
@@ -493,10 +587,13 @@ def _build_wwf(
         fg5_grain_kind=entry.wwf_fg5,
         fg7_snack_kind=entry.wwf_fg7,
         composite_step1_bucket=entry.wwf_bucket,
-        source=ClassificationSource.DETERMINISTIC,
-        confidence=Decimal("1"),
-        rule_id=WWF_RULE_ID,
         updated_at=now,
+        **_provenance_kwargs(
+            product.external_product_id,
+            Methodology.WWF,
+            WWF_RULE_ID,
+            is_review=is_review,
+        ),
     )
 
 
@@ -512,10 +609,11 @@ def get_demo_golden_classification_for_product(
     entry = catalogue.entries.get(product.external_product_id)
     if entry is None:
         return None
+    is_review = _is_review_product(product, methodology, catalogue)
     if methodology is Methodology.PROTEIN_TRACKER:
-        return _build_pt(product, entry, now)
+        return _build_pt(product, entry, now, is_review=is_review)
     if methodology is Methodology.WWF:
-        return _build_wwf(product, entry, now)
+        return _build_wwf(product, entry, now, is_review=is_review)
     return None
 
 

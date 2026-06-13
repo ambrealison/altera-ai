@@ -45,6 +45,11 @@ class ExportRow:
     wwf_composite_bucket: str | None
     wwf_source: str | None
     wwf_confidence: float | None
+    # Per-product Protein Tracker amounts (kg), from the latest PT run.
+    # None when no calculation has run yet for this product.
+    pt_plant_protein_kg: float | None = None
+    pt_animal_protein_kg: float | None = None
+    pt_total_protein_kg: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +68,9 @@ _L = {
         "h_pt_group": "Protein Tracker",
         "h_pt_source": "Source PT",
         "h_pt_conf": "Confiance PT",
+        "h_pt_plant_kg": "Protéines végétales (kg)",
+        "h_pt_animal_kg": "Protéines animales (kg)",
+        "h_pt_plant_share": "Part végétale (%)",
         "h_wwf_group": "Groupe WWF",
         "h_wwf_sub": "Sous-groupe WWF",
         "h_wwf_comp": "Composite (bucket)",
@@ -70,9 +78,12 @@ _L = {
         "h_wwf_conf": "Confiance WWF",
         "a_category": "Catégorie",
         "a_count": "Nombre de produits",
+        "a_kg": "Protéines (kg)",
         "a_pt_title": "Répartition Protein Tracker",
         "a_pt_chart": "Produits par groupe PT",
-        "a_pt_pie": "Végétal vs animal",
+        "a_pt_pie": "Végétal vs animal (nombre de produits)",
+        "a_pt_protein_title": "Répartition des protéines (kg)",
+        "a_pt_protein_pie": "Protéines végétales vs animales (kg)",
         "a_wwf_title": "Répartition WWF",
         "a_wwf_chart": "Produits par groupe alimentaire WWF",
         "plant": "Végétal",
@@ -91,6 +102,9 @@ _L = {
         "h_pt_group": "Protein Tracker",
         "h_pt_source": "PT source",
         "h_pt_conf": "PT confidence",
+        "h_pt_plant_kg": "Plant protein (kg)",
+        "h_pt_animal_kg": "Animal protein (kg)",
+        "h_pt_plant_share": "Plant share (%)",
         "h_wwf_group": "WWF group",
         "h_wwf_sub": "WWF subgroup",
         "h_wwf_comp": "Composite (bucket)",
@@ -98,9 +112,12 @@ _L = {
         "h_wwf_conf": "WWF confidence",
         "a_category": "Category",
         "a_count": "Product count",
+        "a_kg": "Protein (kg)",
         "a_pt_title": "Protein Tracker distribution",
         "a_pt_chart": "Products per PT group",
-        "a_pt_pie": "Plant vs animal",
+        "a_pt_pie": "Plant vs animal (product count)",
+        "a_pt_protein_title": "Protein split (kg)",
+        "a_pt_protein_pie": "Plant vs animal protein (kg)",
         "a_wwf_title": "WWF distribution",
         "a_wwf_chart": "Products per WWF food group",
         "plant": "Plant",
@@ -192,6 +209,19 @@ def _pct(v: float | None) -> str:
     return "" if v is None else f"{round(v * 100)} %"
 
 
+def _kg(v: float | None) -> object:
+    """Numeric kg rounded to 1 decimal (blank when unknown)."""
+    return "" if v is None else round(v, 1)
+
+
+def _plant_share(r: ExportRow) -> str:
+    p, a = r.pt_plant_protein_kg, r.pt_animal_protein_kg
+    if p is None or a is None:
+        return ""
+    total = p + a
+    return "" if total <= 0 else f"{round(p / total * 100)} %"
+
+
 # ---------------------------------------------------------------------------
 # Sheets
 # ---------------------------------------------------------------------------
@@ -207,9 +237,20 @@ def _products_sheet(
     pt_enabled: bool,
     wwf_enabled: bool,
 ) -> None:
+    # Per-product protein columns are only shown when a PT calculation has
+    # actually produced amounts (otherwise they'd be a column of blanks).
+    has_protein = pt_enabled and any(
+        r.pt_total_protein_kg is not None for r in rows
+    )
     headers = [t["h_id"], t["h_name"], t["h_retailer"]]
     if pt_enabled:
         headers += [t["h_pt_group"], t["h_pt_source"], t["h_pt_conf"]]
+        if has_protein:
+            headers += [
+                t["h_pt_plant_kg"],
+                t["h_pt_animal_kg"],
+                t["h_pt_plant_share"],
+            ]
     if wwf_enabled:
         headers += [
             t["h_wwf_group"],
@@ -232,6 +273,12 @@ def _products_sheet(
                 r.pt_source or "",
                 _pct(r.pt_confidence),
             ]
+            if has_protein:
+                line += [
+                    _kg(r.pt_plant_protein_kg),
+                    _kg(r.pt_animal_protein_kg),
+                    _plant_share(r),
+                ]
         if wwf_enabled:
             # Composite products (a non-null Step-1 bucket) are shown as
             # "Composite" in the food-group column — never only the
@@ -256,6 +303,8 @@ def _products_sheet(
     widths = [16, 34, 22]
     if pt_enabled:
         widths += [18, 14, 12]
+        if has_protein:
+            widths += [20, 20, 16]
     if wwf_enabled:
         widths += [22, 22, 18, 14, 14]
     _autosize(ws, widths)
@@ -277,51 +326,82 @@ def _pt_analysis_sheet(
         ws.cell(row=row, column=2, value=counts[g])
         row += 1
     last = row - 1
-    _autosize(ws, [24, 18])
+    _autosize(ws, [26, 18])
 
-    if present:
-        chart = BarChart()
-        chart.type = "col"
-        chart.title = t["a_pt_chart"]
-        chart.legend = None
-        data = Reference(ws, min_col=2, min_row=3, max_row=last)
-        cats = Reference(ws, min_col=1, min_row=4, max_row=last)
-        chart.add_data(data, titles_from_data=True)
-        chart.set_categories(cats)
-        chart.height = 8
-        chart.width = 16
-        ws.add_chart(chart, "D3")
+    if not present:
+        return
 
-        # Plant vs animal vs composite pie.
-        plant = counts.get("plant_based_core", 0) + counts.get(
-            "plant_based_non_core", 0
-        )
-        animal = counts.get("animal_core", 0)
-        composite = counts.get("composite_products", 0)
-        other = counts.get("out_of_scope", 0) + counts.get("unknown", 0)
-        pie_start = last + 3
-        ws.cell(row=pie_start, column=1, value=t["a_pt_pie"]).font = _TITLE_FONT
-        pie_rows = [
-            (t["plant"], plant),
-            (t["animal"], animal),
-            (t["composite"], composite),
-            (t["other"], other),
-        ]
-        prow = pie_start + 1
-        first = prow
-        for label, val in pie_rows:
+    # All data tables live in columns A–B near the top; every chart floats in
+    # column D and below, each in its OWN row band so they never overlap (a
+    # ~20-row gap clears an 8 cm chart at default row height).
+    chart = BarChart()
+    chart.type = "col"
+    chart.title = t["a_pt_chart"]
+    chart.legend = None
+    chart.add_data(
+        Reference(ws, min_col=2, min_row=3, max_row=last), titles_from_data=True
+    )
+    chart.set_categories(Reference(ws, min_col=1, min_row=4, max_row=last))
+    chart.height = 8
+    chart.width = 14
+    ws.add_chart(chart, "D2")
+
+    # Plant vs animal vs composite, by PRODUCT COUNT (pie).
+    plant_n = counts.get("plant_based_core", 0) + counts.get(
+        "plant_based_non_core", 0
+    )
+    animal_n = counts.get("animal_core", 0)
+    composite_n = counts.get("composite_products", 0)
+    other_n = counts.get("out_of_scope", 0) + counts.get("unknown", 0)
+    count_start = last + 3
+    ws.cell(row=count_start, column=1, value=t["a_pt_pie"]).font = _TITLE_FONT
+    crow = count_start + 1
+    cfirst = crow
+    for label, val in (
+        (t["plant"], plant_n),
+        (t["animal"], animal_n),
+        (t["composite"], composite_n),
+        (t["other"], other_n),
+    ):
+        ws.cell(row=crow, column=1, value=label)
+        ws.cell(row=crow, column=2, value=val)
+        crow += 1
+    count_pie = PieChart()
+    count_pie.title = t["a_pt_pie"]
+    count_pie.add_data(Reference(ws, min_col=2, min_row=cfirst, max_row=crow - 1))
+    count_pie.set_categories(
+        Reference(ws, min_col=1, min_row=cfirst, max_row=crow - 1)
+    )
+    count_pie.height = 8
+    count_pie.width = 12
+    ws.add_chart(count_pie, "D22")
+
+    # Protein split in KG (pie) — only when a PT calculation produced amounts.
+    plant_kg = sum((r.pt_plant_protein_kg or 0.0) for r in rows)
+    animal_kg = sum((r.pt_animal_protein_kg or 0.0) for r in rows)
+    if plant_kg > 0 or animal_kg > 0:
+        prot_start = crow + 2
+        ws.cell(
+            row=prot_start, column=1, value=t["a_pt_protein_title"]
+        ).font = _TITLE_FONT
+        prow = prot_start + 1
+        pfirst = prow
+        for label, val in (
+            (t["plant"], round(plant_kg, 1)),
+            (t["animal"], round(animal_kg, 1)),
+        ):
             ws.cell(row=prow, column=1, value=label)
             ws.cell(row=prow, column=2, value=val)
             prow += 1
-        pie = PieChart()
-        pie.title = t["a_pt_pie"]
-        pdata = Reference(ws, min_col=2, min_row=first, max_row=prow - 1)
-        pcats = Reference(ws, min_col=1, min_row=first, max_row=prow - 1)
-        pie.add_data(pdata)
-        pie.set_categories(pcats)
-        pie.height = 8
-        pie.width = 12
-        ws.add_chart(pie, f"D{pie_start}")
+        prot_pie = PieChart()
+        prot_pie.title = t["a_pt_protein_pie"]
+        prot_pie.add_data(Reference(ws, min_col=2, min_row=pfirst, max_row=prow - 1))
+        prot_pie.set_categories(
+            Reference(ws, min_col=1, min_row=pfirst, max_row=prow - 1)
+        )
+        prot_pie.height = 8
+        prot_pie.width = 12
+        ws.add_chart(prot_pie, "D42")
 
 
 def _wwf_analysis_sheet(

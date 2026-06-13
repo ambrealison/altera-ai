@@ -143,14 +143,6 @@ export const report: I18nDict = {
     en: "Food groups vs PHD target",
   },
   "report.wwf.target": { fr: "cible", en: "target" },
-  "report.wwf.fg4Below": {
-    fr: "Fruits & légumes sous la cible.",
-    en: "Fruit & vegetables below target.",
-  },
-  "report.wwf.fg7Watch": {
-    fr: "Snacks à surveiller.",
-    en: "Snacks to watch.",
-  },
   "report.wwf.compositesByBucket": {
     fr: "Composites par bucket (Step 1)",
     en: "Composites by bucket (Step 1)",

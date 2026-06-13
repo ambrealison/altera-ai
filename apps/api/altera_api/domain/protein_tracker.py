@@ -87,8 +87,10 @@ class ProteinTrackerProductClassification(DomainBase):
             case ClassificationSource.DETERMINISTIC:
                 if self.rule_id is None:
                     raise ValueError("rule_id is required when source=deterministic.")
-                if self.confidence != Decimal("1"):
-                    raise ValueError("confidence must be 1 when source=deterministic.")
+                if self.confidence < Decimal("0.9"):
+                    raise ValueError(
+                        "confidence must be >= 0.9 when source=deterministic."
+                    )
                 if self.ai_prompt_version is not None or self.ai_model is not None:
                     raise ValueError("ai_* fields must be null when source=deterministic.")
                 if self.reviewer_user_id is not None:
