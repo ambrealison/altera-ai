@@ -407,7 +407,13 @@ class TestDemo25GoldenApplied:
                 assert item.status is ManualReviewStatus.IN_QUEUE
                 assert item.rationale_notes
 
-    def test_pizza_is_composite(self, applied) -> None:
+    def test_pizza_is_composite_vegetarian(self, applied) -> None:
+        # PTWWF025 "Pizza fromage tomate" must be a WWF composite with the
+        # VEGETARIAN Step-1 bucket — NOT a plain FG2 dairy product. (FG2 is
+        # only the schema filler the domain model requires; the bucket is
+        # what the calculation and the UI use.)
+        from altera_api.domain.wwf import WWFCompositeStep1Bucket
+
         store, product_ids = applied["store"], applied["product_ids"]
         wwf = store.get_wwf_classifications_bulk(product_ids)
         by_ext = {
@@ -415,7 +421,9 @@ class TestDemo25GoldenApplied:
             for pid in product_ids
             if pid in wwf
         }
-        assert by_ext["PTWWF025"].wwf_is_composite is True
+        pizza = by_ext["PTWWF025"]
+        assert pizza.wwf_is_composite is True
+        assert pizza.composite_step1_bucket is WWFCompositeStep1Bucket.VEGETARIAN
 
 
 # ---------------------------------------------------------------------------

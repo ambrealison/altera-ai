@@ -215,9 +215,20 @@ def _products_sheet(
                 _pct(r.pt_confidence),
             ]
         if wwf_enabled:
+            # Composite products (a non-null Step-1 bucket) are shown as
+            # "Composite" in the food-group column — never only the
+            # schema-filler food group — and their bucket carries the detail.
+            is_composite = r.wwf_composite_bucket is not None
+            wwf_group_label = (
+                t["composite"]
+                if is_composite
+                else _WWF_FG_LABELS.get(
+                    r.wwf_food_group or "", r.wwf_food_group or ""
+                )
+            )
             line += [
-                _WWF_FG_LABELS.get(r.wwf_food_group or "", r.wwf_food_group or ""),
-                r.wwf_subgroup or "",
+                wwf_group_label,
+                "" if is_composite else (r.wwf_subgroup or ""),
                 r.wwf_composite_bucket or "",
                 r.wwf_source or "",
                 _pct(r.wwf_confidence),

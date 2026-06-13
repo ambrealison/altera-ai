@@ -236,6 +236,24 @@ function ptSummary(t: TFn, row: ClassificationRow): {
   };
 }
 
+/** WWF category pill label. Composite products show "Composite · {bucket}"
+ *  (the Step-1 bucket is what the calculation uses), NOT the underlying
+ *  schema-filler food group / subgroup — so a composite vegetarian pizza
+ *  reads "Composite · Végétarien", never "FG2 · Lait & alternatives". */
+function wwfCategoryLabel(t: TFn, row: ClassificationRow): string {
+  if (!row.wwf_food_group) return "—";
+  if (row.wwf_is_composite) {
+    const bucket = wwfBucketLabel(t, row.wwf_composite_step1_bucket ?? null);
+    return t("validation.compositePrefix").replace("{bucket}", String(bucket));
+  }
+  return wwfFoodGroupLabel(t, row.wwf_food_group);
+}
+
+function wwfCategoryTone(row: ClassificationRow): StatusTone {
+  if (row.wwf_is_composite) return "warn";
+  return WWF_FOOD_GROUP_TONE[row.wwf_food_group ?? ""] ?? "neutral";
+}
+
 /** Phase WWF-R — WWF cell summary ("FG1 — Légumineuses · 100% · IA",
  *  "Composite · Végétarien · 69%"). */
 function wwfSummary(t: TFn, row: ClassificationRow): {
@@ -1149,19 +1167,19 @@ export function ValidationTable({
           <>
             <td className="py-2 pr-3">
               {row.wwf_food_group ? (
-                <Pill
-                  tone={
-                    WWF_FOOD_GROUP_TONE[row.wwf_food_group] ?? "neutral"
-                  }
-                >
-                  {wwfFoodGroupLabel(t, row.wwf_food_group)}
+                <Pill tone={wwfCategoryTone(row)}>
+                  {wwfCategoryLabel(t, row)}
                 </Pill>
               ) : (
                 <span className="text-gray-400">—</span>
               )}
             </td>
             <td className="py-2 pr-3 text-gray-600">
-              {wwfSubgroupLabel(t, wwfSubgroupOf(row))}
+              {/* Subgroup is the schema filler for composites — hide it; the
+                  Step-1 bucket is shown in the composite column instead. */}
+              {row.wwf_is_composite
+                ? "—"
+                : wwfSubgroupLabel(t, wwfSubgroupOf(row))}
             </td>
             <td className="py-2 pr-3 text-gray-600">
               {row.wwf_is_composite ? (
@@ -1186,15 +1204,14 @@ export function ValidationTable({
                 <span className="text-gray-400">—</span>
               )}
             </td>
-            {/* WWF column — labelled food group (used by both PT and WWF
-                review rows in the combined "all" view). */}
+            {/* WWF column — composite-aware label (used by both PT and WWF
+                review rows in the combined "all" view). Composites show
+                "Composite · {bucket}", never the schema-filler food group. */}
             {wwfEnabled && (
               <td className="py-2 pr-3">
                 {row.wwf_food_group ? (
-                  <Pill
-                    tone={WWF_FOOD_GROUP_TONE[row.wwf_food_group] ?? "neutral"}
-                  >
-                    {wwfFoodGroupLabel(t, row.wwf_food_group)}
+                  <Pill tone={wwfCategoryTone(row)}>
+                    {wwfCategoryLabel(t, row)}
                   </Pill>
                 ) : (
                   <span className="text-gray-400">—</span>

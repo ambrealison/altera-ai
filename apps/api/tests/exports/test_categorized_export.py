@@ -113,6 +113,22 @@ class TestWorkbookBuilder:
         assert len(wb["Analyse Protein Tracker"]._charts) >= 1
         assert len(wb["Analyse WWF"]._charts) >= 1
 
+    def test_composite_shows_composite_not_food_group(self) -> None:
+        # The Pizza row is a composite (bucket=vegetarian). Its WWF group
+        # cell must read "Composite", never the FG2 food-group label, and the
+        # bucket detail lives in the composite column.
+        data = build_categorized_workbook(
+            project_name="Demo", rows=_rows(), pt_enabled=True, wwf_enabled=True
+        )
+        ws = load_workbook(BytesIO(data))["Produits"]
+        by_id = {
+            ws.cell(row=r, column=1).value: r for r in range(2, ws.max_row + 1)
+        }
+        pizza = by_id["PTWWF025"]
+        assert ws.cell(row=pizza, column=7).value == "Composite"  # WWF group
+        assert "FG2" not in str(ws.cell(row=pizza, column=7).value)
+        assert ws.cell(row=pizza, column=9).value == "vegetarian"  # bucket
+
 
 # ---------------------------------------------------------------------------
 # Download route
