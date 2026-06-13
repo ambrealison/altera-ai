@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -3945,54 +3946,89 @@ def export_categorized_xlsx_route(
         build_categorized_workbook,
     )
 
-    products = store.list_products_for_project(project.id)
-    pids = [p.id for p in products]
-    pt_map = store.get_pt_classifications_bulk(pids) if pids else {}
-    wwf_map = store.get_wwf_classifications_bulk(pids) if pids else {}
-    pt_enabled = Methodology.PROTEIN_TRACKER in project.methodologies_enabled
-    wwf_enabled = Methodology.WWF in project.methodologies_enabled
+    def _enum_value(v: object) -> str | None:
+        # Tolerate either an enum (``.value``) or an already-coerced string,
+        # so a stored classification with an unexpected shape can never 500
+        # the whole download (which would surface as "Failed to fetch").
+        if v is None:
+            return None
+        return getattr(v, "value", v)
 
-    rows: list[ExportRow] = []
-    for p in products:
-        ptc = pt_map.get(p.id)
-        wc = wwf_map.get(p.id)
-        wwf_sub = None
-        if wc is not None:
-            sub = (
-                wc.fg1_subgroup
-                or wc.fg2_subgroup
-                or wc.fg3_subgroup
-                or wc.fg5_grain_kind
-                or wc.fg7_snack_kind
+    def _num(v: object) -> float | None:
+        if v is None:
+            return None
+        try:
+            return float(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+
+    try:
+        products = store.list_products_for_project(project.id)
+        pids = [p.id for p in products]
+        pt_map = store.get_pt_classifications_bulk(pids) if pids else {}
+        wwf_map = store.get_wwf_classifications_bulk(pids) if pids else {}
+        pt_enabled = Methodology.PROTEIN_TRACKER in project.methodologies_enabled
+        wwf_enabled = Methodology.WWF in project.methodologies_enabled
+
+        rows: list[ExportRow] = []
+        for p in products:
+            ptc = pt_map.get(p.id)
+            wc = wwf_map.get(p.id)
+            wwf_sub = None
+            if wc is not None:
+                sub = (
+                    wc.fg1_subgroup
+                    or wc.fg2_subgroup
+                    or wc.fg3_subgroup
+                    or wc.fg5_grain_kind
+                    or wc.fg7_snack_kind
+                )
+                wwf_sub = _enum_value(sub)
+            rows.append(
+                ExportRow(
+                    external_product_id=p.external_product_id,
+                    product_name=p.product_name,
+                    retailer_category=p.retailer_category,
+                    pt_group=_enum_value(ptc.pt_group) if ptc is not None else None,
+                    pt_source=_enum_value(ptc.source) if ptc is not None else None,
+                    pt_confidence=_num(ptc.confidence) if ptc is not None else None,
+                    wwf_food_group=(
+                        _enum_value(wc.wwf_food_group) if wc is not None else None
+                    ),
+                    wwf_subgroup=wwf_sub,
+                    wwf_composite_bucket=(
+                        _enum_value(wc.composite_step1_bucket)
+                        if wc is not None
+                        else None
+                    ),
+                    wwf_source=_enum_value(wc.source) if wc is not None else None,
+                    wwf_confidence=_num(wc.confidence) if wc is not None else None,
+                )
             )
-            wwf_sub = sub.value if sub is not None else None
-        rows.append(
-            ExportRow(
-                external_product_id=p.external_product_id,
-                product_name=p.product_name,
-                retailer_category=p.retailer_category,
-                pt_group=ptc.pt_group.value if ptc is not None else None,
-                pt_source=ptc.source.value if ptc is not None else None,
-                pt_confidence=float(ptc.confidence) if ptc is not None else None,
-                wwf_food_group=wc.wwf_food_group.value if wc is not None else None,
-                wwf_subgroup=wwf_sub,
-                wwf_composite_bucket=(
-                    wc.composite_step1_bucket.value
-                    if wc is not None and wc.composite_step1_bucket is not None
-                    else None
-                ),
-                wwf_source=wc.source.value if wc is not None else None,
-                wwf_confidence=float(wc.confidence) if wc is not None else None,
-            )
+
+        data = build_categorized_workbook(
+            project_name=project.name,
+            rows=rows,
+            pt_enabled=pt_enabled,
+            wwf_enabled=wwf_enabled,
+            lang=lang,
         )
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 — never surface a bare 500
+        # A bare 500 from here reaches the browser without CORS headers
+        # (Starlette's error handler sits outside CORSMiddleware), so the
+        # frontend would only see "Failed to fetch". Convert it to a normal
+        # HTTPException — which IS wrapped by the CORS middleware — so the UI
+        # can show a real message instead.
+        logging.getLogger("altera_api.export").exception(
+            "categorized export failed project=%s", project.id
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"could not build the categorised export: {type(exc).__name__}",
+        ) from exc
 
-    data = build_categorized_workbook(
-        project_name=project.name,
-        rows=rows,
-        pt_enabled=pt_enabled,
-        wwf_enabled=wwf_enabled,
-        lang=lang,
-    )
     return Response(
         content=data,
         media_type=(
