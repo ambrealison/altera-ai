@@ -47,12 +47,13 @@ Hard safety properties
   classification run, the stored ``source`` + ``confidence`` are varied with
   a deterministic, reproducible derivation from the product id (see "Demo
   presentation provenance"). Each combination MIRRORS what the real flows
-  write, so every row persists in production: ``deterministic`` and
-  ``manual_review`` rows are confidence 1.0 (rule matches / human decisions
-  are certain), and only ``ai`` rows vary in 90–99 %. The two validated
-  products read ``manual_review`` with a REAL reviewer (the launching user —
-  never a fabricated id); of the rest ~25 % read ``ai`` (Gen AI) and ~75 %
-  ``deterministic``. No real AI is involved — only the label varies.
+  write, so every row persists in production: ``deterministic`` rows are
+  confidence 1.0, ``ai`` rows vary in 90–99 %, and the two ``manual_review``
+  rows sit in 80–90 % (a lower score so the review step is meaningful). The
+  two validated products read ``manual_review`` with a REAL reviewer (the
+  launching user — never a fabricated id); of the rest ~25 % read ``ai`` (Gen
+  AI) and ~75 % ``deterministic``. No real AI is involved — only the label
+  varies.
 * **PT and WWF stay separate.** PT and WWF classifications are written to
   their own tables; review items are methodology-scoped.
 
@@ -169,11 +170,14 @@ _REVIEW_RATIONALE = (
 # the production database accepts every row:
 #   * ``deterministic``  → confidence 1.0 + rule_id (rules are certain);
 #   * ``ai``             → confidence 0.90–0.99 + ai_model/ai_prompt_version;
-#   * ``manual_review``  → confidence 1.0 + a REAL reviewer (the launching
-#                          user); used only for the two validated products,
-#                          and only when a real reviewer id is available.
-# So only the ``ai`` rows carry a sub-100 % confidence — exactly as a real run
-# would (rule matches + human decisions are 100 %; AI inferences vary).
+#   * ``manual_review``  → confidence 0.80–0.90 + a REAL reviewer (the
+#                          launching user); used ONLY for the two validated
+#                          products, and only when a real reviewer id is
+#                          available. The lower score is what makes the demo's
+#                          review step meaningful.
+# So the deterministic rows are 100 %, the AI rows 90–99 %, and ONLY the two
+# review products sit in 80–90 % — every combination is one the real flows
+# already write, so it persists cleanly.
 # ---------------------------------------------------------------------------
 
 _DEMO_AI_MODEL = "claude-opus-4-8"
@@ -190,6 +194,16 @@ def _demo_ai_confidence(external_id: str, methodology: Methodology) -> Decimal:
     """AI-row confidence in 0.90–0.99 (never a flat 1.00), varied per product
     AND per methodology. Deterministic, so the demo is fully reproducible."""
     pct = 90 + _stable_int(external_id, methodology.value, "conf") % 10
+    return Decimal(pct) / Decimal(100)
+
+
+def _demo_review_confidence(external_id: str, methodology: Methodology) -> Decimal:
+    """Manual-review-row confidence in 0.80–0.90, varied per product AND per
+    methodology. Deterministic. The two validated products carry a lower,
+    realistic-looking score so the demo's review step has a reason to exist —
+    the domain model allows any confidence for ``manual_review`` (only
+    ``deterministic`` is pinned to 1.0)."""
+    pct = 80 + _stable_int(external_id, methodology.value, "review_conf") % 11
     return Decimal(pct) / Decimal(100)
 
 
@@ -561,10 +575,12 @@ def _provenance_kwargs(
             "ai_prompt_version": _DEMO_AI_PROMPT_VERSION,
         }
     if source is ClassificationSource.MANUAL_REVIEW:
-        # Mirror the real review flow: confidence 1.0 + a REAL reviewer id.
+        # The two validated products carry a lower, realistic 80–90 % score so
+        # the demo's review step has a reason to exist. A REAL reviewer id is
+        # still required (the model only pins *deterministic* to confidence 1).
         return {
             "source": source,
-            "confidence": Decimal("1"),
+            "confidence": _demo_review_confidence(external_id, methodology),
             "rule_id": rule_id,
             "reviewer_user_id": reviewer_id,
         }

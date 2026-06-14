@@ -420,7 +420,8 @@ class TestDemo25GoldenApplied:
                 if ext[pid] in DEMO25_REVIEW_IDS:
                     assert c.source is ClassificationSource.MANUAL_REVIEW
                     assert c.reviewer_user_id is not None
-                    assert c.confidence == Decimal("1")
+                    # The two validated products carry a lower 80–90 % score.
+                    assert Decimal("0.80") <= c.confidence <= Decimal("0.90")
                 elif c.source is ClassificationSource.DETERMINISTIC:
                     assert c.rule_id == rule_id
                     assert c.ai_model is None and c.ai_prompt_version is None

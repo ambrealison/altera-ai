@@ -71,12 +71,13 @@ and writes pre-approved classifications keyed by `external_product_id`:
   `source` + `confidence` are **varied with a deterministic, reproducible
   derivation from the product id** (no RNG — the demo stays byte-for-byte
   stable). Each combination **mirrors exactly what the real flows write**, so
-  every row persists in production: `deterministic` and `manual_review` rows
-  are **confidence 1.0** (a rule match / a human decision is certain) and only
-  the `ai` rows vary in **90–99 %**. The two human-validated products read
-  **`manual_review`** with a **real reviewer** (the launching user — never a
-  fabricated id); of the rest **~25 % read `ai`** (Gen AI) and **~75 %
-  `deterministic`**. No real AI is involved — only the label varies.
+  every row persists in production: `deterministic` rows are **confidence
+  1.0**, `ai` rows vary in **90–99 %**, and the two `manual_review` rows sit in
+  **80–90 %** (a lower score so the review step is meaningful). The two
+  human-validated products read **`manual_review`** with a **real reviewer**
+  (the launching user — never a fabricated id); of the rest **~25 % read `ai`**
+  (Gen AI) and **~75 % `deterministic`**. No real AI is involved — only the
+  label varies.
 
 ### Review routing — exactly two products
 
